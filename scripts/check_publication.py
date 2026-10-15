@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import struct
 import subprocess
 import sys
 import zipfile
@@ -97,6 +98,8 @@ def path_allowed(path: str) -> bool:
         return len(parts) == 2 and p.name in PUBLIC_DOCS
     if parts[0] == 'config':
         return len(parts) == 2 and p.name in PUBLIC_CONFIG
+    if parts[:2] == ('assets', 'readme'):
+        return len(parts) == 3 and p.name in {'wealth-ledger-mark.svg', 'report-preview.png', 'README.md'}
     if parts[:2] == ('assets', 'fonts'):
         return len(parts) == 3 and p.name in {'NotoSansTC-Regular.ttf', 'NotoSansSC-Regular.ttf', 'NotoSansSC-provenance.json', 'OFL.txt', 'OFL-SC.txt', 'README.md'}
     if parts[0] == '.githooks':
@@ -109,6 +112,16 @@ def path_allowed(path: str) -> bool:
 
 
 def content_issues(data: bytes, path: str) -> list[str]:
+    is_readme_preview = path == 'assets/readme/report-preview.png'
+    if is_readme_preview:
+        # This one image is generated from pinned synthetic examples, then visually reviewed.
+        if (len(data) < 45 or len(data) > 4 * 1024 * 1024
+                or data[:8] != b'\x89PNG\r\n\x1a\n' or data[8:16] != b'\x00\x00\x00\x0dIHDR'
+                or data[-12:] != b'\x00\x00\x00\x00IEND\xaeB`\x82'):
+            return ['invalid or oversized README preview PNG']
+        width, height = struct.unpack('>II', data[16:24])
+        if not (1 <= width <= 4000 and 1 <= height <= 4000):
+            return ['README preview dimensions exceed the reviewed limit']
     if path.endswith('.ttf'):
         # Vendored font license/provenance is reviewed separately in the manifest.
         return [] if data[:4] in {b'\x00\x01\x00\x00', b'OTTO', b'ttcf'} else ['invalid font container']
@@ -123,7 +136,7 @@ def content_issues(data: bytes, path: str) -> list[str]:
             return ['invalid spreadsheet fixture']
     if len(data) > MAX_TEXT_BYTES:
         return ['oversized text file']
-    if b'\x00' in data:
+    if b'\x00' in data and not is_readme_preview:
         return ['unexpected binary file']
     issues = [reason for reason, pattern in SECRET_PATTERNS if pattern.search(data)]
     for match in ASSIGNMENT.finditer(data):
