@@ -1,0 +1,72 @@
+# Policy reference; the application currently uses CLI arguments, not this file.
+# This file contains no account numbers or financial values.
+
+[project]
+name = "wealth-ledger"
+report_language = "en-CA" # Reference only; actual setting is reporting.locale in local.toml
+timezone = "America/Toronto"
+
+[database]
+path = "data/db/portfolio.sqlite3"
+encryption = "none"
+
+[tracking]
+official_snapshot_frequency = "monthly"
+retain_interim_snapshots = true
+include_cash_flow_ledger = true
+
+[storage]
+holdings_sources = "data/raw/holdings"
+activity_sources = "data/raw/activity"
+reports = "reports"
+backups = "backups"
+temporary_files = "work"
+
+[reports]
+formats = ["ods", "md", "pdf"]
+chart_format = "png"
+specification = "docs/report-spec.md"
+sections = [
+    "overview",
+    "holdings_by_currency",
+    "holdings_by_account",
+    "concentration",
+    "company_lookthrough",
+    "sector_country_region_exposure",
+    "instrument_types",
+    "cash_balances",
+    "unrealized_returns",
+    "account_security_matrix",
+    "snapshot_changes",
+    "history",
+    "cash_flows",
+    "data_quality",
+    "methodology",
+]
+chart_ids = [
+    "account_values",
+    "trading_currency_allocation",
+    "holdings_ranking",
+    "holdings_by_account",
+    "native_unrealized_pl",
+    "native_unrealized_return",
+    "instrument_type_allocation",
+    "account_security_weights",
+    "company_exposure",
+    "sector_exposure",
+    "country_exposure",
+    "region_exposure",
+]
+
+# Proposed calculation defaults for implementation.
+[reporting]
+base_currency = "CAD"
+display_currencies = ["CAD", "USD", "TWD"]
+retain_native_currency_values = true
+
+[foreign_exchange]
+usd_cad_source = "bank_of_canada"
+usd_twd_source = "central_bank_of_taiwan"
+conversion_anchor_currency = "USD"
+unavailable_date_policy = "previous_published_date"
+preserve_historical_rates = true

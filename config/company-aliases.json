@@ -1,0 +1,301 @@
+{
+  "version": 2,
+  "description": "Explicit issuer aliases merge share classes and ADRs, never ticker-only matches. Legal suffix normalization applies to these aliases and source names.",
+  "companies": [
+    {
+      "id": "amd",
+      "name": "Advanced Micro Devices",
+      "aliases": [
+        "Advanced Micro Devices"
+      ]
+    },
+    {
+      "id": "tsmc",
+      "name": "Taiwan Semiconductor Manufacturing",
+      "aliases": [
+        "Taiwan Semiconductor Manufacturing",
+        "Taiwan Semiconductor Manufacturing Co",
+        "Taiwan Semiconductor Manufacturing Co L",
+        "Taiwan Semiconductor Manufacturing Co Ltd",
+        "Taiwan Semiconductor Manufacturing Co Ltd ADR"
+      ]
+    },
+    {
+      "id": "nvidia",
+      "name": "NVIDIA",
+      "aliases": [
+        "NVIDIA"
+      ]
+    },
+    {
+      "id": "apple",
+      "name": "Apple",
+      "aliases": [
+        "Apple"
+      ]
+    },
+    {
+      "id": "microsoft",
+      "name": "Microsoft",
+      "aliases": [
+        "Microsoft"
+      ]
+    },
+    {
+      "id": "alphabet",
+      "name": "Alphabet",
+      "aliases": [
+        "Alphabet",
+        "Alphabet Inc Cl A",
+        "Alphabet Inc Cap Stk Cl C",
+        "Alphabet Inc Class A",
+        "Alphabet Inc Class C"
+      ]
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon",
+      "aliases": [
+        "Amazon.com",
+        "Amazon"
+      ]
+    },
+    {
+      "id": "meta",
+      "name": "Meta Platforms",
+      "aliases": [
+        "Meta Platforms"
+      ]
+    },
+    {
+      "id": "broadcom",
+      "name": "Broadcom",
+      "aliases": [
+        "Broadcom"
+      ]
+    },
+    {
+      "id": "micron",
+      "name": "Micron Technology",
+      "aliases": [
+        "Micron Technology"
+      ]
+    },
+    {
+      "id": "intel",
+      "name": "Intel",
+      "aliases": [
+        "Intel"
+      ]
+    },
+    {
+      "id": "tesla",
+      "name": "Tesla",
+      "aliases": [
+        "Tesla"
+      ]
+    },
+    {
+      "id": "walmart",
+      "name": "Walmart",
+      "aliases": [
+        "Walmart",
+        "Wal-Mart Stores"
+      ]
+    },
+    {
+      "id": "applied-materials",
+      "name": "Applied Materials",
+      "aliases": [
+        "Applied Materials",
+        "Applied Material"
+      ]
+    },
+    {
+      "id": "texas-instruments",
+      "name": "Texas Instruments",
+      "aliases": [
+        "Texas Instruments",
+        "Texas Instrument"
+      ]
+    },
+    {
+      "id": "asml",
+      "name": "ASML Holding",
+      "aliases": [
+        "ASML Holding",
+        "ASML Holding ADR"
+      ]
+    },
+    {
+      "id": "sk-hynix",
+      "name": "SK Hynix",
+      "aliases": [
+        "SK Hynix",
+        "SK Hynix American Depositary Share"
+      ]
+    },
+    {
+      "id": "marvell",
+      "name": "Marvell Technology",
+      "aliases": [
+        "Marvell Technology"
+      ]
+    },
+    {
+      "id": "kla",
+      "name": "KLA",
+      "aliases": [
+        "KLA",
+        "KLA-Tencor"
+      ]
+    },
+    {
+      "id": "analog-devices",
+      "name": "Analog Devices",
+      "aliases": [
+        "Analog Devices"
+      ]
+    },
+    {
+      "id": "lam-research",
+      "name": "Lam Research",
+      "aliases": [
+        "Lam Research"
+      ]
+    },
+    {
+      "id": "qualcomm",
+      "name": "Qualcomm",
+      "aliases": [
+        "Qualcomm"
+      ]
+    },
+    {
+      "id": "palantir",
+      "name": "Palantir Technologies",
+      "aliases": [
+        "Palantir Technologies"
+      ]
+    },
+    {
+      "id": "royal-bank",
+      "name": "Royal Bank of Canada",
+      "aliases": [
+        "Royal Bank of Canada"
+      ]
+    },
+    {
+      "id": "toronto-dominion",
+      "name": "Toronto-Dominion Bank",
+      "aliases": [
+        "Toronto-Dominion Bank",
+        "Toronto Dominion Bank"
+      ]
+    },
+    {
+      "id": "brookfield",
+      "name": "Brookfield Corporation",
+      "aliases": [
+        "Brookfield Corporation"
+      ]
+    },
+    {
+      "id": "costco",
+      "name": "Costco Wholesale",
+      "aliases": [
+        "Costco Wholesale"
+      ]
+    },
+    {
+      "id": "cisco",
+      "name": "Cisco Systems",
+      "aliases": [
+        "Cisco Systems"
+      ]
+    },
+    {
+      "id": "netflix",
+      "name": "Netflix",
+      "aliases": [
+        "Netflix"
+      ]
+    },
+    {
+      "id": "jpmorgan",
+      "name": "JPMorgan Chase",
+      "aliases": [
+        "JPMorgan Chase & Co",
+        "JPMorgan Chase"
+      ]
+    },
+    {
+      "id": "berkshire",
+      "name": "Berkshire Hathaway",
+      "aliases": [
+        "Berkshire Hathaway",
+        "Berkshire Hathaway Inc Class B"
+      ]
+    },
+    {
+      "id": "eli-lilly",
+      "name": "Eli Lilly",
+      "aliases": [
+        "Eli Lilly and Co",
+        "Eli Lilly & Co",
+        "Eli Lilly"
+      ]
+    },
+    {
+      "id": "space-exploration",
+      "name": "Space Exploration Technologies",
+      "aliases": [
+        "Space Exploration Technologies"
+      ]
+    },
+    {
+      "id": "samsung",
+      "name": "Samsung Electronics",
+      "aliases": [
+        "Samsung Electronics",
+        "Samsung Electronics Co Ltd Pfd"
+      ]
+    },
+    {
+      "id": "alibaba",
+      "name": "Alibaba Group Holding",
+      "aliases": [
+        "Alibaba Group Holding",
+        "Alibaba Group Holding Ltd ADR",
+        "Alibaba Group Holding Ltd Ordinary Shares"
+      ]
+    },
+    {
+      "id": "bhp",
+      "name": "BHP Group",
+      "aliases": [
+        "BHP Group",
+        "BHP Group Ltd ADR"
+      ]
+    },
+    {
+      "id": "sony",
+      "name": "Sony Group",
+      "aliases": [
+        "Sony Group",
+        "Sony Group Corp ADR"
+      ]
+    },
+    {
+      "id": "stmicroelectronics",
+      "name": "STMicroelectronics",
+      "aliases": [
+        "STMicroelectronics",
+        "STMicroelectronics NV"
+      ],
+      "sources": [
+        "https://investors.st.com/resources/faqs"
+      ]
+    }
+  ]
+}

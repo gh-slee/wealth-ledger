@@ -1,0 +1,11 @@
+{
+  "provider": "Synthetic offline demonstration",
+  "pair": "BTC-USD",
+  "as_of": "2024-02-01T10:00:00-05:00",
+  "close": "80000",
+  "candle_start": "2024-02-01T14:59:00+00:00",
+  "candle_end": "2024-02-01T15:00:00+00:00",
+  "source_url": "https://example.test/synthetic-btc-price",
+  "evidence_sha256": "19e7801fea128a05bfb9cc3dbc52b9f5331f1fdb0a0ab6f269e9380885e781f9",
+  "policy": "synthetic_demo_only_not_market_data"
+}

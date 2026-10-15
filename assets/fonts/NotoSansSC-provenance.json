@@ -1,0 +1,10 @@
+{
+  "family": "Noto Sans SC",
+  "version": "2.004-H2",
+  "license": "SIL Open Font License 1.1",
+  "copyright": "(c) 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.",
+  "upstream": "https://github.com/notofonts/noto-cjk",
+  "source_kind": "Unmodified font from a pre-existing licensed distribution; not downloaded during this task.",
+  "sha256": "dc71173babc38dfd019912965f2b4b3421fb347ebd854e7b96f64ad63673924a",
+  "runtime_system_font_dependency": false
+}

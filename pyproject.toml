@@ -1,0 +1,13 @@
+[project]
+name = "wealth-ledger"
+version = "0.1.0"
+description = "Local, reproducible holdings and Bitcoin ledger with ODS, Markdown and PDF reports"
+requires-python = ">=3.12"
+dependencies = ["matplotlib>=3.9,<4", "reportlab>=4,<5", "pypdf>=5", "Pillow>=10", "tzdata>=2025.2", "certifi>=2026.2.25,<2027"]
+
+[tool.wealth-ledger]
+package-directory = "src/wealth_ledger"
+
+# Supported setup: clone this repository and install requirements.lock into a venv.
+# The CLI and bundled font assets resolve relative to the checkout; a pip wheel
+# distribution is not currently supported.

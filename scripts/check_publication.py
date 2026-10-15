@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+"""Fail-closed, local-only audit of files and Git history proposed for publication."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path, PurePosixPath
+import re
+import subprocess
+import sys
+import zipfile
+import io
+
+PUBLIC_ROOT_FILES = {
+    '.gitignore', '.gitattributes', 'AGENTS.md', 'README.md', 'TODO.md',
+    'LICENSE', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',
+    'pyproject.toml', 'requirements.txt', 'requirements.lock', '.env.example',
+}
+PUBLIC_DOCS = {
+    'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
+    'btc-reconciliation-plan.md', 'publishing.md', 'development.md', 'source-adapters.md', 'i18n-plan.md',
+}
+PUBLIC_CONFIG = {
+    'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
+    'bull-opening.example.json', 'fx.example.json', 'publish.example.toml', 'local.example.toml',
+}
+PUBLIC_FUND_FIXTURES = {
+    'README.md', 'blackrock.csv', 'bmo.json', 'ci.html', 'fidelity.json',
+    'invesco.json', 'vanguard.json', 'vaneck.xlsx',
+}
+IGNORED_ROOTS = {
+    '.git', 'data', 'reports', 'backups', 'work', 'private', 'outputs', 'output',
+    'dist', 'build', 'node_modules', 'venv', 'htmlcov', '.cursor', '.codex', '.agents',
+    '.pytest_cache', '.mypy_cache', '.ruff_cache',
+}
+PRIVATE_SUFFIXES = ('.db', '.sqlite', '.sqlite3', '.pem', '.key', '.p12', '.pfx',
+                    '.keystore', '.log', '.bak', '.pyc', '.pyo')
+SECRET_PATTERNS = (
+    ('private key', re.compile(rb'-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----')),
+    ('GitHub credential', re.compile(rb'\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{30,}\b')),
+    ('AWS access key', re.compile(rb'\b(?:AKIA|ASIA)[A-Z0-9]{16}\b')),
+    ('credential-bearing URL', re.compile(rb'https?://[^\s/:]+:[^\s/@]+@')),
+    ('explicit private fixture marker', re.compile(rb'\b(?:PRIVATE_' + rb'FINANCIAL_FIXTURE|DO_NOT_PUBLISH_' + rb'PERSONAL_DATA)\b')),
+    ('machine-specific home path', re.compile(rb'/(?:Users|home)/[A-Za-z0-9_.-]+/')),
+)
+ASSIGNMENT = re.compile(
+    rb'''(?im)^[ \t]*(?:["']?)(?:api[_-]?key|access[_-]?token|auth[_-]?token|password|secret[_-]?key|client[_-]?secret)(?:["']?)[ \t]*[:=][ \t]*["']?([^\r\n"'#]{8,})'''
+)
+PLACEHOLDERS = ('example', 'placeholder', 'changeme', 'your_', 'your-', '<', 'os.',
+                'getenv', 'environ', 'none', 'false', 'null')
+MAX_TEXT_BYTES = 8 * 1024 * 1024
+
+
+class AuditError(RuntimeError):
+    """Local evidence is insufficient to authorize publication."""
+
+
+def git(root: Path, *args: str) -> bytes:
+    result = subprocess.run(['git', '-C', str(root), *args], capture_output=True)
+    if result.returncode:
+        # Git errors may contain URLs; report only the operation, never stderr.
+        raise AuditError('Git operation failed: ' + args[0])
+    return result.stdout
+
+
+def path_allowed(path: str) -> bool:
+    p = PurePosixPath(path)
+    if p.is_absolute() or '..' in p.parts or '\\' in path or not p.parts or any(ord(ch) < 32 or 0xD800 <= ord(ch) <= 0xDFFF for ch in path):
+        return False
+    parts = p.parts
+    if any(part in {'__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'} for part in parts):
+        return False
+    if any(part.startswith('.venv') for part in parts):
+        return False
+    if parts[0] in IGNORED_ROOTS or path.lower().endswith(PRIVATE_SUFFIXES):
+        return False
+    if len(parts) == 1:
+        return path in PUBLIC_ROOT_FILES
+    if parts[0] == 'src':
+        return (len(parts) >= 3 and parts[1] == 'wealth_ledger' and p.suffix == '.py'
+                or len(parts) == 4 and parts[1:3] == ('wealth_ledger', 'locales')
+                and p.name in {'registry.json', 'legacy.json', 'en-CA.json', 'zh-TW.json', 'zh-CN.json'})
+    if parts[0] == 'scripts':
+        return len(parts) == 2 and p.suffix == '.py'
+    if parts[0] == 'tests':
+        if len(parts) == 2:
+            return p.name.startswith('test_') and p.suffix == '.py'
+        return len(parts) == 4 and parts[1:3] == ('fixtures', 'fund_sources') and p.name in PUBLIC_FUND_FIXTURES
+    if parts[0] == 'examples':
+        if len(parts) == 2:
+            return p.name in {'README.md', 'demo.py'}
+        if len(parts) == 3 and parts[1] == 'data':
+            return p.name in {'wealthsimple-holdings.csv', 'bull-orders.csv', 'fx.json', 'btc-price.json'}
+        return len(parts) == 3 and parts[1] == 'templates' and p.name in {'btc_events.csv', 'cash_flows.csv'}
+    if parts[0] == 'docs':
+        return len(parts) == 2 and p.name in PUBLIC_DOCS
+    if parts[0] == 'config':
+        return len(parts) == 2 and p.name in PUBLIC_CONFIG
+    if parts[:2] == ('assets', 'fonts'):
+        return len(parts) == 3 and p.name in {'NotoSansTC-Regular.ttf', 'NotoSansSC-Regular.ttf', 'NotoSansSC-provenance.json', 'OFL.txt', 'OFL-SC.txt', 'README.md'}
+    if parts[0] == '.githooks':
+        return len(parts) == 2 and p.name in {'pre-commit', 'pre-push'}
+    if path == '.github/pull_request_template.md':
+        return True
+    if parts[:2] == ('.github', 'workflows'):
+        return len(parts) == 3 and p.name in {'ci.yml', 'ci.yaml'}
+    return False
+
+
+def content_issues(data: bytes, path: str) -> list[str]:
+    if path.endswith('.ttf'):
+        # Vendored font license/provenance is reviewed separately in the manifest.
+        return [] if data[:4] in {b'\x00\x01\x00\x00', b'OTTO', b'ttcf'} else ['invalid font container']
+    if path.endswith('.xlsx'):
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                info = archive.infolist()
+                if sum(item.file_size for item in info) > MAX_TEXT_BYTES:
+                    return ['oversized spreadsheet fixture']
+                data = b'\n'.join(archive.read(item) for item in info if item.filename.endswith('.xml'))
+        except (zipfile.BadZipFile, OSError):
+            return ['invalid spreadsheet fixture']
+    if len(data) > MAX_TEXT_BYTES:
+        return ['oversized text file']
+    if b'\x00' in data:
+        return ['unexpected binary file']
+    issues = [reason for reason, pattern in SECRET_PATTERNS if pattern.search(data)]
+    for match in ASSIGNMENT.finditer(data):
+        value = match.group(1).decode('utf-8', errors='replace').strip().lower()
+        if not any(word in value for word in PLACEHOLDERS):
+            issues.append('possible credential assignment')
+            break
+    return issues
+
+
+def new_result(mode: str) -> dict:
+    return {'mode': mode, 'passed': False, 'files': [], 'violations': [],
+            'limitations': ['Pattern checks cannot prove absence of personal data; review the public manifest.']}
+
+
+def record(result: dict, path: str, data: bytes | None, *, origin: str, mode: str = '100644') -> None:
+    errors = []
+    if not path_allowed(path):
+        errors.append('path is outside the public allowlist')
+    if mode not in {'100644', '100755'}:
+        errors.append('symlink, submodule, or unsupported Git mode')
+    if data is not None:
+        errors.extend(content_issues(data, path))
+    if errors:
+        result['violations'].append({'path': path, 'origin': origin, 'reasons': errors})
+    else:
+        result['files'].append({'path': path, 'origin': origin,
+                                'sha256': hashlib.sha256(data).hexdigest() if data is not None else None,
+                                'bytes': len(data) if data is not None else 0})
+
+
+def finish(result: dict) -> dict:
+    result['passed'] = not result['violations']
+    return result
+
+
+def scan_worktree(root: Path) -> dict:
+    """Build a source-only manifest; unknown non-private files fail closed."""
+    result = new_result('worktree')
+    for path in sorted(root.rglob('*')):
+        rel = path.relative_to(root).as_posix()
+        parts = PurePosixPath(rel).parts
+        if parts[0] != 'examples' and not path_allowed(rel) and path.suffix.lower() in {'.csv', '.ods', '.pdf', '.xlsx'}:
+            continue
+        if path.name in {'.DS_Store', 'Thumbs.db', '.coverage'} or rel.lower().endswith(PRIVATE_SUFFIXES):
+            continue
+        if parts[0] in IGNORED_ROOTS or any(part in {'.git', '__pycache__'} or part.startswith('.venv') or part.endswith('.egg-info') for part in parts):
+            continue
+        if len(parts) >= 2 and parts[0] == 'config' and parts[1] not in PUBLIC_CONFIG:
+            continue  # Ignored private config; Git modes still reject if tracked.
+        if parts[0].startswith('.env') and rel != '.env.example':
+            continue
+        if rel == 'docs/session-handoff.md':
+            continue
+        if path.is_symlink():
+            record(result, rel, None, origin='worktree', mode='120000')
+        elif path.is_file():
+            record(result, rel, path.read_bytes(), origin='worktree')
+    return finish(result)
+
+
+def tree_entries(root: Path, revision: str) -> list[tuple[str, str, str]]:
+    out = git(root, 'ls-tree', '-r', '-z', revision)
+    entries = []
+    for row in out.split(b'\0'):
+        if not row:
+            continue
+        meta, raw_path = row.split(b'\t', 1)
+        mode, kind, oid = meta.decode('ascii').split()
+        entries.append((mode, oid, raw_path.decode('utf-8', errors='surrogateescape')))
+    return entries
+
+
+def scan_staged(root: Path) -> dict:
+    # Audit the whole index, including tracked private files unchanged this commit.
+    result = new_result('staged')
+    for row in git(root, 'ls-files', '--stage', '-z').split(b'\0'):
+        if not row:
+            continue
+        meta, raw_path = row.split(b'\t', 1)
+        mode, oid, stage = meta.decode('ascii').split()
+        path = raw_path.decode('utf-8', errors='surrogateescape')
+        if stage != '0':
+            result['violations'].append({'path': path, 'origin': 'index', 'reasons': ['unresolved merge']})
+            continue
+        data = git(root, 'cat-file', 'blob', oid) if mode in {'100644', '100755', '120000'} else None
+        record(result, path, data, origin='index', mode=mode)
+    return finish(result)
+
+
+def scan_history(root: Path, *, base: str | None = None, head: str = 'HEAD', all_history: bool = False) -> dict:
+    result = new_result('outgoing-history')
+    if not all_history and not base:
+        raise AuditError('An explicit base ref or --all-history is required.')
+    head_oid = git(root, 'rev-parse', '--verify', head + '^{commit}').decode().strip()
+    revisions = [head_oid]
+    if base and not all_history:
+        base_oid = git(root, 'rev-parse', '--verify', base + '^{commit}').decode().strip()
+        revisions.append('^' + base_oid)
+    commits = git(root, 'rev-list', *revisions).decode().splitlines()
+    seen: set[tuple[str, str, str]] = set()
+    for commit in commits:
+        for mode, oid, path in tree_entries(root, commit):
+            key = (mode, oid, path)
+            if key in seen:
+                continue
+            seen.add(key)
+            data = git(root, 'cat-file', 'blob', oid) if mode in {'100644', '100755', '120000'} else None
+            record(result, path, data, origin=commit, mode=mode)
+        emails = git(root, 'show', '-s', '--format=%ae%n%ce', commit).decode().splitlines()
+        if any(not re.fullmatch(r'(?:[0-9]+\+)?[A-Za-z0-9-]+@users\.noreply\.github\.com', email) for email in emails):
+            result['violations'].append({'path': '(commit identity)', 'origin': commit, 'reasons': ['commit email is not a GitHub noreply identity']})
+        message = git(root, 'show', '-s', '--format=%B', commit)
+        for reason in content_issues(message, 'commit-message.txt'):
+            result['violations'].append({'path': '(commit message)', 'origin': commit, 'reasons': [reason]})
+    result['commits_checked'] = len(commits)
+    return finish(result)
+
+
+def scan_pre_push(root: Path, lines: str) -> dict:
+    result = new_result('pre-push')
+    for line in lines.splitlines():
+        fields = line.split()
+        if len(fields) != 4:
+            raise AuditError('Malformed pre-push input.')
+        local_ref, local_oid, remote_ref, remote_oid = fields
+        if set(local_oid) == {'0'}:
+            raise AuditError('Automatic branch deletion is not permitted.')
+        # Scan all reachable history, even when a private blob was later deleted.
+        child = scan_history(root, head=local_oid, all_history=True)
+        result['files'].extend(child['files'])
+        result['violations'].extend(child['violations'])
+    return finish(result)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--worktree', action='store_true')
+    mode.add_argument('--staged', action='store_true')
+    mode.add_argument('--outgoing', metavar='BASE_REF')
+    mode.add_argument('--all-history', action='store_true')
+    mode.add_argument('--pre-push', action='store_true')
+    parser.add_argument('--manifest', type=Path, help='Optional audit JSON output (use an ignored private/work directory).')
+    args = parser.parse_args(argv)
+    try:
+        if args.worktree:
+            result = scan_worktree(args.root)
+        elif args.staged:
+            result = scan_staged(args.root)
+        elif args.pre_push:
+            result = scan_pre_push(args.root, sys.stdin.read())
+        else:
+            result = scan_history(args.root, base=args.outgoing, all_history=args.all_history)
+    except (AuditError, OSError) as exc:
+        print('Publication audit could not complete: ' + str(exc), file=sys.stderr)
+        return 2
+    output = json.dumps(result, ensure_ascii=False, indent=2)
+    if args.manifest:
+        args.manifest.parent.mkdir(parents=True, exist_ok=True)
+        args.manifest.write_text(output + '\n', encoding='utf-8')
+    print(output)
+    return 0 if result['passed'] else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1,0 +1,8 @@
+{
+  "btc": "0",
+  "lbtc": "0",
+  "cad": "0",
+  "basis": "SYNTHETIC EXAMPLE ONLY: explicit zero BTC and LBTC before the first imported order; replace with your documented opening assumption. Unknown holdings must not be declared zero.",
+  "cad_basis": "SYNTHETIC EXAMPLE ONLY: explicit zero CAD balance before the first imported funding order; replace with your documented starting balance.",
+  "confirmed_by": "SYNTHETIC-DEMO-CONFIRMATION"
+}

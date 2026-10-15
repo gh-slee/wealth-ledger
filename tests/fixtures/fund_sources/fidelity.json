@@ -1,0 +1,20 @@
+{
+  "axisCode": "FBTC",
+  "holdings": {
+    "holdingsByCategory": {
+      "Synthetic assets": {
+        "asOfDate": "2024-01-31",
+        "holdings": [
+          {
+            "name": "BITCOIN",
+            "netPercent": "95.00%"
+          },
+          {
+            "name": "U.S. dollar",
+            "netPercent": "5.00%"
+          }
+        ]
+      }
+    }
+  }
+}

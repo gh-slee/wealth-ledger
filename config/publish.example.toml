@@ -1,0 +1,9 @@
+# Copy to publish.local.toml only after reviewing the publication workflow.
+# Local authorization is ignored and must never be committed.
+[publication]
+authorized = false
+host = "github.com"
+repository = "OWNER/REPOSITORY"
+remote = "origin"
+feature_prefix = "feature/"
+create_pr = true

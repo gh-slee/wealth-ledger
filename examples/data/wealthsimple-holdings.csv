@@ -1,0 +1,9 @@
+Account Name,Account Type,Account Classification,Account Number,Symbol,Exchange,MIC,Name,Security Type,Quantity,Position Direction,Market Price,Market Price Currency,Book Value (CAD),Book Value Currency (CAD),Book Value (Market),Book Value Currency (Market),Market Value,Market Value Currency,Market Unrealized Returns,Market Unrealized Returns Currency
+TFSA,TFSA,Trade,DEMO-TFSA,VEQT,TSX,XTSE,Synthetic ETF demonstration,EXCHANGE_TRADED_FUND,10,LONG,20,CAD,180,CAD,180,CAD,200,CAD,20,CAD
+TFSA,TFSA,Trade,DEMO-TFSA,CAD,,,CAD,CURRENCY,50,LONG,1,CAD,50,CAD,50,CAD,50,CAD,0,CAD
+RRSP,RRSP,Trade,DEMO-RRSP,DEMO-B,NASDAQ,XNAS,Synthetic Beta Corporation,EQUITY,5,LONG,25,USD,150.0,CAD,100,USD,125,USD,25,USD
+RRSP,RRSP,Trade,DEMO-RRSP,USD,,,USD,CURRENCY,25,LONG,1,USD,37.5,CAD,25,USD,25,USD,0,USD
+Non-registered,Non-registered,Trade,DEMO-NONR,DEMO-A,TSX,XTSE,Synthetic Alpha Corporation,EQUITY,20,LONG,12,CAD,200,CAD,200,CAD,240,CAD,40,CAD
+Non-registered,Non-registered,Trade,DEMO-NONR,CAD,,,CAD,CURRENCY,75,LONG,1,CAD,75,CAD,75,CAD,75,CAD,0,CAD
+
+As of 2024-02-01 10:00 GMT-05:00

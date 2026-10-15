@@ -1,0 +1,42 @@
+name: Offline tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-312-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install locked dependencies
+        run: python -m pip install -r requirements.lock
+      - name: Check public worktree privacy
+        run: python scripts/check_publication.py --worktree
+      - name: Run isolated synthetic unit tests
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Generate synthetic offline reports with default policy
+        run: python examples/demo.py --output work/demo-default
+      - name: Verify explicit BTC cost proxy opt-in
+        run: python examples/demo.py --output work/demo-proxy --btc-cost-policy bull_average_proxy
+
+      - name: Verify Traditional Chinese reports
+        run: python examples/demo.py --output work/demo-tc --locale zh-TW
+      - name: Verify Simplified Chinese reports
+        run: python examples/demo.py --output work/demo-sc --locale zh-CN

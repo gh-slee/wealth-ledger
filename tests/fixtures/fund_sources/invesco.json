@@ -1,0 +1,35 @@
+{
+  "cusip": "46138G649",
+  "effectiveBusinessDate": "2024-01-31",
+  "effectiveDate": "2024-01-31",
+  "totalNumberOfHoldings": 4,
+  "holdings": [
+    {
+      "issuerName": "Synthetic ADR Corporation",
+      "percentageOfTotalNetAssets": 65,
+      "securityTypeName": "American Depositary Receipt",
+      "ticker": "SYN-ADR",
+      "cusip": "SYN000001",
+      "sectorName": "Synthetic sector"
+    },
+    {
+      "issuerName": "Synthetic Beta Corporation",
+      "percentageOfTotalNetAssets": 36,
+      "securityTypeName": "Equity",
+      "ticker": "SYN-B",
+      "cusip": "SYN000002"
+    },
+    {
+      "issuerName": "Synthetic dollar cash",
+      "percentageOfTotalNetAssets": -1,
+      "securityTypeName": "Cash",
+      "ticker": "SYN-CASH"
+    },
+    {
+      "issuerName": "Synthetic unweighted entry",
+      "percentageOfTotalNetAssets": null,
+      "securityTypeName": "Equity",
+      "ticker": "SYN-U"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "usd_cad": "1.3500",
+  "usd_twd": "32.0000",
+  "usd_cad_date": "2025-01-31",
+  "usd_twd_date": "2025-01-31",
+  "usd_cad_source": "https://example.invalid/synthetic-usd-cad",
+  "usd_twd_source": "https://example.invalid/synthetic-usd-twd"
+}

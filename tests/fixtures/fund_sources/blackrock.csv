@@ -1,0 +1,6 @@
+﻿Fund Holdings as of,"Jan 31, 2024"
+
+Ticker,Name,Sector,Asset Class,Weight (%),Location
+SYN-A,Synthetic Alpha Corporation,Synthetic sector,Equity,60,United States
+SYN-B,Synthetic Beta Corporation,Synthetic sector,Equity,35,Canada
+SYN-CASH,Synthetic dollar cash,,Cash,5,United States

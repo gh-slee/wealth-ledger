@@ -1,0 +1,44 @@
+{
+  "data": {
+    "funds": [
+      {
+        "profile": {
+          "fundFullName": "Synthetic all-equity test portfolio",
+          "primarySectorEquityClassification": "ICB Sectors"
+        }
+      }
+    ],
+    "borHoldings": [
+      {
+        "delayeredHoldings": {
+          "items": [
+            {
+              "issuerName": "Synthetic Alpha Corporation",
+              "marketValuePercentage": 60,
+              "sedol1": "SYN0001",
+              "ticker": "SYN-A",
+              "securityType": "EQ.STOCK",
+              "effectiveDate": "2024-01-31",
+              "bloombergIsoCountry": "US",
+              "gicsSectorDescription": "Information Technology",
+              "icbIndustryDescription": "Technology"
+            },
+            {
+              "issuerName": "Synthetic Beta Corporation",
+              "marketValuePercentage": 40,
+              "sedol1": "SYN0002",
+              "ticker": "SYN-B",
+              "securityType": "EQ.STOCK",
+              "effectiveDate": "2024-01-31",
+              "bloombergIsoCountry": "CA",
+              "gicsSectorDescription": "Industrials",
+              "icbIndustryDescription": "Industrials"
+            }
+          ],
+          "totalHoldings": 2,
+          "lastItemKey": null
+        }
+      }
+    ]
+  }
+}

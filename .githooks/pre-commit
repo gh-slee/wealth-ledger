@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+root=$(git rev-parse --show-toplevel)
+if [ -x "$root/.venv-portable/bin/python" ]; then
+  python="$root/.venv-portable/bin/python"
+else
+  python=python3
+fi
+exec "$python" "$root/scripts/check_publication.py" --root "$root" --staged

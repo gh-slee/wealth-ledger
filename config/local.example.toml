@@ -1,0 +1,7 @@
+# Copy to config/local.toml (ignored by Git) to choose a reporting policy.
+[reporting]
+# Supported: en-CA, zh-TW, zh-CN. New ledgers default to English.
+locale = "en-CA"
+# actual_only never uses later Bull purchases to approximate other BTC costs.
+# bull_average_proxy is an optional estimate, not actual costs or tax ACB.
+btc_cost_policy = "actual_only"

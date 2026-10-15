@@ -1,0 +1,8 @@
+{
+  "usd_cad": "1.5",
+  "usd_twd": "30",
+  "usd_cad_date": "2024-02-01",
+  "usd_twd_date": "2024-02-01",
+  "usd_cad_source": "https://example.test/synthetic-cad-rate",
+  "usd_twd_source": "https://example.test/synthetic-twd-rate"
+}
