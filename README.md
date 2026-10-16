@@ -253,6 +253,12 @@ python scripts/check_publication.py --worktree
 
 Tests and demos use isolated synthetic data. New calculations must preserve Decimal precision, source dates, immutable history, and unknown/zero semantics. Read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before contributing. No LLM is required to run or test features.
 
+## Self-hosted web app roadmap
+
+A Docker self-hosted web app is planned for one owner or household with multiple independent portfolios: React + TypeScript + Vite, a FastAPI API, Python background workers, SQLite, and persistent private storage. It will reuse the CLI's financial services and preserve ODS, Markdown, and PDF exports while adding browser charts, uploads, and data downloads.
+
+**The web app is not implemented yet.** The current supported workflow remains the CLI above. See the [architecture and acceptance plan](docs/self-hosted-webapp.md) and [WEB-001–WEB-007 tracker](TODO.md). No Docker startup command is advertised before container acceptance passes.
+
 ## Project status
 
 **Pre-release.** The public source checkout has passed local synthetic tests, a fresh macOS/Python 3.12 dependency-install check, and [Linux/Python 3.12 CI](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491) with 263 tests plus offline default/proxy and three-language report demonstrations. Broader platform acceptance and an installable distribution remain pending.

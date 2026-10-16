@@ -20,7 +20,7 @@ PUBLIC_ROOT_FILES = {
 }
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
-    'btc-reconciliation-plan.md', 'publishing.md', 'development.md', 'source-adapters.md', 'i18n-plan.md',
+    'btc-reconciliation-plan.md', 'publishing.md', 'development.md', 'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md',
 }
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
@@ -247,7 +247,11 @@ def scan_history(root: Path, *, base: str | None = None, head: str = 'HEAD', all
             data = git(root, 'cat-file', 'blob', oid) if mode in {'100644', '100755', '120000'} else None
             record(result, path, data, origin=commit, mode=mode)
         emails = git(root, 'show', '-s', '--format=%ae%n%ce', commit).decode().splitlines()
-        if any(not re.fullmatch(r'(?:[0-9]+\+)?[A-Za-z0-9-]+@users\.noreply\.github\.com', email) for email in emails):
+        # GitHub web merges use its public system noreply as committer.
+        # Authors and locally created commits still require users.noreply identities.
+        user_noreply = r'(?:[0-9]+\+)?[A-Za-z0-9-]+@users\.noreply\.github\.com'
+        if (len(emails) != 2 or not re.fullmatch(user_noreply, emails[0])
+                or not (emails[1] == 'noreply@github.com' or re.fullmatch(user_noreply, emails[1]))):
             result['violations'].append({'path': '(commit identity)', 'origin': commit, 'reasons': ['commit email is not a GitHub noreply identity']})
         message = git(root, 'show', '-s', '--format=%B', commit)
         for reason in content_issues(message, 'commit-message.txt'):
