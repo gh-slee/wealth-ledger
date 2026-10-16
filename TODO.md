@@ -28,7 +28,7 @@
 
 日常便利功能建議下一項為 FUT-002；資金流主線建議下一項為 Bull 入金來源分類與轉移配對。尚未完成項目不妨礙目前支援的更新流程。
 
-## 多語系 i18n（已實作，待首次公開發布）
+## 多語系 i18n（已實作並公開）
 
 首批 `zh-TW`、`en-CA`、`zh-CN`。新安裝預設英文、既有專案保留繁中；CLI／設定與離線另版契約見 [語系指南](docs/i18n-plan.md)。完整文件翻譯及其他語系另列待辦；遠端發布不代表已完成。
 
@@ -64,10 +64,11 @@
 - [x] 公開文件改為通用契約與合成範例，個人歷史交接及設定分離。
 - [x] 公開檔案允許清單、提交／推送內容檢查、乾淨來源副本與合成示範驗收；測試及示範不依賴私人帳本。
 - [x] `actual_only` 公開預設及明確選用 `bull_average_proxy` 的設定／回歸驗證。
-- [x] MIT 授權、第三方字型授權、CI 工作流程與功能分支＋PR 開發工具；發布工具已通過隔離測試，尚未連接實際遠端。
+- [x] MIT 授權、第三方字型授權、CI 工作流程與功能分支＋PR 開發工具；已連接公開 GitHub repository，後續開發依測試／隱私檢查及 feature branch＋PR 流程執行。
 - [x] 全新虛擬環境從官方 PyPI 依鎖檔安裝，並通過離線測試及合成報告驗收（macOS／Python 3.12）。
-- [ ] GitHub Linux／Python 3.12 CI 的首次遠端驗收，以及其他平台驗收；本機通過不等於遠端或其他平台已驗收。
-- [ ] 全部公開檢查通過且 GitHub 登入完成後，建立 repository 並首次推送。
+- [x] GitHub Linux／Python 3.12 首次遠端驗收：263 項測試與離線預設／BTC 代理政策及三語合成報告通過（[CI 紀錄](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491)）。
+- [ ] 其他平台驗收；macOS／Linux 通過不等於所有平台已驗收。
+- [x] 經公開 manifest／完整歷史檢查與使用者確認，建立 public 的 [gh-slee/wealth-ledger](https://github.com/gh-slee/wealth-ledger) 並完成首次推送。
 
 公開工作依 [發布流程](docs/publishing.md) 執行，未通過不能標成已發布。正常資料匯入不觸發 commit／push。
 
