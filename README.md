@@ -162,7 +162,7 @@ Upload either supported CSV, both, or an optional BTC total. Monthly snapshots a
 | 🌐 Localization | **UTF-8 JSON · `ContextVar` · Noto Sans TC/SC** | Three static language catalogs, isolated rendering contexts, and bundled fonts. |
 | 🔗 Reference data | **Python HTTP clients · certifi** | Official issuer holdings, FX references, and saved BTC price evidence. |
 | 🧪 Verification | **`unittest` · formula/cache and PDF/XML checks** | Isolated synthetic tests, source consistency, and publication checks. |
-| ⚙️ Automation | **GitHub Actions · `requirements.lock`** | Configured Linux/Python 3.12 tests and offline demos; initial remote CI acceptance is pending. |
+| ⚙️ Automation | **GitHub Actions · `requirements.lock`** | Linux/Python 3.12 tests and offline demos; the initial remote run passed. |
 
 No database server, JavaScript runtime, office suite, or AI service is required for production use. GitHub CLI is only for the separate maintainer publication workflow. Dependency versions are pinned in [requirements.lock](requirements.lock); third-party licenses are described in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
@@ -255,7 +255,7 @@ Tests and demos use isolated synthetic data. New calculations must preserve Deci
 
 ## Project status
 
-**Pre-release.** Supported source-checkout workflows have local synthetic tests and a fresh macOS/Python 3.12 dependency-install check. Linux CI is configured but its first remote run, broader platform acceptance, and an installable distribution remain pending. No build-status or download-count badge is shown before those results exist.
+**Pre-release.** The public source checkout has passed local synthetic tests, a fresh macOS/Python 3.12 dependency-install check, and [Linux/Python 3.12 CI](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491) with 263 tests plus offline default/proxy and three-language report demonstrations. Broader platform acceptance and an installable distribution remain pending.
 
 Current CSV import supports the documented Wealthsimple and Bull formats. Official ETF adapters have their own registry; a general installable bank/broker/exchange **parser-plugin SDK is planned, not available yet**.
 
