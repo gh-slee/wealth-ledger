@@ -25,7 +25,7 @@ class PublicationPolicyTests(unittest.TestCase):
                      'examples/data/btc-price.json', 'examples/templates/btc_events.csv',
                      'examples/templates/cash_flows.csv', 'THIRD_PARTY_NOTICES.md',
                      '.github/pull_request_template.md', 'config/local.example.toml',
-                     'docs/i18n-plan.md', 'src/wealth_ledger/locales/en-CA.json',
+                     'docs/i18n-plan.md', 'docs/self-hosted-webapp.md', 'src/wealth_ledger/locales/en-CA.json',
                      'src/wealth_ledger/locales/zh-CN.json', 'src/wealth_ledger/locales/legacy.json',
                      'assets/fonts/NotoSansSC-Regular.ttf', 'assets/fonts/OFL-SC.txt',
                      'assets/fonts/NotoSansSC-provenance.json',
@@ -42,7 +42,8 @@ class PublicationPolicyTests(unittest.TestCase):
                      'examples/demo.csv', 'unreviewed.md', '../README.md', '/README.md',
                      'src\\wealth_ledger\\core.py', '.github/workflows/deploy.yml',
                      'src/wealth_ledger/locales/user.json', 'assets/fonts/downloaded-font.ttf',
-                     'assets/readme/private-screenshot.png', 'assets/readme/export.csv'):
+                     'assets/readme/private-screenshot.png', 'assets/readme/export.csv',
+                     'docs/private-webapp-notes.md'):
             self.assertFalse(guard.path_allowed(path), path)
 
     def test_synthetic_secret_patterns(self):
@@ -149,6 +150,30 @@ create_pr = true
     def test_clean_index_and_all_history_pass(self):
         self.assertTrue(guard.scan_staged(self.root)['passed'])
         self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
+
+    def test_history_accepts_public_github_system_committer_only(self):
+        with mock.patch.dict(os.environ, {'GIT_COMMITTER_EMAIL': 'noreply@github.com'}):
+            self.run_git('commit', '--allow-empty', '-m', 'Synthetic web merge')
+            self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
+            with self.assertRaises(publisher.PublishError):
+                publisher.verify_author(self.root)
+
+    def test_github_committer_does_not_allow_private_author(self):
+        with mock.patch.dict(os.environ, {'GIT_AUTHOR_EMAIL': 'private@example.invalid',
+                                          'GIT_COMMITTER_EMAIL': 'noreply@github.com'}):
+            self.run_git('commit', '--allow-empty', '-m', 'Synthetic identity fixture')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
+
+    def test_history_rejects_private_or_lookalike_system_committer(self):
+        for address in ('private@example.invalid', 'noreply@github.com.example.invalid'):
+            with self.subTest(address=address):
+                with mock.patch.dict(os.environ, {'GIT_COMMITTER_EMAIL': address}):
+                    self.run_git('commit', '--allow-empty', '-m', 'Synthetic identity fixture')
+                result = guard.scan_history(self.root, all_history=True)
+                self.assertFalse(result['passed'])
+                latest = self.run_git('rev-parse', 'HEAD')
+                self.assertTrue(any(row['origin'] == latest and row['path'] == '(commit identity)'
+                                    for row in result['violations']))
 
     def test_staged_secret_is_found(self):
         self.write('README.md', 'Example credential: ' + 'ghp_' + 'a' * 36)

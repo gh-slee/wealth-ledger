@@ -1,6 +1,6 @@
 # Wealth Ledger 待辦追蹤
 
-本文件記錄產品功能與公開版本準備。待辦不是新的實作授權；工作依目前任務選擇。正式功能須為可重複執行的 Python 程式，不依賴 LLM、代理人、Codex 或本機 LibreOffice。操作見 [手冊](docs/user-manual.md)，開發規則見 [AGENTS.md](AGENTS.md)。
+本文件記錄產品功能與公開版本準備。待辦不是新的實作授權；工作依目前任務選擇。金融、匯入、下載與報告核心須為可重複執行的 Python 程式；規劃中的網頁前端使用 TypeScript／瀏覽器 JavaScript，Node 僅用於建置。正式功能不依賴 LLM、代理人、Codex 或本機 LibreOffice。操作見 [手冊](docs/user-manual.md)，開發規則見 [AGENTS.md](AGENTS.md)。
 
 ## 已可使用
 
@@ -16,6 +16,21 @@
 - [x] 最新官方 ETF 成分、遞迴公司穿透、排名 1–20、覆蓋率與完整審核匯出。
 - [x] 官方 GICS、國別／市場及地區分析，有效日期與非公司／未分類對帳。
 - [x] **FUT-001 離線匯入預檢**：選用 `--dry-run`／`--json`，不改正式資料、行情、備份、作業或報告，缺行情標示待確認，正常更新預設不變。
+
+## 自架 Web App（設計基準已建立，功能尚未實作）
+
+React＋TypeScript＋Vite、FastAPI、Python worker、SQLite 與 Docker Compose；單 owner／家庭 instance、多個獨立帳本。登入／任務／備份／遷移及驗收契約見 [Web App 設計](docs/self-hosted-webapp.md)。現有 CLI、歷史、三語及 ODS／Markdown／PDF 保留；不把本段規劃當成已可啟動的服務。
+
+- [x] **WEB-000 技術及範圍設計**：共用 Python 核心、私人工作區、React SPA、資料庫及容器方向；登入 session、Huey／SQLite 作業與備份契約已記錄。
+- [ ] **WEB-001 私人工作區與共用服務**：code/workspace 分離、所有日常 CLI、資源／快取／備份／互斥／續跑相容及唯讀 code-root 驗收。
+- [ ] **WEB-002 登入與 API／Docker 基礎**：owner、server-side session、CSRF／節流、metadata migrations、帳本與私人下載授權、持久化設定。
+- [ ] **WEB-003 上傳／預檢／背景作業**：Huey／SQLite、穩定 job/operation 關聯、idempotency、過期預檢拒絕與中斷恢復，未知狀態保留審核。
+- [ ] **WEB-004 網頁分析與報告庫**：React／TypeScript、三語、表格／互動圖表、來源日期／缺口／未知狀態及跨帳本快取隔離。
+- [ ] **WEB-005 匯出與備份／還原**：ODS／MD／PDF、CSV／JSON、報告 ZIP、完整一致備份與新空 volume 還原演練。
+- [ ] **WEB-006 進階表單與既有帳本採用**：BTC 期初／餘額／事件／修訂、供款／涵蓋及複製驗證遷移，保留舊 CLI 工作區。
+- [ ] **WEB-007 發布與操作驗收**：乾淨容器安裝／升級／重啟、映像隱私、支援平台與依賴授權、三語使用文件。
+
+此主線不自動完成來源 plugin SDK、新幣別或合併績效。任一階段完成前維持 planned；正式私人資料遷移另明確執行。
 
 ## 日常操作與分析功能
 
