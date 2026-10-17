@@ -2,8 +2,7 @@
 
 Wealth Ledger welcomes synthetic parser fixtures, financial regression fixes,
 translations, documentation and portability improvements. Discuss new financial
-models or source-adapter contracts before implementation; plugin loading and the
-full browser workflow remain planned. Optional Web API foundations are implemented. See [TODO.md](TODO.md).
+models or source-adapter contracts before implementation; plugin loading remains planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
 
 ## Development setup
 
@@ -32,8 +31,9 @@ for trusted host initialization and implemented endpoints.
 
 Docker tests are opt-in and require a daemon. They build a minimal inspected context,
 create uniquely named synthetic resources and clean up only those resources. Never
-use a real instance for container/restart/security tests. Uploads/jobs have synthetic interruption and container acceptance tests; React remains
-a later milestone. Keep pending acceptance visible rather than claiming full Web support.
+use a real instance for container/restart/security tests. Uploads/jobs have synthetic interruption and container acceptance tests; the React workflow has a dedicated synthetic browser fixture. See
+[browser development](docs/web-frontend.md) for locked npm installation, API types,
+unit/browser tests and accessibility. Keep broader release acceptance visible.
 
 ## Change expectations
 

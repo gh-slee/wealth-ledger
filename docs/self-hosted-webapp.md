@@ -1,14 +1,14 @@
 # Self-hosted web app: architecture and implementation contract
 
-Status: **shared services and API import/report jobs implemented; full browser app
-not available yet**. WEB-002 provides trusted-host owner setup, opaque sessions,
+Status: **shared services, API import/report jobs and browser analysis/report
+library implemented; broader release acceptance remains pending**. WEB-002 provides trusted-host owner setup, opaque sessions,
 portfolio/settings APIs and registered artifact downloads. WEB-003 adds bounded
 uploads, offline preview, explicit confirmation and isolated durable report jobs.
 See the [implemented import/job protocol](web-imports.md). Image/Compose recipes
 and runtime tests exist; Linux/arm64 image/restart and Compose replacement
 acceptance passed locally, including the worker upload/report flow. Runnable native commands/endpoints are in [Web operations](web-operations.md). Other APIs/job/UI/
-backup states below remain planned unless marked implemented. The normal financial
-workflow remains the CLI. See [TODO](../TODO.md).
+backup states below remain planned unless marked implemented. The CLI remains available; the implemented browser workflow is documented in
+[the browser guide](web-frontend.md). See [TODO](../TODO.md).
 
 ## Product and stack boundaries
 

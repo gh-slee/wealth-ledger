@@ -10,9 +10,10 @@ not every document before each edit. Private instructions and session state use
 
 The implemented application is Python 3.12+, SQLite, Matplotlib, ReportLab and
 standard ODF generation. Source-checkout installation uses `requirements.lock`;
-there is no supported wheel or frontend build yet. The optional FastAPI/auth API
-and Docker foundation have [operating/acceptance guidance](web-operations.md); the
-full React/job workflow remains a [design baseline](self-hosted-webapp.md).
+there is no supported Python wheel yet. The optional FastAPI API and Python
+worker have [operating guidance](web-operations.md). The React/TypeScript/Vite
+frontend builds from a pinned npm lock; see [browser development](web-frontend.md)
+for actual build, generated-type and synthetic browser-test commands.
 Do not add runtime AI or local-office dependencies. See CONTRIBUTING for venv setup.
 
 Full tests and a focused module, from the repository root:

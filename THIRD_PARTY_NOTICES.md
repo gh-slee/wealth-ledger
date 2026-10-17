@@ -51,3 +51,20 @@ The CSVs, FX rates, BTC prices, orders and ETF constituents in `examples/` are
 invented test data. They contain no real user records and must not be used for
 investment or tax calculations. Synthetic reports verify installation, execution
 and output generation only.
+
+## Browser dependencies and fonts
+
+`frontend/package-lock.json` pins React/React DOM, Vite, TypeScript, Tailwind,
+Radix, TanStack Query/Table, ECharts, Decimal.js, Lucide and development tools.
+They retain their upstream licenses; the project MIT license does not relicense
+them. Node/npm are build/test tools, absent from the final Python runtime image.
+The local Button composition follows shadcn/ui; its MIT notice is retained in
+[the component notice](frontend/public/licenses/shadcn-ui.txt).
+
+Browser font subsets are bundled by npm, never fetched from a CDN at runtime:
+Atkinson Hyperlegible (regular/bold) and IBM Plex Sans Condensed (semibold), each
+under SIL OFL 1.1. Full notices are in
+[Atkinson](frontend/public/licenses/atkinson-hyperlegible.txt) and
+[IBM Plex](frontend/public/licenses/ibm-plex-sans-condensed.txt), also copied into
+built assets under `/licenses/`. System fonts provide CJK browser fallback;
+report fonts remain the separately bundled Noto assets described above.
