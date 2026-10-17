@@ -8,10 +8,8 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
 from wealth_ledger.cli import make_parser, run_main
-from wealth_ledger.settings import ensure_report_locale_setting
-from wealth_ledger.operations import project_lock
-from wealth_ledger.core import import_cash_flows, mark_flow_period, make_payload
-from update import database_backup
+from wealth_ledger.core import import_cash_flows, mark_flow_period
+from wealth_ledger.application import ApplicationService
 
 
 def main():
@@ -26,17 +24,15 @@ def main():
     confirm.add_argument("--status", choices=["partial", "complete", "no_external"], required=True)
     confirm.add_argument("--account", default="portfolio")
     args = parser.parse_args()
+    service = ApplicationService(parser.workspace)
     if args.command == "accounts":
-        result = [{key: row[key] for key in ("account_id", "label", "masked_number")}
-                  for row in make_payload(PROJECT)["accounts"]]
+        result = service.accounts()
     else:
-        with project_lock(PROJECT):
-            ensure_report_locale_setting(PROJECT)
-            database_backup("before-flows")
+        def action(stage):
             if args.command == "import":
-                result = import_cash_flows(PROJECT, args.file)
-            else:
-                result = mark_flow_period(PROJECT, args.start, args.end, args.status, args.account)
+                return import_cash_flows(stage, args.file)
+            return mark_flow_period(stage, args.start, args.end, args.status, args.account)
+        result = service.record(vars(args), action, label="before-flows")
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

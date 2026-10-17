@@ -1,11 +1,12 @@
-## 問題與修改後行為
+## Problem and resulting behavior
 
-說明觸發情境及這次修改帶來的行為。
+Describe the trigger and the behavior this change provides.
 
-## 驗證
+## Validation
 
-列出必要的測試及未驗證限制。使用合成資料，勿附實際帳號、CSV、錢包地址、財務報告或私人路徑。
+List relevant tests and unverified limitations. Use synthetic data; do not attach
+real accounts, CSVs, wallet addresses, financial reports or private paths.
 
-## 文件
+## Documentation
 
-列出更新的手冊、規格或待辦項目。
+List updated manuals, specifications or roadmap entries.

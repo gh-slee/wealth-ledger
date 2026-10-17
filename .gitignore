@@ -66,3 +66,6 @@ htmlcov/
 /.agents/
 .DS_Store
 Thumbs.db
+
+# Private Codex guidance at any directory depth
+AGENTS.override.md

@@ -1,28 +1,41 @@
-# Wealth Ledger 使用手冊
+# Wealth Ledger user manual
 
-本手冊描述已支援的操作契約。報告可選英文／繁體中文／簡體中文（第 21 節），程式碼及欄位名稱使用英文；所有數量、金額、時間及 ID 範例均為合成示例，不能直接套用到真實帳本。日期示例採過去時間，但仍須使用真實查看／入帳時間；報價來源也必須適用該截止。
+This describes supported operations. Reports support English, Traditional Chinese
+and Simplified Chinese (section 21); code/field names are English. Every sample
+quantity, amount, time and ID is synthetic and must be replaced for real use. Past
+dates still require actual viewing/posting times and applicable market references.
 
-日常使用：第 3 節更新持倉；第 5–8 節記錄供款與回補歷史；第 13 節處理 Bull CSV、平均買入價及全持倉推估；第 19 節提供可選 BTC 總量、按 ID 補原因及重試；第 20 節為不寫入正式資料的離線預檢；第 21 節為語言設定與離線重繪。開發規則見 [開發文件](development.md)及 [TODO.md](../TODO.md)。
+For daily use: section 3 updates holdings; 5-8 cover contributions/backfill; 13 covers
+Bull orders/purchase rates/proxies; 19 covers optional totals, ID attribution and
+retry; 20 covers offline preview; 21 covers language/offline editions. See
+[development](development.md) and [TODO](../TODO.md) for contributor work.
 
-## 1. 選定追蹤起點
+## 1. Choose a tracking baseline
 
-新 clone 沒有任何使用者資料。首份有效 Wealthsimple 持倉 CSV 的 `As of` 時間成為股票追蹤基準；帳戶範圍由 CSV 決定，可包含支援的 TFSA、RRSP 與 Non-registered。只提供 Bull 或 BTC 總量也可開始相應的資產範圍，見第 13／19 節。原始檔、SQLite、凍結匯率、報告與備份全部保存在本機專案內。
+A new clone has no user data. The first valid Wealthsimple CSV As of time establishes
+the stock baseline and its account scope, including supported TFSA/RRSP/Non-registered
+accounts. Bull-only or balance-only can establish their own scope (13/19). Original
+files, SQLite, frozen FX, reports and backups remain in the local project.
 
-這是資產的期初基準，不是當天的供款。基準資產已包含開始追蹤之前的供款及投資結果，不能再把整筆基準資產登成新的入金。只有一期資料時不能計算期間績效；沒有完整資金流也不能把市值變化當作投資報酬。BTC 的購入事件與市值觀測不足以啟用全組合期間報酬，仍須資金來源、轉移及涵蓋契約。
+Opening assets are not a new contribution: they already contain earlier funding and
+investment results. Do not record the opening value again as a deposit. One valuation
+cannot yield period performance; incomplete flows cannot turn value changes into
+returns. BTC buys/valuations alone do not enable combined performance without origins,
+transfers and coverage.
 
-| 想知道的事情 | 必要資料 |
-| --- | --- |
-| 現在持有什麼、各帳戶多少錢 | 持倉 CSV 與凍結匯率 |
-| 資產市值比上次增加多少 | 前後兩份完整持倉 CSV |
-| 期間投入多少、提款多少 | 有日期及來源的資金流紀錄 |
-| 扣除投入後的投資增值與期間報酬 | 前後估值、完整資金流及明確的完整性確認 |
-| 開戶以來投入與績效 | 更早的完整資金流、可靠期初估值或開戶起點，及必要的歷史資料支援 |
+| Question | Evidence needed |
+|---|---|
+| Current holdings/account values | Holdings CSV and frozen FX |
+| Value change since last time | Two complete holdings observations |
+| Period deposits/withdrawals | Dated source-backed cash flows |
+| Gain/return after contributions | Opening/closing valuations, complete flows and explicit coverage |
+| Since-inception funding/performance | Earlier complete flows, reliable opening/inception values and historical support |
 
-## 2. 開始使用
+## 2. Install and start
 
-正式流程全部由 Python 執行，不依賴 LLM、Codex、Node.js 或本機 LibreOffice。需要 Python 3.12 或更新版本。ODS 可用支援 OpenDocument 的試算表軟體閱讀；產生報告不需啟動任何辦公室軟體。
-
-首次安裝（先安裝 Python 3.12+）：
+Production is Python 3.12+, independent of LLMs, Codex, Node or local LibreOffice.
+An OpenDocument spreadsheet reader can open ODS; generation needs no office process.
+Install Python 3.12+ first, then:
 
 ```bash
 git clone https://github.com/gh-slee/wealth-ledger.git
@@ -31,23 +44,83 @@ python3 -m venv .venv-portable
 .venv-portable/bin/python -m pip install -r requirements.lock
 ```
 
-本文多行命令採 Bash 語法；Windows PowerShell 請使用單行命令。Windows 可用 `py -3 -m venv .venv-portable`；後續命令的 Python 路徑改成 `.venv-portable\Scripts\python.exe`。例如：
+Multiline examples use Bash. In PowerShell use single-line equivalents. Windows can
+create the venv with py -3 -m venv .venv-portable and use
+.venv-portable\Scripts\python.exe for subsequent commands:
 
 ```powershell
 .venv-portable\Scripts\python.exe scripts/update.py --input C:\Downloads\holdings.csv --kind monthly
 ```
 
-移機時保留私人專案資料並重建虛擬環境，勿直接搬用另一平台的環境。可先執行 `.venv-portable/bin/python examples/demo.py --output work/demo`，在隔離合成帳本產生報告；不讀取正式金融資料、不查行情。詳見 [合成示範](../examples/README.md)。
+When moving machines, preserve private data and recreate the venv rather than copying
+a platform-specific environment. First try the isolated offline
+`.venv-portable/bin/python examples/demo.py --output work/demo`, which never reads
+real finances or downloads prices. See [synthetic examples](../examples/README.md).
 
-## 3. 每月更新流程
+### Separate code from private portfolio data
 
-1. 在券商下載相同帳戶範圍、同一估值日的完整持倉 CSV。
-2. 同時下載從上次快照到這次快照之間的活動紀錄；核對已完成的入金、出金及帳戶轉移。
-3. 整理資金流 CSV 並匯入。資料尚未齊全時仍可先更新持倉，報酬會保持未提供。
-4. 核對全部帳戶與期間後，明確聲明資金流完整性。
-5. 匯入新的持倉 CSV，開啟新報告並查看資料品質與期間績效狀態。
+All daily commands accept `--workspace /absolute/path/to/portfolio`. Omit it to
+continue using the original checkout-local ledger; existing files are not moved.
+Choose a dedicated existing empty directory for a new portfolio:
 
-正式月度快照：
+```bash
+mkdir -p "$HOME/.local/share/wealth-ledger/household"
+python scripts/update.py --workspace "$HOME/.local/share/wealth-ledger/household" \
+  /path/to/holdings.csv --kind baseline
+python scripts/update.py --workspace "$HOME/.local/share/wealth-ledger/household" \
+  /path/to/orders.csv --bull-opening-file /path/to/private-opening.json --dry-run
+python scripts/update.py --workspace "$HOME/.local/share/wealth-ledger/household" --list-operations
+python scripts/btc_balances.py list --workspace "$HOME/.local/share/wealth-ledger/household"
+python scripts/btc_events.py list --workspace "$HOME/.local/share/wealth-ledger/household"
+python scripts/cash_flows.py accounts --workspace "$HOME/.local/share/wealth-ledger/household"
+python scripts/crypto_opening.py show --workspace "$HOME/.local/share/wealth-ledger/household"
+```
+
+Use the same option for every later import, coverage declaration, balance/event
+edit, backup-producing mutation and `--resume-operation OP-...`. It may appear
+before or after a subcommand. A nonexistent directory, an unrelated nonempty
+directory, duplicate options or escaping state paths fail; there is no fallback to
+another ledger. Resolution and read-only queries do not initialize a new database.
+An empty workspace is initialized on its first mutation. Preview remains offline
+and leaves the selected workspace unchanged.
+
+The selected directory contains `config/local.toml`, `data/`, `reports/`, `backups/`
+and `work/`. Report paths, source archives, locks, operation IDs and latest pointers
+belong to that portfolio. Relative **input/output arguments** are still relative
+to your shell's working directory; the workspace option does not change directory.
+Offline `render_report.py` uses explicit source/output paths; `--workspace` only
+selects its locale default and never changes its saved input.
+
+Bundled fonts/locales/company identities come from the installation. You do not
+need to copy company aliases into a fresh workspace. Advanced overrides are
+specified in [the core API](core-api.md#workspace-scoped-application-services).
+Matplotlib/font caches use private writable locations, so the code checkout can
+be read-only. No local LibreOffice or runtime AI is required.
+
+Do not point the option at an unrelated directory or at another user's ledger.
+A workspace path is a trusted local operator choice, not Web authorization or a
+sandbox against malicious files. Keep backups of the complete workspace. Existing
+private migration is **not automatic**; a formal adoption/restore UI/command remains
+WEB-006 work. A new empty directory does not import the old ledger's history.
+
+### Optional API foundation
+
+The optional Web API supports independent portfolios, bounded source uploads,
+offline preview, explicit confirmation and durable report jobs. The React interface
+is planned; advanced financial records remain in this manual's CLI. See
+[Web operations](web-operations.md) and the [API import/job guide](web-imports.md).
+Existing CLI data is never adopted automatically.
+
+## 3. Monthly updates
+
+1. Export complete same-account holdings for one valuation date.
+2. Export all intervening activity and verify completed deposits/withdrawals/transfers.
+3. Normalize/import flows. Holdings may update first if flows are incomplete; adjusted
+   returns remain unavailable.
+4. After verifying every account/date, explicitly declare coverage.
+5. Import holdings and inspect the new report's quality/performance status.
+
+Formal monthly snapshot:
 
 ```bash
 cd wealth-ledger
@@ -55,88 +128,115 @@ cd wealth-ledger
   --input ~/Downloads/holdings-report-YYYY-MM-DD.csv --kind monthly
 ```
 
-臨時觀測使用 `--kind interim`。每個月以最新的完整正式快照作月度比較點，所有臨時觀測及舊報告仍保存。日期使用 CSV 的 `As of` footer，不由檔名推定。已匯入的 `interim` 不會因重匯相同檔案並指定 `monthly` 而改成正式點；匯入時先選好類型。
+Use --kind interim for extra observations. Monthly comparisons use the last complete
+formal snapshot in each month; keep interim observations/old reports. Dates come
+from As of, not filenames. Reimporting an existing interim as monthly does not change
+its kind; choose correctly on import.
 
-重複匯入同一份 Wealthsimple 資料不會增加股票歷史快照。Bull 更新的估值時間規則見第 13.1 節。同一估值時間的不同內容會保存為修訂；新的估值時間即使持倉相同，仍是一個新觀測。不要手動改寫原始 CSV 的日期來製造歷史。
-
-只重新產生報告，例如補入資金流後：
+Duplicate Wealthsimple inputs do not add stock history. Bull timing is in 13.1.
+Changed same-time content creates revisions; new times create observations even
+with unchanged holdings. Never edit original CSV dates to fabricate history.
+Regenerate after adding flows:
 
 ```bash
 .venv-portable/bin/python scripts/update.py
 ```
 
-不提供檔案時沿用最近保存的估值時間，即使執行日較晚也不建立新估值點。指定股票歷史快照時間可使用 `--snapshot-id 1`。重產報告會增加 `rNN`，不覆蓋舊報告。`reports/latest.json` 記錄最近成功產生的報告位置；支援符號連結的平台亦有 `reports/latest/`。
+No file means latest saved cutoff, not today. --snapshot-id 1 selects a saved stock
+snapshot. Reports increment rNN without overwriting. reports/latest.json points to
+latest successful output; supported systems also have reports/latest/ symlink.
 
-## 4. 如何取得 Wealthsimple 的資料
+## 4. Get Wealthsimple data
 
-以下為下載方式指引；介面名稱可能調整，請以附列的券商官方文件為準。建議使用網頁版。
+The following describes source-document workflows; UI names can change. Consult the
+linked official guidance. The web interface is recommended.
 
-### 4.1 持倉、活動及年度供款核對資料
+### 4.1 Holdings, activity and annual contribution evidence
 
-進入 **Profile → Documents → Generate document**：
+Open **Profile -> Documents -> Generate document**:
 
-| 文件選項 | 選擇方式 | 本工具用途 |
-| --- | --- | --- |
-| Holdings report (CSV) | 估值日與帳戶 | 正式持倉輸入 |
-| Custom activity statement | 期間與帳戶，下載 CSV | 入金、出金、交易與轉移的來源 |
-| Contribution confirmation statement | 稅務年度與適用註冊帳戶 | 年度供款總額核對 |
+| Document | Selection | Tracker use |
+|---|---|---|
+| Holdings report (CSV) | Date/accounts | Supported holdings input |
+| Custom activity statement | Period/accounts, CSV | Deposit/withdrawal/trade/transfer evidence |
+| Contribution confirmation statement | Tax year/eligible registered accounts | Annual contribution cross-check |
 
-供款確認書不包含提款、前機構轉入的供款及同類型 Wealthsimple 帳戶間移動，不能取代完整活動紀錄。活動文件與供款確認書應交叉核對，而不是把兩者各匯入一遍。[Wealthsimple 官方文件](https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement)
+Contribution confirmations exclude withdrawals, contributions transferred from prior
+institutions and moves between same-type Wealthsimple accounts. They cannot replace
+activity history. Cross-check documents instead of importing both as separate flows.
+See [official custom statements](https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement).
 
-也可從網頁版 **Activity** 篩選帳戶、活動類型與日期，查看明細或下載活動 CSV；不明的手動調整應再對照月結單。[Wealthsimple 活動說明](https://help.wealthsimple.com/hc/en-ca/articles/39449252453019-View-your-account-activity-and-running-balance)
+Web Activity can filter accounts/types/dates and show/download activity CSV. Check
+unclear adjustments against statements. See [activity/running balance](https://help.wealthsimple.com/hc/en-ca/articles/39449252453019-View-your-account-activity-and-running-balance).
 
-### 4.2 補足較舊紀錄
+### 4.2 Older records
 
-在 **Documents → Statements** 下載各帳戶月結單 CSV／PDF；亦可在 **Generate document → Bulk download monthly statements** 選期間與帳戶，批次下載 ZIP。若線上沒有需要的舊紀錄，可向 Wealthsimple 支援索取。[Wealthsimple 月結單說明](https://help.wealthsimple.com/hc/en-ca/articles/360056580894-Find-your-monthly-statements)
+Download account CSV/PDF statements under Documents -> Statements, or select periods/
+accounts under Generate document -> Bulk download monthly statements for ZIPs.
+Request unavailable older records from support. See [monthly statements](https://help.wealthsimple.com/hc/en-ca/articles/360056580894-Find-your-monthly-statements).
 
-保存券商原始活動 CSV、PDF 與 ZIP 到 `data/evidence/wealthsimple/`，並在整理後的每筆資金流 `source` 欄填入來源檔名或相對路徑。資金流匯入器會另保存「整理後的 CSV」；不會自動取得 `source` 欄所指向的券商文件。勿刪除原始證據。
+Save original activity CSV/PDF/ZIP in data/evidence/wealthsimple/ and reference its
+filename/relative path in normalized flow source fields. The importer archives the
+normalized CSV, not documents named by source; retain those originals yourself.
 
-**目前支援範圍：** Wealthsimple 原生持倉 CSV 可以直接匯入；券商活動 CSV 尚未有自動轉換器，必須先整理成下一節的統一資金流格式。不要把原生活動 CSV 直接交給持倉或資金流匯入命令。流程也不會登入券商、同步帳戶或擷取登入憑證。
+**Current support:** native holdings CSV imports directly. Native activity conversion
+is not implemented; first map it to section 6's unified flow schema. Do not pass
+native activity to holdings/flow importers. The tool never logs into the broker,
+syncs private accounts or retrieves credentials.
 
-## 5. 供款、提款與轉移怎麼分類
+## 5. Classify contributions, withdrawals and transfers
 
-本工具的「投入資金」是跨越**目前追蹤投資組合邊界**的資產移動。它與 TFSA／RRSP 的稅務供款概念不同；本版不計算 CRA 供款額度。
+Contributions cross the **currently tracked investment boundary**. They are distinct
+from TFSA/RRSP tax contributions; CRA room is not calculated.
 
-| 事件 | `flow_type` | 對整體組合的影響 |
-| --- | --- | --- |
-| 從未納入追蹤的銀行／現金帳戶入金 | `deposit` | 增加外部投入 |
-| 從投資帳戶提款到未納入追蹤的帳戶 | `withdrawal` | 減少淨投入 |
-| 兩個已追蹤投資帳戶間轉移 | `transfer_out` + `transfer_in` | 整體相抵，各帳戶仍有流入／流出 |
-| 留在帳戶內的股息或利息 | `income` | 屬投資結果，不是新供款 |
-| 在帳戶內扣除的費用 | `fee` | 減少投資結果，不是提款 |
-| 買賣證券、帳內換匯等 | `internal` 或不登錄 | 不算外部投入 |
+| Event | flow_type | Portfolio effect |
+|---|---|---|
+| Deposit from untracked bank/cash | deposit | External contribution |
+| Withdrawal to untracked account | withdrawal | Reduces net contribution |
+| Between tracked investment accounts | transfer_out + transfer_in | Cancels portfolio-wide; affects each account |
+| Retained dividends/interest | income | Investment result, not new contribution |
+| Internal account fees | fee | Reduces investment result, not withdrawal |
+| Trades/internal FX | internal or omit | Not external funding |
 
-例如，未追蹤的 Wealthsimple chequing 帳戶轉入 TFSA，對本投資組合是 `deposit`；已追蹤的 Non-registered 轉入已追蹤 TFSA，則是成對轉移。後者可能涉及稅務供款或其他稅務事件，本工具的整體投入仍相抵。
+Untracked Wealthsimple chequing -> TFSA is a deposit. Tracked Non-registered ->
+tracked TFSA is paired transfer; tax consequences may still exist, while portfolio
+funding cancels.
 
-從尚未追蹤的券商移入資產會改變追蹤邊界，不能因為文件寫著「transfer」就自動當作組合內部轉移。實物轉倉、跨日轉移、混合幣別與轉移費用需先核對估值及範圍；本版沒有專用自動處理流程，不要用原始買入成本代替移入當日市值。新增券商前先規劃帳戶範圍與資料轉換。
+Assets from an untracked broker change the boundary; a document saying transfer
+cannot establish internal treatment. In-kind/cross-day/multicurrency/fee cases need
+scope/value review and lack specialized automatic handling. Never substitute original
+cost for transfer-date value. Plan account scope/conversion before adding brokers.
 
-## 6. 建立並匯入資金流 CSV
+## 6. Create and import cash-flow CSV
 
-先查看穩定帳戶 ID：
+Find stable account IDs:
 
 ```bash
 .venv-portable/bin/python scripts/cash_flows.py accounts
 ```
 
-輸出包含 `account_id`、帳戶標籤與遮罩帳號。複製 `examples/templates/cash_flows.csv` 到自己的輸入檔，使用 UTF-8 CSV，並填入正確的 `account_id`。可以用試算表編輯，儲存時保留日期與交易 ID 的文字格式。
+Output shows account_id, label and masked number. Copy examples/templates/cash_flows.csv
+into a private UTF-8 input and use correct IDs. A spreadsheet is fine; preserve
+text dates/transaction IDs on save.
 
-| 欄位 | 填寫規則 |
-| --- | --- |
-| `flow_id` | 強烈建議填穩定、全資料庫唯一的交易 ID；券商 ID 可加來源及帳戶前綴 |
-| `date` | 必填，`YYYY-MM-DD`；使用已完成、實際入帳的日期並保持一致 |
-| `account_id` | 必填，使用 `accounts` 命令輸出的 ID |
-| `flow_type` | 必填，上一節列出的英文類型 |
-| `currency` | 必填，目前只支援 `CAD`／`USD` |
-| `amount` | 必填，正數、無千位逗號及貨幣符號；方向由類型決定 |
-| `usd_cad` | USD 換算時的 CAD per USD；CAD 紀錄留空 |
-| `fx_date` | 提供 `usd_cad` 時必填，不能晚於資金流日期 |
-| `fx_source` | USD 必須有匯率或 CAD 等值的來源 |
-| `amount_cad` | 可選；USD 可用有來源的 CAD 等值代替匯率換算 |
-| `transfer_id` | 成對轉移必填，兩側共用同一 ID |
-| `source` | 建議填券商文件／銀行證據的檔名或相對路徑 |
-| `note` | 可選，保留核對所需備註 |
+| Field | Rule |
+|---|---|
+| flow_id | Strongly recommended stable DB-unique ID; prefix broker IDs with provider/account |
+| date | Required YYYY-MM-DD; consistent actual completed posting date |
+| account_id | Required, from accounts command |
+| flow_type | Required supported English type |
+| currency | Required CAD/USD only |
+| amount | Positive, no grouping/currency symbol; type controls direction |
+| usd_cad | CAD per USD for flow conversion; blank for CAD |
+| fx_date | Required with usd_cad; not later than flow date |
+| fx_source | Required USD FX/CAD-value evidence |
+| amount_cad | Optional sourced CAD equivalent for USD instead of rate conversion |
+| transfer_id | Required shared ID for paired legs |
+| source | Recommended original broker/bank filename or relative evidence path |
+| note | Optional reconciliation notes |
 
-以下是**合成資料**；`ACCOUNT_ID_FROM_COMMAND` 必須替換，不能直接匯入正式資料庫：
+**Synthetic example:** replace ACCOUNT_ID_FROM_COMMAND; never import verbatim into
+a real ledger:
 
 ```csv
 flow_id,date,account_id,flow_type,currency,amount,source,note
@@ -144,23 +244,27 @@ example-deposit-001,2024-10-15,ACCOUNT_ID_FROM_COMMAND,deposit,CAD,2000,activity
 example-withdrawal-001,2024-10-20,ACCOUNT_ID_FROM_COMMAND,withdrawal,CAD,300,activity-october.csv,Example only
 ```
 
-這兩筆的淨外部投入為 CAD 1,700。假設 USD 500、當日已核實 CAD per USD 為 1.40，可填 `usd_cad=1.40`、當日或最近適用的 `fx_date` 及來源，CAD 等值為 700；例子匯率不能直接套用真實交易。資金流換算不使用期末匯率。
+Net contribution is CAD 1,700. For USD 500 at a verified applicable 1.40 CAD/USD,
+provide usd_cad=1.40, applicable fx_date/source: CAD 700. Sample rates are not actual
+transaction evidence. Period-end FX is not the flow's rate.
 
-成對轉移需要不同帳戶、相同 `transfer_id`、相同日期、CAD 等值相等，一側 `transfer_out`、另一側 `transfer_in`。不配對時期間報酬會被停用；不得為了通過檢查改寫真實入帳日期。
-
-匯入：
+Transfer legs need different accounts, same ID/date/equal CAD, one in/one out.
+Unmatched transfers block performance; never alter true dates merely to match.
+Import:
 
 ```bash
 .venv-portable/bin/python scripts/cash_flows.py import /path/to/cash-flows.csv
 ```
 
-同一原始檔或相同穩定 `flow_id` 不會重複新增；同一 ID 的內容不同會拒絕匯入。本版不是以新 CSV 覆蓋舊資金流。未填 `flow_id` 時程式按內容產生 ID；更動日期、來源或備註可能產生不同 ID，所以不要靠改備註來更新已匯入紀錄。兩筆合法、內容相同的交易也必須用不同 ID 區分。
+Same raw input/stable IDs deduplicate; same ID/changed content rejects. New CSVs do
+not overwrite flows. Omitted IDs are content-derived; changing date/source/note can
+create a new ID, so notes are not an update mechanism. Two real identical-content
+transactions need distinct IDs.
 
-## 7. 確認期間資料完整
+## 7. Declare period completeness
 
-匯入資料與確認完整性是兩件事。程式無法知道你是否漏下載了某個帳戶或某一天。
-
-假設兩份完整快照為 2024-05-31 與 2024-06-30，核對全部追蹤帳戶後：
+Importing and confirming completeness are separate. The program cannot know whether
+you omitted an account/day. For synthetic complete May 31/June 30 observations:
 
 ```bash
 .venv-portable/bin/python scripts/cash_flows.py coverage \
@@ -168,84 +272,117 @@ example-withdrawal-001,2024-10-20,ACCOUNT_ID_FROM_COMMAND,withdrawal,CAD,300,act
 .venv-portable/bin/python scripts/update.py
 ```
 
-上述日期為流程示範；只有真實下一份 CSV 使用該日期、並完成核對時才執行。邊界為 **`(start, end]`**：不包含起始日，包含結束日。首份基準日晚間以前的資金流已反映在基準資產內。
+Use actual snapshot dates only after verification. Boundary: **(start, end]**,
+excluding opening day and including closing day. Earlier flows are already in opening assets.
 
-| 狀態 | 何時使用 | 是否提供投入調整後績效 |
-| --- | --- | --- |
-| `partial` | 已有部分紀錄，仍有缺漏 | 否 |
-| `complete` | 已核對期間內全部相關資金流與帳戶轉移 | 是，其他估值與配對條件亦須通過 |
-| `no_external` | 已核對並確認沒有外部入金／出金；內部轉移仍要完整記錄 | 是，其他條件亦須通過 |
-| 未聲明 | 尚未提供或核對 | 否，不當作零 |
+| Status | Use | Flow-adjusted performance |
+|---|---|---|
+| partial | Some records but known gaps | No |
+| complete | All relevant flows/transfers checked | Yes if valuation/pairing requirements pass |
+| no_external | Confirmed no external flows; internal transfers still recorded | Yes if other requirements pass |
+| Not declared | Not supplied/verified | No, not presumed zero |
 
-預設涵蓋全部已追蹤帳戶。若只核對一個帳戶，可加 `--account ACCOUNT_ID_FROM_COMMAND`；不代表整體已完整。最新完整性聲明會取代同範圍較舊聲明，帳戶專屬聲明優先；發現缺漏可以再聲明 `partial`。相鄰的完整月度期間可支援累計績效，任何缺口都會阻止累計計算。帳戶專屬 `no_external` 也不容許該帳戶有轉移流量；若有轉移，應使用 `complete` 並登錄兩側。
+Default declaration covers all tracked accounts. --account ACCOUNT_ID_FROM_COMMAND
+limits it to one account, not portfolio completeness. Latest same-scope declaration
+wins; account-specific declarations override general ones. Re-declare partial if gaps
+appear. Adjacent complete months may support cumulative periods; any gap blocks it.
+Account-specific no_external disallows account transfers; use complete with both legs.
 
-本版資金流只記錄日期。如果快照不是日終、同一天在快照前後都有資金流，不能精確按時間切分；先釐清邊界或選擇一致的日終快照，再確認完整性。相同日期的兩份快照不提供日期加權期間報酬。
+Flows are date-only. Intraday snapshots/flows on both sides of cutoff need boundary
+review or consistent end-of-day observations. Same-date snapshots do not support
+date-weighted period returns.
 
-## 8. 沒有追蹤過去供款，如何補資料
+## 8. Backfill contributions you did not previously track
 
-**建議以第一份可靠快照作基準，把之後每一期記完整；過去資料可平行整理。** 不需要先找回全部開戶歷史，才能追蹤下一個月的投資結果。
+**Start with the first reliable snapshot and record subsequent periods completely;
+recover older evidence in parallel.** Full inception recovery is not required to
+track next month's results.
 
-1. 從最早可取得的日期下載活動紀錄及各帳戶月結單，連同以前券商的紀錄一起保存。
-2. 逐筆找出已完成的入金、出金及轉移，保留原始日期、幣別、金額與來源。銀行明細可核對外部入金／提款，但無法單獨確認投資帳戶間移動。
-3. 用供款確認書或 RRSP 供款收據核對年度供款總額；它們不能補出每筆日期，也不能代替提款及轉倉紀錄。
-4. 可核實的舊交易可使用資金流 CSV 匯入，保留原始日期。基準日及之前的紀錄會列在資金流清單，不會被算成基準之後的新投入。
-5. 若只有年度總額而沒有逐筆日期，保存在來源證據及整理筆記中，標示「年度總額／日期未核實」；不要虛構 1 月 1 日或基準日的大額入金。
-6. 缺月、缺帳戶、只有轉倉金額或有不明差額時，保留缺漏狀態。不要用「目前市值減成本」反推歷史供款。
+1. Download oldest available activity/statements, including prior brokers.
+2. Identify completed flows/transfers with actual dates/currency/amount/source.
+   Bank evidence verifies external flows, not every inter-investment transfer.
+3. Cross-check annual confirmations/RRSP receipts; they cannot supply transaction
+   dates or replace withdrawal/transfer history.
+4. Import verified old flows with original dates. Baseline-day/earlier records appear
+   in the ledger but are not new post-baseline contributions.
+5. Preserve annual totals without dates as annual-only/unverified-date evidence.
+   Never invent January 1 or baseline lump-sum deposits.
+6. Keep missing months/accounts, transfer-only evidence and unexplained gaps visible.
+   Current value minus cost cannot reconstruct contributions.
 
-| 找回的資料程度 | 能可靠回答的問題 |
-| --- | --- |
-| 只有基準及之後完整資料 | 追蹤開始後的淨投入、增值及可用期間報酬 |
-| 只有以前年份的供款合計 | 已證實年份的供款合計；不能提供日期加權績效 |
-| 有完整舊入金／出金，但沒有適用的歷史估值 | 可整理投入歷史；舊月度成長曲線仍不足 |
-| 完整開戶資金流、轉倉處理與可靠歷史估值 | 可規劃開戶以來績效及歷史回補 |
+| Evidence recovered | Reliable conclusions |
+|---|---|
+| Complete baseline onward | Net flows/gain/eligible returns since tracking started |
+| Annual earlier contribution totals only | Verified-year totals, not date-weighted returns |
+| Earlier full flows but no historical valuations | Funding history, not monthly value curves |
+| Complete inception flows/transfers/reliable values | Basis for separately planned inception/backfill support |
 
-現有報告的績效區間以已匯入快照為界。只補舊資金流不會自動把基準移到開戶日，也不會產生開戶以來 XIRR。程式會拒絕早於目前基準的持倉 CSV。需要回補舊持倉、建立零資產開戶起點、加入舊券商或處理轉倉時，應另規劃資料遷移與驗證，再變更目前基準。
+Current performance periods use imported snapshots. Old flows alone neither move
+baseline to account opening nor create inception XIRR. Pre-baseline holdings CSVs
+reject. Earlier holdings/zero-asset inception/old brokers/transfers require a separate
+validated migration before changing baseline.
 
-CRA 資料可作 TFSA 供款紀錄的輔助核對，但不是即時來源；仍須對照各金融機構的紀錄。[CRA 官方說明](https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/tax-free-savings-account/contributing/before.html) 本工具的投資資金流不等於完整稅務供款台帳。
+CRA records are supporting TFSA evidence, not real-time records; cross-check institutions.
+See [CRA guidance](https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/tax-free-savings-account/contributing/before.html).
+The investment flow ledger is not a complete tax-contribution ledger.
 
-## 9. 報告怎麼閱讀
+## 9. Read reports
 
-- `portfolio.ods`：含 BTC 的合併報告有十一個工作表，包含「比特幣追蹤」與「BTC餘額對帳」；券商專屬報告為九個。適合篩選、核對、公式試算與查看內嵌分析圖表。
-- `report.pdf`：固定版面、嵌入所選語系字型，適合閱讀、保存及分享分析圖表。
-- `report.md`：文字、表格與圖表連結，適合版本比較；移動時一併保留 `charts/`。
-- `data.json`／`manifest.json`：同一輪報告的分析資料、來源及驗證資訊。
+- portfolio.ods: eleven sheets for combined BTC, including BTC tracking/reconciliation;
+  nine for brokerage-only. Filter, reconcile and explore formulas/embedded charts.
+- report.pdf: fixed layout and embedded selected-locale fonts for reading/archiving/sharing.
+- report.md: text/tables/chart links for comparison; retain charts/ when moving it.
+- data.json/manifest.json: same-run analysis, provenance and validation.
 
-CAD／USD／TWD 總額是同一組資產的不同表示方式，不能相加。原幣持倉與成本另外保留 CAD／USD。各期匯率凍結保存，歷史值不被今日匯率改寫。
+CAD/USD/TWD are alternative values, not amounts to add together. Native security
+costs/holdings stay CAD/USD. Saved FX freezes history.
 
-ODS 圖表採同輪報告的內嵌 PNG，每次執行更新流程會重新產生。圖片不依賴外部圖檔，也不會因閱讀軟體缺字型而改變標籤；但在 ODS 手動改公式時，圖像不會即時更新，也不能編輯圖表系列。需要新分析時，更新正式輸入並重新產生報告。
+ODS embeds same-run PNGs, regenerated by updates. They are independent of external
+files/reader fonts, but cell edits do not redraw charts or expose editable series.
+Use formal inputs/regeneration for updated analysis.
 
-報告文字與「重點觀察」由程式中的固定說明、條件規則及資料模板產生，不呼叫 LLM。日期、金額、BTC 數量與比例依本期 payload 填入；來源沿用、混合日期、錢包未對帳及供款限制依實際狀態顯示。模板是在開發時寫入程式，執行時不需要 AI 重新撰寫。
-
-目前合併報告的「重點觀察」以估值口徑及資料限制為主，不是每期生成的新市場評論或投資建議。文字主要位於 `src/wealth_ledger/combined.py` 與 `reporting.py`，ODS 的 `workbook.py` 使用同一份 findings；因此三種格式可以一致。若日後調整文案，應修改共同模板及相關文件，不只手改一份報告。
+Report prose/findings use deterministic fixed/conditional templates, not LLM calls.
+Dates/amounts/quantities/ratios and carried/mixed/reconciliation/flow caveats come
+from the payload. Combined findings emphasize valuation/data limits, not new market
+commentary/trade advice. Shared templates in combined.py/reporting.py feed workbook.py;
+change those rather than editing one generated format.
 
 ```text
 Net external contributions = deposits - withdrawals
 Investment gain = closing value - opening value - net external contributions
 ```
 
-例如，資產從 CAD 100,000 增至 110,000，入金 6,000、無出金，則淨投入 6,000、投資增值 4,000；這不是 10% 投資報酬。投資增值包含價格、股息、帳內費用及 CAD 估值的匯率影響。內部轉移在整體組合相抵，但影響各帳戶的期間計算。
+CAD 100,000 -> 110,000 with deposits 6,000/no withdrawals yields gain 4,000, not a
+10% investment return. Gain includes prices/dividends/internal fees/FX. Transfers
+cancel portfolio-wide but affect account calculations.
 
-Modified Dietz 使用資金流日期加權，屬期間報酬估算；XIRR 是年化的金額加權報酬，短期間可能波動很大。資料不足、分母不適用或 XIRR 有多次現金流符號變化時，不強行顯示數值。持倉表的「未實現損益」只涉及目前仍持有部位，與追蹤期間總報酬不同。
+Modified Dietz is date-weighted approximate period return; XIRR is annualized money-
+weighted return and can be volatile over short periods. Missing data/inapplicable
+denominators/ambiguous repeated flow-sign changes produce no forced result.
+Holding unrealized P&L differs from tracking-period total return.
 
-## 10. 錯誤、更正與備份
+## 10. Errors, corrections and backups
 
-| 狀況 | 處理方式 |
-| --- | --- |
-| CSV 缺必要欄位或 `As of` | 重新下載官方持倉 CSV，不手動偽造欄位或日期 |
-| 少了一個已知帳戶 | 重新下載完整範圍；期間績效暫停，缺帳戶不歸零 |
-| USD 資金流缺匯率來源 | 補入流入當日的已核實匯率或有來源的 CAD 等值 |
-| 轉移未配對 | 查明兩側、日期及金額；不可改寫證據只求配對 |
-| 找到漏登的新交易 | 保留其真正交易 ID，另匯入，再重產報告 |
-| 已匯入交易金額／日期／帳戶錯誤 | 先聲明相關期間 `partial`；本版沒有資金流修改或作廢命令，需安排有備份的修訂或重建 |
-| 原生券商活動 CSV 格式不符 | 先轉換成統一資金流格式；不可交給持倉匯入器 |
+| Situation | Action |
+|---|---|
+| Missing fields/As of | Re-export official holdings; never fabricate fields/dates |
+| Missing known account | Export full scope; period analysis pauses, account is not zero |
+| USD flow lacks evidence | Supply verified applicable FX or sourced CAD equivalent |
+| Unpaired transfer | Verify both legs/dates/amounts without changing evidence to fit |
+| Newly found transaction | Use its real stable ID, import and regenerate |
+| Imported flow wrong amount/date/account | Mark period partial; no flow revise/void CLI yet, arrange backed-up revision/rebuild |
+| Native activity format unsupported | Normalize flows first, not holdings import |
 
-不要用新增一筆反向交易來抵銷資料輸入錯誤；那會扭曲日期加權績效。不要直接編輯 SQLite 或刪除原始檔。正式修改前須先保留目前資料庫與來源，再選擇匯入前備份或正確來源重建；目前沒有自動還原 CLI。
+No reverse fake transactions for input mistakes: they distort date-weighted performance.
+Do not edit SQLite/delete originals. Preserve DB/evidence before selecting a pre-import
+backup or rebuilding from correct inputs. No automatic restore CLI exists yet.
 
-每次持倉或資金流匯入前會建立 SQLite 備份；成功產生報告後也備份。`backups/` 與資料在同一磁碟，不能替代另一磁碟或安全備份位置的專案備份。
+Holdings/flow imports back up SQLite before changes; successful reporting backs up
+afterward. Same-disk backups/ cannot replace a complete private-project backup to
+another disk/secure destination. SQLite has no encryption/password. Permissions
+limit access, but evidence/reports/backups remain sensitive and must stay out of public Git.
 
-SQLite 不加密、沒有密碼。本機檔案權限限制存取；來源、報告與備份仍包含敏感財務資訊。已列入 `.gitignore` 的資料不要上傳公開版本庫。
-
-## 11. 檔案位置與日後券商支援
+## 11. File locations and future brokers
 
 ```text
 docs/user-manual.md           This manual
@@ -260,27 +397,37 @@ reports/latest.json         Latest successful report pointer
 backups/                    Database backups
 ```
 
-未來券商採同一分析與報告層，新增「券商原始資料 → 統一持倉／資金流」轉換器。接入時需取得實際 CSV 範例及官方欄位說明，核對交易 ID、日期、幣別、撤銷、轉倉與帳戶識別，避免不同券商帳號碰撞、同一轉移重複計入，以及改變追蹤範圍時產生虛假增值。
+Future adapters map raw broker data to unified holdings/flows, reusing analysis/reporting.
+Review actual formats/official fields for IDs/time/currency/cancellations/transfers/
+accounts to avoid namespace collisions, duplicate transfers or scope-driven fake growth.
+Other native holdings, automatic Wealthsimple activity conversion, cross-broker
+reconciliation, tax room and automatic inception backfill remain unimplemented.
+Manual normalized flows currently apply to established accounts/supported CAD/USD.
 
-目前其他券商原生持倉格式、Wealthsimple 原生活動自動轉換、多券商自動對帳、稅務供款額度及開戶以來自動回補均尚未實作。統一資金流格式已建立，未來轉換器可沿用；現階段的手動整理只限已建立的帳戶與已支援的 CAD／USD。
+## 12. Validation scope
 
-## 12. 驗證範圍
-
-獨立 Python 環境已驗證匯入去重、修訂、供款、日期截止、三幣換算及隔離的第二期流程。ODS 公式快取使用獨立計算器核對；XML／套件清單以 ODF 1.2 schema 檢查。圖表改為內嵌 PNG，並內嵌繁體中文字型；已用隔離的 LibreOffice 閱讀環境驗證圖表與中文儲存格。這是開發驗收，正式產生流程仍不需要 LibreOffice。
-
-開發測試不修改正式資料庫：
+Independent Python environments have exercised deduplication/revisions/contributions/
+cutoffs/FX/isolated second periods. Independent evaluation checks ODS caches; ODF 1.2
+schemas check XML/manifests. Embedded PNG/font rendering has been inspected in an
+isolated LibreOffice reader. That is development acceptance, not a runtime dependency.
+Current tests never modify a real portfolio:
 
 ```bash
 PYTHONPATH=src .venv-portable/bin/python -m unittest discover -s tests -v
 ```
 
-## 13. Bull Bitcoin：購入與供款追蹤
+## 13. Bull Bitcoin purchases and contributions
 
-### 13.1 匯出與匯入
+### 13.1 Export and import
 
-在 Bull Bitcoin 的 Financials／訂單紀錄下載所有訂單 CSV。建議每次匯出完整歷史，或至少涵蓋上一次之後的全部活動；完整歷史重匯會去重。匯入器目前支援 CAD 入金及由 CAD Balance 買入 BTC／LBTC；原生 Bull CSV 的出售、不同付款形式及費用差額尚未支援，遇到時停止，不悄悄略過。獨立錢包費用／出售等可用第 19 節的手動異動介面補登；它不取代 Bull 原生訂單轉換。
+Export orders from Bull Financials/order history, preferably the full history or all
+activity since the last snapshot. Reimports deduplicate. Current support is CAD
+Funding and purchases from CAD Balance into BTC/LBTC. Native sales, other payment
+forms and fee discrepancies are unsupported and stop import rather than silently
+skipping. Section 19's wallet events do not replace native Bull order conversion.
 
-日常只需把一份或兩份檔案交給同一個命令；程式依 CSV 欄位辨識，不靠檔名。兩個來源的順序不限，每次最多一份各來源的 CSV：
+Pass either CSV or both to one command. Detection uses columns, not filenames;
+order is irrelevant, with at most one file per source:
 
 ```bash
 # Wealthsimple only
@@ -293,54 +440,86 @@ PYTHONPATH=src .venv-portable/bin/python -m unittest discover -s tests -v
 .venv-portable/bin/python scripts/update.py /path/to/orders.csv /path/to/holdings.csv
 ```
 
-| 情況 | 估值時間與資料使用 |
+| Inputs | Cutoff/data policy |
 |---|---|
-| 只提供 Wealthsimple | 採新的 `As of`；依固定期初／已知購入及異動或最近適用餘額推估 BTC，標示 Bull 資料沿用 |
-| 只提供 Bull | 採執行時間（取整至分鐘），納入截止前已完成訂單並取得 BTC 價格；股票仍沿用最後快照的數量與原幣市價 |
-| 同時提供兩者 | 通常採 Wealthsimple 的 `As of`；Bull 帳本有更晚完成訂單時自動改採執行時間，避免漏列新買入，股票日期仍明示 |
-| 第一次只有 Bull | 產生 BTC／Bull 現金範圍報告，Wealthsimple 標示尚未提供；日後加入股票另立範圍基準 |
-| 不提供任何 CSV，亦無新 BTC 總量／明確估值截止 | 重產最近保存估值時間的報告，不新增今日點 |
-| 同日重交相同 Bull CSV，沒有新增內容 | 沿用當日已保存的適用估值點，避免一直增加重複點 |
-| 隔日重交相同 Bull CSV | 可新增當日 BTC 價格估值點，購入量不變，不新增供款或交易 |
+| Wealthsimple only | New As of; BTC from opening/buys/events or applicable anchor; Bull marked carried |
+| Bull only | Execution time rounded to minute; completed orders/BTC quote to cutoff, stocks retain snapshot quantity/native prices |
+| Both | Normally stock As of; later completed Bull orders switch to execution time, retaining stock date disclosure |
+| First Bull-only | BTC/Bull-cash scope; stocks not supplied; later stocks create new scope |
+| No CSV/balance/explicit cutoff | Latest saved valuation, no current-date observation |
+| Same unchanged Bull CSV again that day | Reuse applicable saved daily valuation without repeated points |
+| Same Bull CSV on a later day | May create a current BTC valuation, not new buys/contributions |
 
-例如股票快照是 10 月 9 日，12 月 10 日只提交 Bull：程式會自動更新 BTC 的 12 月 10 日估值，但股票依然是 10 月 9 日持倉及原幣市價。當期匯率用於三幣換算；這是含不同日期來源的估計合計，不是 12 月 10 日的完整資產觀測，也不當成投資報酬。報告同時列各來源更新狀態與日期。
+Stock October 9 + Bull-only December 10 refreshes BTC for December 10 but keeps
+October 9 stock quantities/native prices. Current applicable FX converts equivalents.
+This is a mixed-date estimate, not complete December 10 wealth or investment return.
+Show source dates/status separately.
 
-「最新已完成訂單日期」只是事件日期，不代表錢包餘額已核對，也不證明之後沒有活動。沒有新 CSV 時保留已知資料，明示沿用，不自動假設沒有交易。Bull 的月度入金／購入歷史按真實完成時間補入；股票實際歷史不被重新估值點改寫。圖表用虛線標示含沿用／不同日期資料的合計，股票帳戶線只使用原始快照。
+Latest completed order is an event date, not wallet reconciliation/no-later-activity
+proof. Missing CSVs retain known data with carried status. Bull monthly events use
+actual completion dates; stock history is unchanged. Dashed total curves identify
+carried/mixed data; stock-account lines use original snapshots.
 
-原有 `--input`／`--bull-input` 相容。`--valuation-as-of` 現在是選用的進階覆寫，平常不用填：
+Legacy --input/--bull-input remain supported. Advanced optional cutoff:
 
 ```bash
 .venv-portable/bin/python scripts/update.py /path/to/orders.csv \
   --valuation-as-of 2024-12-10T22:00:00-05:00
 ```
 
-指定時間必須含時區，且不能早於所採用股票快照；只納入截止前已完成訂單。新時間沒有匯率／BTC 價格快取時需要網路，只查詢公開市場資料，不上傳投資檔。價格與匯率凍結後可重用同一金融估值；正常報告仍查最新官方 ETF 資料。完整離線重播須另指定相符的 `--lookthrough-run-id`，見第 15 節。
-
-只看原本的 Wealthsimple 報告：
+Require an offset and cutoff no earlier than selected stocks; include only completed
+orders by cutoff. Missing FX/quotes may need public network queries without private
+uploads. Reuse frozen references for identical valuation, while normal reporting
+still queries latest official ETFs. Full saved-analysis replay needs matching
+--lookthrough-run-id (section 15). Brokerage-only reporting:
 
 ```bash
 .venv-portable/bin/python scripts/update.py --wealthsimple-only
 ```
 
-首次 Bull 訂單帳本匯入須明示該帳本範圍的期初 BTC、LBTC、CAD 均為零。先複製 `config/bull-opening.example.json` 到私人檔案，核對所有欄位及依據，再透過 `--bull-opening-file /path/to/private-bull-opening.json` 提供。公開示例不是任何使用者的聲明；程式不會替新 clone 自動採用零假設。已有使用 Bull 前持倉時，用第 18 節獨立補登有效期初量，不改原帳本聲明；不能無聲改變已保存假設。
+First Bull ledger import requires an explicit original zero BTC/LBTC/CAD opening
+assumption. Copy config/bull-opening.example.json privately, review every field/basis,
+and provide --bull-opening-file /path/to/private-bull-opening.json. Public examples
+are not user declarations and clones never silently assume zero. Existing pre-Bull
+holdings use section 18's separate effective opening, preserving the original
+ledger declaration; do not silently change saved assumptions.
 
-### 13.2 數量與估值
+### 13.2 Quantity and valuation
 
-總覽以 BTC ＋ LBTC 的 1:1 合計顯示「BTC 等值」。原始 BTC、LBTC 數量與交付網路保存，原始交付累計不等於現在各網路的錢包餘額。Liquid 與主鏈間的自動／手動轉換不在Bull 訂單匯出裡；它是自己資產間的轉移，不是再投入一次資金，但相關費用可能減少持有量。
+Present BTC+LBTC as 1:1 BTC equivalents. Preserve original deliveries/networks; their
+cumulative amounts are not current network wallet balances. Bull order CSV does not
+include Bull Wallet auto/manual Liquid-to-main-chain swaps. Own-asset transfers are
+not new contributions; actual fees may reduce holdings.
 
-尚無餘額觀測時，估計持有量＝固定期初＋CSV 中已完成的 BTC／LBTC 購入交付總量＋已補登淨異動。只有已補登的實際費用會扣除；未知後續費用不自行推定，估計量不標成獨立核驗錢包值。日期明確的餘額與異動介面已提供，見第 19 節；不能修改買入訂單來硬湊餘額。
+Without observations: fixed opening + completed deliveries + known net events.
+Deduct supplied actual fees only. Do not estimate unknown fees or label quantity as
+independently verified. Section 19 supports dated balances/events; never alter buy
+orders to force balance agreement.
 
-BTC 價格採 Coinbase Exchange BTC-USD 在估值截止前最後完整一分鐘的 close，最多容許五分鐘時差，保存原始回應及雜湊。CAD／TWD 使用報告匯率換算；不使用截止時間之後的價格，也不拿最後一次買入價格代替當期市值。LBTC 採 BTC 1:1 價格作估值代理。BTC 的 CAD 是估值幣別，與原幣 CAD／USD 證券表分開。
+BTC uses Coinbase Exchange BTC-USD last complete one-minute close at/before cutoff,
+with at most five minutes' gap, archived raw response/hash. Convert via report FX;
+no future quotes/purchase-price substitution. LBTC uses 1:1 BTC valuation proxy.
+CAD is a valuation currency, separate from native security tables.
 
-「BTC 累積與每月投入」表的**平均買入價（CAD／BTC）**＝該月已完成 Bull 買入的 CAD 支出 ÷ BTC＋LBTC 交付等值數量。這是依交付數量加權的有效買入價格，不是各訂單報價的簡單平均，也不使用入金金額、累計量或本期估值價格計算。沒有購入的月份顯示不適用；只涵蓋該月已完成購入，不包含未知的 Bull 使用前取得成本或後續錢包費用。ODS 同欄用公式，正式更新由腳本自動重算。
+Monthly average CAD/BTC = completed monthly Bull CAD spend / delivered BTC+LBTC.
+It is quantity-weighted, not a simple quoted-rate average or Funding/cumulative/current
+valuation calculation. No buys means n.a.; exclude unknown pre-Bull costs/later fees.
+ODS uses formulas; updates recalculate.
 
-有後補期初時，主要報告的「目前有效期初持倉（Bull 使用前）」列出實際固定 BTC＋LBTC 等值數量；不以原來的零假設代表有效期初。原 Bull BTC／LBTC／CAD 零值及完整聲明另存每份報告的 `btc-opening-audit.json`，不再放在日常 ODS／Markdown／PDF 中。原始紀錄不修改；此附件標明舊數量假設已由獨立期初聲明補充，原 CAD 現金依據仍保留。
+With backfill, show effective pre-Bull opening, not obsolete zero assumptions. Each
+report preserves original BTC/LBTC/CAD declaration in btc-opening-audit.json without
+showing it as current main-table quantity. Original evidence/cash basis stays intact.
 
-Bull CSV 可計算已完成購入支出及對應平均買入價；**無法計算使用 Bull 前的實際取得成本或歷史投入**。例如合成帳本 Bull 購入 0.01000000 BTC 等值、支出 CAD 1,000.00，另有固定期初 0.00500000 BTC 等值。購入支出已知，期初實際成本未知，所以實際完整持倉成本／損益仍未知。工具預設 `actual_only`；可明確選用 `bull_average_proxy` 的「Bull 均價推估」欄位，但不能當作實際歷史成本。入金紀錄可另列，但不能由買入支出推定完整歷史外部供款。數量來源與異動／費用涵蓋分開呈現，規則見下方資料狀態。
+Bull CSV establishes completed spend/rates, not actual pre-Bull cost/contributions.
+Synthetic buys of 0.01000000 for CAD 1,000 plus opening 0.00500000 with unknown cost
+still leave complete actual cost/P&L unknown. Default actual_only; optional proxy is
+not historical actual cost. Funding records do not reconstruct complete external
+contributions. Quantity basis/fee coverage remain separate.
 
-### 全持倉成本與損益：Bull 均價推估
+### Whole-holding cost and P&L: Bull average proxy
 
-公開預設為 **`actual_only`**，不以後來購入單價填補未知實際成本。若要額外查看代理估算，可用 CLI 選項，或複製 `config/local.example.toml` 到忽略的 `config/local.toml`：
+Default **actual_only** does not fill earlier unknown costs with later prices.
+Opt in through CLI or ignored config/local.toml copied from local.example.toml:
 
 ```bash
 .venv-portable/bin/python scripts/update.py --btc-cost-policy bull_average_proxy
@@ -351,7 +530,7 @@ Bull CSV 可計算已完成購入支出及對應平均買入價；**無法計算
 btc_cost_policy = "bull_average_proxy"
 ```
 
-CLI 設定優先於本機 TOML；沒有設定採 `actual_only`。選擇 `bull_average_proxy` 後，主 BTC 表額外使用以下估算方式，不需另填取得成本：
+CLI overrides TOML; absent settings use actual_only. Proxy calculation:
 
 ```text
 Reference average CAD/BTC = Completed Bull purchase spend / Delivered BTC+LBTC equivalents
@@ -360,209 +539,309 @@ Estimated P&L CAD = Current market value CAD - Estimated holding cost CAD
 Estimated return = Estimated P&L CAD / Estimated holding cost CAD
 ```
 
-這個參考均價只從已完成 Bull 買入 CSV 計算，原始 BTC 與 LBTC 交付按 1:1 合計；期初量、新回報餘額、入金或手動費用都不改均價。新 CSV 增加實際完成購入時才重算加權均價，重複匯入不重計。
+Reference average uses completed Bull purchases and 1:1 deliveries only. Opening,
+observations, Funding/manual fees do not change it; new completed buys do, with
+reimports deduplicated.
 
-估算成本套用到**全部目前 BTC 等值數量**，包括固定期初及未解釋餘額差額。即使有待釐清差額，估算仍可顯示，對帳差額不消失。只有新總量時，參考均價不變，估算成本及損益按總量縮放；同估值價格、正數量及正均價下，損益率不變。若價格低於均價，更多數量會增加估算虧損的絕對金額，不一定讓損益改善。
+Apply the average to **all current equivalents**, including opening/unexplained gaps.
+Estimates remain available without erasing unresolved status. A total-only update
+leaves average unchanged while cost/P&L scale. At equal price and positive quantity/
+average, the return rate is unchanged. Below average, more quantity increases absolute
+estimated loss rather than necessarily improving P&L.
 
-例如 Bull 購入 0.06 BTC、支出 CAD 6,000，參考均價為 CAD 100,000／BTC。估值單價 CAD 120,000：
+Synthetic example: buy 0.06 BTC for CAD 6,000, average 100,000/BTC, valuation 120,000:
 
-| 回報總量 BTC | 估算成本 CAD | 市值 CAD | 估算損益 CAD | 估算損益率 |
+| Total BTC | Estimated cost CAD | Value CAD | Estimated P&L CAD | Rate |
 |---|---:|---:|---:|---:|
 | 0.08 | 8,000 | 9,600 | 1,600 | 20% |
 | 0.09 | 9,000 | 10,800 | 1,800 | 20% |
 | 0.07 | 7,000 | 8,400 | 1,400 | 20% |
 
-這些是推估值，沒有補齊期初的實際支出，也不把增加數量當供款或投資增值。出售／支付／費用後，推估仍套用同一參考均價，但不代表實際剩餘成本分配、已實現損益或交易費用已計算；那些功能仍需另補歷史資料及政策。無 Bull 已完成購入時沒有參考均價，不能計算推估；有參考均價但零持倉時，估算成本與損益為零，比例不適用。
+These estimates do not supply actual opening expenditure or turn extra quantity into
+funding/gain. After sales/spends/fees the proxy still uses the average but does not
+compute actual remaining allocation, realized P&L or fees. No completed buys means
+no estimate; zero holdings with an average gives zero cost/P&L and n.a. rate.
 
-啟用時 ODS／Markdown／PDF 明示「Bull 均價推估」，`btc-cost-estimate.json` 保存政策、方法、輸入及結果；`actual_only` 不顯示代理估算數字。`data.json`、持倉來源與組合分析的實際 book／avg_cost／unrealized 欄位仍保留原狀，不把推估加進全組合實際損益。既有完整實際成本、供款、期間績效仍依原完整性條件呈現。
+ODS/MD/PDF label the method; btc-cost-estimate.json saves policy/method/inputs/results.
+actual_only shows no proxy numbers. Actual data.json/position/analysis book/avg_cost/
+unrealized remain unchanged, without adding proxy into portfolio actual P&L. Actual
+costs/flows/period performance still require original completeness conditions.
 
-每月數量圖表示實際完成訂單的累積購入量；不代表每個月的實際錢包餘額或歷史市值。新增估值時間可保存合併市值歷史點；含沿用來源或不同日期資料時清楚標示為估計，不列同步完整正式快照。原有 Wealthsimple 基準與報告保留。
+Monthly quantity charts show real completed cumulative buys, not actual month-end
+wallet balances/values. New valuations may create mixed-date estimated history,
+not complete synchronized formal snapshots. Original broker baseline/reports remain.
 
-### 報告中的資料狀態
+### Report data states
 
-- **有效數量**：採用適用的帳本、固定期初或餘額觀測與之後已知異動；後補等值不拆成未確認的主鏈／Liquid 數量，也不填入 CAD 成本或現金欄。
-- **數量狀態與費用涵蓋**：如果有期初聲明，它保存當時回報的總量。報告時間與該參考時間相同且總量相符時，顯示「使用者回報基準總量（期初補登依據）；未獨立核驗」；之後沒有新回報時顯示基準＋已知購入推估。有另登餘額則區分當時回報及其後已知淨異動推估。費用涵蓋另列，只納入已提供紀錄，未知費用不自行估算或額外扣除；不代表已提供基準總量失效，也不將期初聲明重複寫成一次新觀測。成本的 Bull 均價推估與此數量來源分開。
-- **Bull 已知購入成本**：從已完成訂單計算，正常顯示數字。**使用 Bull 前取得成本／歷史投入**：缺當時支出及來源時顯示未提供。
-- **全持倉估算成本／損益／損益率**：選用 `bull_average_proxy` 時另外顯示，不能當實際歷史成本；預設 `actual_only` 不產生代理估算。實際完整成本不全時，其他實際欄位仍顯示未提供或未能計算並說明缺項。
-- **錢包回報與帳本差額**：未提供日期明確餘額時顯示「未計算；尚未提供餘額觀測」；有觀測但帳本不足時顯示帳本不足。已知零差額仍列零，不當成缺資料。
-- **零現金／零購入月份**：可以是有效資料；例如 Bull CAD 入金與買入支出相等，帳本剩餘現金為零，並不代表期初 BTC 為零。無購入月份的平均買入價為不適用。
+- **Effective quantity:** applicable ledger/opening/anchor+later events. Do not split
+  unknown backfill networks or invent CAD cost/cash.
+- **Quantity versus fees:** at an opening's matching reference time/quantity, label
+  a user-reported unverified baseline; later estimates are opening+known buys.
+  Separate formal observations/later events. Only supplied fees are included; unknown
+  fees are not deducted. Missing fees do not invalidate a reported baseline or create
+  another observation. Cost estimation is independent.
+- **Known Bull spend:** numeric completed-order cost. Pre-Bull actual costs/contributions
+  remain not supplied without original evidence.
+- **Whole-holding estimates:** explicit proxy only, separate from actual fields and
+  missing-cost reasons. Default actual_only adds no proxy.
+- **Wallet gaps:** without dated observations, not calculated/reason; insufficient
+  ledger remains insufficient. Known zero is numeric, not missing.
+- **Zero cash/no-buy months:** legitimate states. Balanced Funding/spend gives zero
+  CAD cash, not zero pre-Bull BTC; no monthly buys gives n.a. purchase rate.
 
-每次正式產生報告，程式在發布前核對 ODS／Markdown／PDF 的有效期初與持倉、已知購入成本、缺失成本及對帳狀態，並核對稽核附件。若舊假設重新混入日常報告、有效數值與 payload 不符、缺成本變成數字或狀態不同步，會停止發布並保留上一份成功報告。可在 `manifest.json` 的 `presentation_validation` 查看結果；失敗按第 19 節 operation 流程查詢／重試，不重交總量。檢查不等於獨立核驗錢包或補齊歷史交易。
+Before publication, validate effective quantities, known/unknown costs, gaps and audit
+supplements across formats. Superseded assumptions, payload mismatch or false numeric
+unknowns stop publication, retaining latest success. See manifest.presentation_validation
+and section 19 recovery. This does not independently verify wallets or complete history.
 
-### 13.3 入金如何計算
+### 13.3 Funding treatment
 
-`Funding` 是 CAD 進入 Bull balance，`Buy Bitcoin` 使用那筆餘額購買，兩者不能相加當成兩次供款。例如合成帳本入金 CAD 1,000、買入支出 CAD 1,000，推算 CAD 剩餘零；這不是 CAD 2,000 的投入或資產。實際值由各使用者自己的訂單計算。
+Funding moves CAD into Bull; Buy spends that balance. Funding 1,000 + spending 1,000
+leaves zero CAD, not 2,000 contributions/assets. Use actual user orders.
 
-對 Bull 帳戶而言可看到入金紀錄，但對全部追蹤資產而言仍要知道資金從哪裡來：
+Origins matter portfolio-wide: untracked bank inflow is external contribution;
+tracked Non-registered -> Bull is internal transfer; main-chain/Liquid/hot/cold own
+wallet movements are internal, with fees separate.
 
-- 未追蹤銀行帳戶轉入：屬整體組合的外部投入。
-- 已追蹤 Non-registered 轉出到 Bull：屬組合內轉移，不增加整體投入。
-- 主鏈與 Liquid、冷錢包與熱錢包互轉：屬內部轉移；費用另記錄，不能算供款。
+Bull origins remain unclassified and do not automatically enter the brokerage flow
+ledger. Eligible Wealthsimple account returns remain available. Combined Dietz/XIRR
+are disabled pending origins, paired transfers, wallet balance/fees and coverage.
+Known Funding/spend/monthly quantities/combined valuations remain usable.
 
-本版將 Bull 入金來源標示為尚未分類，不自動匯進 Wealthsimple 的供款帳本。Wealthsimple 帳戶的完整期間績效仍可計算；合併股票與 BTC 的 Modified Dietz／XIRR 暫不啟用，須另補資金來源分類、轉移配對及錢包餘額／費用資料與對帳完整性。這項限制不妨礙查看已知 Bull 入金、買入成本、每月購入數量與合併估值。
+### 13.4 Earlier BTC without transaction history
 
-### 13.4 日後補入使用 Bull 前的 BTC
+Use a dated opening/balance with unknown cost/contributions, not a new buy, zero
+cost or invented acquisition date. Determine whether total already includes Bull.
+Section 18 supports independent pre-Bull opening; original declaration/reports remain.
+New scope does not become new funding/gain.
 
-若只有總持有量、沒有原始交易史，應另建立有日期的「期初持倉／餘額觀測」，成本及歷史供款標示未知；不能將差額當成新購入、假設成本為零，或虛構購買日期。先釐清總量是否已包含 Bull 購入，以免重複。
+References: [Bull CSV export](https://www.bullbitcoin.com/fr/blog/launch-of-bull-bitcoin-version-2),
+[Bull Wallet network transfers](https://www.bullbitcoin.com/blog/how-to-move-bitcoin-from-your-spending-wallet-to-cold-storage-privately),
+[Liquid assets](https://docs.liquid.net/docs/liquid-assets),
+[Coinbase candles](https://docs.cdp.coinbase.com/api-reference/exchange-api/rest-api/products/get-product-candles).
 
-現已支援獨立補登使用 Bull 前的 BTC 等值數量，見第 18 節。原 `bull-opening.json` 與舊報告保留；新增聲明與比較範圍基準，不直接修改原假設或資料庫，不把補登資產當成新的供款或投資增值。
+## 14. Irregular updates, missing months and backfill
 
-參考來源：[Bull 官方 CSV 匯出說明](https://www.bullbitcoin.com/fr/blog/launch-of-bull-bitcoin-version-2)、[Bull Wallet 跨網路轉移](https://www.bullbitcoin.com/blog/how-to-move-bitcoin-from-your-spending-wallet-to-cold-storage-privately)、[Liquid 資產說明](https://docs.liquid.net/docs/liquid-assets)、[Coinbase candle 格式](https://docs.cdp.coinbase.com/api-reference/exchange-api/rest-api/products/get-product-candles)。
+Monthly is an organizational recommendation, not a prerequisite. Imports 1.5/2 months
+or longer apart use actual dates/elapsed days.
 
-## 14. 不定期更新、漏月與補交
-
-每月是整理建議，不是程式執行前提。隔 1.5 個月、2 個月或更久仍可匯入，所有比較採實際日期與相隔天數。
-
-| 情況 | 處理方式 |
+| Situation | Treatment |
 |---|---|
-| 10 月後到 12 月才有新 Wealthsimple 持倉 | 歷史只有 10 月與 12 月觀測；11 月未提供，不補值、不歸零。比較這兩次觀測，不稱為單月報酬 |
-| 補交當時保存的 11 月 CSV | 若日期晚於起始基準，可依原始 `As of` 匯入；歷史按日期排序，不依提交順序 |
-| 12 月 Bull CSV 含 10–12 月全部訂單 | 已存在的訂單去重，新訂單按真正完成月份補入；可恢復每月購入／入金事件，不自動補月末持倉 |
-| Bull 匯出只涵蓋部分日期 | 只記錄已提供內容；訂單首尾日期不證明其他日期沒有交易，應另外下載遺漏期間 |
-| 持倉有更新，但供款不完整 | 可比較資產值，不能將其直接稱為扣除投入後的投資增值或期間報酬 |
-| 兩種來源日期不同 | 依第 13.1 節自動選時間；各自列日期，含舊來源合計以估計呈現 |
+| October then December holdings | Two observations, no invented/zero November; compare actual interval, not one-month return |
+| Later submit saved November CSV | Import its true As of if after baseline; history sorts by source date |
+| December Bull export contains October-December | Deduplicate known orders, restore actual event months without fabricated month-end balances |
+| Partial Bull export | Record supplied content; endpoints do not prove no intervening activity; export missing periods |
+| Updated holdings/incomplete flows | Value changes available, flow-adjusted gain/returns unavailable |
+| Different source dates | Automatic 13.1 cutoff, explicit source times and mixed-date estimate |
 
-例如 10 月至 12 月的供款要涵蓋整段期間，而不只 12 月；完整確認後，原有 Wealthsimple 期間計算使用真正日期加權。缺少月份不等於沒有供款。即使不定期匯入，也建議在看到文件時保存原始 CSV 與活動證明，之後才有可靠資料補交。
+October-December flows must cover the whole interval, not December alone. Eligible
+broker returns use real date weights after coverage confirmation. Missing months
+are not zero contributions. Save original CSV/activity evidence for later recovery.
 
-## 15. ETF 公司曝險與官方資料更新
+## 15. ETF company look-through
 
-日常命令不變，可提供 Wealthsimple、Bull，或兩份 CSV。即使只有 Bull 更新，程式也會對沿用的股票部位重新查詢最新官方 ETF 成分。沒有新 CSV 的重產命令沿用已保存的資產估值時間，但仍查詢最新成分，另存公司分析版本，不增加投資歷史觀測：
+Daily commands are unchanged. Either CSV/both trigger latest official ETF queries,
+even Bull-only with carried stocks. No-input regeneration retains financial cutoff
+while saving a new analysis version, without another valuation observation:
 
 ```bash
 .venv-portable/bin/python scripts/update.py
 ```
 
-ODS「組合分析」在原有證券排名／帳戶矩陣之後新增前 20 大公司、計算來源、基金覆蓋率及官方日期。前 20 大公司表格在 ODS、Markdown 與 PDF 的第一欄均有排名 1–20，依直接及 ETF 間接合計持倉市值由大到小排列。ODS「圖表分析」、Markdown 與 PDF 同步增加直接個股／ETF 間接股份堆疊圖。完整公司清單與各 ETF 的公司金額另存 `company-exposure.csv`；未知項目另存 `unresolved-exposure.csv`，來源及逐份原始檔 SHA-256 存在 `fund-sources.json`。
+Portfolio analysis adds Top 20, paths/coverage/official dates after wrapper rankings/
+matrices. All formats start with rank 1-20 by combined direct/indirect value and add
+stacked direct/ETF charts. company-exposure.csv contains all resolved companies,
+three currencies, three denominator weights and per-fund amounts. Ratios are fractions
+(0.154=15.4%). unresolved-exposure.csv traces root/path/item/unresolved net value,
+already in totals/denominators; never add it again. fund-sources.json records sources/
+raw SHA-256. Use ODS/PDF for reading, CSVs for detail/audit.
 
-`company-exposure.csv` 包含全部已解析公司，不限前 20；有直接／間接金額、三幣等值、三種比例及每檔 ETF 分項。比例存成小數分數，例如 `0.154` 表示 15.4%。`unresolved-exposure.csv` 用於核對根 ETF、穿透路徑、項目名稱及尚未解析淨市值；其中金額已包含在資產總額及分母內，不能再次相加。一般閱讀以 ODS／PDF 為主，這兩份 CSV 供完整明細與審核使用。
+### Calculation policy
 
-### 計算口徑
+- Company CAD = direct CAD across accounts + each root ETF CAD * terminal company weight.
+- Principal weight = company value / all noncash investments, including self-custody
+  BTC/Bitcoin ETFs/ETF cash/unresolved, excluding account cash.
+- Also show total-assets-with-cash and resolved-company-equity weights separately.
+- Multiply fund-of-fund paths. QQC uses CI's QQQM then Invesco US constituents;
+  Vanguard uses fully paginated official delayered holdings.
+- Retain source precision without rescaling to 100%. Positive undisclosed residual
+  stays unknown; small overweight rounding is separate; large excess rejects.
+- Bitcoin/cash/bonds are non-company. Futures/swaps/FX contracts/unidentified equities/
+  funds remain unresolved. Net derivative value is not notional/delta exposure.
+- Auditable company-aliases.json, security IDs and conservative names merge companies.
+  ISIN/CUSIP/SEDOL/FIGI identify securities, not companies directly. ADR/share-class/
+  aliases use company rules. Same ticker across markets is insufficient; ambiguous
+  same-name multinational records without identifiers remain unresolved.
 
-- 公司 CAD 金額＝所有帳戶直接個股 CAD 市值＋各根 ETF CAD 市值 × 最終公司成分權重。
-- 主占比＝公司金額 ÷ 全部非現金投資工具 CAD 市值。分母含自託管 BTC、比特幣 ETF、ETF 內現金及尚未解析部分；排除帳戶現金持倉。
-- 同時列出占含現金總資產、占已解析公司股份兩種比例，分母彼此不同。
-- 基金中基金逐層相乘。QQC 使用 CI 披露的 QQQM 部位，再讀取 Invesco US 的 QQQM 成分；Vanguard 使用官方已穿透的完整持倉，讀取全部分頁。
-- 發行商權重依原始精度保留，不重新縮放到 100%。未披露的正餘額保留未知；超過 100% 的小幅四捨五入差額另列調整，過大則拒絕計算。
-- 比特幣、已知現金和債券不列為公司。期貨、掉期、外匯合約及無法確認的股份／基金列未知；衍生工具淨市值不等於其名目或 delta 曝險，因此表格是公司股份市值估計，不包含完整衍生工具曝險。
-- 公司名稱依可審核的 `config/company-aliases.json`、證券識別碼及保守名稱規則合併。ISIN／CUSIP／SEDOL／FIGI 是證券識別碼，不直接當作公司識別碼；ADR、股份類別及別名由公司規則進一步合併。相同代號不作跨市場合併依據。含多國同名歧義又缺識別的資料保留未知。
+Renaming/nonstandard aliases/unsupported securities may need manual mapping maintenance,
+not LLM guesses. Export source names/methods/per-fund amounts. Mapping edits create
+new analysis; older saved runs remain replayable.
 
-完整所有公司身分仍可能因發行商改名、非標準別名或未支援的證券類型需要維護對照表；程式不請 LLM 猜測。`company-exposure.csv` 保留來源名稱、解析方法及每檔 ETF 金額，便於審核。修改對照表後重產新分析版，原有保存版本仍可離線重播。
+### Latest publications, dates and failures
 
-### 最新資料、不同日期與下載失敗
+Latest means fetched published official data, not every issuer publishing daily.
+Show valuation/effective/fetch times/status separately. Current adapters: TSX VEQT,
+VFV, QQC, XCHP, ZNQ, FBTC; US SMH and underlying QQQM. FBTC uses Fidelity Canada,
+not its US namesake. QQC uses current manager CI, not an old Canadian Invesco source.
 
-「最新」指本次程式查詢官方已發布資料，並非所有發行商都有當日成分。每份報告分別列投資估值時間、成分有效日期、下載時間及查詢狀態。現有介接包含 TSX VEQT、VFV、QQC、XCHP、ZNQ、FBTC，以及美國 SMH 和 QQC 底層 QQQM。FBTC 使用 Fidelity **Canada** 的基金資料，避免與美國同代號基金混淆。QQC 使用目前基金管理人 CI 的資料，沒有沿用舊加拿大 Invesco 來源。
+CI's undisclosed residual remains unknown. Vanguard monthly/Fidelity quarterly data
+can be older. Adapter freshness windows flag old daily/monthly/quarterly releases;
+these windows are not issuer publication promises.
 
-CI 主要持倉表未披露部分保持未知；Vanguard 月度、Fidelity 季度資料可能較早。已查詢但日／月／季公布資料超過各介接器的合理期限，會標示較舊；期限不是發行商保證的更新承諾。
+Failed downloads/parsers/unsupported ETFs may still yield reports with that fund fully
+unresolved and incomplete. Never fill zero or silently reuse old evidence. Missing
+coverage can affect ranks. Preserve already saved public evidence for diagnosis.
 
-下載／解析失敗，或新 ETF 尚未介接時，報告仍可產生，但該基金全額列未解析，狀態明示不完整；不將未知當零，不悄悄沿用舊資料。未解析部分可能影響前 20 排名，故只列依已披露成分估計的結果。原始下載失敗前已保存的公開證據也保留供檢查。
+This estimates stock-snapshot exposure with latest published constituents, whose
+ dates may be later than snapshot. It never rewrites past values/flows/performance.
+lookthrough_runs changes analysis history, not snapshots/combined_observations counts/dates.
 
-ETF 分析是估計目前股票快照依最新公布成分的公司曝險。成分日期可能晚於快照日；本分析不重寫以前的投資市值、供款或實際績效。每次另建 SQLite `lookthrough_runs`；資產歷史 `snapshots`／`combined_observations` 的日期與筆數不因更新公司分析而增加。
+### Offline saved analysis
 
-### 離線重現已保存的分析
-
-最新報告的 `manifest.json` 或 `data.json` 會記錄 `lookthrough_run_id`／`lookthrough.run_id`。例如保存分析版本 1 後：
+Find lookthrough_run_id/lookthrough.run_id in manifest/data. Synthetic run 1 example:
 
 ```bash
 .venv-portable/bin/python scripts/update.py --lookthrough-run-id 1
 ```
 
-僅在目前採用的投資估值時間、持倉與總額完全符合該版本時才能重播；有新持倉或新價格就不能混用舊分析。離線重播不查詢發行商，明示「保存版本重播」，不宣稱是當日最新成分。必要的股票／BTC／匯率資料仍需已保存；這不是離線匯入任意新 CSV 的模式。
+Only identical valuation time/holdings/totals can replay. New holdings/prices cannot
+mix with old analysis. No issuer queries; explicitly label frozen replay, not current
+latest. Required financial references must already exist; this is not offline new-CSV import.
 
-ODS 公司金額與占比是公式；保存的官方權重及基金已解析公司比重為輸入值。調整持倉金額會連動，但公司排序、公司對照、官方成分與 PNG 圖不會在試算表裡自動重新下載或重畫。正式更新應重新執行程式，以產生一致的三種格式及圖表。
+ODS amounts/weights use formulas with frozen constituent/resolved-equity coefficients.
+Value edits propagate, but order/mappings/holdings/PNGs do not download/redraw. Formal
+updates regenerate consistent formats.
 
-### 保存位置與擴充
+### Storage and extension
 
-- `data/raw/fund_holdings/時間-識別/基金/`：不可覆寫的公開官方原始證據。
-- SQLite `fund_sources`：完整解析成分、日期、網址、原始證據 SHA-256 與解析版本。
-- SQLite `lookthrough_runs` 與 `lookthrough_run_sources`：投資估值指紋、公司對照指紋、計算結果及來源關聯。
-- 各報告 `rNN/`：三種報告、PNG、完整公司 CSV、未知項目 CSV、來源 JSON、資料 JSON 與 manifest。
+- data/raw/fund_holdings/<time-id>/<fund>/: immutable official evidence.
+- fund_sources: parsed holdings/date/URL/SHA/parser version.
+- lookthrough_runs/lookthrough_run_sources: valuation/alias fingerprints/results/links.
+- Report rNN/: three formats, PNGs, companies/unresolved CSVs, sources/data/manifests.
 
-新 ETF 需在 `fund_sources.REGISTRY` 新增具基金識別與官方來源的介接器，並加入官方格式測試；尚未支援時會明確保留未知。正式流程全部由 Python 腳本執行，無 LLM、代理人、Codex、Node 或本機 LibreOffice 相依。網路僅取得公開成分；不傳送持倉金額、帳號、CSV 或供款資料。
+New ETFs require explicit identity/official adapter in fund_sources.REGISTRY and
+format tests. Unsupported means unresolved. Python queries public sources only,
+without LLM/agent/Codex/Node/LibreOffice or private amount/account/CSV/flow uploads.
 
-### 官方下載如何自行執行
-
-| ETF | 官方來源 | 程式取得方式 |
+| ETF | Issuer | Automated method |
 |---|---|---|
-| VEQT、VFV | Vanguard | 官方 GraphQL 資料介面，讀取全部成分分頁 |
-| XCHP | BlackRock／iShares | 官方持倉 CSV |
-| SMH | VanEck | 官方持倉 Excel，Python 直接解析 |
-| ZNQ | BMO | 官方基金網站資料介面 |
-| FBTC | Fidelity Canada | 官方基金 JSON 資料介面 |
-| QQC | CI | 官方基金資料頁，再讀取 QQQM 成分 |
-| QQQM | Invesco US | 官方持倉 JSON 資料介面 |
+| VEQT, VFV | Vanguard | Official GraphQL, complete pagination |
+| XCHP | BlackRock/iShares | Official holdings CSV |
+| SMH | VanEck | Official XLSX parsed in Python |
+| ZNQ | BMO | Official fund data API |
+| FBTC | Fidelity Canada | Official JSON API |
+| QQC | CI | Official fund page, then QQQM constituents |
+| QQQM | Invesco US | Official holdings JSON |
 
-以上是已實作介接方式，不保證發行商介面永遠不改版。程式使用固定欄位、日期、權重與公司對照規則，不呼叫 LLM，也不操作登入中的瀏覽器。新 ETF 或官方格式改版需要維護介接器；失敗會列未解析。工具目前由命令啟動，沒有定時排程、監看資料夾或自動登入券商下載私人 CSV。
+Issuer changes need adapter maintenance. Fixed field/date/weight/identity rules run
+without LLM/browser login. Failures stay unresolved. Runs are command-driven; no
+scheduler, watched folder or automatic private CSV download exists yet.
 
-## 16. 開發與待辦
+## 16. Development and roadmap
 
-專案規則見 [AGENTS.md](../AGENTS.md)，開發與測試見 [開發文件](development.md)，後續功能見 [TODO.md](../TODO.md)。私人的工作階段、帳本與報告狀態放在忽略的 `private/`，不屬公開文件。查看本機最新結果時讀 `reports/latest.json` 及 manifest，不為查狀態執行更新命令。
+Use [AGENTS.md](../AGENTS.md), [development](development.md) and [TODO](../TODO.md).
+Private agent state belongs in ignored AGENTS.override.md, separate from public facts.
+Inspect latest.json/manifest for status rather than creating a financial update.
+Suggested convenience work: FUT-002; flow work: Bull origins/transfer pairing.
+General bank/broker/exchange plugins remain planned, not arbitrary CSV support.
+All production features execute without LLMs.
 
-日常便利功能建議下一項為 FUT-002 統一狀態查詢；資金流主線為 Bull 入金來源分類與轉移配對。這些尚未實作，不影響目前支援的更新流程。其他券商／銀行／交易所的可擴充來源介接亦屬待辦，不表示現在已能匯入任意 CSV。正式功能始終由 Python 執行，不呼叫 LLM。
+## 17. Sector, country and region exposure
 
-## 17. 產業、國別與地區配置
+Normal updates need no classification file. Python queries latest published official
+constituents/classifications, saving raw evidence/dates/fetch/SHA. Latest may be month-end,
+not today. Financial/classification dates can differ without rewriting historical performance.
 
-沿用原有更新命令即可，無須另交分類檔案。每次正常更新由 Python 查詢本輪最新官方已公布 ETF 成分及分類，保存原始證據、有效日期、下載時間與 SHA-256；沒有 LLM 或代理人呼叫。「最新」指發行商已公布資料，可能是月末資料，不代表今日成分。投資快照時間與成分／分類日期可能不同，不以後來公布資料改寫過去績效。
+### Provenance and missing data
 
-### 分類來源與缺漏規則
+- **GICS:** Vanguard explicitly supplies gicsSectorDescription and icbIndustryDescription,
+  stored separately. Only explicit GICS is GICS, even if the fund generally uses ICB.
+  BlackRock Sector/Invesco sectorName retain original unconfirmed taxonomy. No guessed ICB conversion.
+- **Country/market:** official constituent fields, not revenue geography or necessarily
+  uniform legal domicile across issuers. MIC/currency/ISIN prefix cannot classify
+  direct stocks; US-listed TSMC ADR does not imply US classification.
+- **Same-company borrowing:** prefer the component's own row, else latest same-run
+  reliable company/dimension evidence. Equal-date conflicts stay unclassified. Direct
+  stocks follow the same rule; retain method/date/fund/URL/status, or unknown.
+- **Regions:** explicit country mapping to North America, Latin America/Caribbean,
+  Europe, Asia, Middle East, Africa, Oceania in classification.py. This is a display
+  policy, not issuer developed/emerging status or a complete gazetteer. Unsupported/
+  non-country codes such as XE remain unclassified; additions require tests.
 
-- **產業採 GICS**：Vanguard 官方持倉介面明確提供 `gicsSectorDescription` 與 `icbIndustryDescription`，兩者分開保存。即使基金主要分類體系為 ICB，也只取明確 GICS 欄位。BlackRock 的 `Sector`、Invesco 的 `sectorName` 等標籤保存為原始發行商分類，不因名稱類似就當作 GICS，不自行把 ICB 換成 GICS。
-- **國別採官方國別／市場**：使用基金成分的官方國別欄位；不是公司營收來自何處，也不保證所有發行商均採法律註冊地。直接個股不能只憑交易所、幣別或 ISIN 前綴判斷。例如台積電 ADR 在美國掛牌，不因此列美國。
-- **缺漏按同公司轉用**：部位先採自身官方成分列；沒有某維度時，從本輪下載且已可靠合併成同一公司的資料中，取該維度最新有效日。該日多份資料有衝突則保持未分類。直接個股也依此規則取得分類；找不到同公司官方證據時仍列未分類。每筆保存轉用方法、日期、基金、網址與來源狀態。
-- **地區採明列地理分組**：依官方國別代碼分成北美洲、拉丁美洲及加勒比海、歐洲、亞洲、中東、非洲及大洋洲，對照表在 `src/wealth_ledger/classification.py`。這是工具的展示政策，不是發行商的成熟／新興市場等級，也不是完整全球地名資料庫。未支援或非國家代碼（例如 `XE`）保持未分類；新增代碼需維護及測試對照表。
+References: [VEQT](https://www.vanguard.ca/en/product/etf/asset-allocation/9692/vanguard-all-equity-etf-portfolio),
+[VFV](https://www.vanguard.ca/en/product/etf/equity/9563/vanguard-sp-500-index-etf),
+[S&P GICS](https://www.spglobal.com/spdji/en/landing/topic/gics/),
+[FTSE Russell ICB](https://www.lseg.com/en/ftse-russell/industry-classification-benchmark-icb).
+Changed official formats can require maintenance; failures never imply fresh cached data.
 
-分類欄位與基金頁面可核對：[Vanguard VEQT](https://www.vanguard.ca/en/product/etf/asset-allocation/9692/vanguard-all-equity-etf-portfolio)、[Vanguard VFV](https://www.vanguard.ca/en/product/etf/equity/9563/vanguard-sp-500-index-etf)。分類體系說明見 [S&P GICS](https://www.spglobal.com/spdji/en/landing/topic/gics/) 與 [FTSE Russell ICB](https://www.lseg.com/en/ftse-russell/industry-classification-benchmark-icb)。官方介面改版仍可能需要維護；失敗不以舊快取冒充最新。
+### Weights, dates and reconciliation
 
-### 比例、日期與對帳怎麼看
-
-| 指標 | 分母及意思 |
+| Measure | Denominator/meaning |
 |---|---|
-| 占全部投資 | 全部非現金投資 CAD 等值，包含直接 BTC、比特幣 ETF、ETF 內現金及未解析工具；排除帳戶現金 |
-| 占公司股票 | 已解析公司股份的 CAD 合計，包含股份中尚未分類部分；非公司項目為不適用 |
-| 公司股票覆蓋率 | 有該維度分類的股份 CAD ÷ 已解析公司股份 CAD；不包含尚未解析成公司的工具，因此須一起看未解析金額 |
-| 分類占全部投資 | 有分類股份 CAD ÷ 全部非現金投資 CAD；BTC 等非公司資產沒有產業／國別，不代表資料缺漏 |
-| 有效日期範圍 | 實際採用分類證據的最早／最新有效日，不是下載日；逐筆來源另列 |
+| All-investment weight | All noncash CAD investments, including BTC/Bitcoin ETF/ETF cash/unresolved, excluding account cash |
+| Company-equity weight | Resolved company equities including unclassified equity; n.a. for non-company |
+| Equity classification coverage | Classified dimension equity / resolved equity; read with unresolved amounts |
+| Classified investment weight | Classified equity / all noncash; BTC lacks corporate classification by design |
+| Effective-date range | Earliest/latest adopted evidence dates, not fetch dates; detail retained |
 
-每維度的已分類公司、未分類公司、比特幣（直接及 ETF）、ETF 內現金淨額、債券、未解析工具／餘額及四捨五入調整，合計等於同一非現金投資總值。負的淨現金或微小四捨五入差額保留原符號，不強制正規化。這些是總值的拆分，不能再加到資產總覽。
+Classified/unclassified equity, direct/ETF Bitcoin, ETF net cash, bonds, unresolved
+instruments/residuals and rounding reconcile to the same total. Preserve negative
+cash/rounding without forced normalization. These are decompositions, not additions
+to portfolio assets. Own-row classifications may differ across issuers/dates; preserve
+evidence. This is not revenue, derivative-notional/delta or FX-risk analysis.
 
-同家公司不同基金的官方分類可能因日期或發行商口徑而不同；有自身分類的部位保留該列，並在逐筆審核檔提供證據。這不是跨公司營收、衍生工具名目／delta 或底層外匯風險分析。
+### Reports and audit files
 
-### 報告與審核檔
+- ODS has full GICS/country/region tables after company exposure, CAD/USD/TWD, both
+  weights, frozen coverage/dates, root coverage and coefficients. All countries remain.
+- MD/PDF show sectors/regions/coverage and Top 15 countries plus remaining classified
+  countries, with all unclassified/non-company categories. Full details in ODS/CSV.
+- 13_sector_exposure/14_country_exposure/15_region_exposure use all-investment weights;
+  gray identifies unclassified/non-company, retaining tiny negative adjustments.
+- allocation-exposure.csv contains all dimensions/currencies/fractional weights:
+  0.1=10%; currency equivalents are not additive.
+- classification-detail.csv traces companies/paths/original GICS/ICB/issuer/country
+  and assignments JSON with official dates/URLs/funds/status/method. Non-company
+  reconciliation remains in allocations/unresolved-exposure.csv.
 
-- ODS「組合分析」在公司穿透表之後新增三組配置表，各列 CAD／USD／TWD、兩種占比、保存時覆蓋率／日期、各根持倉覆蓋及計算係數。國別表列全部已分類國別。
-- Markdown／PDF 同步提供 GICS、國別、地區及覆蓋率；國別閱讀摘要列前 15 國及「其餘已分類國別」，未分類／非公司項目仍逐類列出。完整國別見 ODS／CSV。
-- 三張新圖為 `13_sector_exposure`、`14_country_exposure`、`15_region_exposure`，主軸都是占全部非現金投資；灰色項目為未分類或非公司對帳項，極小負差額仍保留精度。
-- `allocation-exposure.csv` 是完整三維度分類表，包含三幣金額與兩種比例；比例欄位是小數分數，`0.1` 表示 10%，三幣金額不可相加。
-- `classification-detail.csv` 是逐公司、逐穿透路徑的來源審核檔；包含原始 GICS／ICB／發行商分類／國別，以及 `assignments` JSON 的官方日期、網址、基金、來源狀態與採用方法。這是公司部分的明細；非公司／未知對帳仍見配置表及 `unresolved-exposure.csv`。
+ODS formulas propagate current position CAD/FX through frozen coefficients. Saved
+coverage/dates/identity/order/PNGs do not update automatically or write SQLite.
+Regenerate for formal results.
 
-ODS 分類金額與比例使用公式，連動持倉 CAD 市值與匯率；保存的分類係數為輸入值。改持倉市值可試算三幣配置，但保存時覆蓋率、日期、分類身分、排序與 PNG 不會自行更新。正式結果須重跑程式，手動試算不寫回 SQLite。
+### Saved history/replay
 
-### 保存與歷史重播
+Classification is frozen in lookthrough_runs payload; refreshing analysis adds no
+snapshots/orders/flows/valuation dates. Each run/new rNN is preserved. No-input refresh
+retains financial valuation while updating official analysis. Same-valuation replay
+retains classifications/dates and discloses no refresh. Older runs without classification
+stay as saved, without today's labels. Run IDs are local: inspect latest.json/manifest
+rather than copying the example's ID blindly.
 
-分類保存在 `lookthrough_runs` 的共同 payload；此分析不新增股票快照、訂單、供款或估值日期。每輪官方查詢建立獨立分析版，新報告仍保存 `rNN`，不覆寫舊版。未提供 CSV 的更新仍沿用已保存金融估值，僅刷新官方分析。
+## 18. Backfill pre-Bull BTC without transaction history
 
-有保存分類的分析可在**相同資產估值**下用 `--lookthrough-run-id` 離線重播，保留當輪分類與日期，明示未重新查詢。較舊分析沒有分類資料時仍呈現當時結果，不用今日分類補入歷史。分析 ID 屬各使用者本機資料，不要固定套用文件示例版號；先讀 `reports/latest.json` 與 manifest。
+After confirming all-wallet BTC+LBTC includes imported Bull buys and explicitly
+attributing the difference to pre-Bull holdings, declare:
 
+**Fixed opening = declared total - completed Bull BTC+LBTC through reference cutoff.**
 
-## 18. 補登使用 Bull 前的 BTC 持倉（缺少交易史）
+This is user attribution, not proof of origin/fees/acquisition dates/network split.
+Quantity-only backfill leaves actual CAD cost/contributions unknown, never zero or
+current-value contributions. Complete actual average/P&L remain unavailable; opt-in
+proxy appears separately (13.2). Known Bull spend remains numeric.
 
-如果你確認「全部錢包 BTC＋LBTC 等值合計」已包含匯入的 Bull 購入，並明確將差額歸為 Bull 使用前持倉，可使用獨立聲明補登：
+Copy config/crypto-opening.example.json to a private file:
 
-**固定期初量 = 聲明總量 − 參照截止時間內 Bull 已完成購入 BTC＋LBTC。**
-
-這是依你的指示分配數量，不是從訂單證明差額的來源。它不代表費用已核對、取得日期已知或 BTC／LBTC 目前網路分布已確認。僅補登數量時，期初成本及歷史實際投入 CAD 為未知；不填零、不用今日市價估算供款。實際完整 BTC 平均成本、未實現損益及損益率仍不可計算；選用 `bull_average_proxy` 時主 BTC 表按第 13.2 節額外顯示全持倉估算；預設 `actual_only` 不補代理數字。已知 Bull 購入支出另列。
-
-先複製 `config/crypto-opening.example.json` 到私人工作目錄，修改以下欄位：
-
-| 欄位 | 用法 |
+| Field | Meaning |
 |---|---|
-| `reported_total_btc_equivalent` | 含全部追蹤錢包及 LBTC 1:1 等值的總量，最多八位小數 |
-| `reference_as_of` | 計算已完成 Bull 購入的截止時間，ISO 8601 並附時區；若只是參照報告時間，需在 basis 說明不是精確錢包觀察時間 |
-| `declared_on` | 實際聲明日期 YYYY-MM-DD |
-| `balance_scope` | 確認全部錢包範圍後填 `all_wallets_btc_plus_lbtc` |
-| `basis` | 你為何把差額視為 Bull 前持倉，以及已知／未知的涵蓋範圍 |
-| `confirmed_by` | 聲明來源，例如個人確認或可核對的來源識別；不要放憑證 |
+| reported_total_btc_equivalent | All tracked wallets/LBTC 1:1, max eight decimals |
+| reference_as_of | Offset-aware completed-buy cutoff; explain in basis if report time rather than precise wallet observation |
+| declared_on | Actual YYYY-MM-DD declaration date |
+| balance_scope | all_wallets_btc_plus_lbtc after confirming scope |
+| basis | Why the difference is pre-Bull, known/unknown coverage |
+| confirmed_by | Declaration/evidence identity, never credentials |
 
-示例只有模擬數值，**不要直接匯入正式庫**。此命令會先備份資料庫，保存原始 JSON 並追加 SQLite 修訂，然後可產生報告：
+Synthetic example files must not be imported unchanged. Import backs up, archives
+JSON and appends a SQLite revision, then report:
 
 ```bash
 cd wealth-ledger
@@ -570,26 +849,34 @@ cd wealth-ledger
 .venv-portable/bin/python scripts/update.py
 ```
 
-查看目前期初聲明（唯讀）：
+Read-only inspection:
 
 ```bash
 .venv-portable/bin/python scripts/crypto_opening.py show
 ```
 
-原始聲明按日期及 SHA-256 保存於 `data/raw/crypto/opening/YYYY/MM/`，SQLite 表為 `crypto_opening_revisions`；原 Bull 零期初帳本聲明、訂單及歷史報告不變。若明確更正聲明，匯入新 JSON 會追加修訂並另立比較範圍，舊修訂保留，不覆寫來源。缺乏資料的期初取得日期、成本及歷史供款仍未知。
+Archive: data/raw/crypto/opening/YYYY/MM/, hashed declaration; table:
+crypto_opening_revisions. Preserve original Bull assumption/orders/reports. New
+corrected JSON appends revision/comparison scope without rewriting evidence. Actual
+acquisition dates/cost/contributions remain unknown.
 
-後補持倉另立含期初資產的比較範圍基準，舊範圍估值與報告保留。若新範圍只有一個基準點，不畫兩點歷史曲線，也不把補登量算成當日成長；不補造 Bull 使用前市值。
+Backfill creates a new scope baseline, not same-day growth or fabricated earlier
+values. One new-scope point creates no history curve. Later either/both CSVs retain
+fixed opening; deduplicate/accumulate orders without monthly balance resubmission
+or recalculation from the old total. Earlier missing buys/sales/fees may overlap the
+opening: review explicitly, not old total minus new cumulative buys. Totals below
+known purchases reject and need separate sale/fee/missing-source handling.
 
-**之後只需照常提供任一或兩份 CSV。** 期初量固定保留，新 Bull 訂單按 ID 去重後累加；不需每月重交總餘額，重交相同聲明不會重算期初。若未來回補先前漏掉的 Bull 購入或發現出售／費用，先核對是否與原聲明重疊；不要再用同一舊總量機械扣除新累計量。低於已提供購入量的聲明會被拒絕，需另處理出售、費用或來源缺漏。
+Funding/Buy remain one money flow. Opening adds no CAD deposit/trade/cash_flow.
+Inception funding still requires reliable historical trades/transfers/flows, not BTC total alone.
 
-已知 Bull Funding／Buy 仍不相加為兩次供款。這個期初聲明不新增任何 CAD 入金、交易或 cash_flows；若要補齊開戶以來投入，仍需可靠歷史交易、轉帳或資金流證據，不能只靠目前 BTC 數量推算。
+## 19. BTC balances, events and reconciliation
 
+Implemented Python commands need no LLM, wallet login or LibreOffice. Start in
+wealth-ledger. Replace all synthetic IDs/quantities/times; future times reject.
+Input is BTC quantity, not CAD/USD value.
 
-## 19. BTC 餘額、異動與差額對帳
-
-本節命令已實作。正式流程全為 Python，無須 LLM、錢包登入或 LibreOffice。請先 `cd wealth-ledger`，所有例子的 ID、數量及時間均須替換成實際資料；未來日期會拒絕。單位是 BTC 數量，不是 CAD／USD 市值。
-
-### 19.1 可選總量：不需要 CSV 也能更新
+### 19.1 Optional total without CSV
 
 ```bash
 # Optional total; time defaults to the start of this execution
@@ -604,21 +891,37 @@ cd wealth-ledger
   --btc-balance 0.07990000 --btc-balance-as-of "2024-11-10T18:10:00-05:00"
 ```
 
-總量固定涵蓋全部納入追蹤錢包 BTC＋LBTC，按 1:1 BTC 等值；最多八位小數，零合法。沒有提供查看時間時，程式採本次執行開始時間，明示不是程式讀取錢包。可選 `--btc-balance-source "wallet display"` 補充來源說明。時間／來源選項不能單獨使用。
+Total covers all tracked wallets' BTC+LBTC 1:1 equivalents, max eight decimals; zero
+is valid. Without --btc-balance-as-of use execution-start time and disclose that the
+program did not read a wallet. --btc-balance-source "wallet display" can describe
+evidence. Time/source cannot appear without quantity.
 
-只有總量時沿用股票與 Bull 資料，保留其來源日期。新總量一般新增估值點；回補舊餘額不使最近報告時間倒退。完全不提供新資料時，`update.py` 仍重產最近保存時間，不新增今天的觀測。相同查看時間及數量去重；省略時間再次執行是另一個新的查看聲明，重試同一次失敗作業請見 19.7。
+Balance-only carries stock/Bull data with dates. New totals generally create valuation
+points; historical balances never move latest cutoff backward. No-input update still
+uses latest saved time. Equal-time/quantity deduplicates; repeating omitted time is a
+new viewing declaration. Use operation recovery for the same failed attempt (19.7).
 
-新專案可只有餘額：首次觀測以前的成本、購入、供款及帳本預期量未知。之後加入 Bull 仍須提供明確原始帳本期初假設；觀測以前的購入已在觀測中，不再次加到餘額。未知歷史不會因加入訂單自動變完整。
+New balance-only projects have unknown pre-observation costs/buys/contributions/
+expectations. Later Bull import still needs an explicit original ledger assumption;
+pre-observation buys are already included, not added twice. Orders alone do not
+complete unknown history.
 
-`--valuation-as-of` 控制報告截止，不改查看時間；不能用未來資料推算過去。明確要求歷史合併報告時選不晚於截止的股票快照；沒有適用股票快照會停止。一般更正舊餘額先保存，再重產最新適用報告即可。新餘額不能搭配 `--wealthsimple-only`、`--snapshot-id` 或 `--lookthrough-run-id`。
+--valuation-as-of controls report cutoff, not viewing time. No future-data backfill.
+Historical combined reports select stocks at/before cutoff or stop if unavailable.
+Normally save old corrections, then regenerate the latest applicable report. New
+balances cannot combine with --wealthsimple-only/--snapshot-id/--lookthrough-run-id.
 
-### 19.2 新總量不符、還沒有原因
+### 19.2 Different total without an explanation
 
-照常接受回報量並用於估值，保存 ID、時間、原始聲明 JSON 及初次預期／差額。差額維持「待釐清」，不猜成費用、出售、供款或新的期初。原固定期初及 Bull 訂單不覆寫。
+Accept the reported quantity for valuation, saving stable ID/time/original JSON and
+initial expectation/gap. Keep it unresolved rather than inventing fees/sales/funding/
+a new opening. Preserve fixed opening/orders.
 
-後續數量＝最近適用回報餘額＋該時間之後的已知淨異動。舊觀測／舊差額保留；較新的觀測一致也不能消除較早問題。預期量與回報量相符僅表示算術相符，未自動核驗鏈上交易或錢包。
+Later quantity = latest applicable reported balance + later known net events.
+Old observations/gaps remain; matching later observations do not settle earlier gaps.
+Arithmetic agreement is not independent on-chain/wallet verification.
 
-### 19.3 查 ID，再補原因
+### 19.3 Find the ID, then explain the gap
 
 ```bash
 .venv-portable/bin/python scripts/btc_balances.py list
@@ -626,9 +929,13 @@ cd wealth-ledger
 .venv-portable/bin/python scripts/btc_events.py list --balance-id B000001
 ```
 
-輸出／報告的穩定 `balance_id` 指向一次觀測；修訂不換 ID。想解釋特定差額時指定它，不自動採用「最新差額」。異動須在上一有效觀測之後、該觀測時間之前或同時。初次觀測的區間依既有帳本適用範圍；超出區間或已作廢 ID 拒絕關聯。
+Stable balance_id identifies one observation through revisions. Explicitly select
+it rather than the latest gap. Event time must be after prior active observation
+and at/before this one; first intervals use applicable ledger scope. Reject void IDs
+and out-of-interval links.
 
-例：預期 0.08000000、回報 0.07990000，先留下 −0.00010000；之後確認觀測前支付費用：
+Synthetic expected 0.08000000/reported 0.07990000 leaves -0.00010000. Later confirmed
+pre-observation fee:
 
 ```bash
 .venv-portable/bin/python scripts/btc_events.py add \
@@ -639,11 +946,15 @@ cd wealth-ledger
 .venv-portable/bin/python scripts/update.py
 ```
 
-預期改為 0.07990000、剩餘差額零；持有量仍 0.07990000，不再扣到 0.07980000。只補部分費用也接受，顯示剩餘差額；補得過多則顯示相反方向差額，不截斷為零。第一次記錄的差額與後補重算值都保留。
+Expected becomes 0.07990000, gap zero, holdings still 0.07990000, not 0.07980000.
+Partial explanations leave a residual; excess creates a reversed gap, not clamped
+zero. Preserve first-recorded/recalculated results.
 
-`source` 為來源名稱，`reference` 為該來源內唯一交易／單據或自訂紀錄代號；相同來源＋reference 去重，內容不同須明確修訂。自訂代號可以保存使用者聲明，但不是獨立核驗證據。
+source names the origin; reference is its unique transaction/document/custom code.
+Same source/reference deduplicates; changed content needs revision. Custom declarations
+are permitted but are not independent verification.
 
-### 19.4 尚無觀測時先記異動；既有異動補關聯
+### 19.4 Record an unlinked event or link an existing one
 
 ```bash
 .venv-portable/bin/python scripts/btc_events.py add \
@@ -659,28 +970,34 @@ cd wealth-ledger
   --expected-revision 2 --reason "Wrong attribution"
 ```
 
-不為解釋第二次差額複製同一費用。關聯只是解釋，經濟影響按真實時間只計一次。回補較早的觀測／作廢前一觀測，可能改變區間；原關聯不再適用時顯示「關聯待重查」，需查詢、更正關聯，不能悄悄改接另一筆。
+Never duplicate one fee to explain another observation. Links attribute; true-time
+economic effects occur once. Earlier observations/voids can change intervals; mark
+invalid links for review, then inspect/correct them without silent reassignment.
 
-`btc_events.py add` 僅保存資料，不發布報告。若事件晚於最近報告時間，裸 `update.py` 不會涵蓋它；需指定較新的估值截止，CLI 會提示：
+Event add is data-only. Events later than the saved report need a newer valuation;
+bare update does not include them automatically. CLI advises the cutoff:
 
 ```bash
 .venv-portable/bin/python scripts/update.py \
   --valuation-as-of "2024-11-12T09:00:00-05:00"
 ```
 
-### 19.5 類型與批次匯入
+### 19.5 Types and batch imports
 
-| 類型 | 數量方向 | 注意 |
+| Type | Direction | Boundary |
 |---|---|---|
-| `fee` | 減 | 實際錢包／跨鏈費用；Bull 交付量已扣的費用不能再扣 |
-| `sale`、`spend` | 減 | 本金與費用分開；不自動創造收到的現金或已實現損益 |
-| `external_out` | 減 | 移出追蹤範圍，是否供款提款須另分類 |
-| `external_in` | 加 | 非 Bull 購入的外部移入，成本／來源／供款另分類 |
-| `own_transfer`、`conversion` | 零 | 自己錢包之間／BTC-LBTC 1:1 換網路；填移動總量，費用另列 |
+| fee | Decrease | Actual wallet/swap fee, not fees already deducted from Bull delivery |
+| sale, spend | Decrease | Principal separate from fees; no invented received cash/realized P&L |
+| external_out | Decrease | Leaves scope; contribution/withdrawal treatment separate |
+| external_in | Increase | Non-Bull inflow; origin/cost/flow classification separate |
+| own_transfer, conversion | Zero | Own-wallet or 1:1 BTC/LBTC movement; gross quantity, separate fees |
 
-異動數量全採正值，方向由類型決定。Bull 漏掉的購入應補 CSV，不手動當作 `external_in`；若先前誤分類，明確作廢誤分類紀錄再匯入 CSV，保留替代依據。後補在原期初購入截止以前的訂單可能與固定期初重疊，會列待核對，不自動重算期初或加兩次。
+All quantities are positive; type controls direction. Missing Bull buys belong in
+CSV, not external_in. Void mistaken manual classifications before importing with
+replacement evidence. Missing orders before the original opening reference cutoff
+may overlap opening: review explicitly without automatic recomputation/double count.
 
-複製 `examples/templates/btc_events.csv`，按固定欄位填入：
+Copy examples/templates/btc_events.csv and fill the fixed fields:
 
 ```csv
 source,reference,type,occurred_at,quantity_btc,balance_id
@@ -692,9 +1009,12 @@ wallet manual record,fee-20241110-001,fee,2024-11-10T18:00:00-05:00,0.00010000,B
 .venv-portable/bin/python scripts/update.py
 ```
 
-批次全數通過才提交；原始 CSV 另存。`balance_id` 可留空。YAML 不是支援的輸入格式。售出／轉出後缺現金對端或成本分配時，報告明示涵蓋限制；實際完整成本／損益保持未知，不代填零；若選用 `bull_average_proxy`，仍可依本期數量估算，但不代表完成實際成本分配。
+Commit only after the full batch validates; archive raw CSV. balance_id may be blank.
+YAML is unsupported. Missing sale/outflow cash counterparts or actual cost allocation
+remain coverage limits/unknown actual P&L, never zero. Explicit proxy estimates may
+still use current quantity but do not establish actual allocation.
 
-### 19.6 更正、作廢及更換誤填時間
+### 19.6 Correct, void or replace mistaken identities
 
 ```bash
 .venv-portable/bin/python scripts/btc_balances.py revise B000001 \
@@ -705,7 +1025,9 @@ wallet manual record,fee-20241110-001,fee,2024-11-10T18:00:00-05:00,0.00010000,B
   --expected-revision 2 --reason "Duplicate of imported transaction"
 ```
 
-修訂追加保存，不刪原始值；`--expected-revision` 必須符合目前版本。餘額時間／範圍、異動來源＋reference 是身分，不能默默修改。錯誤餘額時間用作廢後替代：
+Append revisions without deleting originals. --expected-revision must match current.
+Balance time/scope and event source/reference are identities, not silently editable.
+Wrong observation time uses void/replacement:
 
 ```bash
 .venv-portable/bin/python scripts/btc_balances.py void B000001 \
@@ -716,9 +1038,11 @@ wallet manual record,fee-20241110-001,fee,2024-11-10T18:00:00-05:00,0.00010000,B
 .venv-portable/bin/python scripts/update.py
 ```
 
-`btc_balances.py add` 只保存資料，時間必填。異動來源 reference 錯誤時同樣作廢，再 `add --replaces-event-id ORIGINAL_ID`，新的 reference 不重用原代號。不以反向假交易修正。
+Balance add is data-only with required time. Wrong event source/reference similarly
+uses void then add --replaces-event-id ORIGINAL_ID with a new reference. Never fix
+transcription with reverse fake trades.
 
-### 19.7 資料已保存、報告失敗與重試
+### 19.7 Data committed, report failed: recovery
 
 ```bash
 .venv-portable/bin/python scripts/update.py --list-operations
@@ -726,27 +1050,51 @@ wallet manual record,fee-20241110-001,fee,2024-11-10T18:00:00-05:00,0.00010000,B
 .venv-portable/bin/python scripts/update.py --resume-operation OPERATION_ID
 ```
 
-前兩者唯讀。新輸入經隔離暫存資料庫全數驗證後整批提交；格式／紀錄錯誤不留下部分正式資料。之後若行情、分析或報告流程發生阻止發布的錯誤，明確輸出「資料已保存，報告未發布」、固定截止及作業 ID。重試不重交 CSV 或總量、不重新取現在、不重記費用；已成功的作業回傳保存結果。單一 ETF 未解析但流程仍可完成時，照常發布並明示未解析覆蓋，不一律視為整份報告失敗。
+First two are read-only. Inputs validate in isolated staging before atomic submission;
+invalid batches leave no partial formal data. Later blocking quote/analysis/report
+failures identify data-saved/report-not-published, fixed cutoff and operation ID.
+Retry without resubmitting CSV/balance, choosing now or recording fees again.
+Completed operations return saved results. One unresolved ETF can still produce a
+valid explicitly incomplete report, not necessarily a whole-operation failure.
 
-輸入有後續修訂時，舊作業標為過期並拒絕重試；直接按目前資料與所需估值截止產生新報告。唯資料命令（餘額／異動）不要求自動發布；修改後另跑 update。無參數重產不自動處理未發布的新時間，會提示待發布作業。
+Later revisions expire stale operations; generate from current data/desired cutoff.
+Data-only commands do not require automatic reporting. Bare update does not silently
+process unpublished new cutoffs and warns of pending work.
 
-正常重試仍查詢最新官方 ETF 公布資料；相同估值可使用適用凍結價格／匯率。`--lookthrough-run-id` 只在明確重播完全相同估值時使用。新輸入不能搭配離線重播。三種報告核對成功才更新 latest 指標；舊報告與當時凍結資料保留。
+Normal retry fetches latest official ETFs while reusing applicable frozen prices/FX.
+--lookthrough-run-id requires explicitly identical valuation and no new inputs.
+Only fully checked formats update latest. Preserve old reports/frozen evidence.
 
-每次變更前有 SQLite 備份。輸入 JSON／批次 CSV 保存於 `data/raw/crypto/wallet/YYYY/MM/`；提供的行情／匯率參考 JSON 另封存於 `data/raw/reference/YYYY/MM/`。互斥鎖 `work/update.lock` 記錄 PID；意外中斷後先確認該 PID 已不在執行，再移除殘留鎖，不在仍有更新時刪除。
+Back up before changes. Wallet JSON/batch CSV: data/raw/crypto/wallet/YYYY/MM/;
+reference overrides: data/raw/reference/YYYY/MM/. CLI and Web writers share the
+stable kernel lock `work/update.guard`; never unlink a guard file. Protocol-2
+`work/update.lock` metadata can be recovered only after acquiring that kernel lock.
+PIDs are diagnostic, not ownership proof. Unknown legacy lock files require trusted
+local review with all writers stopped; never remove an active or unproven lock.
 
-### 19.8 報告如何閱讀
+### 19.8 Read reconciliation output
 
-ODS 新增「BTC餘額對帳」，Markdown／PDF 新增「BTC 餘額與異動對帳」。列出穩定 ID、時間、回報量、區間預期量、剩餘差額、首次記錄值及適用異動。報告時間顯示 America/Toronto 與 offset，另列回報來源及時間是使用者指定或採執行時間；SQLite／來源聲明保留 UTC 與原始時間。完整帳本預期量另外保留，不能因採新餘額作錨點就把舊差額歸零。
+ODS/MD/PDF show IDs/time/reported/interval expected/residual/first-recorded/event
+records. Display America/Toronto with offset and explicit/execution-time provenance;
+DB/evidence retain UTC/original inputs. Full-ledger expectation remains separate;
+a new anchor does not erase old differences.
 
-有觀測時，另有 BTC 累積購入／回報餘額／錨點後推估量比較圖；不補造缺月餘額。`btc-reconciliation.csv` 與 `btc-events.csv` 供審核，完整追加修訂仍在 SQLite／封存來源及 show 命令。已知費用及資料缺漏顯示實際狀態，文字全由程式模板產生。
+With observations, compare cumulative Bull buys, reported balances and post-anchor
+estimates without fabricated monthly balances. btc-reconciliation.csv/btc-events.csv
+support audit; full revisions remain in DB/evidence/show commands. Conditional code
+text reflects known fees/missing data.
 
-**本版不啟用合併投資報酬。** 錢包範圍變更、獨立鏈上驗證、歷史成本分配及 Bull 入金來源／資金流完整性另有待辦。完整數量設計見 [BTC 對帳設計](btc-reconciliation-plan.md)。
+**Combined investment returns remain disabled.** Scope changes, independent on-chain
+verification, historical cost allocation and Bull funding/coverage remain roadmap
+work. See [the reconciliation contract](btc-reconciliation-plan.md).
 
-## 20. 匯入預覽／預檢（FUT-001）
+## 20. Offline import preview
 
-本功能已實作，採選用模式。一般 update 指令仍自動檢查、匯入與產生報告；加 `--dry-run` 才只預覽。預檢不會寫入正式 SQLite、原始來源、行情快取、備份、作業紀錄或最新報告，也不生成 ODS／Markdown／PDF／PNG。
+FUT-001 is implemented and optional. Normal update validates/imports/reports; only
+--dry-run previews. It writes no formal DB, raw archive, quote cache, backup,
+operation or latest report and generates no ODS/MD/PDF/PNG.
 
-### 20.1 單份、雙份、餘額與無新輸入
+### 20.1 One/two CSVs, balance-only or no input
 
 ```bash
 cd wealth-ledger
@@ -768,44 +1116,65 @@ cd wealth-ledger
 .venv-portable/bin/python scripts/update.py /path/to/orders.csv --dry-run --json
 ```
 
-上面的餘額數字與日期只是示例，請換成真正查看紀錄。也可將任一／兩份 CSV 與可選總量同時提供。省略 `--btc-balance-as-of` 時，採預檢這次執行開始時間；之後正式執行會採那次的新時間。若要比較同一次查看，請明確提供實際查看時間。
+Replace sample quantities/times. Either/both CSVs may include a balance. Omitted
+viewing time uses this preview's start time; a later formal execution has a new
+start time. Supply an actual explicit timestamp to compare the same viewing event.
 
-原 `--input`／`--bull-input`、`--kind`、`--snapshot-id`、`--wealthsimple-only`、`--valuation-as-of` 及適用的參考 JSON 可依原互斥規則使用。`--dry-run` 不能搭 operation 查詢／重試或 `--lookthrough-run-id`；ETF 分析不在本模式執行。`--json` 僅適用預檢，正常更新仍保持原有輸出。
+Existing --input/--bull-input/--kind/--snapshot-id/--wealthsimple-only/--valuation-as-of
+and valid reference JSON follow existing exclusions. --dry-run cannot combine with
+operation queries/retry or --lookthrough-run-id. No ETF analysis runs. --json is
+preview-only; normal output is unchanged.
 
-### 20.2 預覽能告訴你什麼
+### 20.2 What preview checks
 
-- Wealthsimple：來源持倉日期、列數、帳戶涵蓋、缺帳戶提醒，以及預計新增／修訂／重複狀態。
-- Bull：新增、修訂、既有訂單及檔內重複數；已完成訂單的經濟內容衝突會阻止更新，未完成訂單可按正式規則預覽修訂。
-- 共用截止：沿用哪個來源與日期、預計估值時間；缺月不補造，股票沿用不冒充當日持倉。
-- BTC：新回報的查看時間、當時帳本預期量與差額、截止時適用量及仍待釐清的觀測數。沒有足夠帳本時預期量／差額為 null，不填零；未知差額不當成費用／供款。回報晚於明確報告截止時，明示本期尚未採用它。
-- 行情：已有適用匯率／價格，或缺資料待確認；不計算缺行情下的假市值。
+- Wealthsimple source date/rows/account scope/missing accounts and proposed new/revised/duplicate state.
+- Bull new/revised/existing/in-file duplicates; completed economic conflicts block,
+  pending orders may preview valid revisions.
+- Shared cutoff/carried-source dates without manufactured months/current stock data.
+- BTC observation time/expected quantity/gap/applicable cutoff quantity/unresolved
+  count. Insufficient ledger means null, not zero or invented fee/flow. A balance
+  later than explicit report cutoff is identified as not yet applicable.
+- Exact applicable saved rates/quotes or pending missing references, without fake values.
 
-隔離模擬使用與正式更新相同的 CSV 解析、帳戶／快照身分、訂單匯入、時間選擇及 BTC 對帳函式。私有暫存資料於結束時清除，不保留新 balance_id／snapshot_id／source_id，不能拿預檢暫存 ID 去補原因。正式 ID 要在實際匯入後查詢。
+Isolated simulation reuses real parsing, identities, imports, context and reconciliation.
+Cleanup removes temporary data/new balance/snapshot/source IDs; never use simulation
+IDs for attribution. Query formal IDs after a real import.
 
-### 20.3 狀態與退出碼
+### 20.3 Status and exit codes
 
-| JSON status | 意義 | 退出碼 |
+| JSON status | Meaning | Exit |
 |---|---|---|
-| `checked` | 本模式範圍內的本機輸入／適用行情檢查通過；ETF 及報告仍未驗證 | 0 |
-| `pending_reference` | 尚缺適用行情；已完成的結構／數量檢查可閱讀，依賴行情的項目仍待確認 | 0 |
-| `blocked` | 輸入、來源衝突、截止／數量、損壞參考或並行更新等問題需要處理 | 2 |
+| checked | In-scope local inputs/applicable references passed; ETFs/reports not checked | 0 |
+| pending_reference | Missing references; structural/quantity checks available, dependent work pending | 0 |
+| blocked | Input/source/cutoff/quantity/corrupt-reference/concurrency issue | 2 |
 
-JSON 的 `blockers` 為阻止項目，`checks` 列各項已通過／待確認，`pending_checks` 另外列尚未驗證範圍。`simulation_complete=false` 表示模擬未完整完成，例如缺持倉匯率時只完成不依賴匯率的檢查，不能當作完整成功。非法命令列組合仍由 argparse 回傳退出碼 2 及 stderr 說明，不保證產生 JSON。
+blockers identifies blocking issues, checks gives individual states, pending_checks
+lists unverified work. simulation_complete=false means partial simulation, such as
+FX-independent checks only; it is not full success. Invalid argument combinations
+still use argparse exit 2/stderr without guaranteed JSON.
 
-退出碼 0 只代表預檢未發現本模式的阻止問題，不代表已正式匯入或能完成行情下載與報告發布。自動化呼叫須一起讀取 status／pending_checks，不以退出碼 0 宣稱全流程已驗收。
+Exit 0 means no in-scope blocker found, not committed data or guaranteed future
+quote/report success. Automation must inspect status/pending_checks too.
 
-### 20.4 離線限制與正式提交
+### 20.4 Offline limits and real submission
 
-預檢不連網、不登入券商／錢包，也不呼叫 LLM。只使用精確日期／截止且通過既有有效性規則的已保存匯率／BTC 報價，或你提供的適用參考 JSON；不從別的估值時間借價格、不造匯率。
+No network, private login or LLM. Use exact-date/cutoff valid saved FX/BTC or explicit
+applicable reference JSON, never borrowed prices from other cutoffs or invented rates.
 
-沒有新日期的匯率時，仍可檢查 Wealthsimple 格式、數學、去重、修訂、帳戶與基準限制；依賴匯率的現金 CAD 異常檢查及完整資料模擬列待確認。BTC 數量對帳可以獨立於市值行情檢查。最新官方 ETF 下載、公司／分類分析、圖表、ODS／PDF 與發布檢查保持未驗證，正式更新仍依原政策執行。
+Without new-date FX, holdings format/arithmetic/deduplication/revisions/accounts/
+baseline still check. FX-dependent cash CAD checks/full simulation remain pending.
+BTC quantity reconciles independently of quotes. Latest ETF/company/classification,
+charts/ODS/PDF/publication remain unverified and run normally during real update.
 
-看完後，移除 `--dry-run`／`--json` 再執行正式更新。正式流程重新讀取輸入、驗證並備份；不直接提交預檢副本。檔案、資料庫或執行時間變動可能使結果不同，尤其省略餘額查看時間的兩次執行。正式報告失敗仍按第 19.7 節 operation 流程重試。
+Remove --dry-run/--json for submission. Formal workflow rereads/validates/backs up;
+it does not commit the preview copy. File/DB/time changes can alter results, especially
+with omitted viewing time. Failed formal reports use section 19.7 recovery.
 
+## 21. Report languages and offline editions
 
-## 21. 報告語言與離線另版
-
-支援 `en-CA` 英文（加拿大）、`zh-TW` 繁體中文（台灣）、`zh-CN` 簡體中文（中國）。新安裝預設英文；已有資料的舊專案保留繁中。語言不改 CAD／USD／TWD、Toronto 時區、金融計算、ETF 資料日期或成本政策。
+Supported: en-CA English/Canada, zh-TW Traditional Chinese/Taiwan, zh-CN Simplified
+Chinese/China. New installs default English; legacy ledgers retain Traditional Chinese.
+Locale changes no currencies/timezone/calculations/ETF dates/cost policy.
 
 ```bash
 # Normal update in Traditional Chinese
@@ -816,7 +1185,8 @@ JSON 的 `blockers` 為阻止項目，`checks` 列各項已通過／待確認，
 .venv-portable/bin/python scripts/btc_events.py --locale zh-CN --help
 ```
 
-永久偏好寫在忽略的 `config/local.toml`，保留同一 `[reporting]` 區段內其他設定，不重複新增區段：
+For persistent preferences edit ignored config/local.toml, preserving the existing
+[reporting] section rather than adding a duplicate:
 
 ```toml
 [reporting]
@@ -824,9 +1194,12 @@ locale = "zh-TW"
 btc_cost_policy = "actual_only"
 ```
 
-CLI 覆寫優先於本機設定，只影響該次。接受 alias `en`、`zh-Hant`、`zh-Hans`；`zh` 因繁簡不明而拒絕。唯讀查詢／dry-run 不寫設定。首次正常修改作業才保存相容預設。重試已提交的作業沿用作業保存的語言／資源版本，不改用後來的偏好；資源已改版而不符時明確拒絕重試，改以目前資料另產生新報告。
+CLI overrides are per invocation. Aliases: en/zh-Hant/zh-Hans; ambiguous zh rejects.
+Read-only/preview never saves settings; first normal mutation saves compatible default.
+Retry uses frozen operation language/resources despite later preferences; incompatible
+changed resources reject retry and require new reporting from current data.
 
-**只想將舊報告換語言時使用專用指令：**
+**For language-only changes to an old report, use:**
 
 ```bash
 .venv-portable/bin/python scripts/render_report.py \
@@ -835,8 +1208,17 @@ CLI 覆寫優先於本機設定，只影響該次。接受 alias `en`、`zh-Hant
   --output /path/to/new-english-edition
 ```
 
-來源需有 data.json、manifest 及保存的 ETF 分析；指定來源以外尚不存在的新目錄。指令不匯入 CSV、不新增持倉／BTC 餘額、不查行情／官方成分、不連 SQLite、不改 latest，也不覆寫來源。估值及來源日期保持原值，另記重繪時間並標示凍結重播。data.json 保留原始位元；manifest 記錄所用語系、字典／字型版本及來源 checksum。舊版若沒有 data checksum，只能驗證中繼資料一致，不能追溯保證原始檔從未改動。
+Input needs data.json/manifest/saved ETF analysis; output is a new directory outside
+source. No CSV import, observation, quote/ETF download, SQLite access, latest update
+or source overwrite. Preserve valuation/source dates, record render time/frozen replay,
+keep data.json byte-identical and record catalog/font/source hashes. Old bundles
+without checksums support metadata consistency only, not proof of unchanged originals.
 
-ODS、MD、PDF 及 PNG 使用同一語言。公司原名、股票代號、自訂帳戶名稱、來源備註／reference 仍保留原文；JSON／CSV 欄名及稽核附件維持原 schema。字型已隨專案提供，不需安裝本機 LibreOffice 或中文字型。格式化的未知值不變成 0；語言切換不補足歷史成本或供款證據。
+ODS/MD/PDF/PNG share locale. Company/symbol/account names, notes/references remain
+verbatim; JSON/CSV/audit schemas stay unchanged. Bundled fonts need no local office
+application/system CJK font. Unknown never becomes zero; language changes do not fill
+historical costs/contributions.
 
-本文仍是繁體中文，README 為英文；完整文件三語版本尚未提供。開發 Git 工具與外部系統／來源原始診斷可能保留英文。新增語言與技術細節見 [語系契約](i18n-plan.md)。
+Canonical documentation is English; complete translated editions remain planned.
+Developer Git tools/external raw diagnostics may remain English. See
+[the locale contract](i18n-plan.md) for additional-language requirements.

@@ -1,106 +1,136 @@
-# Wealth Ledger 待辦追蹤
+# Wealth Ledger roadmap
 
-本文件記錄產品功能與公開版本準備。待辦不是新的實作授權；工作依目前任務選擇。金融、匯入、下載與報告核心須為可重複執行的 Python 程式；規劃中的網頁前端使用 TypeScript／瀏覽器 JavaScript，Node 僅用於建置。正式功能不依賴 LLM、代理人、Codex 或本機 LibreOffice。操作見 [手冊](docs/user-manual.md)，開發規則見 [AGENTS.md](AGENTS.md)。
+This tracks product capabilities and public-source preparation, not authorization to
+implement every item. Select work from the current task. Finance, imports, downloads
+and reporting remain reusable Python code. The planned browser frontend uses
+TypeScript/JavaScript, with Node for builds only. Production needs no LLM, agent,
+Codex or local LibreOffice. See the [manual](docs/user-manual.md) and
+[development rules](AGENTS.md).
 
-## 已可使用
+## Available capabilities
 
-- [x] Wealthsimple CSV 辨識、封存、去重、追加修訂及 SQLite 歷史。
-- [x] 正式月度／臨時快照、不定期提交及缺月處理，不製造歷史點。
-- [x] CAD／USD 原幣與帳戶分表，CAD／USD／TWD 等值總覽。
-- [x] 統一資金流 CSV、完整性聲明、轉移配對及符合條件的券商期間分析。
-- [x] Bull CAD Funding／Buy 訂單、原始 BTC／LBTC 交付與合併估值。
-- [x] 每月 BTC 數量加權 CAD／BTC 買入價；有效固定期初與原帳本假設分開。
-- [x] 可選 BTC 總量、穩定餘額／異動 ID、區間差額、後補原因、來源去重及追加修訂／作廢。
-- [x] 隔離整批資料提交、operation 查詢、固定截止重試及過期保護。
-- [x] 純 Python ODS／Markdown／PDF／PNG；內嵌圖像、三語隨附字型、公式快取與發布檢查。
-- [x] 最新官方 ETF 成分、遞迴公司穿透、排名 1–20、覆蓋率與完整審核匯出。
-- [x] 官方 GICS、國別／市場及地區分析，有效日期與非公司／未分類對帳。
-- [x] **FUT-001 離線匯入預檢**：選用 `--dry-run`／`--json`，不改正式資料、行情、備份、作業或報告，缺行情標示待確認，正常更新預設不變。
+- [x] Wealthsimple CSV detection, archiving, deduplication, append-only revisions and SQLite history.
+- [x] Formal monthly/temporary snapshots, irregular submissions and missing-month handling without fabricated observations.
+- [x] Separate CAD/USD and account holdings, plus CAD/USD/TWD equivalent totals.
+- [x] Unified cash-flow CSV, coverage declarations, transfer matching and eligible brokerage period analysis.
+- [x] Bull CAD Funding/Buy orders, original BTC/LBTC deliveries and combined valuation.
+- [x] Monthly quantity-weighted CAD/BTC purchase rates; effective fixed opening distinct from original assumptions.
+- [x] Optional BTC total, stable balance/event IDs, interval differences, later explanations, source deduplication and append-only revisions/voids.
+- [x] Isolated batch data submission, operation inspection, fixed-cutoff recovery and stale-operation protection.
+- [x] Python-only ODS/Markdown/PDF/PNG, embedded images, three-locale bundled fonts, formula caches and publication checks.
+- [x] Latest official ETF constituents, recursive company exposure, rankings 1-20, coverage and complete audit exports.
+- [x] Official GICS, country/market and region analysis, effective dates and non-company/unclassified reconciliation.
+- [x] **FUT-001 Offline import preview**: optional `--dry-run`/`--json`; no real data, quote, backup, operation or report changes. Missing references remain pending; normal update defaults are unchanged.
 
-## 自架 Web App（設計基準已建立，功能尚未實作）
+## Self-hosted web app (API foundation implemented; browser workflow planned)
 
-React＋TypeScript＋Vite、FastAPI、Python worker、SQLite 與 Docker Compose；單 owner／家庭 instance、多個獨立帳本。登入／任務／備份／遷移及驗收契約見 [Web App 設計](docs/self-hosted-webapp.md)。現有 CLI、歷史、三語及 ODS／Markdown／PDF 保留；不把本段規劃當成已可啟動的服務。
+React/TypeScript/Vite, FastAPI, a Python worker, SQLite and Docker Compose; one
+owner/household instance with independent portfolios. Auth, jobs, backup/adoption
+and acceptance contracts are in [the design](docs/self-hosted-webapp.md). Preserve
+the CLI, history, three locales and ODS/Markdown/PDF. The optional native API is
+runnable; the complete browser/job workflow is not available yet.
 
-- [x] **WEB-000 技術及範圍設計**：共用 Python 核心、私人工作區、React SPA、資料庫及容器方向；登入 session、Huey／SQLite 作業與備份契約已記錄。
-- [ ] **WEB-001 私人工作區與共用服務**：code/workspace 分離、所有日常 CLI、資源／快取／備份／互斥／續跑相容及唯讀 code-root 驗收。
-- [ ] **WEB-002 登入與 API／Docker 基礎**：owner、server-side session、CSRF／節流、metadata migrations、帳本與私人下載授權、持久化設定。
-- [ ] **WEB-003 上傳／預檢／背景作業**：Huey／SQLite、穩定 job/operation 關聯、idempotency、過期預檢拒絕與中斷恢復，未知狀態保留審核。
-- [ ] **WEB-004 網頁分析與報告庫**：React／TypeScript、三語、表格／互動圖表、來源日期／缺口／未知狀態及跨帳本快取隔離。
-- [ ] **WEB-005 匯出與備份／還原**：ODS／MD／PDF、CSV／JSON、報告 ZIP、完整一致備份與新空 volume 還原演練。
-- [ ] **WEB-006 進階表單與既有帳本採用**：BTC 期初／餘額／事件／修訂、供款／涵蓋及複製驗證遷移，保留舊 CLI 工作區。
-- [ ] **WEB-007 發布與操作驗收**：乾淨容器安裝／升級／重啟、映像隱私、支援平台與依賴授權、三語使用文件。
+- [x] **WEB-000 Stack and scope design**: shared Python core, private workspaces, React SPA, storage/containers, server-side sessions, Huey/SQLite jobs and backup contracts.
+- [x] **WEB-001 Private workspaces and shared services**: separate code/workspace roots; all daily CLI operations, resources/caches/backups/locks/recovery; read-only code-root acceptance.
+- [x] **WEB-002 Auth/API/Docker foundation**: owner CLI, Argon2id/opaque sessions, CSRF/origin/host/limits, versioned metadata, portfolios/settings, artifact registry and image/Compose. Synthetic native HTTP/security/restart, context privacy, Linux/arm64 container restart and Compose health/container-replacement acceptance passed locally. Broader platform/release acceptance remains WEB-007. See [Web operations](docs/web-operations.md).
+- [x] **WEB-003 Upload/preview/background jobs**: bounded raw uploads, offline preview/explicit confirmation, JSON-ID Huey/SQLite notifications, isolated workers, durable job/operation linkage, atomic financial commit markers, idempotency, stale-preview rejection, report/artifact recovery and protected three-format downloads. Synthetic transaction/process interruption and Compose worker/replacement acceptance passed locally; uncertain states require review. See [imports/jobs](docs/web-imports.md).
+- [ ] **WEB-004 Browser analysis/report library**: React/TypeScript, three locales, tables/charts, source dates/gaps/unknowns and portfolio-scoped caches.
+- [ ] **WEB-005 Exports and backup/restore**: build on registered ODS/MD/PDF/CSV/JSON downloads; add broader data exports, report ZIPs, full consistent backups and restore to a fresh empty volume.
+- [ ] **WEB-006 Advanced forms and existing-ledger adoption**: BTC openings/balances/events/revisions, contributions/coverage and copy-verified migration while preserving the old CLI workspace.
+- [ ] **WEB-007 Release/operations acceptance**: clean container install/upgrade/restart, image privacy, supported platforms, dependency licenses and three-locale operating guidance.
 
-此主線不自動完成來源 plugin SDK、新幣別或合併績效。任一階段完成前維持 planned；正式私人資料遷移另明確執行。
+This track does not complete the source-plugin SDK, new currencies or combined
+performance automatically. Keep each stage planned until accepted; actual private
+migration is a separate explicit operation.
 
-## 日常操作與分析功能
+## Daily operations and analysis
 
-| ID | 狀態 | 範圍 |
+| ID | Status | Scope |
 |---|---|---|
-| FUT-002 | 尚未實作 | 唯讀統一狀態查詢：最新成功報告、來源日期／沿用、BTC 未解差額、未分類入金、完整性缺口及待發布／失敗作業；固定規則提示下一步，不新增觀測或行情查詢 |
-| FUT-003 | 尚未實作 | 指定日期／範圍的資產、購入、供款、餘額 CSV 匯出與本機報告索引；保留修訂及未知狀態，不把不同範圍混作連續績效 |
-| FUT-004 | 尚未實作 | ETF 共同公司及加權重疊：先定義分母／算法，沿用官方證據及公司識別，揭露有效日期、解析覆蓋與未知比例 |
-| FUT-005 | 尚未實作 | 市值變化拆分數量、市價與匯率影響；固定交互作用分配政策，拆股／範圍／混合日期／缺價格另列；數量影響不等同供款 |
+| FUT-002 | Not implemented | Unified read-only status: latest successful report, source dates/carried data, BTC gaps, unclassified funding, coverage gaps and pending/failed jobs; deterministic next steps without observations or quote queries |
+| FUT-003 | Not implemented | Date/range exports for assets, purchases, contributions and balances, plus a local report index; retain revisions/unknowns and distinguish different tracking scopes |
+| FUT-004 | Not implemented | ETF shared-company/weighted overlap: define denominators/formulas, reuse official evidence/identities and disclose dates, parsing coverage and unknown weights |
+| FUT-005 | Not implemented | Separate quantity, market-price and FX effects on value; define interaction allocation and identify splits/scope/mixed dates/missing quotes; quantity effects are not contributions |
 
-日常便利功能建議下一項為 FUT-002；資金流主線建議下一項為 Bull 入金來源分類與轉移配對。尚未完成項目不妨礙目前支援的更新流程。
+WEB-004 is next on the active Web track. FUT-002 remains an optional convenience feature. Bull funding-source classification
+and transfer matching is next on the cash-flow track. Unfinished items do not block
+currently supported updates.
 
-## 多語系 i18n（已實作並公開）
+## Internationalization (implemented and public)
 
-首批 `zh-TW`、`en-CA`、`zh-CN`。新安裝預設英文、既有專案保留繁中；CLI／設定與離線另版契約見 [語系指南](docs/i18n-plan.md)。完整文件翻譯及其他語系另列待辦；遠端發布不代表已完成。
+Supported locales: `en-CA`, `zh-TW`, `zh-CN`. New installations default to English;
+existing projects preserve Traditional Chinese. See [the locale guide](docs/i18n-plan.md)
+for CLI/configuration and offline editions. Canonical documentation is English;
+translated documentation and additional locales are separate work.
 
-- [x] **I18N-001 語系契約與識別碼**：設定優先序、穩定訊息／工作表／分類 ID、歷史相容及不改金融 fingerprint。
-- [x] **I18N-002 翻譯與格式基礎**：三語 JSON catalog／registry、具名參數、Decimal／日期格式、版本與缺漏驗證；執行不呼叫 LLM。
-- [x] **I18N-003 ODS／MD／PDF／圖表**：共用 locale context、跨表公式、三語字型與版面；未知與有效零值語意一致。
-- [x] **I18N-004 日常 CLI 與離線重繪**：locale 選項、說明／錯誤／預檢、固定作業語系、不改金融資料的另版報告輸出。
-- [x] **I18N-005 回歸與貢獻工具**：三語金額／公式一致、缺漏／混語／破損引用反例、未來新增語言指南及未來插件訊息 namespace 方向（plugin SDK 仍未實作）。
-- [x] **I18N-006 文件與公開清單**：同步 README／手冊／API／報告／開發契約，審核 JSON／字型／文件新路徑並重新產生待推 manifest；保留原首次推送確認程序。
+- [x] **I18N-001 Contracts/identities**: configuration precedence, stable message/sheet/category IDs, historical compatibility and unchanged financial fingerprints.
+- [x] **I18N-002 Catalogs/formatting**: three JSON catalogs/registry, named parameters, Decimal/date formatting, version/completeness checks; no runtime LLM.
+- [x] **I18N-003 ODS/MD/PDF/charts**: shared locale context, cross-sheet formulas, bundled fonts/layout and consistent unknown/zero semantics.
+- [x] **I18N-004 Daily CLI/offline editions**: locale options, help/errors/previews, frozen operation locale and output without financial changes.
+- [x] **I18N-005 Regressions/contributor tools**: matching amounts/formulas, missing/mixed-language/broken-reference rejection, additional-language guidance and planned plugin namespaces (SDK not implemented).
+- [x] **I18N-006 Docs/public manifest**: README/manual/API/report/development contracts, reviewed JSON/font/doc paths and public manifests; preserve first-publication approval requirements.
+- [ ] **I18N-007 More locales/translated documentation**: candidates fr-CA/ja-JP; verify formatting/fonts/terms/licenses and maintain complete translated README/manual editions separately.
 
-- [ ] **I18N-007 更多語系／完整文件翻譯**：候選 fr-CA／ja-JP，另驗證格式規則、字型、術語與授權；README／手冊完整多語版本分別維護。
+## Extensible source adapters (contract implemented; loading/migration planned)
 
-## 可擴充來源介接（尚未實作）
+- [x] **SRC-001 Versioned adapter/external parser protocol**: canonical `holdings`, `cash_flows`, `crypto_transactions`; source/account namespaces, stable IDs, time/currency, revisions/voids/coverage and ambiguous detection.
+- [ ] **SRC-002 Registration/discovery/compatibility**: trusted Python parsers enabled explicitly or through versioned package entry points; reject duplicate provider IDs, unknown API versions and ambiguous formats without changes to core ledger/reports.
+- [ ] **SRC-003 Example plugin/contract test toolkit**: synthetic fixtures, detector/normalizer/validator examples and offline deduplication/revision/transfer/scope/privacy tests; author/install/enable instructions.
+- [ ] **SRC-004 Existing-adapter migration/new sources**: move Wealthsimple/Bull to the versioned registry, prove ledger/CLI compatibility, then add banks, brokers and exchanges.
 
-- [ ] **SRC-001 版本化來源 adapter／外部 parser plugin 契約**：規劃 `holdings`、`cash_flows`、`crypto_transactions` 的 canonical records、來源／帳戶命名空間、穩定 ID、時間／幣別、修訂／作廢與涵蓋政策，統一辨識衝突處理。
-- [ ] **SRC-002 外部 plugin 註冊／發現及相容性**：允許使用者自行實作可信任的 Python parser，以明確註冊或版本化 package entry points 載入；新增 parser 不需修改核心帳本／報告。拒絕重複 provider ID、未知 API 版本與模稜兩可格式。
-- [ ] **SRC-003 範例 plugin 與契約測試工具**：公開合成 fixture、detector／normalizer／validator 範例與離線契約測試，涵蓋去重、修訂、轉移、範圍及敏感欄位；文件說明使用者開發／安裝／啟用流程。
-- [ ] **SRC-004 既有介接遷移與新來源驗收**：將現有 Wealthsimple／Bull 逐步遷移到版本化 registry，確認既有帳本與 CLI 相容後再擴充銀行、券商及加密交易所。
+SRC-001 provides `wealth_ledger.source_protocol` dataclasses, pure adapter Protocol,
+structural validation, auditable detection resolution and lossless evidence JSON.
+It does not load plugins or book financial effects. SRC-002-004 follow the first
+usable Web MVP; WEB-004 is the next dependency. Existing importers remain unchanged.
 
-目前只支援已實作的 Wealthsimple／Bull CSV；ETF 有自己的官方資料 registry，不等於完整來源 plugin 系統。銀行文件可提供跨追蹤邊界資金流證據，不能自動把所有銀行現金加入投資資產。外部 plugin 是使用者信任並安裝的 Python 程式，會以使用者權限執行；不從 CSV／網路自動執行程式，也不靠 LLM 生成或判斷 parser。設計方向見 [來源介接規劃](docs/source-adapters.md)，尚無可用 plugin SDK／安裝命令。
+Current CSV support is Wealthsimple/Bull only. The official ETF registry is separate
+from a general source-plugin system. Bank records can establish boundary cash flows
+without adding bank cash to investment assets. External plugins run as trusted,
+user-installed Python; never execute code from a CSV/network automatically or use
+an LLM to generate/select parsers at runtime. See [adapter design](docs/source-adapters.md);
+no SDK/install command is available yet.
 
-## 資金流與資料支援
+## Cash flows and additional data
 
-- [ ] **Bull 入金來源分類與轉移配對**：區分外部銀行投入與已追蹤帳戶轉入，銜接資金流帳本，避免 Funding／Buy／轉移雙計。
-- [ ] **合併組合期間績效**：來源、估值、費用、轉移及完整流量涵蓋後支援股票＋BTC 增值、Modified Dietz、XIRR；目前不啟用。
-- [ ] **Wealthsimple 原生活動 CSV 轉換**：自動轉統一資金流格式，目前須手動整理；新增後遵守來源介接契約。
-- [ ] **資金流修訂／作廢及正式還原命令**：保留審計，不靠反向假交易；已有 SQLite 備份，尚無正式還原 CLI。
-- [ ] **BTC 獨立核驗／範圍變更／實際成本分配**：數量對帳已支援；鏈上核驗、明確涵蓋範圍變更、取得與處分成本另需模型及政策。
-- [ ] **其他券商／銀行／交易所 adapter**：需去識別格式樣本及官方欄位說明，驗證 ID、費用、交易類型及跨來源轉移，不聲稱未完成的來源已支援。
+- [ ] **Bull funding origins/transfer matching**: distinguish external bank contributions from tracked-account transfers, connect the flow ledger and avoid Funding/Buy/transfer double counting.
+- [ ] **Combined portfolio period performance**: securities+BTC growth, Modified Dietz and XIRR require compatible sources, valuations, fees, transfers and complete flow coverage; currently disabled.
+- [ ] **Native Wealthsimple activity conversion**: automate the currently manual unified-flow mapping under the adapter contract.
+- [ ] **Flow revisions/voids and formal restore command**: retain audits without reverse fake transactions; SQLite backups exist, a formal restore CLI does not.
+- [ ] **Independent BTC verification/scope changes/actual cost allocation**: quantity reconciliation exists; on-chain verification, explicit scope changes and acquisition/disposal costs need additional models/policies.
+- [ ] **Other broker/bank/exchange adapters**: require sanitized format samples/official field descriptions and tests for IDs, fees, types and cross-source transfers; never claim unfinished support.
 
-## 公開版本準備
+## Public-source preparation
 
-- [x] 公開文件改為通用契約與合成範例，個人歷史交接及設定分離。
-- [x] 公開檔案允許清單、提交／推送內容檢查、乾淨來源副本與合成示範驗收；測試及示範不依賴私人帳本。
-- [x] `actual_only` 公開預設及明確選用 `bull_average_proxy` 的設定／回歸驗證。
-- [x] MIT 授權、第三方字型授權、CI 工作流程與功能分支＋PR 開發工具；已連接公開 GitHub repository，後續開發依測試／隱私檢查及 feature branch＋PR 流程執行。
-- [x] 全新虛擬環境從官方 PyPI 依鎖檔安裝，並通過離線測試及合成報告驗收（macOS／Python 3.12）。
-- [x] GitHub Linux／Python 3.12 首次遠端驗收：263 項測試與離線預設／BTC 代理政策及三語合成報告通過（[CI 紀錄](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491)）。
-- [ ] 其他平台驗收；macOS／Linux 通過不等於所有平台已驗收。
-- [x] 經公開 manifest／完整歷史檢查與使用者確認，建立 public 的 [gh-slee/wealth-ledger](https://github.com/gh-slee/wealth-ledger) 並完成首次推送。
+- [x] **DEV-002 English public documentation**: canonical manuals/contracts/policies/examples in English, preserved locale resources and a bounded code-only CJK regression check in CI.
+- [x] **DEV-001 Shared rules/private discovery**: concise AGENTS.md, topic development docs, ignored AGENTS.override.md, staged/history rejection tests and fresh-session checks; see [agent setup](docs/agent-development.md).
+- [x] Generic public contracts/synthetic examples separated from private history and settings.
+- [x] Public allowlist, index/push checks, clean source copies and synthetic acceptance independent of personal ledgers.
+- [x] Public `actual_only` default, explicit `bull_average_proxy` configuration and regression checks.
+- [x] MIT/font notices, CI and feature-branch/PR tooling connected to the public GitHub repository.
+- [x] Fresh locked dependency install from official PyPI and offline tests/reports on macOS/Python 3.12.
+- [x] Initial GitHub Linux/Python 3.12 acceptance: 263 tests, offline default/proxy and three-locale reports ([CI record](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491)).
+- [ ] Additional platform acceptance; macOS/Linux success is not all-platform acceptance.
+- [x] First public [gh-slee/wealth-ledger](https://github.com/gh-slee/wealth-ledger) push after manifest/history review and explicit approval.
 
-公開工作依 [發布流程](docs/publishing.md) 執行，未通過不能標成已發布。正常資料匯入不觸發 commit／push。
+Follow [publication procedures](docs/publishing.md); do not label unverified work as
+published. Daily financial imports never commit or push source code.
 
-## 其他候選功能
+## Other candidates
 
-- [ ] 股息、收入、費用及已實現損益：先有完整交易與收入／費用來源。
-- [ ] 目標配置差距：使用者提供明確目標。
-- [ ] 基準比較、波動及回撤：先有一致估值、資金流及報酬政策。
-- [ ] 稅務供款／開戶以來回補：另規劃歷史及稅務模型，投資流量不等於 CRA 額度。
-- [ ] 可選排程／資料夾監看：純 Python，不自動判定來源完整或上傳私人資料。
-- [ ] 異機／異磁碟私人資料備份：同磁碟 SQLite 備份不能替代完整安全備份。
+- [ ] Dividends, income, fees and realized P&L after complete transaction/income/fee sources.
+- [ ] Target-allocation gaps using explicit user targets.
+- [ ] Benchmarking, volatility and drawdown with compatible valuations, flows and return policies.
+- [ ] Tax contributions/inception backfill under separate historical/tax models; investment flows are not CRA room.
+- [ ] Optional Python scheduling/folder watch without inferring completeness or uploading private data.
+- [ ] Private off-device/off-disk backups; same-disk SQLite copies are not complete backups.
 
-## 使用者可能需要補足的資料
+## Data users may need to supply
 
-- 期間的入金、提款、轉移及涵蓋聲明；沒有檔案不代表零流量。
-- 更早取得日期、實際成本與供款證據；持倉 CSV 或 BTC 數量不能反推歷史投入。
-- 可選日期明確的全部追蹤錢包 BTC＋LBTC 總量及已知費用／異動；不需每期同時提供兩份 CSV 或總量。
-- Bull Funding 的資金來源；未知來源不自動視為全組合外部投入。
+- Deposits, withdrawals, transfers and coverage declarations; missing files do not establish zero flows.
+- Earlier acquisition dates, actual costs and contribution evidence; holdings/BTC quantities cannot reconstruct historical spending.
+- Optional dated BTC+LBTC totals for all tracked wallets and known fees/events; both CSVs and a balance are not required together each time.
+- Bull funding origins; unknown origins are not automatically external portfolio contributions.
 
-資料不足仍可更新已知持倉，相關分析保留缺漏狀態。可選均價代理不能補成實際歷史成本或清除未解釋差額。
+Known holdings can still be updated with incomplete data. Keep related analysis
+marked incomplete; an average-cost proxy cannot establish actual historical cost
+or clear unexplained differences.

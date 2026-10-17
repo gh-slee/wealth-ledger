@@ -1,43 +1,211 @@
-# 開發與貢獻
+# Development and maintenance
 
-本文件描述公開專案的開發流程，不包含使用者帳本、報告版本或工作階段歷史。先讀 [AGENTS.md](../AGENTS.md)、[README](../README.md)及 [TODO](../TODO.md)；功能契約見 [核心 API](core-api.md)、[報告規格](report-spec.md)與 [BTC 對帳](btc-reconciliation-plan.md)。
+This document covers implementation procedures. Shared agent guidance lives in
+[AGENTS.md](../AGENTS.md); installation and contribution expectations live in
+[CONTRIBUTING.md](../CONTRIBUTING.md). Read the topic contract needed by the task,
+not every document before each edit. Private instructions and session state use
+[the ignored override](agent-development.md), separate from public roadmap facts.
 
-## 可重現環境
+## Stack and reproducible environment
 
-使用 Python 3.12+，依 README 建立 `.venv-portable` 並安裝 `requirements.lock`。不要依賴另一部電腦的虛擬環境、Codex 快取、本機辦公室程式或 LLM 服務。正式解析、下載、計算與報告均由程式完成。
+The implemented application is Python 3.12+, SQLite, Matplotlib, ReportLab and
+standard ODF generation. Source-checkout installation uses `requirements.lock`;
+there is no supported wheel or frontend build yet. The optional FastAPI/auth API
+and Docker foundation have [operating/acceptance guidance](web-operations.md); the
+full React/job workflow remains a [design baseline](self-hosted-webapp.md).
+Do not add runtime AI or local-office dependencies. See CONTRIBUTING for venv setup.
+
+Full tests and a focused module, from the repository root:
 
 ```bash
-PYTHONPATH=src .venv-portable/bin/python -m unittest discover -s tests -v
+PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_publication.py' -v
 ```
 
-測試使用合成 CSV、隔離專案與公開發行商格式樣本。不要將真實資料庫、券商匯出、交易 reference、錢包地址或私人報告作為 fixture。公開格式樣本與合成持倉須可區分；樣本不能當作最新行情。
+Use the selected venv's Python. Tests create isolated synthetic projects and Git
+repositories; they must not read personal portfolios or require live issuer pages.
+Inject prices/FX/official-format fixtures rather than relying on current websites.
+Documentation work must not create financial snapshots or report revisions.
 
-## 變更原則
+## Continuous integration and report verification
 
-- 先界定支援輸入、預設政策、錯誤狀態及既有資料遷移方式。
-- 公開預設 `actual_only`；明確設定才使用 `bull_average_proxy`。本機偏好不能成為其他使用者的隱含預設。
-- 財務邏輯用 Decimal／satoshi；維持來源、時間、範圍、去重及追加修訂契約。
-- 公開查詢與純計算分開；測試注入行情／官方格式，不依賴測試當時網站狀態。
-- 報告共用 payload。結構或文字變更需更新發布檢查；金額／比例改動核對公式及三幣結果，版面改動檢視受影響 ODS／PDF。
-- 文件修改不重產金融報告或新增觀測；記錄真正執行的驗證，不把舊測試當成本輪重跑。
+[CI](../.github/workflows/ci.yml) runs on push, pull request and manual dispatch with
+Linux/Python 3.12, read-only repository permissions and locked dependencies. Its
+checks are:
 
-## 隱私及本機指引
+```bash
+python scripts/check_language.py
+python scripts/check_publication.py --worktree
+python scripts/check_publication.py --staged
+PYTHONPATH=src python -m unittest discover -s tests -v
+python examples/demo.py --output work/demo-default
+python examples/demo.py --output work/demo-proxy --btc-cost-policy bull_average_proxy
+python examples/demo.py --output work/demo-tc --locale zh-TW
+python examples/demo.py --output work/demo-sc --locale zh-CN
+```
 
-`data/`、`reports/`、`backups/`、`private/`、`work/`、虛擬環境與本機設定均為忽略狀態。公開模板位於 `examples/templates/`，設定以 `.example` 檔名區分。報告可能包含敏感金額，即使遮罩帳號也不應預設公開。
+These commands use only synthetic/public-format inputs. Run relevant focused tests
+while iterating and the full suite before publication. For financial/report changes,
+verify affected identities, formula/cache agreement, three-currency totals, unknown
+semantics and presentation checks. Visually inspect affected ODS/PDF/charts when
+layout changes. Do not run unrelated real imports or broaden checks without reason.
+Report observed results, environment and remaining gaps; past CI is not proof of
+new uncommitted work. CI runs after upload and cannot prevent an initial leak.
 
-如果存在 `private/AGENTS.local.md` 或 `private/session-handoff.md`，只供授權本機開發情境讀取。不能把其中的金額、日期、來源檔名、個人偏好或驗收狀態複製到公開文件；公開產品契約以目前程式及通用文件為準。
+## Financial and import contracts
 
-## 提交與推送
+See [core API](core-api.md), [BTC reconciliation](btc-reconciliation-plan.md) and
+[user manual](user-manual.md) when changing these areas:
 
-詳見 [公開發布流程](publishing.md)。只 stage 經審核的公開檔案，提交／推送前檢查內文與 outgoing commits。Git ignore 不會清除已追蹤資料或文件內個資。
+- Decimal/satoshi precision and unknown/valid-zero distinctions are mandatory.
+  Preserve source bytes/checksums, stable identities, immutable history and append-only
+  corrections. Do not use reverse fake transactions for transcription fixes.
+- `scripts/update.py` supports either CSV, both, optional BTC quantity, or no input.
+  Preserve source dates, partial/carried coverage and real observation times.
+  Scope expansion is not growth; missing files/months do not establish no activity.
+- `--dry-run` is offline and uses a disposable project: no real DB, caches, backups,
+  operations, analysis runs or latest-pointer changes. Simulation IDs/results must
+  not be mistaken for committed evidence.
+- Contributions require cash-flow evidence and explicit coverage, not holdings or
+  purchase spend. Bull Funding and Buy reuse one cash amount; transfers between
+  tracked accounts cancel at the portfolio boundary.
+- Preserve BTC/LBTC delivery types while presenting 1:1 BTC equivalents. Opening
+  declarations, orders, observations and events remain separate. A pre-Bull opening
+  declaration is fixed from explicit attribution, not recomputed by each import.
+- Balance/events use stable IDs, unique source references, revision/void reasons
+  and validated intervals. An observation anchors later known changes; prior events
+  already included are not deducted twice. Matching later totals do not erase old
+  unexplained gaps or prove independent quantity verification. Never guess fees.
+- `actual_only` is the public default. The opt-in Bull average proxy is completed
+  CAD purchase spend / delivered BTC+LBTC; estimated cost is current quantity times
+  that average. A balance/event does not change the average; completed buys can.
+  It cannot fill actual cost/contribution fields or settle reconciliation gaps.
+  No purchases means no average; zero holdings with an average means zero estimated
+  cost/P&L and a non-applicable rate. Quantity, policy and fee coverage are independent.
+- Mutations retain backup, project lock and atomic data submission. Report publication
+  is separate from commit; resume fixed saved inputs/cutoffs after failures.
 
-開發發布與正常更新指令分離。未有有效登入或私人授權設定時只產生計畫，不自行建立 repository、推送或合併。經授權後使用功能分支＋PR，不自動合併 `main`。CI 使用乾淨 clone、合成示範與隔離測試，不需私人帳本或 LLM。
+## Analysis, reporting and localization
 
-完成變更後更新 TODO 與受影響契約，記錄驗證及限制；私人工作階段細節另存忽略目錄。待辦不是下一個工作階段的自動執行指令。
+Use [report spec](report-spec.md), [ODS implementation](workbook.md) and
+[i18n contract](i18n-plan.md) for the area affected:
+
+- Official ETF adapters fetch latest published issuer data through code and retain
+  effective/fetch dates, raw evidence, SHA-256 and parser versions. Unsupported or
+  failed coverage stays unresolved; old caches cannot imply fresh verification.
+- Preserve company/ADR/share-class identity, recursion and unresolved/rounding audit.
+  Top-20 weights use all noncash investments including BTC as denominator, without
+  normalizing partial coverage. Sector needs explicit official GICS; retain other
+  issuer taxonomies separately. Country needs official classification, not guesses
+  from MIC/currency/ISIN. Region grouping is not revenue geography.
+- CAD/USD/TWD are alternative equivalents. Freeze historical references. Replaying
+  `--lookthrough-run-id` requires the same financial fingerprint and no new input.
+- Formats share one payload/templates. ODS writes standard ODF, formulas, numeric
+  caches, embedded PNG charts and licensed fonts; do not replace this with unverified
+  native charts or require development readers at runtime. Effective state appears
+  in normal reports; superseded assumptions go to audit attachments/history.
+- New ledgers default to en-CA; legacy ledgers preserve zh-TW. Use context-scoped
+  catalogs/formatting, stable sheet IDs and generated quoted references. No process-global
+  locale or automatic translation of source/user names, notes or references.
+- New keys require all three catalogs with identical named parameters. Financial
+  payloads/history/identities must not change with language. Use
+  `scripts/render_report.py` for offline language editions, not an update.
+
+## Public source and maintenance
+
+Source adapters require minimal synthetic format/error fixtures and documented
+support; the [plugin SDK](source-adapters.md) remains planned. Use English in all
+canonical documentation and generic examples; preserve product localization.
+Keep TODO and affected contracts aligned with actual behavior. Personal balances,
+source filenames, verification history and preferences are not public documentation.
+
+Before publication follow [publishing.md](publishing.md): explicit staging, review,
+full tests and index/reachable-history audit. A local tool authorization does not
+replace owner consent. No automatic merge, force push or release. Ordinary financial
+commands never commit or upload data.
+
+## Repository language policy
+
+Canonical public Markdown, code identifiers, comments/docstrings and generic examples
+use English. Contributor conversation preferences live only in ignored private
+guidance and do not select documentation language. Supported product locales remain
+en-CA/zh-TW/zh-CN; retain source text, UTF-8/locale fixtures and closed legacy message
+compatibility rather than rewriting financial identities or saved payloads.
+
+Run `python scripts/check_language.py` before publication. CI executes the same
+standard-library check. It inspects allowlisted public Markdown and Python comments,
+docstrings and identifiers for CJK text. Private instructions/data are outside its
+read scope. Explicit exception categories are:
+
+- Catalog/registry/legacy JSON in src/wealth_ledger/locales/.
+- Intentional runtime localized labels, closed legacy compatibility strings and
+  Unicode/localization test values inside Python string literals.
+- Original source/user content and generated localized reports, which are not
+  canonical Markdown source documents.
+
+The checker does not rewrite content or call an LLM. It detects a bounded CJK
+regression, not every non-English language or incorrect translation. It does not
+validate arbitrary runtime string wording; existing catalog/locale tests enforce
+that contract. Publication checks still reject unknown public paths. Add no broad
+Markdown exceptions to hide untranslated documents. Review prose manually, verify
+commands/anchors and retain original license terms/attribution. Exit 0 means passed,
+1 violations, 2 unable to complete. Tests use isolated synthetic files.
+
+## Workspace and parser contract acceptance
+
+WEB-001 uses `workspace.py`, `application.py` and `publishing.py`; services must not
+import scripts or mutate global project paths. Every daily mutation, preview and
+recovery command must honor the same explicit workspace. Test only disposable
+synthetic ledgers. `tests/test_workspaces.py` exercises two portfolios, all daily
+query commands, lock/backup isolation, operation retry, aliases and a copied
+installation whose code/files are chmod read-only. Its child process renders all
+three report formats with frozen synthetic analysis and verifies untouched source
+ledger/code hashes. Root-run CI cannot prove permission denial; the non-root local
+run additionally asserts an attempted code write raises PermissionError.
+
+`tests/test_source_protocol.py` checks SRC-001 version/identity/coverage/revision,
+unknown values, Decimal/time/precision, cancellation and detection ambiguity.
+This is a structural contract, not an external plugin loader or stateful economic
+validator. Keep SRC-002-004 pending until registration/SDK/migration acceptance.
+Run these focused files with the same unittest discovery command and `-p` before
+the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
+
+## Web API and container checks
+
+Install `requirements-web-test.lock` for optional Web tests. Standard discovery
+runs authentication, CSRF/Host/Origin, expiry/revocation, persistent throttling,
+metadata/settings, artifact ownership/path/hash checks, native HTTP restart and
+Docker-context privacy. It skips the opt-in Docker runtime test. CI installs these
+optional dependencies and runs a separate Linux Docker job. Container runtime
+acceptance is pending until actually executed; Compose config validation is not
+an image/startup test. See [the Web guide](web-operations.md).
+
+The API factory requires a trusted-host initialized dedicated instance outside the
+code tree. Metadata migrations touch only `admin/app.sqlite3`, never a financial
+DB. No HTTP owner claim, arbitrary host paths, public static financial data or
+implicit legacy adoption. API error handling redacts Pydantic input details.
+Publication inspection recognizes only AST-verified `SecretStr = Field` declarations
+with bounded numeric length metadata; literal/default password values remain blocked.
+Image contexts use `scripts/docker_context.py`, explicit COPY and deny-by-default
+`.dockerignore`; never build/publish from an unreviewed private workspace.
 
 
-## 翻譯與呈現
+## Upload/job development
 
-三語資源與新增語言驗收見 [語系契約](i18n-plan.md)。程式／註解／機器契約使用英文；程式文案使用穩定 key 與具名參數。更新一個 key 時三語同步，不在執行時呼叫 LLM 或翻譯服務。來源名稱與 reference 保留原文。
+Install `requirements-web-test.lock` for the optional Huey/SQLite worker. The
+[import/job guide](web-imports.md) documents implemented API and recovery states.
+Focused acceptance:
 
-金融資料與顯示深拷貝分離；格式化用 Decimal，不使用 process-global locale。工作表使用穩定 ID，字型隨 locale 選取且附授權。變更報告需通過三語公式／快取／缺漏語意驗證，並檢視 PDF 與圖表。CI 的合成示範覆蓋三種語言及明確 BTC 代理政策；首次遠端 CI 驗收仍需公開發布後完成。
+```bash
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_imports.py' -v
+```
+
+These tests use only temporary synthetic instances and real subprocess exits around transaction/report boundaries. The
+opt-in Docker suite additionally uploads public invented fixtures through Compose,
+waits for worker reports and verifies persistence after replacing both services.
+
+Do not introduce runtime test-only crash flags, serialized callables or owner data.
+Never unlink stable `update.guard`, per-job or worker advisory guard files. A process
+ID is diagnostic only; keep unknown legacy lock handling conservative. Preserve
+financial commit markers, fixed job/operation linkage, checksummed report recovery
+and idempotent atomic artifact registration when changing worker behavior.

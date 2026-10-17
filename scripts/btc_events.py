@@ -6,7 +6,7 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
 from wealth_ledger.wallet_cli import run
-from update import database_backup
+from wealth_ledger.cli import run_main
 
 if __name__ == "__main__":
-    run(PROJECT, "event", database_backup)
+    sys.exit(run_main(lambda: run(PROJECT, "event"), PROJECT) or 0)

@@ -1,15 +1,15 @@
 """Shared CLI contract for balances and economic events."""
-import argparse
 from .cli import make_parser
 from .i18n import presentation_context, legacy_text
 import json
+import shlex
 from pathlib import Path
 
-from . import wallet, operations
+from . import wallet
 from .prices import parse_time
 
 
-def run(project, kind, backup):
+def run(project, kind):
     parser = make_parser(project, description="Append/revise BTC-equivalent records; never invent a cause or publish a report")
     sub = parser.add_subparsers(dest="command", required=True)
     listing = sub.add_parser("list")
@@ -45,6 +45,9 @@ def run(project, kind, backup):
         command.add_argument("--expected-revision", type=int, required=True)
         command.add_argument("--reason", required=True)
     args = parser.parse_args()
+    from .application import ApplicationService
+    project = parser.workspace.workspace_root
+    service = ApplicationService(parser.workspace)
     try:
         if args.command == "list":
             result = wallet.records(project, kind)
@@ -77,9 +80,7 @@ def run(project, kind, backup):
                     changes = {"balance_id": args.balance_id if args.command == "link" else None}
                 return wallet.revise(stage, args.record_id, expected_revision=args.expected_revision,
                                      reason=args.reason, action=args.command, **changes)
-            with operations.project_lock(project):
-                backup("before-btc-" + kind)
-                result = operations.record_data_operation(project, vars(args), action)
+            result = service.record(vars(args), action, label="before-btc-" + kind)
             if kind == "balance" and result.get("record_id"):
                 result["reconciliation"] = wallet.balance_detail(project, result["record_id"])["reconciliation"]
             pointer = Path(project)/"reports/latest.json"
@@ -90,7 +91,8 @@ def run(project, kind, backup):
                 if occurred and parse_time(occurred) > parse_time(saved):
                     with presentation_context(parser.locale):
                         result["report_note"] = legacy_text("目前報告時間早於此紀錄；裸 update.py 不會自動新增今日估值。")
-                    result["suggested_command"] = f'scripts/update.py --valuation-as-of "{occurred}"'
+                    result["suggested_command"] = shlex.join([
+                        'scripts/update.py', '--workspace', str(project), '--valuation-as-of', occurred])
             result["report_published"] = False
     except (ValueError, OSError) as exc:
         parser.error(str(exc))

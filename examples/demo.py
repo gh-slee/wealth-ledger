@@ -101,7 +101,7 @@ def run_demo(output: Path, btc_cost_policy: str, locale="en-CA") -> dict:
         }
         (bundle / "demo-manifest.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (bundle / "SYNTHETIC-DEMO.txt").write_text(
-            "合成離線示範：所有金額、訂單、持倉、價格與 ETF 成分均為虛構，不能當成行情或正式分析。\n",
+            "SYNTHETIC OFFLINE DEMO: all amounts, orders, holdings, prices and ETF constituents are invented; not market data or formal analysis.\n",
             encoding="utf-8")
         output.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(bundle, output)

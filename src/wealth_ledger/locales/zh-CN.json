@@ -1213,6 +1213,7 @@
     "cli.c61acd0a4287": "翻译字典消息无效",
     "cli.dda57644410f": "文档语言区域元数据互相冲突",
     "cli.764028d3627d": "文档语言区域元数据超过大小限制",
-    "cli.692ff10271e6": "消息仅支持具名基本类型参数"
+    "cli.692ff10271e6": "消息仅支持具名基本类型参数",
+    "cli.operation_retry.workspace": "资料已保存，报告未发布。Operation {operation}；估值时间 {valuation}。重试：{retry}。原因：{cause}"
   }
 }

@@ -16,6 +16,29 @@ from .combined import make_combined_payload
 LOCAL = ZoneInfo("America/Toronto")
 
 
+def validate_update_request(request, *, preview=False):
+    """Shared structural request checks before preview or mutating services."""
+    paths = request.get("paths", [])
+    balance = request.get("btc_balance")
+    if request.get("resume_operation") or request.get("list_operations") or request.get("show_operation"):
+        raise ValueError("Dry-run cannot be combined with operation query/resume modes")
+    if request.get("snapshot_id") is not None and (paths or balance is not None):
+        raise ValueError("--snapshot-id cannot include new inputs")
+    if preview and request.get("lookthrough_run_id") is not None:
+        raise ValueError("Dry-run does not fetch or replay ETF analysis; omit --lookthrough-run-id")
+    if balance is None and (request.get("btc_balance_as_of") or request.get("btc_balance_source")):
+        raise ValueError("Balance time/source require --btc-balance")
+    if request.get("wealthsimple_only") and (balance is not None or request.get("as_of") or request.get("price_file")):
+        raise ValueError("Brokerage-only mode cannot include wallet/combined valuation inputs")
+    if request.get("kind", "monthly") not in {"baseline", "monthly", "interim"}:
+        raise ValueError("Unsupported snapshot kind")
+    if request.get("lookthrough_run_id") is not None and (paths or balance is not None):
+        raise ValueError("ETF replay cannot include new inputs")
+    if request.get("as_of"):
+        parse_time(request["as_of"])
+
+
+
 def identify_inputs(paths):
     identified = {}
     seen = set()

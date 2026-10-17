@@ -1,17 +1,52 @@
-# 安全與隱私
+# Security and privacy
 
-Wealth Ledger 在本機保存投資及交易資料。SQLite 預設未加密；repository 的忽略規則與發布檢查用來降低誤提交風險，並不是檔案加密或完整的個資偵測保證。
+Wealth Ledger stores investment and transaction data locally. SQLite is unencrypted
+by default. Ignore rules and publication checks reduce accidental commits; they do
+not encrypt files or guarantee complete detection of personal information.
 
-## 使用者資料
+## User data
 
-資料庫、原始匯出、報告、備份、私人設定及本機交接應留在忽略目錄。不能將真實 CSV、錢包地址、帳號、憑證或財務數值附在公開 issue、PR、Actions artifact 或開發範例中。即使檔案被 `.gitignore` 忽略，已追蹤或歷史提交中的內容仍需要另外檢查。
+Keep databases, raw exports, reports, backups, private configuration and local agent
+state in ignored locations. Never attach real CSVs, wallet addresses, account IDs,
+credentials or personal financial values to public issues, PRs, Actions artifacts
+or examples. Ignored files already tracked or present in Git history still need a
+separate review.
 
-正常報告流程會查詢公開匯率、BTC 行情及官方 ETF 資料來源；不應上傳投資組合或券商匯出。離線預檢及合成示範不需網路。GitHub 發布與工具的日常匯入互相獨立。
+Normal reporting queries public FX, BTC prices and official ETF sources; it should
+not upload portfolios or broker exports. Offline previews and synthetic demos need
+no network. GitHub publication is separate from daily imports.
 
-## 回報漏洞
+## Optional Web foundation
 
-若 repository 已啟用 GitHub 私人漏洞回報，可在 Security 頁面提交私人報告。尚未啟用時，請先透過 GitHub 聯絡維護者取得私人回報方式；不要先建立含敏感內容的公開 issue。
+The API uses a dedicated instance outside the code checkout. Trusted host commands
+initialize/reset the sole owner; there is no public registration or owner claim.
+Argon2id password hashes, hashed opaque sessions, bounded lifetimes, CSRF/Origin/Host
+validation and persistent login budgets protect the implemented routes. The owner
+can access all instance portfolios; this is not multitenant or family-member RBAC.
+Private artifacts require session/ownership and bounded path/hash checks, and are
+never mounted as public static files. These controls do not encrypt SQLite/backups.
 
-只提供最小合成重現、版本、平台及預期／實際行為。金融資料洩漏或憑證曝光時，先停止相關公開操作並撤銷憑證，再與維護者協調清理；單純刪除最新檔案無法抹除 Git 歷史或他人已下載的副本。
+Use the exact configured origin; non-loopback origins require HTTPS. Forwarded
+headers are ignored by the supported host CLI. Keep the complete data directory,
+secrets and backups private. Docker context generation uses reviewed source-only
+inputs, a deny-by-default ignore file and explicit COPY paths; never include a real
+workspace or publish an unreviewed image. The upload/job API uses bounded raw files, immutable hashes, offline previews and
+fixed internal JSON queue notifications, never browser-supplied pickle or callables.
+Unproven commit states require local review. React/full backup workflows and wider
+platform/release acceptance remain pending. See [Web operations](docs/web-operations.md)
+for implemented commands, security limits and remaining gates.
 
-目前為 `0.1.x` 初期版本，安全修正以最新版本為主；尚無歷史版本維護承諾。
+## Reporting a vulnerability
+
+If GitHub private vulnerability reporting is enabled, submit a private report from
+the repository's Security page. Otherwise, contact the maintainer through GitHub to
+arrange a private channel before sharing details. Do not open a public issue with
+sensitive information.
+
+Provide a minimal synthetic reproduction, version, platform, and expected/actual
+behavior. If financial data or credentials are exposed, stop related publication,
+revoke exposed credentials and coordinate remediation. Deleting the latest file
+does not erase Git history or copies others have downloaded.
+
+The project is an early `0.1.x` release. Security fixes target the latest version;
+there is no commitment to maintaining historical release branches yet.

@@ -8,10 +8,8 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(PROJECT/'src'))
 from wealth_ledger.cli import make_parser, run_main
-from wealth_ledger.settings import ensure_report_locale_setting
-from wealth_ledger.operations import project_lock
 from wealth_ledger.crypto_opening import import_opening, latest_opening
-from update import database_backup
+from wealth_ledger.application import ApplicationService
 
 
 def main():
@@ -20,14 +18,14 @@ def main():
     command=sub.add_parser('import');command.add_argument('file',type=Path)
     sub.add_parser('show')
     args=parser.parse_args()
+    project = parser.workspace.workspace_root
+    service = ApplicationService(parser.workspace)
     try:
         if args.command=='import':
-            with project_lock(PROJECT):
-                ensure_report_locale_setting(PROJECT)
-                database_backup('before-crypto-opening')
-                result=import_opening(PROJECT,args.file)
+            result = service.record(vars(args), lambda stage: import_opening(stage, args.file),
+                                    label="before-crypto-opening")
         else:
-            result=latest_opening(PROJECT)
+            result=latest_opening(project)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     print(json.dumps(result,ensure_ascii=False,indent=2))

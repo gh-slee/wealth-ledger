@@ -1,37 +1,43 @@
-# 投資報告規格
+# Investment report specification
 
-本文件定義 Wealth Ledger 支援的報告契約。新 clone 沒有金融資料；依各使用者自己的來源建立基準。正式流程使用 Python 直接寫 ODS，不依賴本機 LibreOffice或 LLM。報告可選 en-CA／zh-TW／zh-CN，使用 CAD／USD／TWD 等值及 America/Toronto 時間。
+This defines the supported report contract. A new clone contains no financial data;
+each user establishes a baseline from their own inputs. Python writes ODS directly,
+without local LibreOffice or LLMs. Reports support en-CA/zh-TW/zh-CN, CAD/USD/TWD
+equivalents and America/Toronto time.
 
-## 交付格式與內容一致性
+## Formats and consistency
 
-- `portfolio.ods`：可篩選的持倉、帳戶摘要、圖表、歷史及資金流明細。
-- `report.md`：所選語言的分析、表格與相對路徑引用的 PNG 圖表。
-- `report.pdf`：相同分析內容的固定版面版本，確認所選語言字型、圖表及分頁。
-- `charts/`：可獨立引用的 PNG 圖表。
+- `portfolio.ods`: filterable holdings, account summaries, charts, history and flows.
+- `report.md`: selected-language analysis/tables with relative PNG links.
+- `report.pdf`: fixed-layout equivalent, validated for fonts/charts/pagination.
+- `charts/`: independently usable PNGs.
 
-ODS、Markdown、PDF 使用同一份計算結果；報告保存於 `reports/YYYY-MM-DD_HHMM/rNN/`，修訂不覆蓋舊版。原始來源、資料庫及輸出均保存在專案下，財務資料不納入 Git。
+All formats share calculated inputs. Save bundles under
+`reports/YYYY-MM-DD_HHMM/rNN/`; revisions never overwrite older editions. Raw sources,
+DB and outputs stay in the project; private financial data stays out of Git.
 
-## 每期主要內容
+## Main contents
 
-| 區塊 | 指標及明細 |
+| Section | Measures/details |
 |---|---|
-| 資產總覽 | 全組合及各帳戶的 CAD／USD／TWD 等值、原始 CAD／USD 市值、現金、快照及報告時間 |
-| 幣別持倉 | CAD 與 USD 分開；證券、交易所、數量、市價、原幣帳面成本、市值、未實現損益及配置比例 |
-| 帳戶持倉 | TFSA、RRSP、Non-registered 各自明細及幣別小計；新帳戶可加入 |
-| 集中度 | 最大單一標的、前三大及前五大證券配置；個股與 ETF 各自摘要；不將 ETF 當成單一底層公司 |
-| 產業／國別／地區 | GICS 產業、官方國別／市場、地理區域，直接及 ETF 股份合計、覆蓋率、有效日期與非公司／未分類對帳 |
-| 工具類型 | 直接個股、ETF、現金的市值及占比；這是包裝／工具分類，不是 ETF 底層資產類別 |
-| 持倉筆數 | 不同證券數、帳戶持倉筆數及現金列數分開呈現 |
-| 現金摘要 | 各帳戶已列 CAD／USD 現金、市值及現金占比；不推定為可立即提款餘額 |
-| 成本及損益 | 跨帳戶同一證券合併的原幣成本、市值、未實現損益、加權平均成本及損益率 |
-| 帳戶與證券矩陣 | 各證券在各帳戶的 CAD 等值市值；另顯示帳戶內權重，現金獨立列示 |
-| 本期摘要 | 由已核對數據產生最大持倉、集中度、現金及歷史變化的描述；不生成買賣建議 |
-| 資料檢查 | 帳戶完整性、來源日期、數學核對、幣別、重複、匯率及異常值 |
-| 計算說明 | 指標定義、分母、幣別、日期、資料來源及尚未具備的分析條件 |
+| Overview | Portfolio/accounts in CAD/USD/TWD, native CAD/USD values, cash, snapshot/report times |
+| Currency holdings | Separate CAD/USD securities, exchange, quantity, price, native book/value/P&L and allocation |
+| Account holdings | TFSA/RRSP/Non-registered details and currency subtotals; additional accounts supported |
+| Concentration | Largest/top-three/top-five securities, direct-stock/ETF summaries; an ETF is not one underlying company |
+| Sector/country/region | GICS, official country/market, regions, direct/ETF equities, coverage/dates and non-company/unclassified reconciliation |
+| Instrument types | Direct stocks/ETFs/cash; wrapper classification, not underlying asset allocation |
+| Counts | Distinct securities, account-position rows and cash rows separately |
+| Cash | Reported CAD/USD cash per account and weights; not presumed immediately withdrawable |
+| Cost/P&L | Native aggregate book/value/P&L, weighted average cost and return across accounts |
+| Account/security matrix | CAD-equivalent values and within-account weights; cash separate |
+| Summary | Deterministic verified holdings/concentration/cash/history observations, without trading advice |
+| Data checks | Account completeness, source dates, arithmetic, currencies, duplicates, FX and anomalies |
+| Methods | Definitions, denominators, currencies, dates, provenance and missing analysis prerequisites |
 
-## 三幣估值
+## Three-currency valuation
 
-令 `C` 為 CAD 原幣市值，`U` 為 USD 原幣市值，均包含已列現金；`r` 為 CAD per USD，`s` 為 TWD per USD：
+Let C/U be native CAD/USD market values including reported cash; r is CAD per USD,
+s is TWD per USD:
 
 ```text
 Total CAD = C + U * r
@@ -40,11 +46,14 @@ Total TWD = (C / r + U) * s
 CAD to TWD = s / r
 ```
 
-三種等值表示同一組資產。各帳戶使用相同換算政策，再以未四捨五入的值合計。資產總覽下保留兩個匯率的日期與來源；不同來源可能使用不同市場收盤時間。
+These are alternative equivalents of the same assets. Apply the same policy per
+account and sum unrounded values. Preserve both FX dates/sources; publication/market
+close times can differ. References are [Bank of Canada daily FX](https://www.bankofcanada.ca/rates/exchange/daily-exchange-rates/)
+and [Taiwan central bank TWD/USD closing rates](https://www.cbc.gov.tw/tw/lp-645-1.html).
+Holidays may use the latest preceding published date with disclosure. Missing FX
+must not be guessed. Freeze each period's rates rather than revaluing history.
 
-建議來源為 [Bank of Canada 日匯率](https://www.bankofcanada.ca/rates/exchange/daily-exchange-rates/) 與 [臺灣中央銀行公布的新臺幣／美元收盤匯率](https://www.cbc.gov.tw/tw/lp-645-1.html)。假日可採最近前一個可用公布日並標示日期；無適用匯率時，不填入猜測值。每期保存採用值，歷史估值不隨今日匯率改寫。
-
-## 成本、損益與配置定義
+## Cost, P&L and weights
 
 ```text
 Average cost = Native book value / Quantity
@@ -55,151 +64,263 @@ Portfolio weight = Position CAD equivalent / Portfolio total CAD equivalent
 Cash ratio = Cash CAD equivalent / Portfolio total CAD equivalent
 ```
 
-- 同一證券依 MIC、Symbol、原幣識別；不同帳戶的持倉可合併展示，底層紀錄仍分開。
-- 加權平均成本使用合計原幣成本除以合計數量；合併損益率使用合計損益除以合計成本，不平均百分比。
-- 股票／ETF 成本與損益表排除現金。成本或數量為零時，相關比例不直接除以零；非正成本等特殊狀況須標示計算範圍。
-- 未實現損益率是目前持倉相對帳面成本的變化，沒有年化，也不是追蹤期間總報酬。
-- Wealthsimple 帳面成本不視為累計投入或已核對的稅務 ACB。保留來源 CAD 帳面成本，但不以其與原幣成本的比值推算當期匯率。
-- 全組合權重的分母包含已列現金；集中度若採證券限定分母，必須另外標示，不混用。
-- 現金採原幣數量／Market Value 估值。來源 CAD 現金帳面成本異常時保留原值，標示差異，不改寫來源。
+- Identify securities by MIC, Symbol and native currency. Aggregate presentation
+  across accounts without merging underlying records.
+- Weighted average cost is total native book / total quantity; return is total
+  P&L / total cost, never an average of percentages.
+- Exclude cash from security costs/P&L. Avoid zero division; label non-positive
+  costs and special calculation scopes.
+- Unrealized return is current holdings versus book cost, not annualized or a
+  tracking-period total return.
+- Wealthsimple book values are neither cumulative contributions nor verified tax
+  ACB. Retain CAD book values but never derive current FX from CAD/native book ratios.
+- Portfolio weights include reported cash. Securities-only concentration needs an
+  explicitly separate denominator.
+- Value cash by native quantity/Market Value. Preserve anomalous source CAD cash
+  book values and identify discrepancies without rewriting them.
 
-## 圖表
+## Charts
 
-第一個完整快照可產生八類圖表：
+A first complete snapshot supports eight categories:
 
-1. 各帳戶 CAD 等值市值長條圖。
-2. CAD／USD 交易幣別配置圖。
-3. 合併證券持倉市值排名。
-4. 各證券按帳戶的市值堆疊圖。
-5. 原幣未實現損益，CAD／USD 分開。
-6. 原幣未實現損益率，排除現金。
-7. 直接個股／ETF／現金的工具類型配置。
-8. 帳戶與證券權重熱圖，以各帳戶完整總值為分母。
+1. Account CAD-equivalent values.
+2. CAD/USD trading-currency allocation.
+3. Aggregated security value rankings.
+4. Security values stacked by account.
+5. Native unrealized P&L in separate CAD/USD panels.
+6. Native unrealized return, excluding cash.
+7. Direct-stock/ETF/cash instrument allocation.
+8. Security/account weight heatmap using full account denominators.
 
-交易幣別配置不等於底層貨幣曝險。工具類型不等於實際產業或地區曝險。極小現金比率保留足夠精度，避免被呈現為不存在。
+Trading currency is not underlying currency exposure. Instrument type is not actual
+sector/region exposure. Preserve precision for tiny cash weights. Embed same-run
+PNGs with original aspect ratios/fonts in ODS. Updates regenerate images; workbook
+formula edits do not redraw them or expose editable chart series.
 
-ODS 直接嵌入同輪報告的 PNG 圖表，保留比例與完整字型呈現。圖像每次執行更新流程時重新產生；ODS 表格公式保留，但手動變更儲存格不會即時重畫圖像，圖片本身沒有可編輯的圖表系列。
+## Later snapshots and flows
 
-## 後續快照與資金流
-
-第一份 CSV 建立基準，後續真實快照才呈現成長比較。正式月度快照與臨時快照分開標示。日度、月度圖僅使用實際觀測，跨日期連線不當成每日觀測。
-
-後續報告加入：
-
-- 與上一個快照、上一個正式月度快照及起始基準比較。
-- 全組合與各帳戶 CAD／USD／TWD 等值歷史，三幣分開呈現；換算後的資產變化包含匯率影響。
-- 新增、消失、數量變化的持倉，以及市值、原幣市價、權重及權重百分點變化。
-- 現金餘額與帳戶配置的歷史變化。
-- 已確認外部資金流完整時，列期初值、期末值、淨投入及期間投資增值。
+The first CSV establishes a baseline; comparisons require actual later snapshots.
+Distinguish formal monthly and temporary updates. Daily/monthly charts use real
+observations; connecting dates does not fabricate daily data. Add comparisons to
+the previous snapshot, previous formal month and baseline; separate CAD/USD/TWD
+history for portfolio/accounts; new/disappearing/changed quantities, values, native
+prices, weights and percentage-point changes; cash/account-allocation history; and,
+only with complete external flows, opening/closing values, net flows and investment gain.
 
 ```text
 Investment gain = Ending value - Beginning value - Deposits + Withdrawals
 ```
 
-持倉消失須以完整帳戶快照為前提；缺少帳戶不自動歸零，也不沿用舊值湊成最新完整總額。持倉數量變化不直接推定為買賣，還可能來自拆股或股息再投入。
+A disappearing position requires a complete account snapshot. Missing accounts are
+not zeroed or silently carried to manufacture completeness. Quantity changes can
+include splits/reinvestment, not necessarily trades.
 
-資金流紀錄保存日期、帳戶、類型、原幣金額、CAD 等值、來源、轉移配對編號與期間完整性。完整性分為尚未提供、部分資料、確認完整及確認無外部資金流。
+Flows save date, account, type, native amount, CAD equivalent, source, transfer pair
+and coverage. Coverage distinguishes not supplied, partial, confirmed complete and
+confirmed no external flows. Transfers are inflow/outflow per account and cancel at
+the portfolio boundary. Internal trades/FX/retained dividends are not external
+contributions. Missing flow data is not zero.
 
-帳戶間轉移在個別帳戶為流入／流出，在全組合抵消；帳內買賣、換匯及保留股息不算外部投入。未提供資金流不代表零流量。
+Compute CAD gain/Modified Dietz/XIRR only when prerequisites are met. USD/TWD value
+conversions do not inherit CAD returns; currency-specific returns require opening,
+closing and each flow converted on their own dates.
 
-資料足夠時才計算 CAD 金額的期間投資增值、Modified Dietz 近似報酬及 XIRR。USD／TWD 總值換算不直接沿用 CAD 報酬率；若另計該幣別報酬，需將期初、期末及各筆資金流依其日期換算。
+## Analysis requiring additional inputs
 
-## 需補充資料後才啟用的分析
-
-| 分析 | 必要資料 |
+| Analysis | Required evidence |
 |---|---|
-| 股息、收入、費用及已實現損益 | 有日期及幣別的交易、收入、費用或來源報告 |
-| 目標配置差距 | 使用者設定的目標比例，不自行指定比例或買賣金額 |
-| 基準比較、波動及回撤 | 足夠、一致期間的報酬資料、資金流及基準政策 |
+| Dividends/income/fees/realized P&L | Dated, currency-specific trades/income/fees or source reports |
+| Target-allocation gaps | Explicit user targets; never invented target weights/trade amounts |
+| Benchmarks/volatility/drawdown | Sufficient compatible returns/flows and benchmark policies |
 
-券商 holdings CSV 本身不足以提供股息、已實現損益、目標配置或完整期間績效，不填入猜測數字。ETF 成分另由正式程式查詢官方來源，不從持倉 CSV 推測；產業／國別／地區分類已按下節實作，缺分類或有衝突仍保持未知。各項資料狀態在報告摘要集中說明，不插入空白圖表。
+A holdings CSV cannot supply these automatically. Fetch ETF constituents separately
+through official adapters. Classification is implemented below; missing/conflicting
+labels stay unknown. Summarize availability and omit empty chart placeholders.
+See [ETF Facts guidance](https://www.getsmarteraboutmoney.ca/tool-embeds/etf-facts/)
+and [Wealthsimple custom activity/realized reports](https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement);
+actual columns/coverage still require validation.
 
-基金成分資料需求可參考 [ETF Facts 說明](https://www.getsmarteraboutmoney.ca/tool-embeds/etf-facts/)。Wealthsimple 另提供 [活動與已實現損益報告](https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement)；匯入時仍需核對實際欄位及涵蓋範圍。
+## Initial acceptance
 
-## 第一版驗證
+- Original CSV copies match; quantities/prices/value/native P&L reconcile.
+- Reimports deduplicate; corrected same-time inputs create revisions.
+- Currency/account totals and cash inclusion reconcile across all formats.
+- Validate ODS against official schemas, independently evaluate caches/formulas,
+  and match embedded PNG bytes/aspect/placement. Check PDF selected-language text,
+  pagination/clipping and Markdown images. Reader-specific behavior needs reader acceptance.
+- Synthetic later-snapshot/missing-account/revision/zero-cost/transfer tests never
+  write formal personal history.
 
-- 第一份來源 CSV 副本內容一致，數量、價格、市值及原幣損益核對。
-- 同一來源重複匯入去重；同一資料時間的修正產生修訂。
-- 三幣換算、現金計入與各帳戶合計一致。
-- ODS、Markdown、PDF 的主指標與表格一致。
-- 依官方 ODF schema 核對 ODS 格式，並獨立計算公式、檢查內嵌圖像與同輪 PNG 的一致性、比例與位置；檢查 PDF 所選語言文字、分頁、截斷及 PNG 引用。各試算表閱讀器的視覺行為仍需在對應軟體中驗收。
-- 以模擬資料驗證第二期比較、缺失帳戶、資料修訂、零成本及帳戶間轉移；測試不寫入正式歷史。
+## Combined Bull Bitcoin reports
 
-## Bull Bitcoin 合併報告
+Use a separate order ledger/combined observations without rewriting the original
+Wealthsimple baseline. Present BTC/LBTC 1:1 equivalents while retaining networks.
+Without observations, quantity is fixed opening + completed buys + known net events;
+otherwise use the latest applicable reported balance + later events. Do not guess
+fees, claim independent verification or erase older gaps. Separate CAD purchase cost,
+reference valuation and price changes. BTC valued in CAD is neither native security
+nor CAD cash.
 
-合併報告使用獨立訂單帳本及合併觀測，不改寫原 Wealthsimple 基準。BTC／LBTC 累計交付按 1:1 顯示 BTC 等值、保留原始網路，沒有餘額觀測時，持有量為固定期初、已完成購入與已知淨異動的估計；有觀測時採最近適用回報量加其後已知淨異動。未知費用不推定，觀測不宣稱獨立核驗，舊差額保持可查。CAD 買入成本、參考估值與價差另列，BTC 的 CAD 為估值幣別，不能視為原幣證券或 CAD 現金。
+Explicit Bull average proxy: completed Bull CAD spend / delivered BTC+LBTC; estimated
+whole-holding cost = current quantity * average; estimated P&L = value - estimated
+cost; rate = P&L / estimated cost. Apply to all quantity including opening/unexplained
+differences without clearing reconciliation status. A quantity-only update leaves the
+average unchanged; completed buys may change it. Zero-holding rates are n.a.; no buys
+means no average.
 
-主 BTC 報告加入明確選用的「Bull 均價推估」：參考均價＝Bull 已完成購入支出／交付 BTC＋LBTC 等值；估算全持倉成本＝目前總量×均價；估算損益＝全持倉市值−估算成本；估算損益率＝估算損益／估算成本。套用全部數量，包括期初與未解釋差額；不因差額暫停推估，也不消除對帳狀態。只更新總量不改均價，新增已完成 Bull 購入才改均價；零持倉比例不適用，無購入時缺均價不能造數字。
+Quantity labels distinguish a matching same-time user baseline, later opening/purchase
+estimate, formal balance and later-event estimate. Formats share the same classifier.
+Event/fee coverage is independent: missing fees do not invalidate a reported baseline
+or justify extra deductions. An opening declaration does not create another observation.
 
-數量狀態另外區分同時間相符的使用者回報基準、後續基準＋購入推估、正式餘額回報及其後淨異動推估；三格式由共用函式判定。異動／費用涵蓋另列，不以未提供費用否定已回報基準，也不自行額外扣未知費用。期初聲明中的回報不重複登錄成新餘額觀測。
+Label every proxy estimate consistently and save `btc-cost-estimate.json` with date,
+method/results. Estimates cannot fill unknown actual costs, historical contributions,
+realized/period/portfolio actual P&L. Preserve original declarations/payloads. Opening
+cost is not zero-cost profit, and fixed purchase spend is not remaining cost at every balance.
 
-三格式的估算欄位均須標示「Bull 均價推估」，`btc-cost-estimate.json` 保存日期、方法及計算結果。這些是報告估算，不能填進未知實際完整成本、歷史供款、已實現、期間或全組合實際損益；原始聲明、來源及金融 payload 不變。實際成本及估算口徑分開，不能把期初當零成本獲利或將固定購入支出當不同餘額的剩餘成本。
+Add BTC tracking, cumulative purchases and monthly Funding/spend charts. Funding/Buy
+are the same money, not two contributions. Freeze price/candle/FX evidence without
+backfilling old months with today's price. Show mixed source times/missing formal
+months and compare actual irregular dates. Combined XIRR/Dietz remain disabled until
+external-flow classification/reconciliation is complete. Security rankings remain
+wrapper rankings; company look-through is separate below.
 
-新增「比特幣追蹤」工作表、BTC 累積買入及每月入金／買入成本圖；Funding 與 Buy 不加總為兩次供款。價格、成交區間及匯率各自凍結，當前價格不回填過去月末。不同來源時間與缺少正式月份明示；不定期匯入依真正日期比較。合併外部資金流未完成分類及對帳前，不計整體 XIRR／Modified Dietz。
+### Partial-source history
 
-已實作穿透 ETF 的前 20 大公司曝險，詳見下節；原有證券排名仍是直接投資工具排名。
+Either source can refresh the overview. Show updated/carried/not-supplied status and
+original holdings/event dates. Missing files do not prove no trades. Bull-only uses
+execution-time valuation while stocks retain snapshot prices; mixed-date totals are
+estimates. Bull-only initial scope is explicit.
 
+History retains real stock snapshot dates; totals with carried sources use dashed
+lines/hollow points. Each valuation freezes FX/BTC prices. Do not fill days/months
+or label estimated value changes as investment gain.
 
-### 部分來源更新的歷史呈現
+## ETF company look-through (implemented)
 
-匯入任一來源即可重產全組合總覽。各來源有更新／沿用／尚未提供狀態，以及原始持倉或事件日期；不把沒有新檔案推定成沒有新交易。Bull 單獨更新採執行時間估值，股票市價保持其快照日期；合併總值以不同日期資料的估計呈現。只有 Bull 起始時，報告明示限定資產範圍。
+All formats show Top 20 with rank 1-20, direct/ETF indirect CAD, totals and three
+denominator weights; ODS also shows USD/TWD. Main denominator is all noncash investments,
+including BTC. Add `12_company_exposure` and full company/unresolved CSVs.
 
-歷史圖保留真實股票快照日期，含沿用資料的合計以虛線與空心點表示。每個估值保存當時使用的匯率與 BTC 價格，不每天補點、不補缺月、不將估計合計直接稱為投資增值。
+Normal updates query latest published official data and disclose issuer-effective
+dates. Unsupported/failed/partial data stays unresolved; no third-party substitution.
+Save raw evidence, SHA-256, fetch time, parser version and company-alias fingerprint.
+Analysis revisions do not create valuation observations. `--lookthrough-run-id`
+replays same-valuation frozen analysis explicitly offline.
 
+Futures/swaps are not resolved to notional/delta exposures; their net values remain
+unresolved, separate from equities. Reconcile undisclosed weight and rounding
+separately. Rankings estimate disclosed company equities and may change with missing
+coverage. See [manual section 15](user-manual.md#15-etf-company-look-through).
 
-## ETF 公司穿透分析（已實作）
+## Sector, country and regions (implemented)
 
-ODS 組合分析、Markdown、PDF 同步列前 20 大公司，第一欄為排名 1–20，並列直接／ETF 間接 CAD、市值合計與三種分母比例；ODS 另列 USD／TWD。主分母為含 BTC 的非現金投資工具。新增圖表 12_company_exposure，完整公司及未知項另有 CSV。
+Reuse same-run company components/official holdings for GICS, official country/market
+and country-derived regions. Accept explicit `gicsSectorDescription`; retain ICB/raw
+issuer labels without guessed taxonomy conversion. Prefer each row's own official
+classification; fill gaps from reliable same-company latest classifications within
+the run, leaving equal-date conflicts unclassified. Never infer direct-stock country
+from MIC/currency/ISIN. Regions are not developed/emerging status; country is not
+revenue geography. See [manual section 17](user-manual.md#17-sector-country-and-region-exposure).
 
-每次正常更新查詢最新官方資料，按發行商有效日期個別揭露；不足／失敗／未介接部分保留未知，不使用第三方代替。來源原始檔、SHA-256、下載時間、解析版本及公司對照指紋保存；SQLite 分析版不新增估值歷史點。已保存的同估值分析可用 --lookthrough-run-id 離線重播，明示未重新查詢。
+Main denominator is all noncash investments including BTC; also show resolved-equity
+weights. Classification coverage uses resolved company equities, without treating
+unknown instruments as covered. Separately show classified investment weight and
+effective-date ranges. BTC, ETF net cash, bonds, unresolved and rounding adjustments
+remain separate. Decimal reconciles every dimension to the same total; no forced
+rescaling of negative adjustments.
 
-目前不解析期貨／掉期的底層名目或 delta 曝險；它們的淨市值列未知，不與公司股份混合。官方未披露餘額及權重四捨五入差額分別對帳。排序是已披露公司股份的估計排名，尚未解析部分可能影響結果。詳細操作及支援基金見使用手冊第 15 節。
+ODS/CSV include full categories, CAD/USD/TWD and both weights. MD/PDF show CAD, Top 15
+countries plus other classified countries, and full unclassified/non-company rows.
+Charts: `13_sector_exposure`, `14_country_exposure`, `15_region_exposure`; gray means
+unclassified/non-company. Retain tiny negative adjustments. Export root coverage,
+`allocation-exposure.csv` and company/path/classification-method/evidence details in
+`classification-detail.csv`. Freeze evidence/payloads and record version/coverage/
+dates/files in manifests. No DB migration, holdings/valuation/flow/history changes
+or invented classifications for older analysis; replay preserves saved results.
 
-## 產業、國別與地理區域（已實作）
+## Backfilled pre-Bull opening
 
-使用同一輪公司穿透元件與官方成分資料，分別計算 GICS 產業、官方國別／市場及國別對照的地理區域。只採明確 `gicsSectorDescription`，保留 ICB／發行商原始產業而不推測跨體系轉換。自身官方列優先；缺漏按本輪已可靠解析同一公司的最新有效分類補入，同日衝突保持未分類。直接股票不以 MIC、幣別或 ISIN 前綴推定國別。地區分組不是成熟／新興市場，國別不是營收來源；對照政策及來源見使用手冊第 17 節。
+After explicit total-wallet BTC+LBTC/scope attribution, save a separate declaration
+of total minus referenced completed Bull buys as a fixed opening. Include quantity/
+three-currency value, leaving actual acquisition cost/contributions unknown. Actual
+complete average/P&L/rate remain unavailable; opt-in proxy estimates are separate
+from known Bull spend. Added-scope value is not a contribution or investment gain.
 
-主分母為全部非現金投資（含 BTC），另列占已解析公司股份比率。分類覆蓋率的分母為已解析公司股份，不把未知投資工具當成已覆蓋；另列分類金額占全部投資及來源有效日期範圍。BTC、ETF 現金淨額、債券、未解析項及四捨五入調整另類列示；每維度以 Decimal 對帳同一投資總值，負調整不強制縮放。
+Show buys/opening/total/date/reference-cutoff/source across formats. Preserve original
+zero-opening evidence in raw files/`btc-opening-audit.json`, not the current main
+table. Monthly charts retain actual buys without fake opening trades. Opening
+revisions create new scope baselines while retaining older valuations/sources/reports;
+never invent pre-tracking values. Later CSVs deduplicate/accumulate buys without
+recomputing the opening. Quantity agreement does not verify fees/network distribution.
 
-ODS／CSV 列完整類別、CAD／USD／TWD 及兩種比例；Markdown／PDF 列 CAD 摘要，國別前 15 加其餘已分類合計，未分類及非公司項目完整列示。新增三張同輪 PNG：`13_sector_exposure`、`14_country_exposure`、`15_region_exposure`；灰色為未分類／非公司，極小負對帳值保留精度。各持倉分類覆蓋表同步輸出。
+## BTC balance/event reconciliation
 
-`allocation-exposure.csv` 提供完整三幣配置；`classification-detail.csv` 提供每公司分項的原始分類、路徑、採用方法及官方證據。來源證據與分析 payload 凍結保存，manifest 增加分類版本、覆蓋率／日期及匯出檔名。無資料庫結構遷移；新分析不修改持倉、估值、供款或舊報告。舊分析沒有此欄位時不補造分類；離線重播新版本保留已保存結果。
+All formats include one shared reconciliation section. Without observations, state
+ledger estimation; an old opening is not a new observation. Rows contain stable
+balance ID, UTC observation time, revision, reported/interval expected quantity,
+remaining gap, first-recorded results and actual event IDs. Show full-ledger expected
+quantity/anchor difference separately and retain older unresolved observations.
 
+Pre-observation known fees change reconciliation only; later fees change subsequent
+estimates. ID links do not duplicate economic effects. Separate user declaration from
+independent verification; arithmetic agreement is not verification. Unexplained gaps
+are not gains/contributions. Unknown actual costs/disposal allocation do not imply
+zero actual P&L; an explicit proxy uses applicable quantity.
 
-## 後補的 Bull 使用前持倉
+With observations add `16_btc_wallet_reconciliation`, comparing actual cumulative
+Bull buys, observed points and post-anchor estimates without invented months. Export
+`btc-reconciliation.csv`/`btc-events.csv`; retain complete DB/source revisions. Text is
+deterministic, shared across formats. Normal updates fetch official ETFs; explicit
+same-valuation replay records frozen status in manifests.
 
-使用者確認全部錢包 BTC＋LBTC 等值及差額歸屬後，以獨立可審核聲明保存「總量減參照已完成 Bull 購入」的固定期初量。數量與三幣市值納入總覽；過去投入及取得成本保持未知，實際完整 BTC 平均成本、未實現損益及損益率不可計算；只有選用 `bull_average_proxy` 時，主 BTC 表依上節另外顯示全持倉估算，Bull 已知購入支出單獨列示。不可把新增持倉市值當作供款或投資增值。
+## Monthly BTC average purchase price
 
-三種格式列示購入量、期初量、合計量、聲明日期、參照截止及來源。原 Bull 零期初聲明保留在原始資料及 btc-opening-audit.json，標示原帳本範圍，不混入日常主表。每月圖表保留真實購入事件，不新增假期初交易。新期初修訂另立 scope 基準；原估值、原來源及舊報告保留，不補造追蹤前市值。後續 CSV 累加去重購入，期初不自動重算。數量符合使用者聲明不代表已完成錢包費用或網路分布核對。
+The cumulative/monthly table adds CAD/BTC = completed monthly Bull CAD spend /
+delivered BTC+LBTC. This is quantity-weighted, not a simple order-rate average. No
+buys means n.a.; Funding, opening, observations and later fees are excluded. Formats
+show two currency decimals; data.json retains Decimal results. Unknown complete
+holding cost does not prevent known monthly Bull purchase-rate reporting.
 
-## BTC 餘額與異動對帳
+With backfill, show effective pre-Bull opening/equivalent quantity and independently
+unknown actual cost/contributions/network distribution. Original zero assumptions
+stay in the audit attachment; without backfill, show the applicable declaration.
+Bull CSVs establish known spend, not earlier acquisition cost/external contributions.
+Proxy opening estimates are labeled and never overwrite actual fields.
 
-三種報告新增同一對帳頁，ODS 為 BTC餘額對帳。未提供觀測時明示仍按帳本推估；不可將舊期初聲明當成新觀測。每筆含穩定餘額 ID、UTC 查看時間、修訂、回報量、區間預期量、剩餘差額、首次記錄值及真實異動 ID。完整帳本預期量與錨點對帳差額另列，舊待釐清觀測持續顯示。
+## Presentation state and publication checks
 
-已知費用在觀測以前只更新差額，在之後更新推估量；ID 關聯不再次產生經濟效果。使用者聲明／補登與獨立核驗分開，算術相符不代表核驗完成。未明差額不稱投資增值或供款。實際完整成本／處分分配未知時不填零實際損益；明確選用的 Bull 均價推估依適用數量計算。
+Separate known purchase spend, unknown actual opening cost, unavailable complete
+actual P&L and available proxy estimates. Opening quantity cannot establish CAD
+cost/contributions/network. Without observations show not calculated/reason; zero
+gaps remain numeric. Historical evidence stays traceable; everyday reports show
+effective current state.
 
-有適用觀測才產生 16_btc_wallet_reconciliation，比較 Bull 真實累積購入、回報點及錨點後推估；不補造缺月點。額外輸出 btc-reconciliation.csv／btc-events.csv；SQL／原始聲明保留完整修訂。所有文字為條件模板，所有格式共用 payload。正常更新查最新官方 ETF；同估值顯示修訂可明確凍結重播，manifest 標示。
+Before publishing, the shared `publishing.publish` service (called by
+`scripts/update.py` through `ApplicationService`) runs
+`report_checks.validate_report_presentation` to read MD/PDF text/ODS cells against
+the payload: effective opening/total, known Bull spend, nonnumeric unknown actual
+cost/P&L, proxy values/formulas/supplements, quantity/fee labels, reconciliation
+availability and audit evidence. Superseded-assumption leakage/inconsistency raises
+ValueError and leaves latest unchanged. `manifest.presentation_validation` records
+checks/policy; it cannot prove complete trades or independent wallet verification.
 
-## 每月 BTC 平均買入價
+## Default and optional BTC cost policies
 
-BTC 累積與每月投入表追加平均買入價（CAD／BTC），取該月已完成 Bull 買入 CAD 支出除以 BTC＋LBTC 交付等值數量，數量加權而非訂單報價簡單平均。沒有購入為不適用；Funding、固定期初、錢包餘額與後續手續費不進分母。三種格式顯示兩位金額精度，data.json 保存 Decimal 結果。完整持倉取得成本未知不妨礙列已知 Bull 每月買入價格。
+`actual_only` is default: show known actual costs and reasons for missing complete
+costs, without applying later Bull averages to earlier costs. Explicit
+`[reporting] btc_cost_policy` or `--btc-cost-policy bull_average_proxy` adds whole-holding
+estimates. Reports/method supplements record policy; proxy never changes actual
+book/avg_cost/unrealized, flows or period performance. Formats/checks share one policy.
 
-有後補期初時，主要區塊顯示「目前有效期初持倉（Bull 使用前）」及固定 BTC＋LBTC 等值，成本／歷史投入／網路分布各自標示未知。原 Bull 零期初表及完整聲明另存 btc-opening-audit.json，不在日常報告保留舊表；沒有後補期初時仍列適用原假設。Bull CSV 可計算已知購入支出，不能推算 CSV 以前的取得成本或完整外部投入。實際完整成本／損益依實際成本狀態呈現，不以 Bull 平均買價填入實際期初成本。全持倉成本代理涵蓋期初量，但須另標「Bull 均價推估」，不覆寫實際欄位。
+## Languages and versions
 
+Formats/charts share static catalogs, financial payload and precision. New projects
+default to English; legacy projects preserve Traditional Chinese. Locale does not
+change timezone/currency/valuation/cost policy. Source/machine exports retain schemas
+and verbatim text; unknown and valid zero remain distinct.
 
-## 呈現狀態及發布防護
-
-已知購入成本、未知實際期初成本、不可計算的實際完整損益及可用的全持倉代理估算分別顯示；不得因只知道期初 BTC 數量就推定 CAD 成本／歷史投入／主鏈分布。沒有錢包觀測的比較顯示未計算及缺資料理由，已知零差額保留數字。原始歷史聲明保持附件／來源／舊報告可追溯，主報告採有效狀態。
-
-scripts/update.py 在發布前呼叫 report_checks.validate_report_presentation，讀取 MD、PDF 文字及 ODS 單元格，核對有效期初／總量、已知 Bull 成本、未知實際完整成本／損益非數值、Bull 均價推估的數字／公式／附件、數量來源與費用政策、對帳可用性及稽核附件一致性。舊假設洩漏或不一致拋出 ValueError，報告作業失敗且 latest 不更新。manifest.presentation_validation 保存檢查數及策略；檢查不保證交易歷史完整或獨立錢包核驗。
-
-## 公開預設與可選成本政策
-
-`actual_only` 為預設：已知實際成本照常顯示，缺完整實際成本時保留未知及原因；不從 Bull 後來購入均價補歷史成本。`bull_average_proxy` 必須由 `[reporting] btc_cost_policy` 或 `--btc-cost-policy` 明確選用，才額外提供全持倉代理估算。報告及方法附件須記錄政策；代理不修改實際 book／avg_cost／unrealized、供款或期間績效。三種格式與發布檢查必須依同一已選政策執行。
-
-
-## 語言與版本
-
-報告可選 en-CA、zh-TW、zh-CN，三格式與圖表共用靜態字典、相同金融 payload 和精度。新專案預設英文，既有專案預設繁中；選擇不影響時區／幣別／估值／成本。原文來源與機器匯出保持原 schema，未知與有效零值各自呈現。
-
-manifest 記錄 locale、catalog SHA、格式／渲染版本、字型及 SHA、data checksum 與金融 fingerprint。離線另版保留原 data.json，凍結分析明示重播、另記重繪時間，不更新行情、帳本或 latest；沒有舊 checksum 時揭露 metadata consistency 限制。完整契約見 [i18n-plan.md](i18n-plan.md)。
+Manifests record locale/catalog SHA, format/render versions, fonts/SHA, data checksum
+and financial fingerprint. Offline editions preserve data.json, mark frozen analysis,
+record render time and never update quotes/ledger/latest. Legacy checksum gaps are
+metadata-consistency limitations. See [i18n contract](i18n-plan.md).

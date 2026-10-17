@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -17,10 +18,13 @@ PUBLIC_ROOT_FILES = {
     '.gitignore', '.gitattributes', 'AGENTS.md', 'README.md', 'TODO.md',
     'LICENSE', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',
     'pyproject.toml', 'requirements.txt', 'requirements.lock', '.env.example',
+    'requirements-web.txt', 'requirements-web.lock', 'requirements-web-test.lock',
+    'Dockerfile', '.dockerignore', 'compose.yaml',
 }
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
-    'btc-reconciliation-plan.md', 'publishing.md', 'development.md', 'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md',
+    'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
+    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md',
 }
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
@@ -30,6 +34,7 @@ PUBLIC_FUND_FIXTURES = {
     'README.md', 'blackrock.csv', 'bmo.json', 'ci.html', 'fidelity.json',
     'invesco.json', 'vanguard.json', 'vaneck.xlsx',
 }
+PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {
     '.git', 'data', 'reports', 'backups', 'work', 'private', 'outputs', 'output',
     'dist', 'build', 'node_modules', 'venv', 'htmlcov', '.cursor', '.codex', '.agents',
@@ -70,6 +75,8 @@ def path_allowed(path: str) -> bool:
     if p.is_absolute() or '..' in p.parts or '\\' in path or not p.parts or any(ord(ch) < 32 or 0xD800 <= ord(ch) <= 0xDFFF for ch in path):
         return False
     parts = p.parts
+    if p.name.casefold() in PRIVATE_INSTRUCTION_NAMES:
+        return False
     if any(part in {'__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'} for part in parts):
         return False
     if any(part.startswith('.venv') for part in parts):
@@ -139,7 +146,27 @@ def content_issues(data: bytes, path: str) -> list[str]:
     if b'\x00' in data and not is_readme_preview:
         return ['unexpected binary file']
     issues = [reason for reason, pattern in SECRET_PATTERNS if pattern.search(data)]
+    safe_typed_fields = set()
+    if path.endswith('.py'):
+        try:
+            tree = ast.parse(data.decode('utf-8'))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+                        and node.target.id == 'password' and isinstance(node.annotation, ast.Name)
+                        and node.annotation.id == 'SecretStr' and isinstance(node.value, ast.Call)
+                        and isinstance(node.value.func, ast.Name) and node.value.func.id == 'Field'
+                        and not node.value.args and len(node.value.keywords) == 2
+                        and {k.arg for k in node.value.keywords} == {'min_length', 'max_length'}
+                        and all(isinstance(k.value, ast.Constant) and type(k.value.value) is int
+                                and 0 < k.value.value <= 1024 for k in node.value.keywords)):
+                    safe_typed_fields.add(node.lineno)
+        except (UnicodeError, SyntaxError):
+            pass
     for match in ASSIGNMENT.finditer(data):
+        if data[:match.start()].count(b"\n") + 1 in safe_typed_fields:
+            continue
+        if re.fullmatch(rb"""[ \t]*[\"']?password[\"']?[ \t]*[:=][ \t]*getpass\.getpass\(""", match.group(0)):
+            continue
         value = match.group(1).decode('utf-8', errors='replace').strip().lower()
         if not any(word in value for word in PLACEHOLDERS):
             issues.append('possible credential assignment')
@@ -179,6 +206,10 @@ def scan_worktree(root: Path) -> dict:
     for path in sorted(root.rglob('*')):
         rel = path.relative_to(root).as_posix()
         parts = PurePosixPath(rel).parts
+        # Private guidance is intentionally absent from source-only manifests.
+        # The index/history scanners still reject it, even after force-add.
+        if path.name.casefold() in PRIVATE_INSTRUCTION_NAMES:
+            continue
         if parts[0] != 'examples' and not path_allowed(rel) and path.suffix.lower() in {'.csv', '.ods', '.pdf', '.xlsx'}:
             continue
         if path.name in {'.DS_Store', 'Thumbs.db', '.coverage'} or rel.lower().endswith(PRIVATE_SUFFIXES):
