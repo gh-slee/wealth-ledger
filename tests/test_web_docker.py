@@ -82,12 +82,20 @@ class DockerRuntimeTests(unittest.TestCase):
                 "--volume", volume+":/data", image], check=True, capture_output=True)
             wait_ready(origin)
             client = http_client()
+            with client.open(origin + "/", timeout=10) as response:
+                markup = response.read().decode()
+                self.assertIn('id="root"', markup)
+                self.assertIn("script-src 'self'", response.headers["Content-Security-Policy"])
+            import re
+            script = re.search(r'src="(/assets/[^"]+\.js)"', markup).group(1)
+            with client.open(origin + script, timeout=10) as response:
+                self.assertGreater(len(response.read()), 1000)
             csrf = request_json(client, origin, "/api/v1/auth/csrf")["csrf_token"]
             csrf = request_json(client, origin, "/api/v1/auth/login", {"username": "owner", "password": supplied}, csrf)["csrf_token"]
             portfolio = request_json(client, origin, "/api/v1/portfolios", {"name": "Synthetic container portfolio"}, csrf)["id"]
             expected = {"locale": "zh-TW", "btc_cost_policy": "bull_average_proxy"}
             request_json(client, origin, f"/api/v1/portfolios/{portfolio}/settings", expected, csrf, "PUT")
-            check = "import os,pathlib; assert os.getuid()==10001; assert not pathlib.Path('/app/data').exists(); assert not list(pathlib.Path('/app').rglob('AGENTS.override.md')); assert not list(pathlib.Path('/app').rglob('*.sqlite3'))"
+            check = "import os,pathlib; assert os.getuid()==10001; assert not pathlib.Path('/app/data').exists(); assert not list(pathlib.Path('/app').rglob('AGENTS.override.md')); assert not list(pathlib.Path('/app').rglob('*.sqlite3')); import shutil; assert shutil.which('node') is None; assert pathlib.Path('/app/frontend/dist/index.html').is_file()"
             subprocess.run(["docker", "exec", container, "python", "-c", check], check=True, capture_output=True)
             subprocess.run(["docker", "restart", container], check=True, capture_output=True)
             wait_ready(origin)
@@ -179,6 +187,11 @@ class DockerRuntimeTests(unittest.TestCase):
                 preview = completed(submit(f"/api/v1/portfolios/{portfolio}/previews", {"upload_ids": uploads}), "ready")
                 formal = completed(submit(f"/api/v1/portfolios/{portfolio}/jobs", {"preview_id": preview["id"]}), "published")
                 self.assertTrue(formal["result"]["artifact_ids"])
+                reports = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/reports")["reports"]
+                self.assertEqual(reports[0]["id"], formal["id"])
+                view = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}")
+                self.assertEqual(view["as_of"], formal["result"]["valuation_as_of"])
+                self.assertTrue(view["holdings"])
                 registered = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/artifacts")["artifacts"]
                 self.assertTrue({"application/pdf", "application/vnd.oasis.opendocument.spreadsheet", "text/markdown; charset=utf-8"}
                                 .issubset({item["media_type"] for item in registered}))

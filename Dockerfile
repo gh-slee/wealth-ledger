@@ -1,3 +1,12 @@
+FROM node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS browser-build
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY frontend/tsconfig.json frontend/vite.config.ts frontend/index.html ./
+COPY frontend/src ./src
+COPY frontend/public ./public
+RUN npm run build
+
 FROM python:3.12.15-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/src \
@@ -14,6 +23,7 @@ COPY scripts/web.py /app/scripts/web.py
 COPY config/company-aliases.json /app/config/company-aliases.json
 COPY assets/fonts /app/assets/fonts
 COPY LICENSE THIRD_PARTY_NOTICES.md /app/
+COPY --from=browser-build /build/dist /app/frontend/dist
 RUN find /app -type d -exec chmod 0555 {} + \
     && find /app -type f -exec chmod 0444 {} +
 USER 10001:10001

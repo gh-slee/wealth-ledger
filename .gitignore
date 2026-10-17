@@ -69,3 +69,10 @@ Thumbs.db
 
 # Private Codex guidance at any directory depth
 AGENTS.override.md
+
+# Frontend dependency/build/test outputs
+/frontend/node_modules/
+/frontend/dist/
+/frontend/test-results/
+/frontend/playwright-report/
+*.tsbuildinfo

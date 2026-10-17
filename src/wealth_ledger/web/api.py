@@ -47,7 +47,10 @@ class SecurityBoundary:
                            {b"cache-control", b"pragma", b"x-request-id"}]
                 headers.extend([(b"cache-control", b"no-store, private"), (b"pragma", b"no-cache"),
                     (b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer"),
-                    (b"x-frame-options", b"DENY"), (b"content-security-policy", b"default-src 'none'; frame-ancestors 'none'"),
+                    (b"x-frame-options", b"DENY"), (b"content-security-policy", (
+                        b"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+                        if request.url.path in {"/", "/login", "/app"} or request.url.path.startswith(("/app/", "/assets/"))
+                        else b"default-src 'none'; frame-ancestors 'none'")),
                     (b"x-request-id", request_id.encode())])
                 if self.settings.secure_cookie:
                     headers.append((b"strict-transport-security", b"max-age=31536000"))
@@ -197,7 +200,7 @@ class ErrorView(Input):
     error: ErrorDetail
 
 
-def create_app(settings: WebSettings | None = None, *, clock=None):
+def create_app(settings: WebSettings | None = None, *, clock=None, frontend_root=None):
     settings = settings or WebSettings.from_environment()
     store = Store(settings, **({"clock": clock} if clock else {}))
     if not store.owner():
@@ -326,10 +329,14 @@ def create_app(settings: WebSettings | None = None, *, clock=None):
         return Response(raw, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
     from .imports import install_import_routes
+    from .reports import install_report_routes
     install_import_routes(app, store, auth, require_owner)
+    install_report_routes(app, store, require_owner)
 
     @app.get("/api/v1/openapi.json", include_in_schema=False)
     def openapi(owner=Depends(require_owner)):
         return app.openapi()
 
+    from .frontend import install_frontend
+    install_frontend(app, frontend_root)
     return app

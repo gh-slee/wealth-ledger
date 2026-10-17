@@ -103,11 +103,12 @@ sandbox against malicious files. Keep backups of the complete workspace. Existin
 private migration is **not automatic**; a formal adoption/restore UI/command remains
 WEB-006 work. A new empty directory does not import the old ledger's history.
 
-### Optional API foundation
+### Optional browser application
 
 The optional Web API supports independent portfolios, bounded source uploads,
 offline preview, explicit confirmation and durable report jobs. The React interface
-is planned; advanced financial records remain in this manual's CLI. See
+adds analysis, charts and a report library; see [the browser guide](web-frontend.md).
+Advanced financial records remain in this manual's CLI. See
 [Web operations](web-operations.md) and the [API import/job guide](web-imports.md).
 Existing CLI data is never adopted automatically.
 

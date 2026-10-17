@@ -30,7 +30,8 @@ class PublicationPolicyTests(unittest.TestCase):
                      'assets/fonts/NotoSansSC-Regular.ttf', 'assets/fonts/OFL-SC.txt',
                      'assets/fonts/NotoSansSC-provenance.json',
                      'assets/readme/wealth-ledger-mark.svg', 'assets/readme/report-preview.png',
-                     'assets/readme/README.md'):
+                     'assets/readme/README.md', 'frontend/package-lock.json', 'frontend/src/App.tsx',
+                     'frontend/src/locales/zh-TW.json', 'docs/web-frontend.md'):
             self.assertTrue(guard.path_allowed(path), path)
 
     def test_private_and_unknown_paths(self):
@@ -46,7 +47,9 @@ class PublicationPolicyTests(unittest.TestCase):
                      'docs/private-webapp-notes.md', 'AGENTS.override.md',
                      'docs/AGENTS.override.md', 'src/wealth_ledger/AGENTS.override.md',
                      'src/wealth_ledger/locales/AGENTS.override.md',
-                     'scripts/AGENTS.OVERRIDE.MD'):
+                     'scripts/AGENTS.OVERRIDE.MD', 'frontend/AGENTS.override.md',
+                     'frontend/src/AGENTS.override.md', 'frontend/.env', 'frontend/dist/index.html',
+                     'frontend/node_modules/private.json', 'frontend/src/user.json', 'frontend/public/wallet.csv'):
             self.assertFalse(guard.path_allowed(path), path)
 
     def test_synthetic_secret_patterns(self):
@@ -58,6 +61,13 @@ class PublicationPolicyTests(unittest.TestCase):
                    b'/Users/' + b'example/private.csv')
         for data in secrets:
             self.assertTrue(guard.content_issues(data, 'README.md'), repr(data[:8]))
+
+    def test_frontend_inert_fields_do_not_allow_secret_values(self):
+        self.assertEqual(guard.content_issues(b'  password: string;', 'frontend/src/lib/schema.d.ts'), [])
+        self.assertEqual(guard.content_issues(b'  "password": "Password"', 'frontend/src/locales/en-CA.json'), [])
+        self.assertEqual(guard.content_issues(b' password: values.get("password"),', 'frontend/src/App.tsx'), [])
+        for path in ('frontend/src/App.tsx', 'frontend/src/lib/schema.d.ts', 'frontend/src/locales/en-CA.json'):
+            self.assertTrue(guard.content_issues(b'password = "never-use-this-synthetic-value"', path))
 
     def test_placeholder_is_allowed(self):
         self.assertEqual(guard.content_issues(b'password = "YOUR_PASSWORD"', 'README.md'), [])

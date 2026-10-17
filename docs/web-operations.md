@@ -2,7 +2,7 @@
 
 The optional API implements owner sessions, independent portfolios/settings, bounded
 CSV/reference uploads, offline preview, explicit confirmation, isolated durable
-report jobs and protected artifact downloads. React analysis/report pages, advanced
+report jobs and protected artifact downloads. React analysis/report pages are implemented; advanced
 financial forms and full backup/adoption remain planned. The CLI stays available.
 See the [upload/job protocol and recovery guide](web-imports.md). See [the staged design](self-hosted-webapp.md)
 and [TODO](../TODO.md). Production features do not use an LLM.
@@ -31,8 +31,10 @@ The default username is `owner`; `--username` selects a stable ASCII name when
 initializing. Repeating initialization cannot overwrite an owner. Initialization is
 only a trusted host command; there is no HTTP registration/claim endpoint.
 
-Open `http://localhost:8000/healthz` for a minimal readiness response. `/` is not a
-browser dashboard. API docs/OpenAPI are authenticated; public Swagger/Redoc/CDN
+Open `http://localhost:8000/` for the built dashboard and `/healthz` for a minimal
+readiness response. Native source checkouts need `npm --prefix frontend ci --ignore-scripts`
+and `npm --prefix frontend run build` first; Docker builds static assets automatically.
+See [the browser manual](web-frontend.md). API docs/OpenAPI are authenticated; public Swagger/Redoc/CDN
 pages are disabled. The public origin defaults to `http://localhost:8000` and must
 match the browser exactly. Use `--public-origin` or `WEALTH_LEDGER_PUBLIC_ORIGIN`
 for another origin; the host/port must match requests. Non-loopback origins require
@@ -96,13 +98,14 @@ print(portfolio["id"])
 ```
 
 No credentials/financial response cache belongs in browser localStorage. The React
-cache-clearing/portfolio-switch behavior will be implemented in WEB-004.
+implementation cancels/clears requests and queries on logout, authentication expiry
+and portfolio switching; its financial state stays only in memory.
 
 ## Available API
 
 All listed portfolio/settings/artifact/OpenAPI endpoints require the owner session.
 Mutations also require CSRF/Origin validation. All responses are `no-store, private`.
-Amounts in future financial responses remain Decimal strings, never float truth.
+Amounts in financial responses remain Decimal strings, never float truth.
 
 | Endpoint | Purpose |
 |---|---|
@@ -116,6 +119,8 @@ Amounts in future financial responses remain Decimal strings, never float truth.
 | `GET, POST /api/v1/portfolios` | List/create independent portfolios |
 | `GET /api/v1/portfolios/{id}` | Portfolio metadata, no host paths |
 | `GET, PUT /api/v1/portfolios/{id}/settings` | `locale` and `btc_cost_policy` |
+| `GET /api/v1/portfolios/{id}/reports` | Published editions, scoped cursor pagination and registered filenames |
+| `GET /api/v1/portfolios/{id}/reports/{report_id}?locale=en-CA` | Hash-verified frozen analysis; no imports, reference fetches or revaluation |
 | `GET /api/v1/portfolios/{id}/artifacts` | Registered artifact metadata only |
 | `GET /api/v1/portfolios/{id}/artifacts/{artifact_id}` | Scoped attachment with size/hash validation |
 | `GET /api/v1/openapi.json` | Versioned authenticated schema |
@@ -137,12 +142,12 @@ stores SHA-256/size/media type. Downloads are owner/portfolio scoped, reject tra
 and symlinks, check the bytes before returning them, use attachment names generated
 from artifact IDs, and cap a file at 64 MiB. No unregistered local report is
 implicitly published. Completed worker bundles are verified and registered with the
-published job in one metadata transaction. Browser report libraries/ZIPs/streaming
-exports remain WEB-004/005.
+published job in one metadata transaction. The browser report library lists registered frozen editions; ZIPs/streaming
+exports remain WEB-005.
 
 Errors use `{"error":{"code":"...","message":"...","request_id":"..."}}`.
 Validation responses do not echo passwords, supplied values or filesystem errors.
-This foundation uses English API messages/stable codes; the future UI translates
+This foundation uses English API messages/stable codes; the UI translates
 codes through its three-locale presentation layer. No account data is placed in logs.
 
 ## Password reset and session storage
@@ -195,7 +200,8 @@ docker compose run --rm -it web init-owner
 docker compose up -d
 ```
 
-This is a development recipe, not a claim that a browser report app is ready.
+The image serves the built browser UI at the configured origin. Broader release
+and platform acceptance remain WEB-007.
 Use `docker compose run --rm -it web reset-password` for a trusted host reset.
 `docker compose down` retains the named volume. Volume deletion removes private
 state and is never a routine upgrade step. Image/container replacement is not an
@@ -227,7 +233,7 @@ persistence. Only test listener/context/resource names and timing/restart behavi
 are overridden; production service security settings remain in place. Native HTTP
 restart acceptance runs without Docker. Do not substitute a real ledger for these tests.
 
-Pending gates: remote CI for this scope, React/browser/export workflows,
+Pending gates: remote CI for this scope, broader export/backup workflows,
 full backup/adoption, resource/crash tests and wider release/platform/security
 acceptance. Local container acceptance covers Linux/arm64; it does not claim
 Linux/amd64 CI or every Docker host has passed. No dependency/source check proves
