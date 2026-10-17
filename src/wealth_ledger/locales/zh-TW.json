@@ -1213,6 +1213,7 @@
     "cli.c61acd0a4287": "翻譯字典訊息無效",
     "cli.dda57644410f": "文件語系中繼資料互相衝突",
     "cli.764028d3627d": "文件語系中繼資料超過大小限制",
-    "cli.692ff10271e6": "訊息僅支援具名基本型別參數"
+    "cli.692ff10271e6": "訊息僅支援具名基本型別參數",
+    "cli.operation_retry.workspace": "資料已保存，報告未發布。Operation {operation}；估值時間 {valuation}。重試：{retry}。原因：{cause}"
   }
 }

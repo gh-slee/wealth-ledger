@@ -25,7 +25,7 @@ class PublicationPolicyTests(unittest.TestCase):
                      'examples/data/btc-price.json', 'examples/templates/btc_events.csv',
                      'examples/templates/cash_flows.csv', 'THIRD_PARTY_NOTICES.md',
                      '.github/pull_request_template.md', 'config/local.example.toml',
-                     'docs/i18n-plan.md', 'docs/self-hosted-webapp.md', 'src/wealth_ledger/locales/en-CA.json',
+                     'docs/i18n-plan.md', 'docs/self-hosted-webapp.md', 'docs/agent-development.md', 'docs/web-imports.md', 'src/wealth_ledger/locales/en-CA.json',
                      'src/wealth_ledger/locales/zh-CN.json', 'src/wealth_ledger/locales/legacy.json',
                      'assets/fonts/NotoSansSC-Regular.ttf', 'assets/fonts/OFL-SC.txt',
                      'assets/fonts/NotoSansSC-provenance.json',
@@ -43,7 +43,10 @@ class PublicationPolicyTests(unittest.TestCase):
                      'src\\wealth_ledger\\core.py', '.github/workflows/deploy.yml',
                      'src/wealth_ledger/locales/user.json', 'assets/fonts/downloaded-font.ttf',
                      'assets/readme/private-screenshot.png', 'assets/readme/export.csv',
-                     'docs/private-webapp-notes.md'):
+                     'docs/private-webapp-notes.md', 'AGENTS.override.md',
+                     'docs/AGENTS.override.md', 'src/wealth_ledger/AGENTS.override.md',
+                     'src/wealth_ledger/locales/AGENTS.override.md',
+                     'scripts/AGENTS.OVERRIDE.MD'):
             self.assertFalse(guard.path_allowed(path), path)
 
     def test_synthetic_secret_patterns(self):
@@ -174,6 +177,48 @@ create_pr = true
                 latest = self.run_git('rev-parse', 'HEAD')
                 self.assertTrue(any(row['origin'] == latest and row['path'] == '(commit identity)'
                                     for row in result['violations']))
+
+    def test_private_overrides_are_ignored_and_omitted_from_worktree_manifest(self):
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        paths = ('AGENTS.override.md', 'src/wealth_ledger/AGENTS.override.md')
+        for path in paths:
+            self.write(path, 'Private synthetic owner guidance.\n')
+            self.run_git('check-ignore', '-q', '--', path)
+            self.assertEqual(self.run_git('ls-files', '--', path), '')
+        result = guard.scan_worktree(self.root)
+        self.assertTrue(result['passed'])
+        self.assertFalse(set(paths) & {entry['path'] for entry in result['files']})
+
+    def test_force_added_private_override_blocks_the_whole_index(self):
+        self.write('.gitignore', 'AGENTS.override.md\n')
+        self.write('AGENTS.override.md', 'Private synthetic owner guidance.\n')
+        self.run_git('add', '-f', '--', 'AGENTS.override.md')
+        result = guard.scan_staged(self.root)
+        self.assertFalse(result['passed'])
+        self.assertTrue(any(entry['path'] == 'AGENTS.override.md'
+                            for entry in result['violations']))
+        self.run_git('commit', '-m', 'Synthetic private instruction fixture')
+        self.write('README.md', '# Other reviewed change\n')
+        self.run_git('add', '--', 'README.md')
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+
+    def test_deleted_nested_override_still_blocks_history_and_pre_push(self):
+        base = self.run_git('rev-parse', 'HEAD')
+        path = 'src/wealth_ledger/AGENTS.override.md'
+        self.write('.gitignore', 'AGENTS.override.md\n')
+        self.write(path, 'Private synthetic owner guidance.\n')
+        self.run_git('add', '-f', '--', path)
+        self.run_git('commit', '-m', 'Synthetic nested instruction fixture')
+        self.run_git('rm', '--', path)
+        self.run_git('commit', '-m', 'Remove synthetic private fixture')
+        self.assertTrue(guard.scan_staged(self.root)['passed'])
+        for result in (guard.scan_history(self.root, all_history=True),
+                       guard.scan_history(self.root, base=base),
+                       guard.scan_pre_push(self.root,
+                           'refs/heads/main ' + self.run_git('rev-parse', 'HEAD')
+                           + ' refs/heads/feature/test ' + '0' * 40 + '\n')):
+            self.assertFalse(result['passed'])
+            self.assertTrue(any(entry['path'] == path for entry in result['violations']))
 
     def test_staged_secret_is_found(self):
         self.write('README.md', 'Example credential: ' + 'ghp_' + 'a' * 36)
@@ -412,6 +457,20 @@ create_pr = true
         self.write('examples/data/wealthsimple-holdings.csv', 'ghp_' + 'a' * 36)
         self.assertFalse(guard.scan_worktree(self.root)['passed'])
 
+
+
+class TypedSchemaPrivacyTests(unittest.TestCase):
+    def test_secretstr_field_declarations_do_not_hide_literal_credentials(self):
+        schema = b'class Login:\n    password: SecretStr = Field(min_length=1, max_length=256)\n'
+        self.assertEqual(guard.content_issues(schema, 'src/wealth_ledger/web/api.py'), [])
+        raw = b'class Login:\n    password: SecretStr = Field(default="not-a-public-credential")\n'
+        self.assertIn('possible credential assignment', guard.content_issues(raw, 'src/wealth_ledger/web/api.py'))
+
+    def test_prompted_password_reader_does_not_allow_a_quoted_credential(self):
+        source = b'password = getpass.getpass("Owner password: ")\n'
+        self.assertEqual(guard.content_issues(source, 'docs/web-operations.md'), [])
+        quoted = b'password = "getpass.getpass("\n'
+        self.assertIn('possible credential assignment', guard.content_issues(quoted, 'docs/web-operations.md'))
 
 if __name__ == '__main__':
     unittest.main()

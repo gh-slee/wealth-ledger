@@ -1,4 +1,4 @@
-name: Offline tests
+name: Core and Web foundation checks
 
 on:
   push:
@@ -24,11 +24,18 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements.lock
+          cache-dependency-path: |
+            requirements.lock
+            requirements-web.lock
+            requirements-web-test.lock
       - name: Install locked dependencies
-        run: python -m pip install -r requirements.lock
+        run: python -m pip install -r requirements-web-test.lock
+      - name: Check canonical documentation and source language
+        run: python scripts/check_language.py
       - name: Check public worktree privacy
         run: python scripts/check_publication.py --worktree
+      - name: Check public index privacy
+        run: python scripts/check_publication.py --staged
       - name: Run isolated synthetic unit tests
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Generate synthetic offline reports with default policy
@@ -40,3 +47,21 @@ jobs:
         run: python examples/demo.py --output work/demo-tc --locale zh-TW
       - name: Verify Simplified Chinese reports
         run: python examples/demo.py --output work/demo-sc --locale zh-CN
+
+  docker-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      WEALTH_LEDGER_DOCKER_TEST: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Validate Compose model
+        run: docker compose config --quiet
+      - name: Verify synthetic image privacy and restart persistence
+        run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v

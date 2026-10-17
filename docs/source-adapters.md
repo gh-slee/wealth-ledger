@@ -1,75 +1,180 @@
-# 來源 adapter 與使用者自訂 parser：規劃契約
+# Source adapters and user-defined parsers
 
-**狀態：規劃中，尚未實作通用 registry、外部 plugin SDK 或 entry-point loader。** 本文件描述後續設計方向，不能當作目前可用介面。現有可用匯入是 Wealthsimple 持倉與 Bull Bitcoin 訂單，另有統一資金流及 BTC 餘額／異動介面；官方 ETF 成分有獨立 registry。待辦見 [TODO](../TODO.md)。
+**SRC-001 is implemented as a Python version-1 normalization contract in
+`wealth_ledger.source_protocol`.** General registration, external plugin loading,
+an author SDK and migration of the current importers are still planned (SRC-002-004).
+The normal CLI still accepts only the existing Wealthsimple/Bull formats and explicit
+flow/BTC commands. The official ETF registry is separate. See [TODO](../TODO.md).
 
-## 目標
+## Goal
 
-讓其他開發者及使用者能自行實作可信任的來源 parser，支援新的銀行、券商、加密交易所 CSV，而不必為每個 parser 修改 SQLite 帳本、歷史政策或報告程式。來源格式辨識與正規化可擴充；金融驗證、原子提交、去重／修訂、追蹤範圍及報告仍由核心處理。
+Let developers/users implement trusted parsers for additional bank, broker and
+crypto-exchange CSVs without changing SQLite history or report code for each source.
+Detection/normalization are extensible; core validation, atomic submission,
+deduplication/revisions, tracking scope and reporting remain central.
 
-所有流程必須可重複由 Python 完成，不依賴 LLM、代理人、登入瀏覽器或本機辦公室軟體。SDK 的正式類別／欄位／命令名稱須在設計確認後固定；下列是契約需求，不是已存在的 import 路徑。
+All production work must be reproducible Python, independent of LLMs, agents,
+browser login or local office software. The protocol below is available for contract development; it is not an enabled
+import interface. Future loading/submission commands do not exist yet.
 
-## 預計支援的資料種類
+## Version-1 canonical record kinds
 
-| kind | 用途 | 必須處理的邊界 |
+| kind | Purpose | Required boundaries |
 |---|---|---|
-| `holdings` | 指定來源時點的帳戶、持倉、現金與來源成本 | 完整／部分帳戶範圍、估值時間、工具身分、幣別、修訂 |
-| `cash_flows` | 外部投入／提款、追蹤帳戶間轉移、收入／費用 | 組合邊界、雙腿配對、交易日期、匯率證據、涵蓋聲明 |
-| `crypto_transactions` | 購入、出售、交付、費用、內外部轉移 | 網路／資產、數量精度、現金對端、成本涵蓋、交易狀態、來源重複 |
+| `holdings` | Accounts, positions, cash and source cost at a source time | Full/partial account scope, valuation time, instrument identity, currency, revisions |
+| `cash_flows` | External deposits/withdrawals, tracked-account transfers, income/fees | Portfolio boundary, paired legs, dates, FX evidence, coverage declarations |
+| `crypto_transactions` | Purchases, sales, delivery, fees and internal/external transfers | Network/asset, precision, cash counterpart, cost coverage, status and cross-source duplicates |
 
-parser 不能因資料量足夠就宣稱完整；完整性須有來源範圍或明確聲明。未知費用、取得成本、缺少現金對端等保留未知。未支援 kind 或交易類型須明確拒絕／列為不完整，不悄悄略過。
+Record count cannot establish completeness; source scope or an explicit declaration
+is required. Unknown fees/costs/missing cash counterparts stay unknown. Unsupported
+kinds/types must be rejected or identified as incomplete rather than silently skipped.
 
-## 版本化協定與註冊
+## Versioned protocol and registration
 
-每個 adapter 應宣告穩定 provider ID、adapter ID／版本、支援的來源匯出版本、protocol API 版本及 kind。provider/account namespace 不依檔名或同名顯示標籤決定，防止兩個平台帳號／交易 ID 碰撞。
+Each adapter declares stable provider/adapter IDs, adapter version, supported export
+versions, protocol API version and kinds. Provider/account namespaces must not depend
+on filenames or repeated display names; platform IDs must not collide.
 
-核心 registry 與外部 package entry points 採版本化合約；若 loader 尚不支援該 API 版本、同一 adapter ID 重複或功能宣告不合法，應在執行前拒絕，不自動降級猜測。明確啟用的 adapter 清單與版本可保存於忽略的本機設定及作業證據；不能使公開 clone 自動載入某個使用者專用 parser。
+Core registration and external package entry points use versioned contracts. Reject
+unsupported API versions, duplicate adapter IDs and invalid capability declarations
+before execution rather than guessing compatibility. Enabled adapters/versions may
+be saved in ignored local configuration and operation evidence. A public clone
+must not automatically load a maintainer-specific parser.
 
-內建介接與外部 parser 採同一契約驗收，但外部依賴屬使用者明確安裝／啟用，不因遇到某個 CSV 自動從網路下載 Python 程式。
+Built-in/external adapters share contract tests. External dependencies are explicitly
+installed/enabled by the user; encountering a CSV never downloads Python code.
 
-## 偵測、正規化及提交分離
+## Separate detection, normalization and submission
 
-1. **偵測**：只讀必要欄位／格式特徵，回傳可審核的匹配結果與版本；不寫正式資料、不取得私人憑證、不下載程式。
-2. **處理歧義**：沒有匹配拒絕；多個可信 adapter 同時匹配時明示候選並要求明確來源選擇，不靠 LLM 或檔名猜測。
-3. **正規化**：產生已定義 canonical records 與來源／涵蓋 metadata，保留欄位映射及警告；不得直接寫 SQLite 或發報告。
-4. **核心驗證**：驗證 Decimal、日期／時區、資產／帳戶身分、來源 ID、狀態、轉移、範圍及成本涵蓋，再以目前原子提交流程保存。
-5. **保存證據**：原始檔 SHA-256、格式／adapter／protocol 版本、來源有效時間、正規化結果與 operation ID 保留，方便重現與修訂。
+1. **Detect:** inspect necessary fields/format features and return an auditable
+   match/version without real writes, private credentials or code downloads.
+2. **Resolve ambiguity:** reject no matches. Multiple trusted matches require an
+   explicit source choice, not LLM/filename guessing.
+3. **Normalize:** produce defined canonical records and source/coverage metadata,
+   mappings and warnings, without writing SQLite or generating reports.
+4. **Validate centrally:** check Decimal, dates/timezones, asset/account identity,
+   source IDs, status, transfers, scope and cost coverage, then submit atomically.
+5. **Retain evidence:** raw SHA-256, format/adapter/protocol versions, source effective
+   time, normalized results and operation ID support replay and revisions.
 
-離線 `--dry-run` 必須使用相同 detector／normalizer／核心驗證，維持唯讀正式專案；preview 不執行新網路查詢，也不保留暫存 ID。外部 parser 若不能符合離線限制，不能宣稱支援相同預檢契約。
+Offline `--dry-run` must reuse detection/normalization/validation without modifying
+the real project, performing new network queries or retaining temporary IDs. An
+external parser unable to meet these limits cannot claim this preview contract.
 
-## Canonical records 的必備語意
+## Required canonical semantics
 
-- 帳戶身分使用來源 namespace 加來源帳戶識別，不以顯示名稱或遮罩尾碼當唯一鍵。
-- 持倉維持市場／資產／幣別身分與原始成本；不同來源不能只因代號相同就合併。
-- 經濟交易使用來源穩定 ID，保留已完成／待完成／撤銷狀態與有效時間；缺 ID 時須明示可審核策略，不只以金額／日期去重。
-- 去重區分相同來源重匯、內容衝突與合法同量同時交易；經濟修訂／撤銷與輸入更正不同，不無聲覆寫。
-- 原始值、貨幣方向、網路、手續費及來源證據可追溯；轉移 reference 不代表已核驗所有對端。
-- 已觀測餘額與已知交易史分離，不能把觀測前交易再次加到觀測量；預期與實際差額不轉成自動費用。
-- 追蹤帳戶範圍新增／移除有明確 scope 修訂，不能以財務資料格式變化冒充投資成長。
+- Account identity combines provider namespace/source account ID, not display names
+  or masked suffixes alone.
+- Positions retain market/asset/currency identity and original cost. Matching ticker
+  text alone cannot merge instruments from different sources.
+- Economic events use stable source IDs with completed/pending/cancelled state and
+  effective times. Missing IDs need an explicit auditable policy, not amount/date-only deduplication.
+- Distinguish reimports, content conflicts and legitimate equal-time/amount events.
+  Economic revisions/cancellations and input corrections must not silently overwrite.
+- Trace original values, currency direction, network, fees and evidence. A transfer
+  reference alone does not verify every counterpart.
+- Keep observed balances distinct from transaction history. Do not add pre-observation
+  transactions again or automatically label discrepancies as fees.
+- Account additions/removals require explicit scope revisions; format changes are
+  not evidence of investment growth.
 
-正式 schema 的欄位、可選性、錯誤碼、相容策略及遷移測試仍待設計。首個插件契約不能省略現有特殊情況，只把原生 CSV 欄位直接改名後寫入。
+The concrete version-1 dataclasses and validators are described below. Database
+migration, stateful deduplication/revisions, portfolio boundary matching and
+submission are still SRC-004 work. A structurally valid batch alone cannot establish
+financial completeness or authorize a contribution.
 
-## 銀行、券商與交易所的差別
+## Implemented protocol surface (SRC-001)
 
-**銀行**：可提供投資組合邊界的入金／提款證據。銀行 CSV 匯入不代表銀行帳戶已納入投資總資產；是否新增現金追蹤帳戶須明確聲明。銀行一筆匯出與券商一筆匯入可能是同一次資金移動，需可審核配對，不能算兩次投入。
+`source_protocol.py` provides frozen dataclasses and a `SourceAdapter` Protocol:
 
-**券商**：持倉快照與活動／交易史是不同 kind；同一來源兩種檔案可互補，但成交額不等於外部供款。實物轉倉、跨幣別、拆股與退款需明確來源支援及範圍政策。
+- `AdapterInfo`: API version **1**, provider/adapter namespace, adapter version,
+  supported export versions and record kinds. `validate_info` rejects unsupported
+  versions, invalid/duplicate capabilities and unstable namespace syntax.
+- `AccountKey(provider, account_id)` and `RecordKey(account, source_id, revision,
+  supersedes_revision=None, change="original")`: identity never depends on a path
+  or display label. Corrections/voids require a distinct superseded revision.
+- `AssetKey(kind, symbol, currency, market=None, network=None, identifier=None)`:
+  securities require a market; crypto requires a network; cash matches its currency.
+  `currency` is the valuation currency. BTC/LBTC quantities require whole satoshis.
+- `Holding`: source time, signed Decimal quantity, market value and optional cost.
+  `CashFlow`: positive amount, direction/type, status, explicit boundary and optional
+  counterpart references. Counterpart source IDs require their provider/account
+  namespace; a transfer reference does not verify the other leg.
+- `CryptoTransaction`: source-reported signed `CryptoLeg` quantities, status,
+  optional acquisition cost, fees and transfer/counterpart references. `fees=None`
+  means unknown; `fees=()` means explicitly no separate fees. Do not apply the same
+  fee to a leg and acquisition cost twice. BTC and LBTC retain different networks;
+  this contract does not automatically net swaps or infer contributions.
+- `Coverage`: kind/account, inclusive timezone-aware start/end, completeness,
+  declared basis, scope ID and scope revision. Every record must have a covering
+  declaration. An empty record list cannot change declared completeness.
+- `SourceEvidence`: raw SHA-256, effective/fetch times, source reference, field
+  mappings, warnings and stable-ID policy. `NormalizedBatch` retains this evidence,
+  adapter/version, selected export version, coverage and records.
 
-**加密交易所**：購入／出售／充提／費用與自己的錢包轉移分開。提幣交付與錢包收款不能雙計；出售缺現金對端時不能創造假現金，只有數量也不能假定歷史成本完整。
+`detect(raw: bytes) -> Detection` and
+`normalize(raw: bytes, *, export_version: str) -> NormalizedBatch` are pure trusted
+Python operations. They receive no workspace, credentials or database. No network,
+file writes or subprocesses are permitted. This is a contract, not a Python sandbox.
+`resolve_detection` accepts already evaluated trusted results, rejects duplicate
+adapter IDs and zero/multiple matches, and never discovers or installs code.
 
-## 使用者自行寫 parser 的預期流程
+`validate_batch(batch, raw)` checks hashes, versions, kinds, Decimal/nonfinite
+values, timestamps, currencies, identity, coverage, local revision shape, status
+and satoshi precision. Each source record may occur only once per kind/account in
+one batch; adapters must resolve export revisions explicitly. Event voids require
+cancelled status. Pending/cancelled records remain evidence and must not be booked
+as completed activity. Observed BTC totals remain the existing balance-observation
+API, not crypto transactions.
 
-未來 SDK 完成後，使用者應能：
+`canonical_json` preserves Decimal as strings, aware ISO timestamps, null unknowns
+and all version/evidence fields. Validate first. It is a deterministic evidence
+serializer, not a database importer or generic JSON deserializer.
 
-1. 取得公開 protocol／schema 及合成範例 plugin。
-2. 為自己的來源寫 detector／normalizer，列出支援格式及不支援的交易。
-3. 用離線契約測試驗證合成或去識別 fixture 的 mapping、去重、時區、修訂、範圍、轉移及費用。
-4. 在自己的虛擬環境安裝可信 package，透過明確註冊／entry point 啟用，不改核心程式。
-5. 先用離線預檢查看，再依核心規則正常提交；格式改版時維護 parser 版本及測試。
+Future transactional checks must still verify revision lineage against the ledger,
+portfolio membership, duplicate economic effects across sources, cash counterpart
+completeness, transfer matching, disposal/cost allocation and scope changes. Batch
+validation does not claim these stateful checks are implemented. No runtime LLM is
+involved. The offline synthetic acceptance cases are in `tests/test_source_protocol.py`.
 
-目前沒有正式 SDK 或啟用命令，不提供看似可執行的假介面。先以 SRC-001–SRC-004 設計／測試／遷移，再擴充新來源。
+## Banks, brokers and exchanges
 
-## 信任及發布
+**Banks:** establish deposits/withdrawals across the investment boundary. Importing
+a bank CSV does not add bank cash to investment assets; tracked cash-account scope
+must be explicit. Bank outflow and broker inflow can be one movement requiring
+auditable matching, not two contributions.
 
-外部 Python plugin 會以使用者的權限執行，不能視為沙箱。只安裝信任的程式，明確管理版本／依賴；不執行 CSV 內的 Python、從交易資料 URL 載入程式、或用 LLM 即時產生 parser 並執行。
+**Brokers:** snapshots and activity/trade history are different kinds. They can
+complement each other, but trade turnover is not external contributions. In-kind
+transfers, multiple currencies, splits and refunds require supported source/scope policies.
 
-分享 parser 時不得附真實帳號、姓名、交易、地址或私人報告；公開 fixture 用合成資料。正式核心驗證是金融契約防護，不是阻止惡意 Python 存取本機的安全邊界。公開 adapter 發布依 [發布流程](publishing.md)及 [開發規則](development.md)。
+**Exchanges:** separate purchases/sales/deposits/withdrawals/fees and own-wallet
+transfers. Exchange delivery and wallet receipt must not double count. A sale with
+no cash counterpart cannot invent cash; quantities alone do not establish complete cost.
+
+## Intended custom-parser workflow
+
+After the SDK is implemented, users should be able to:
+
+1. Read the public protocol/schema and synthetic example plugin.
+2. Implement detection/normalization with explicit supported formats/types.
+3. Run offline mapping/deduplication/timezone/revision/scope/transfer/fee contract
+   tests using synthetic or properly sanitized fixtures.
+4. Install a trusted package into their venv and enable registration/entry points
+   without editing the core.
+5. Preview offline before normal core submission; maintain parser versions/tests
+   when export formats change.
+
+No SDK installer or enable command exists yet. SRC-001 is complete; implement
+SRC-002-SRC-004 after the first usable Web MVP before claiming additional support.
+
+## Trust and publication
+
+External Python plugins run with the user's permissions, not in a sandbox. Install
+trusted code and manage versions/dependencies explicitly. Never execute Python
+inside CSVs, load code from transaction URLs or run LLM-generated runtime parsers.
+
+Shared parsers must not include real accounts, names, trades, addresses or reports.
+Use synthetic fixtures. Core validation protects financial contracts, not the host
+from malicious Python. Follow [publication](publishing.md) and
+[development](development.md) procedures.

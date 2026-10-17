@@ -303,11 +303,11 @@ class PreflightTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('default_update_cli', PROJECT / 'scripts/update.py')
         cli = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cli)
-        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', str(self.ws)]), patch.object(cli, 'database_backup') as backup, patch.object(cli.operations, 'execute_update', return_value={'status': 'published'}) as execute, patch.object(cli.operations, 'list_operations', return_value=[]), redirect_stdout(io.StringIO()):
+        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', str(self.ws)]), patch.object(cli.ApplicationService, 'update', return_value={'status': 'published'}) as execute, redirect_stdout(io.StringIO()):
             cli.main()
         execute.assert_called_once()
-        backup.assert_called_once_with('before-auto-update')
-        self.assertIs(execute.call_args.args[2], cli.publish)
+        self.assertEqual(execute.call_args.args[0]['paths'], [str(self.ws.resolve())])
+        self.assertIsNone(execute.call_args.kwargs['resume'])
 
     def test_preview_rejects_concurrent_live_input_change(self):
         self.seed(bull=False)

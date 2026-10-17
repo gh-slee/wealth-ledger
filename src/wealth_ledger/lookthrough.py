@@ -310,7 +310,8 @@ def attach_analysis(project, payload, run_id=None, fetcher=fetch_fund):
             result["mode"] = "frozen_replay"
             payload["lookthrough"] = result
             return result
-    aliases = json.loads((project / "config/company-aliases.json").read_text(encoding="utf-8"))
+    from .resources import company_aliases
+    aliases, alias_resources = company_aliases(project)
     root_ids = {row["mic"]+":"+row["symbol"] for row in payload["securities"] if row["security_type"] in {"ETF", "EXCHANGE_TRADED_FUND"}}
     directory = project / "data/raw/fund_holdings" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")+"-"+uuid.uuid4().hex[:8])
     funds, pending = {}, root_ids
@@ -338,6 +339,7 @@ def attach_analysis(project, payload, run_id=None, fetcher=fetch_fund):
         pending = {row["fund_id"] for source in funds.values() for row in source.get("rows", [])
                    if row.get("fund_id") and row["fund_id"] not in funds}
     result = calculate(payload, funds, aliases)
+    result["alias_resources"] = alias_resources
     with sqlite3.connect(database) as conn:
         ensure_schema(conn)
         source_ids = []

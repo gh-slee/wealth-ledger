@@ -18,7 +18,7 @@ from .operations import fingerprint
 from .prices import parse_time, read_saved_quote
 from .wallet import add_balance, make_crypto_view, has_bull
 from .wallet_reports import quantity_basis_label, display_time
-from .workflow import identify_inputs, select_context, LOCAL
+from .workflow import identify_inputs, select_context, validate_update_request, LOCAL
 
 INPUT_ERRORS = (ValueError, OSError, KeyError, TypeError, InvalidOperation, csv.Error, sqlite3.DatabaseError)
 
@@ -52,21 +52,6 @@ def _safe_issues(issues):
     return [{key: item[key] for key in ("code", "severity", "message") if key in item} for item in issues]
 
 
-def _validate_request(request):
-    paths = request.get("paths", [])
-    balance = request.get("btc_balance")
-    if request.get("resume_operation") or request.get("list_operations") or request.get("show_operation"):
-        raise ValueError("Dry-run cannot be combined with operation query/resume modes")
-    if request.get("snapshot_id") is not None and (paths or balance is not None):
-        raise ValueError("--snapshot-id cannot include new inputs")
-    if request.get("lookthrough_run_id") is not None:
-        raise ValueError("Dry-run does not fetch or replay ETF analysis; omit --lookthrough-run-id")
-    if balance is None and (request.get("btc_balance_as_of") or request.get("btc_balance_source")):
-        raise ValueError("Balance time/source require --btc-balance")
-    if request.get("wealthsimple_only") and (balance is not None or request.get("as_of") or request.get("price_file")):
-        raise ValueError("Brokerage-only mode cannot include wallet/combined valuation inputs")
-    if request.get("as_of"):
-        parse_time(request["as_of"])
 
 
 def preview_update(project, request, *, now=None):
@@ -93,7 +78,7 @@ def preview_update(project, request, *, now=None):
     try:
         if now.tzinfo is None:
             raise ValueError("Execution time requires a timezone")
-        _validate_request(request)
+        validate_update_request(request, preview=True)
         from .settings import btc_cost_policy, report_locale
         result["report_locale"] = report_locale(project, request.get("report_locale"))
         result["btc_cost_policy"] = btc_cost_policy(project, request.get("btc_cost_policy"))

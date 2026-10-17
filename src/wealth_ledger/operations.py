@@ -5,6 +5,7 @@ from pathlib import Path
 import hashlib
 import json
 import shutil
+import shlex
 import sqlite3
 import tempfile
 import uuid
@@ -31,20 +32,34 @@ def _connection(project):
 
 @contextmanager
 def project_lock(project):
-    """Serialize mutating CLI operations; never break an unknown owner's lock."""
+    """Kernel ownership spans CLI/containers; unknown legacy locks fail closed."""
     import os
+    from .locking import file_lock
     path = Path(project) / "work/update.lock"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        handle = path.open("x")
-    except FileExistsError as exc:
-        raise ValueError("Another update owns work/update.lock; inspect its PID before removing a stale lock") from exc
-    try:
-        handle.write(json.dumps({"pid": os.getpid(), "started_at": datetime.now(timezone.utc).isoformat()}))
-        handle.close()
-        yield
-    finally:
-        path.unlink(missing_ok=True)
+    with file_lock(path.with_name("update.guard")):
+        if path.is_symlink():
+            raise ValueError("Unsafe update lock path")
+        if path.exists():
+            try:
+                old = json.loads(path.read_text())
+                if old.get("lock_protocol") != 2 or not isinstance(old.get("token"), str):
+                    raise ValueError("Unknown lock owner")
+            except (ValueError, AttributeError) as exc:
+                raise ValueError("Unknown legacy work/update.lock; review it locally before removal") from exc
+            # Acquiring the stable kernel guard proves a protocol-2 owner is gone.
+            path.unlink()
+        token = uuid.uuid4().hex
+        path.write_text(json.dumps({"lock_protocol": 2, "token": token, "pid": os.getpid(),
+                                    "started_at": datetime.now(timezone.utc).isoformat()}))
+        try:
+            yield
+        finally:
+            if path.exists() and not path.is_symlink():
+                try:
+                    if json.loads(path.read_text()).get("token") == token:
+                        path.unlink()
+                except (ValueError, AttributeError):
+                    pass
 
 
 def fingerprint(project):
@@ -64,7 +79,23 @@ def fingerprint(project):
     return hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def atomic_data(project, action):
+def input_fingerprint(project):
+    """Financial revisions plus configuration/reference/cutoff inputs for previews."""
+    project = Path(project)
+    evidence = []
+    for name in ("config", "data/fx", "data/prices"):
+        for path in sorted((project / name).rglob("*")):
+            if path.is_file():
+                if path.is_symlink():
+                    raise ValueError("Input evidence cannot be a symlink")
+                evidence.append((path.relative_to(project).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest()))
+    pointer = project / "reports/latest.json"
+    if pointer.exists():
+        evidence.append(("reports/latest.json", hashlib.sha256(pointer.read_bytes()).hexdigest()))
+    return hashlib.sha256(json.dumps([fingerprint(project), evidence], sort_keys=True).encode()).hexdigest()
+
+
+def atomic_data(project, action, *, finalize=None):
     """Run importers in an isolated database and install all rows atomically.
 
     Immutable source archives may survive a rejected batch, but none of its
@@ -125,13 +156,18 @@ def atomic_data(project, action):
                     conn.execute(sql)
             if conn.execute("PRAGMA foreign_key_check").fetchall():
                 raise ValueError("Staged input foreign-key validation failed")
+            if finalize is not None:
+                finalize(conn, result, fingerprint(stage))
         return result
     finally:
         shutil.rmtree(directory)
 
 
-def start(project, request, *, data_only=False):
-    op = "OP-" + uuid.uuid4().hex[:16]
+def start(project, request, *, data_only=False, operation_id=None):
+    op = operation_id or "OP-" + uuid.uuid4().hex[:16]
+    import re
+    if not re.fullmatch(r"OP-[a-f0-9]{16,32}", op):
+        raise ValueError("Invalid operation ID")
     now = datetime.now(timezone.utc).isoformat()
     with _connection(project) as conn:
         conn.execute("INSERT INTO update_operations(operation_id,status,request_json,created_at,updated_at) VALUES(?,?,?,?,?)",
@@ -189,7 +225,7 @@ class ReportOperationError(ValueError):
     """A committed input operation can be resumed without repeating observations."""
 
 
-def execute_update(project, request, publisher, *, resume=None):
+def execute_update(project, request, publisher, *, resume=None, operation_id=None, on_data_committed=None):
     from .workflow import ingest_inputs, select_context, prepare_update
     from .prices import parse_time
     project = Path(project)
@@ -202,6 +238,11 @@ def execute_update(project, request, publisher, *, resume=None):
         if fingerprint(project) != saved["fingerprint"]:
             set_state(project, resume, "stale", error="Input revisions changed; generate a new report from current data")
             raise ValueError("Operation is stale: input revisions changed; generate a new report from current data")
+        from .publishing import recover_publication
+        recovered = recover_publication(project, resume)
+        if recovered is not None:
+            set_state(project, resume, "published", output_json=json.dumps(recovered), error=None)
+            return {"operation_id": resume, "status": "published", **recovered}
         op, request, accepted = resume, saved["request"], saved["result"]
         for key,relative in accepted.get('reference_overrides',{}).items():
             request[key]=str(project/relative)
@@ -214,10 +255,10 @@ def execute_update(project, request, publisher, *, resume=None):
         with presentation_context(selected_locale) as presentation:
             locale_metadata = presentation.metadata()
         ensure_report_locale_setting(project)
-        request = {**request, "execution_at": datetime.now(timezone.utc).isoformat(),
+        request = {**request, "execution_at": parse_time(request["execution_at"]).isoformat() if request.get("execution_at") else datetime.now(timezone.utc).isoformat(),
                    "btc_cost_policy": btc_cost_policy(project, request.get("btc_cost_policy")),
                    "report_locale": selected_locale, "localization": locale_metadata}
-        op = start(project, request)
+        op = start(project, request, operation_id=operation_id)
         try:
             def ingest(stage):
                 overrides={}
@@ -269,16 +310,27 @@ def execute_update(project, request, publisher, *, resume=None):
                 accepted["target"] = context["target"]
                 accepted['reference_overrides']=overrides
                 return accepted
-            accepted = atomic_data(project, ingest)
+            def commit_marker(conn, accepted, digest):
+                saved_request = dict(request)
+                for key, relative in accepted.get("reference_overrides", {}).items():
+                    saved_request[key] = str(project / relative)
+                conn.execute("""UPDATE update_operations SET status='data_committed',
+                    request_json=?,result_json=?,valuation_as_of=?,fingerprint=?,updated_at=?
+                    WHERE operation_id=?""", (json.dumps(saved_request), json.dumps(accepted),
+                    accepted["target"], digest, datetime.now(timezone.utc).isoformat(), op))
+            accepted = atomic_data(project, ingest, finalize=commit_marker)
             for key,relative in accepted.get('reference_overrides',{}).items():
                 request[key]=str(project/relative)
             target = accepted["target"]
-            set_state(project, op, "data_committed", request_json=json.dumps(request), result_json=json.dumps(accepted),
-                      valuation_as_of=target, fingerprint=fingerprint(project))
         except Exception as exc:
-            set_state(project, op, "data_failed", error=str(exc))
+            # Cleanup can fail after the transaction commits. Never overwrite its
+            # durable marker with a claim that no data was committed.
+            if get(project, op)["status"] != "data_committed":
+                set_state(project, op, "data_failed", error=str(exc))
             raise
     try:
+        if on_data_committed is not None:
+            on_data_committed(op)
         from .i18n import presentation_context, LEGACY_LOCALE
         selected_locale = request.get("report_locale", LEGACY_LOCALE)
         with presentation_context(selected_locale) as presentation:
@@ -298,5 +350,8 @@ def execute_update(project, request, publisher, *, resume=None):
         return {"operation_id": op, "status": "published", **output}
     except Exception as exc:
         set_state(project, op, "report_failed", error=str(exc), fingerprint=fingerprint(project))
-        raise ReportOperationError(f"資料已保存，報告未發布。Operation {op}; valuation {target}. "
-                                  f"Retry: scripts/update.py --resume-operation {op}. Cause: {exc}") from exc
+        from .i18n import tr
+        retry = shlex.join(['scripts/update.py', '--workspace', str(project.resolve()), '--resume-operation', op])
+        with presentation_context(selected_locale):
+            message = tr("cli.operation_retry.workspace", operation=op, valuation=target, retry=retry, cause=str(exc))
+        raise ReportOperationError(message) from exc

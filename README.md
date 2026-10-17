@@ -44,6 +44,10 @@ Wealth Ledger combines **Wealthsimple holdings**, **Bull Bitcoin orders**, and o
 | 🌐 **Localized presentation** | `en-CA`, `zh-TW`, and `zh-CN` share the same calculations and preserve source names and references. |
 | 🛡️ **Safe import preview** | Optional offline `--dry-run` validates inputs in a disposable project without changing the real ledger. |
 
+Daily commands also support `--workspace /path/to/private/portfolio` to keep data,
+reports and backups outside the code checkout. The directory must already exist;
+omitting it preserves existing checkout-local use. See [workspace setup](docs/user-manual.md#separate-code-from-private-portfolio-data).
+
 ## Reports
 
 <p align="center">
@@ -154,6 +158,7 @@ Upload either supported CSV, both, or an optional BTC total. Monthly snapshots a
 | Layer | Technology | Role |
 |---|---|---|
 | 🐍 Runtime | **Python 3.12+** | CLI, parsers, calculations, downloads, and report generation. |
+| 🔐 Optional API | **FastAPI · Pydantic · pwdlib/Argon2id · Uvicorn · Huey** | Server-side owner sessions, isolated portfolio settings and protected registered artifacts; browser workflow pending. |
 | 🗄️ Ledger | **SQLite · `sqlite3`** | Local observations, order revisions, flows, and reconciliation history. |
 | 🧮 Financial arithmetic | **`decimal.Decimal` · satoshi precision** | Explicit precision; BTC quantities support eight decimal places. Unknown values stay distinct from zero. |
 | 📊 Charts | **Matplotlib · Pillow** | PNG analysis charts and image handling. |
@@ -164,7 +169,7 @@ Upload either supported CSV, both, or an optional BTC total. Monthly snapshots a
 | 🧪 Verification | **`unittest` · formula/cache and PDF/XML checks** | Isolated synthetic tests, source consistency, and publication checks. |
 | ⚙️ Automation | **GitHub Actions · `requirements.lock`** | Linux/Python 3.12 tests and offline demos; the initial remote run passed. |
 
-No database server, JavaScript runtime, office suite, or AI service is required for production use. GitHub CLI is only for the separate maintainer publication workflow. Dependency versions are pinned in [requirements.lock](requirements.lock); third-party licenses are described in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+No database server, JavaScript runtime, office suite, or AI service is required for production use. GitHub CLI is only for the separate maintainer publication workflow. Core dependency versions are pinned in [requirements.lock](requirements.lock); the optional API uses [requirements-web.lock](requirements-web.lock). third-party licenses are described in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### How it works
 
@@ -185,8 +190,8 @@ Normal analysis fetches the latest data **published by supported official issuer
 | Locale | Report language | Default behavior |
 |---|---|---|
 | `en-CA` | English (Canada) | New ledgers. |
-| `zh-TW` | 繁體中文（台灣） | Existing ledgers without an explicit language setting. |
-| `zh-CN` | 简体中文（中国） | Available by explicit selection. |
+| `zh-TW` | Traditional Chinese (Taiwan) | Existing ledgers without an explicit language setting. |
+| `zh-CN` | Simplified Chinese (China) | Available by explicit selection. |
 
 ```bash
 python scripts/update.py /path/to/holdings.csv --locale zh-TW
@@ -204,7 +209,7 @@ python scripts/render_report.py \
   --output /path/to/new-english-edition
 ```
 
-The bundle needs `data.json`, a manifest, and frozen analysis; output must be a new directory outside it. Legacy manifests without a data checksum provide metadata consistency checks rather than full source authentication. See [the locale guide](docs/i18n-plan.md). This README is English and the detailed manual is Traditional Chinese; full translated documentation remains planned.
+The bundle needs `data.json`, a manifest, and frozen analysis; output must be a new directory outside it. Legacy manifests without a data checksum provide metadata consistency checks rather than full source authentication. See [the locale guide](docs/i18n-plan.md). Canonical project documentation is English. Reports and daily CLI output support the three locales above; translated documentation editions remain planned.
 
 ## Data and privacy
 
@@ -233,37 +238,34 @@ The tracker does not trade, log into brokers/wallets, independently verify on-ch
 
 | Guide | Start here for… |
 |---|---|
-| [User manual · 繁體中文](docs/user-manual.md) | Input setup, contributions, BTC balances/events, dates, revisions, and recovery. |
+| [User manual](docs/user-manual.md) | Input setup, contributions, BTC balances/events, dates, revisions, and recovery. |
 | [Report specification](docs/report-spec.md) · [ODS implementation](docs/workbook.md) | Report contents, interpretation, formulas, charts, and validation. |
 | [Core API](docs/core-api.md) · [BTC reconciliation](docs/btc-reconciliation-plan.md) | Data contracts, stable IDs, intervals, and financial invariants. |
 | [Languages](docs/i18n-plan.md) | Locale configuration, offline editions, and translation contributions. |
 | [Source-adapter design](docs/source-adapters.md) | The planned extensible parser/plugin contract. |
-| [Development](docs/development.md) · [Contributing](CONTRIBUTING.md) | Environment setup, verification, and pull requests. |
+| [Development](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Agent setup](docs/agent-development.md) | Environment setup, verification, instructions, and pull requests. |
 | [Publishing](docs/publishing.md) · [Security](SECURITY.md) | Private/public separation and reporting a vulnerability. |
 
 Need help? Check `python scripts/update.py --help`, then [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with a minimal **synthetic** reproduction. Do not upload real exports or reports. A failed report operation can be inspected/resumed with `--show-operation` / `--resume-operation`; do not repeat an unspecified-time balance as a recovery shortcut.
 
 ## Development
 
-```bash
-PYTHONPATH=src python -m unittest discover -s tests -v
-python examples/demo.py --output work/demo-review
-python scripts/check_publication.py --worktree
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for installation and tests,
+[development procedures](docs/development.md) for CI/report verification, and
+[agent setup](docs/agent-development.md) for optional Codex guidance. Features run
+without an LLM. The shared project rules are in [AGENTS.md](AGENTS.md).
 
-Tests and demos use isolated synthetic data. New calculations must preserve Decimal precision, source dates, immutable history, and unknown/zero semantics. Read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before contributing. No LLM is required to run or test features.
+## Self-hosted web app progress
 
-## Self-hosted web app roadmap
+The Docker self-hosted Web track targets one owner or household with multiple independent portfolios: React + TypeScript + Vite, a FastAPI API, Python background workers, SQLite, and persistent private storage. The API/worker reuse the CLI's financial services and preserve ODS, Markdown, and PDF exports; browser charts and report pages are the next stage.
 
-A Docker self-hosted web app is planned for one owner or household with multiple independent portfolios: React + TypeScript + Vite, a FastAPI API, Python background workers, SQLite, and persistent private storage. It will reuse the CLI's financial services and preserve ODS, Markdown, and PDF exports while adding browser charts, uploads, and data downloads.
-
-**The web app is not implemented yet.** The current supported workflow remains the CLI above. See the [architecture and acceptance plan](docs/self-hosted-webapp.md) and [WEB-001–WEB-007 tracker](TODO.md). No Docker startup command is advertised before container acceptance passes.
+**The API import/report workflow is implemented; the React interface is still planned.** Optional owner/session setup, independent portfolios and Docker operation are described in [Web operations](docs/web-operations.md). The [upload/job guide](docs/web-imports.md) covers CSV evidence, offline previews, explicit confirmation, isolated Huey/SQLite workers, three-format report downloads and interruption recovery. The CLI remains available for normal use and advanced financial records. Broader deployment acceptance remains planned. See the [architecture](docs/self-hosted-webapp.md) and [WEB-001–WEB-007 tracker](TODO.md).
 
 ## Project status
 
 **Pre-release.** The public source checkout has passed local synthetic tests, a fresh macOS/Python 3.12 dependency-install check, and [Linux/Python 3.12 CI](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491) with 263 tests plus offline default/proxy and three-language report demonstrations. Broader platform acceptance and an installable distribution remain pending.
 
-Current CSV import supports the documented Wealthsimple and Bull formats. Official ETF adapters have their own registry; a general installable bank/broker/exchange **parser-plugin SDK is planned, not available yet**.
+Current CSV import supports the documented Wealthsimple and Bull formats. Official ETF adapters have their own registry; version-1 [normalization contracts](docs/source-adapters.md) are implemented, while the general installable bank/broker/exchange **parser-plugin SDK, loader and importer migration remain planned**.
 
 Near-term work is tracked in [TODO.md](TODO.md):
 

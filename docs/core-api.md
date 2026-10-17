@@ -1,28 +1,151 @@
-# 核心 API 與資料規則
+# Core API and data rules
 
-開發前先讀 [專案指引](../AGENTS.md)及 [開發文件](development.md)；後續功能以 [TODO.md](../TODO.md)為準。以下描述目前已實作的介面，不代表待辦功能已可使用。
+Use [project guidance](../AGENTS.md) and the task-relevant
+[development procedures](development.md). [TODO](../TODO.md) distinguishes future
+work. Interfaces below are implemented unless explicitly marked otherwise.
 
-核心僅使用 Python 標準函式庫。`Decimal` 精度為 60 位；輸出 payload 的金額、數量與比例均序列化為字串，比例為小數分數。未定義的比例為 `null`，不以零替代。
+The ledger core uses Python's standard library and Decimal precision 60. Payload
+amounts, quantities and ratios serialize as strings; ratios are fractional values.
+Undefined ratios are null, not zero.
 
-## 離線預檢 API
+## Optional Web boundary
 
-`preflight.preview_update(project, request, now=None)` 只讀正式專案，在系統私有暫存目錄建立 SQLite 備份副本及必要來源／快取副本，重用正式匯入器與對帳。回傳 schema_version、status、sources、checks、pending_checks、blockers、預計截止及 BTC 數量；不提交正式資料、operation 或報告，不呼叫公開下載。`render_preview(result, locale="zh-TW")` 產生所選語言摘要；CLI 的 `--json` 輸出相同結果。
+The optional `wealth_ledger.web` package requires `requirements-web.lock`. Its
+`api.create_app(settings)` uses explicit `WebSettings`, a trusted-host initialized
+`storage.Store`, versioned `admin/app.sqlite3` and server-owned portfolio IDs.
+Authentication is an opaque server-side session, not a financial DB identity or JWT.
+No data root defaults to the legacy CLI workspace. Full endpoint/security/operation
+contracts are in [Web operations](web-operations.md). Financial CSV/optional dated BTC inputs use the implemented
+[upload/job API](web-imports.md): preview and confirmation precede isolated execution.
+Artifact registration remains a trusted internal hook; validated complete bundles
+are registered atomically with the published Web job.
 
-`core.inspect_holdings(project, csv_path, kind)` 唯讀使用與 import_holdings 共用的 `_holdings_plan`，檢查格式、去重、基準／修訂及帳戶，無 FX 也可檢查；不初始化正式庫。缺 FX 的新快照僅用已解析日期作暫存 base_override，沒有假 FX 或假持倉估值，simulation_complete 為 false。`workflow.select_context(..., base_override=None)` 是共用時間選擇；正常流程不傳 override。
+## Workspace-scoped application services
 
-`fx.read_saved_rates` 與 `prices.read_saved_quote` 為共用的離線參考讀取器。沒有精確快取回傳 None，有卻不合法則拒絕；正常 resolve 函式仍可在缺快取時下載。預檢只能呼叫離線讀取器。支援 verified JSON 的同一有效性／證據規則，不生成新行情。
+`workspace.resolve_workspace(legacy_root=CODE_ROOT, explicit=None)` returns a frozen
+`Workspace(code_root, workspace_root)`. Installation code/fonts/locales/registry
+remain read-only; private state belongs under workspace_root. `workspace_from_args`
+resolves `--workspace` before reading locale/settings. Explicit paths must exist,
+be dedicated empty directories or recognizable ledgers/configuration, and retain
+state roots within that directory. No fallback, initialization or real migration
+occurs during resolution. Omitting the option preserves legacy checkout-local use.
 
-預檢不暴露新暫存 ID，JSON issues 只列 code／severity／message；不輸出完整訂單、錢包地址、交易 reference 或帳號。blocked 為退出碼 2，其餘為 0，但 pending_checks 仍可包含行情、最新 ETF 或報告發布。正式更新必須重新驗證；preview 不是可提交作業，輸入或資料並行改變時拒絕當作有效預覽。詳見手冊第 20 節。
+```python
+from pathlib import Path
+from wealth_ledger.application import ApplicationService
+from wealth_ledger.workspace import resolve_workspace
 
-## BTC 報告成本推估
+workspace = resolve_workspace(explicit=Path("/path/to/existing/portfolio"))
+service = ApplicationService(workspace)
+preview = service.preview({"paths": ["/path/to/holdings.csv"]})
+operations = service.operations()
+# Normal mutation can download missing reference/official data and publish reports.
+# result = service.update({"paths": ["/path/to/holdings.csv"], "kind": "monthly"})
+# result = service.update({}, resume="OP-...")
+```
 
-`btc_performance.btc_cost_estimate(crypto)` 是無 I/O 共用純函式，使用 80 位 Decimal，讀取 `crypto.cost_estimate_policy`。正常新 payload 明確設定公開預設 `actual_only`；舊已保存 payload 沒有該欄位時保留舊版重播語意，不代表新專案預設代理。
+`update` centralizes detection/request validation, locking, pre-update backup,
+staged atomic ingestion, operation recovery, analysis and validated publication.
+`record(request, action, label=...)` provides the same lock/backup/staged data-only
+operation path to flow, opening and wallet commands; it never publishes a report.
+`operation(id)` and `operations()` query only the selected ledger. The service does
+not import CLI modules, mutate module-global paths or launch subprocesses. HTTP/job
+callers apply server-managed portfolio authorization before invoking the service.
 
-`actual_only` 回傳 `method=actual_costs_only`、`status=proxy_disabled`，保留已知購入量／支出／參考均價／市值資訊，但 `estimated_cost_cad`、`estimated_gain_cad`、`estimated_return` 為 None。`bull_average_proxy` 以已完成 Bull CAD 支出／購入 BTC＋LBTC 等值計算參考均價，再套用目前全部量，回傳 `method=bull_average_applied_to_all_btc` 及估算成本／損益／比例。兩者都不修改輸入或資料庫。
+`publishing.publish(project, payload, import_result, lookthrough_run_id=None)` and
+`database_backup(project, label)` now live in the core package. The low-level
+publisher requires its caller to hold the workspace lock. Backups use read-only
+SQLite source connections. Report manifests, validation, failed-build preservation,
+revision directories and latest-pointer behavior remain compatible. New bundles
+also store `bundle_files` SHA-256 checksums and `previous_latest` so recovery can
+verify a completed bundle and finish pointer/state handoff without a new edition.
+`verify_bundle` checks operation linkage and every artifact; `recover_publication`
+rejects changed/unprovable pointers and corrupted or duplicate bundles.
 
-代理包含期初及未解釋差額，對帳仍獨立。無購入時沒有均價、估算成本／損益；有均價但零持倉時估算成本／損益為零、比例 None。只有新已完成購入改均價，餘額／事件只改適用量。實際 book／avg_cost／unrealized、供款及期間報酬不以代理回填。`btc-cost-estimate.json` 記錄所選政策及結果，發布檢查依該政策核對三格式、公式與附件。
+`update` additionally accepts trusted internal `operation_id`, `expected_fingerprint`
+and `on_data_committed` arguments. Web jobs persist their fixed core operation ID
+before execution. The expected input fingerprint is checked inside the portfolio
+lock. `operations.atomic_data(..., finalize=...)` runs the update commit marker in
+the same financial SQLite transaction as imported rows. A saved `execution_at`
+remains fixed across queued execution/resume; browser fields cannot choose operation
+IDs or arbitrary core arguments. Unknown started states are not automatic retries.
+`reporting.generate_reports(..., cache_directory=None)` uses a private temporary
+cache by default; publication supplies `workspace/work/cache`. Plotting is serialized
+inside a process while process-global library cache paths/settings are scoped and
+restored. Workers should process one report at a time; separate portfolio locks
+still serialize writes across processes. This is not an HTTP concurrency contract.
 
-`wallet_reports.quantity_basis_label(crypto)` 共用數量來源標籤，不修改核心 quantity_status 或觀測。期初聲明的 reference_as_of 與估值時間相同且 reported_total 與目前量相符時，可顯示當時回報基準；之後推估不得冒充新回報。正式 wallet anchor 分別顯示同時間回報及其後推估；無 anchor 的已知事件仍用帳本推算。異動／費用涵蓋與成本推估、數量來源分開。
+`resources.company_aliases(workspace)` loads bundled `config/company-aliases.json`
+(version 2), optionally a legacy workspace full v2 file, then
+`config/company-aliases.override.json` with this schema:
+
+```json
+{"schema_version":1,"companies":[{"id":"synthetic","name":"Synthetic Example","aliases":["Synthetic Holdings"]}]}
+```
+
+Overrides replace a complete company row by stable ID; new IDs append. Each row
+requires id/name/aliases and may include a sources string array. Unknown schemas,
+duplicate IDs and conflicting normalized aliases fail before downloading funds.
+Analysis retains bundled/legacy/override raw hashes, effective canonical hash and
+precedence as `alias_resources`; saved analysis replay uses frozen results rather
+than current overrides. Existing unchanged v2 files preserve their effective hash.
+Private overrides never belong in Git. See [adapter protocol](source-adapters.md)
+for the independent SRC-001 versioned canonical record contract.
+
+## Offline preflight API
+
+`preflight.preview_update(project, request, now=None)` reads the real project and
+creates a SQLite backup/necessary source/cache copies in private system temporary
+storage. It reuses importers/reconciliation and returns schema_version, status,
+sources, checks, pending_checks, blockers, proposed cutoff and BTC quantity, without
+formal data/operation/report writes or public downloads.
+`render_preview(result, locale="zh-TW")` renders the selected language; CLI `--json`
+returns the same structured result.
+
+`core.inspect_holdings(project, csv_path, kind)` shares `_holdings_plan` with the
+importer to check format/deduplication/baseline/revisions/accounts without initializing
+the real DB or requiring FX. A new snapshot lacking FX uses only its parsed date as
+a temporary base_override, never invented FX/value; simulation_complete is false.
+`workflow.select_context(..., base_override=None)` shares time selection; normal
+updates do not supply an override.
+
+`fx.read_saved_rates`/`prices.read_saved_quote` are offline reference readers: no exact
+cache returns None; invalid existing cache fails. Normal resolvers may download
+missing references; preview only uses offline readers. Verified JSON follows the
+same validity/evidence rules without generating quotes.
+
+Preview hides newly simulated IDs. JSON issues expose only code/severity/message,
+not full orders, addresses, references or accounts. Blocked exits 2; other results
+exit 0 but may retain pending quotes/latest ETF/report checks. Formal updates must
+revalidate: preview is not a committable operation and cannot survive changed inputs
+or concurrent data. See [manual section 20](user-manual.md#20-offline-import-preview).
+
+## BTC report cost estimation
+
+`btc_performance.btc_cost_estimate(crypto)` is a pure no-I/O function with Decimal
+precision 80 and `crypto.cost_estimate_policy`. New payloads explicitly set
+`actual_only`; missing policy in old saved payloads retains legacy replay semantics,
+not a proxy default for new projects.
+
+`actual_only` returns `method=actual_costs_only`, `status=proxy_disabled` and known
+buy quantity/spend/reference average/value, but estimated_cost_cad/estimated_gain_cad/
+estimated_return are None. `bull_average_proxy` divides completed Bull CAD spend by
+delivered BTC+LBTC and applies the average to current total quantity, returning
+`method=bull_average_applied_to_all_btc` and estimated cost/P&L/rate. Neither mutates
+input or DB.
+
+Proxy includes opening/unexplained differences; reconciliation stays independent.
+No buys means no average/cost/P&L; zero holdings with an average means zero estimated
+cost/P&L and None rate. Only completed buys change the average; balances/events change
+quantity. Never fill actual book/avg_cost/unrealized, contributions or period returns
+with the proxy. `btc-cost-estimate.json` records policy/results, checked across formats.
+
+`wallet_reports.quantity_basis_label(crypto)` labels quantity without changing
+quantity_status/observations. An opening whose reference_as_of matches valuation
+and whose reported_total matches quantity may identify that reported baseline;
+later estimation must not imply a new report. Formal anchors distinguish same-time
+reports/later estimates. Known events without an anchor remain ledger estimates.
+Event/fee coverage, cost policy and quantity provenance are separate.
 
 ```python
 from pathlib import Path
@@ -36,13 +159,15 @@ result = import_holdings(project, csv_path, kind="baseline", fx=fx)
 payload = make_payload(project, snapshot_id=result["snapshot_id"])
 ```
 
-`project`、`csv_path` 使用 `Path`。資料庫路徑固定為 `data/db/portfolio.sqlite3`，檔案權限為 `600`。一般 SQLite 沒有密碼或檔案加密；權限不等同加密。
+`project`/`csv_path` are Path values. DB: `data/db/portfolio.sqlite3`, mode 600.
+Ordinary SQLite has no password/file encryption; permissions are not encryption.
 
-## 匯入持倉
+## Holdings import
 
-`kind` 接受 `baseline`、`monthly`、`interim`。首期自動成為基準；拒絕早於追蹤起點的回填，以及另指定較晚日期為新基準。CSV 必須有帳戶、證券、數量、價格、成本、市值、幣別欄位及 `As of YYYY-MM-DD HH:MM GMT±HH:MM` 檔尾。時間轉為含時區 ISO 字串，另外保存 UTC 供排序及相同時間辨識。
-
-`fx` 必須含：
+`kind`: baseline/monthly/interim. First import becomes baseline. Reject pre-baseline
+backfill or a later date requested as a new baseline. CSV needs account/security/
+quantity/price/cost/value/currency fields and `As of YYYY-MM-DD HH:MM GMT±HH:MM` footer.
+Save timezone-aware ISO and UTC for ordering/same-time identity. Required FX:
 
 ```python
 fx = {
@@ -53,54 +178,73 @@ fx = {
 }
 ```
 
-上述是合成 API 範例，不是可用於真實交易的匯率。核心要求匯率為正、有效日期不晚於快照、來源非空；官方來源查詢與過期政策由 FX 模組負責。匯率隨快照保存，不因後續重複匯入傳入新值而更改。
+These are synthetic API rates, not real financial inputs. Require positive rates,
+effective dates no later than snapshot and nonempty sources. FX module owns official
+fetch/staleness policy. Save rates with snapshots; reimported overrides do not replace them.
 
-- 原檔 SHA-256 相同即去重；正常化數字、資料排序及 UTC 日期後內容相同也去重。
-- 同一資料時間的不同內容建立新修訂；舊快照及來源保留。修訂繼承同一期的快照類型。
-- 原始 CSV 封存於 `data/raw/holdings/YYYY/MM/`，權限為 `400`。相同檔名、不同內容加雜湊後綴，不覆寫。
-- 帳戶 ID 為帳號的 SHA-256 前 16 位；公開資料僅有遮蔽帳號。來源原檔仍保留完整資料。
-- 證券鍵為 `MIC:Symbol:Currency`；現金鍵為 `cash:Currency`。相同帳戶與證券重複列會拒絕。
-- 僅支援 LONG、CAD／USD 市值；其他方向／幣別會拒絕，以免漏算。
-- 核對數量乘市價及原幣成本／損益，容許差額為 0.01。超過差額標記問題，保留來源數值。
-- 現金 CAD 帳面成本不參與市值換算；異常成本保留並標記，不修補。
-- 首期以來源帳戶作為預期範圍；之後缺少已知帳戶則不完整。帳戶退出／關閉尚未自動推定。新帳戶可匯入，但不同帳戶範圍的總組合比較會暫停。
+- Deduplicate raw SHA-256 and semantically equal normalized numbers/order/UTC time.
+- Different content at the same time creates a revision, preserving earlier source/
+  snapshot and inheriting the period kind.
+- Archive read-only CSVs under `data/raw/holdings/YYYY/MM/`, mode 400; conflicting
+  filenames get hash suffixes without overwrite.
+- Account IDs are the first 16 SHA-256 characters of account numbers. Display data
+  masks accounts; originals still contain full source details.
+- Security key: `MIC:Symbol:Currency`; cash: `cash:Currency`. Reject duplicate account/security rows.
+- Only LONG CAD/USD market values are supported; reject other sides/currencies.
+- Check quantity*price and native cost/P&L with 0.01 tolerance. Larger discrepancies
+  become findings while original values remain intact.
+- CAD cash book cost never determines current FX/value; retain/flag anomalies.
+- Baseline accounts establish expected scope. Later missing accounts are incomplete;
+  exits/closures are not inferred. New accounts may import, but differing scopes
+  suspend total-portfolio comparisons.
 
-回傳 `status` 為 `imported`、`revision` 或 `duplicate`，並含 `snapshot_id`。新增／修訂另含 `revision`、`is_complete`、`issues`、`source_path`；重複回傳既有 `fx_preserved`。
+Return status imported/revision/duplicate and snapshot_id. New/revised data also
+returns revision/is_complete/issues/source_path; duplicates return fx_preserved.
 
-## 報告 payload
+## Report payload
 
-`make_payload(project)` 預設最新資料時間、最新修訂；指定 `snapshot_id` 可以讀取保存的舊修訂。來源雜湊不符或檔案遺失會在問題清單顯示；資料庫保存值不被改寫。
+`make_payload(project)` selects latest data time/revision; snapshot_id selects a
+saved revision. Missing/mismatched evidence becomes a finding, not a DB rewrite.
 
-| 鍵 | 內容 |
+| Key | Contents |
 |---|---|
-| `meta` | 快照 ID、時間、種類、修訂、完整性、缺漏帳戶、帳戶／證券／持倉／現金列數、起始時間、使用幣別、正式及歷史快照 IDs |
-| `fx` | 六個 FX 輸入鍵及 `cad_twd` |
-| `source` | 原始檔名、相對封存路徑、檔案與語意雜湊、列數、匯入時間、`integrity_ok` |
-| `accounts` | 帳戶原幣小計、三幣等值、已列現金、現金比例、持倉數與組合權重 |
-| `positions` | 分帳戶證券持倉；不含現金 |
-| `securities` | 跨帳戶同證券合併；數量、成本及損益相加，平均成本／損益率重新計算，合併市價為市值除數量 |
-| `cash_rows` | 已列現金，與持倉相同基本欄位；保留來源成本 |
-| `totals` | `native_cad/native_usd/total_cad/total_usd/total_twd`、現金小計、分原幣非現金成本及未實現損益 |
-| `instrument_types` | 個股、ETF、現金等來源工具類型的市值與組合權重 |
-| `matrix` | 帳戶欄位及每證券的 CAD 等值／帳戶內權重；現金另列並有 `is_cash` |
-| `concentration` | `largest`、`top3_cad/top5_cad/top3_weight/top5_weight`；分母含現金 |
-| `history` | 每個實際觀測時間最新修訂的總值及帳戶值；保留完整性旗標，不每日補值 |
-| `changes` | 與上一實際觀測的比較，包含前／後時間、三幣值變化、帳戶與持倉數量／市值／市價／權重差異 |
-| `comparisons` | `previous`、`previous_month`、`baseline`；均使用 `changes` 的結構 |
-| `cash_flows` | 真實已匯入資金流，含帳戶名稱與來源檔名／路徑／雜湊 |
-| `periods` | 前期及基準至本期的 CAD 資金流調整分析，個別帳戶及總組合分開 |
-| `issues/findings` | 結構化問題清單／繁體中文摘要字串 |
+| `meta` | Snapshot ID/time/kind/revision/completeness, missing accounts, row/counts, baseline, currencies, official/history IDs |
+| `fx` | Six input keys plus cad_twd |
+| `source` | Original filename, relative archive, raw/semantic hashes, rows, import time, integrity_ok |
+| `accounts` | Native subtotals, three equivalents, cash/ratios, position counts and portfolio weights |
+| `positions` | Per-account securities, excluding cash |
+| `securities` | Cross-account aggregation; sum quantity/cost/P&L, recompute weighted cost/return and value/quantity price |
+| `cash_rows` | Cash with analogous fields and preserved source costs |
+| `totals` | native_cad/native_usd/total_cad/total_usd/total_twd, cash and native noncash costs/P&L |
+| `instrument_types` | Source instrument values/weights, such as stocks/ETFs/cash |
+| `matrix` | Account columns, security CAD values/account weights and separate is_cash rows |
+| `concentration` | largest, top3_cad/top5_cad/top3_weight/top5_weight, cash-inclusive denominator |
+| `history` | Latest revision per real observation, values/accounts/completeness without daily interpolation |
+| `changes` | Prior/current times, three-currency changes and account/quantity/value/price/weight differences |
+| `comparisons` | previous/previous_month/baseline using the changes structure |
+| `cash_flows` | Imported actual flows, accounts and source filename/path/hash |
+| `periods` | Prior/baseline CAD flow-adjusted analysis per account/portfolio |
+| `issues/findings` | Structured issues and legacy summary text, localized at presentation |
 
-前一正式月度點為早於本期月份、最近的 `baseline/monthly` 快照。`official_snapshot_ids` 每個月份選最後一個正式點。報表必須保留／檢查 `is_complete`，不能把部分資料當成完整總資產。沒有適用前期或帳戶範圍不同時，比較有 `available=False` 與原因。
+Prior formal month means latest baseline/monthly before the current month.
+official_snapshot_ids selects the last formal observation each month. Preserve
+is_complete; partial data cannot imply total completeness. Missing applicable prior
+data or different account scope gives available=False/reason.
 
-## 資金流與完整性
+## Cash flows and coverage
 
-CSV 必要欄位：`date,account_id,flow_type,currency,amount`。金額為正數，方向由類型決定。建議提供穩定 `flow_id`；省略則由正常化內容產生。類型為 `deposit,withdrawal,transfer_in,transfer_out,income,fee,internal`。
+Required CSV: `date,account_id,flow_type,currency,amount`; positive amounts, direction
+by type. Stable flow_id is recommended, otherwise derived from normalized content.
+Types: deposit, withdrawal, transfer_in, transfer_out, income, fee, internal.
 
-- USD 流量需有正的 `usd_cad`、`fx_date`、`fx_source`，或提供正的 `amount_cad` 及其 `fx_source`。每筆換算值凍結，不能使用本期匯率取代。
-- 轉移需要 `transfer_id`。相同日期、不同帳戶、相同 CAD 等值的一進一出才配對；缺腿、重複腿或差額會暫停期間績效。
-- 同一 ID 同內容去重；同一 ID 不同內容拒絕。第一版尚未提供資金流修訂／作廢 API，不能以另一 ID 直接加入更正後的同一筆流量，否則會重複計入。
-- `income/fee/internal` 不算外部投入。帳內保留股息及費用已反映於估值，不再加減一次。轉移於個別帳戶為流量，在組合層抵銷。
+- USD needs positive usd_cad/fx_date/fx_source or positive amount_cad/fx_source.
+  Freeze each conversion; current FX cannot replace it.
+- Transfers require transfer_id, same-date/different-account equal-CAD in/out legs.
+  Missing/duplicate/mismatched legs suspend period analysis.
+- Same ID/content deduplicates; changed content rejects. Flow revision/void API is
+  not yet implemented; adding corrected content under a new ID can double count.
+- Income/fee/internal are not external contributions. Retained dividends/fees are
+  already in valuations and must not be counted twice. Transfers cancel portfolio-wide.
 
 ```python
 import_cash_flows(project, activity_csv)
@@ -109,11 +253,16 @@ mark_flow_period(project, "2024-06-30", "2024-07-31", "no_external")
 # A specific account declaration can be provided using account_id.
 ```
 
-期間狀態為 `partial/complete/no_external`；未標記時為 `not_provided`。標記是使用者對期間涵蓋的明確聲明，不從沒有檔案推定零資金流。相鄰月度聲明可合併支持從基準起算的期間；任何未涵蓋日期區段或明示部分資料會阻止績效計算。同範圍較新聲明優先，帳戶專屬聲明優先於組合聲明。組合的零外部流量聲明容許帳戶間轉移，個別帳戶的零外部流量聲明則不容許該帳戶的轉移。
+Coverage: partial/complete/no_external, otherwise not_provided. This is explicit
+user evidence, not inferred from absent files. Adjacent monthly declarations may
+support baseline periods; gaps/partial declarations block performance. Newer same-scope
+declarations win; account-specific overrides portfolio-wide. Portfolio no_external
+allows internal transfers; account no_external does not allow that account's transfers.
 
-期間必須有兩個不同日期估值；目前使用日期及期末日流量慣例，首日流量不包含，末日流量包含。應確認日期涵蓋與快照時點一致；只有日期的紀錄不能精確描述日內流量。
-
-只有完整估值、相同組合範圍、完整 ledger、有效轉移配對時才產生：
+Require two distinct-date valuations. Date/end-of-day convention excludes opening
+day and includes closing day. Validate alignment with snapshot times; date-only
+records cannot describe precise intraday timing. Require complete valuations, same
+scope, complete flow ledger and valid transfer pairing:
 
 ```text
 Investment gain = Closing value - Opening value - Net external contributions
@@ -121,30 +270,51 @@ Modified Dietz = Investment gain / (Opening value + Weighted flows)
 Flow weight = Calendar days from flow date to period end / Period calendar days
 ```
 
-XIRR 使用期初值作一次負值、投入為負、提領為正、期末值為正，365 日年化；未把追蹤開始前的投入重複計入。數值解有範圍檢查；多次符號變化的流量序列保守地不回報 XIRR，顯示 `ambiguous_cash_flow_signs`。Modified Dietz 是近似值，並非有每筆外部流量估值的精確 TWR。USD／TWD 僅顯示等值歷史，沒有直接借用 CAD 的報酬率。
+XIRR: opening/contributions negative, withdrawals/closing positive, 365-day annualization.
+Do not recount pre-baseline contributions. Range-check numerical solutions; repeated
+sign changes conservatively return ambiguous_cash_flow_signs instead of XIRR.
+Dietz is approximate, not exact TWR with valuations at every flow. USD/TWD history
+does not inherit CAD returns.
 
-## 測試
+## Tests
 
 ```sh
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
-測試只使用模擬 CSV，臨時專案建立於 `work/`；不讀取使用者資料或寫入正式資料庫。涵蓋原幣／現金／FX 合計、去重、修訂、缺帳戶、月度／基準比較、資金流日期權重、轉移、來源完整性與未定義比例。
+Synthetic CSVs/isolated temporary projects cover native/cash/FX totals, deduplication,
+revisions, missing accounts, month/baseline comparisons, flow weights/transfers,
+evidence integrity and undefined ratios. Tests never read or write real portfolios.
 
-## Bull Bitcoin 與合併估值
+## Bull Bitcoin and combined valuation
 
-`crypto.import_bull_orders(project, csv_path, source_account='bullbitcoin-main', opening_assumption=metadata)` 新增 `crypto_accounts`、`crypto_sources`、`crypto_order_revisions`，保留原始 CSV。首次必須明示零期初；已完成訂單的經濟數值及時間不允許無聲改寫。只支援 CAD Funding／Buy Bitcoin，三個狀態均 Completed 且完成時間在截止內才計入。
+`crypto.import_bull_orders(project, csv_path, source_account='bullbitcoin-main', opening_assumption=metadata)`
+creates crypto_accounts/crypto_sources/crypto_order_revisions and preserves original
+CSVs. First import requires an explicit zero-opening assumption; completed economic
+values/times cannot silently change. Support CAD Funding/Buy Bitcoin only; all three
+statuses must be Completed and completion time must fall within cutoff.
 
-`crypto.make_crypto_view(project, as_ofISOtimestamp)` 回傳 Decimal 字串的入金、買入成本、BTC／LBTC 原始交付量、合計 BTC 等值、CAD 差額、實際事件月份及遮罩訂單。`Funding` 來源未分類，不自動成為全組合外部資金流；沒有生成缺月持倉。ADDRESS、TRANSACTION_ID、MESSAGE、完整訂單 ID 不出現在展示資料。
+`crypto.make_crypto_view(project, as_ofISOtimestamp)` returns Decimal-string funding,
+spend, BTC/LBTC deliveries/equivalents, CAD difference, actual event months and masked
+orders. Unclassified Funding is not automatically an external portfolio flow. No
+invented missing-month positions. Display excludes ADDRESS, TRANSACTION_ID, MESSAGE
+and full order IDs.
 
-`combined.make_combined_payload(project, snapshot_id=None, *, as_of=None, price_file=None, fx=None, source_updates=None, btc_cost_policy=None)` 另建 `combined_observations`。組合範圍不同另立基準；原 Wealthsimple snapshots／positions 保留。BTC 以 CAD 估值代理加入總額與分類，從券商原幣持倉表排除。相同內容重產不新增觀測，修正同一時間資料保存新修訂。
+`combined.make_combined_payload(project, snapshot_id=None, *, as_of=None, price_file=None, fx=None, source_updates=None, btc_cost_policy=None)`
+saves combined_observations. Scope changes create separate baselines, preserving
+broker snapshots/positions. BTC is a CAD valuation proxy in totals/types, excluded
+from native brokerage tables. Equal replays do not add observations; corrected same-time
+data creates revisions.
 
-`prices.resolve_btc_price(project, as_of, override=None)` 使用 Coinbase BTC-USD 最後完整一分鐘的 close，快取原始證據與 SHA-256，重產時不再下載。沒有可用完整價格／證據時停止，不以最後買入價或零代替估值。
+`prices.resolve_btc_price(project, as_of, override=None)` selects Coinbase BTC-USD
+last completed one-minute close, archiving raw evidence/SHA-256 and reusing saved
+quotes. Missing complete pricing/evidence stops execution; never substitute purchase
+price/zero. Disclose older stock prices/differing cutoffs and incomplete combined
+scope. Combined returns need Bull origins/transfers/fees/balance/coverage support;
+only eligible confirmed Wealthsimple account performance is currently enabled.
+meta.missing_official_months lists months without complete formal observations.
 
-不同截止與 Wealthsimple 原始時間會明示舊市價並標示不完整。合併期間報酬須先補齊 Bull 資金來源分類、轉移及錢包費用／餘額資料與完整性；餘額／異動介面已實作，目前僅保留已確認的 Wealthsimple 帳戶期間績效。`meta.missing_official_months` 標示觀測範圍內欠缺完整正式快照的月份。
-
-
-## 自動來源更新 API
+## Automatic source-update API
 
 ```python
 from wealth_ledger.workflow import identify_inputs, prepare_update
@@ -153,84 +323,205 @@ sources = identify_inputs([Path("any.csv")])
 payload, result = prepare_update(project, [Path("holdings.csv"), Path("orders.csv")])
 ```
 
-`identify_inputs` 依必要欄位辨識，拒絕未知／模稜兩可格式及同來源多檔。`prepare_update` 負責匯入與自動估值時間：股票採 `As of`，Bull 單獨更新採執行時間，兩者含較晚 Bull 訂單時採執行時間。沒有輸入檔則沿用最近保存合併估值。`now` 可注入含時區的時間供離線測試；正式 CLI 使用系統時間。
+identify_inputs checks required fields, rejecting unknown/ambiguous formats and
+multiple files of one source. prepare_update imports/selects cutoff: stocks use As of;
+Bull-only uses execution time; both use execution time when Bull is later. No inputs
+reuse latest combined cutoff. Injectable aware now supports offline tests; CLI uses
+system time.
 
-合併 `meta.source_updates` 保存來源更新狀態及實際日期；`meta.data_status` 為 `sources_updated`、`carried_source`、`mixed_dates` 或 `btc_only`。`account_coverage_complete` 與 `is_complete` 分開：前者為來源帳戶涵蓋，後者另要求同步更新及估值時間一致。BTC 未有觀測時按固定期初、完成購入及已知淨異動推估；有觀測時按適用回報量加其後已知淨異動，獨立核驗狀態仍另列。合併歷史保存此狀態，沿用來源以虛線顯示，股票曲線使用獨立 `wealthsimple_history`。
+meta.source_updates stores status/actual dates. meta.data_status is sources_updated,
+carried_source, mixed_dates or btc_only. account_coverage_complete describes source
+accounts; is_complete also requires synchronized updates/valuation time. BTC uses
+fixed opening/completed buys/known events or an applicable anchor/later events;
+independent verification remains separate. History retains status, carried totals
+are dashed, and wealthsimple_history preserves original stock dates.
 
-首次只有 Bull 可產生限定資產範圍的報告；股票尚未提供時 `snapshot_id=None`，新增股票後另立 scope，不把範圍擴增當成投資增值。`as_of` 可進階覆寫，但 `snapshot_id` 不能搭配新輸入檔。
+Bull-only first reports explicitly limit scope with snapshot_id=None. Adding stocks
+creates a new scope, not growth. Advanced as_of is supported; snapshot_id cannot
+combine with new input files.
 
+## Official ETF/company analysis API
 
-## 官方 ETF 成分與公司分析 API
+`fund_sources.fetch_fund(fund_id, directory, today=None)` takes market-qualified IDs,
+such as XTSE:FBTC, and returns holdings date/query status/complete weights/immutable
+raw evidence. Strictly check date, identity, pagination and weight type. BMO allocation
+is fractional; other current providers use percentages. Vanguard uses paginated
+delayeredHoldings. Fetch public issuer data only.
 
-`fund_sources.fetch_fund(fund_id, directory, today=None)` 使用基金市場識別（例如 XTSE:FBTC），回傳持倉日期、最新查詢狀態、全部成分權重和不可覆寫原始證據。日期、基金識別、分頁數量與權重型別嚴格檢查；BMO 原始 allocation 是小數，其餘目前來源是百分數。Vanguard 使用官方 delayeredHoldings 並完成分頁。只取得公開發行商資料。
+`lookthrough.calculate(payload, funds, aliases)` is pure Decimal: company identities,
+recursion/cycles, aggregation, known non-company/unresolved/rounding reconciliation.
+Return top20/full companies/paths/unresolved/classification, version company-exposure-2.
+Keep security identity distinct from company aliases.
 
-`lookthrough.calculate(payload, funds, aliases)` 是無網路／資料庫副作用的 Decimal 計算核心：識別公司、遞迴穿透、循環偵測、合併曝險、已知非公司／未知／四捨五入對帳；保留 top20、完整公司、計算來源、未解析項目及 `classification`；計算版本為 `company-exposure-2`。證券身分與公司別名明確分開。
+`lookthrough.attach_analysis(project, payload, run_id=None, fetcher=fetch_fund)` fetches
+root/child funds, stores fund_sources/lookthrough_runs/source links and attaches
+payload.lookthrough. Never substitute old cache on failure. Inject fetcher for
+synthetic tests. run_id verifies financial valuation fingerprint and replays offline,
+without asset/flow history changes.
 
-`lookthrough.attach_analysis(project, payload, run_id=None, fetcher=fetch_fund)` 正常查詢所有根／子基金，獨立保存 fund_sources、lookthrough_runs 與來源關聯，附到 payload.lookthrough。失敗不復用舊快取；可注入 fetcher 離線測試。指定 run_id 時驗證資產估值指紋一致並離線重播，不觸碰資產歷史或資金流。
+lookthrough_reports shares results across MD/PDF, ODS formula tables, complete company/
+unresolved CSVs and source JSON. CLI attaches analysis before generating reports;
+manifest records run_id. Offline format fixtures are not live evidence.
 
-`lookthrough_reports` 將共同計算結果轉換為 PDF／Markdown section、ODS 公式附表、完整公司與未解析 CSV、來源 JSON。CLI publish 在所有報告生成前附加分析；manifest 記錄 run_id。離線官方格式樣本僅供測試，不當作最新行情。
+## Official classification API
 
-## 官方分類 API
+`fund_sources.holding(..., gics_sector=None, icb_sector=None, issuer_sector=None)`
+separates explicit GICS, ICB and unconfirmed issuer labels; country retains official
+classification. Vanguard requests both taxonomies, opening the public fund page
+for cookies before official pagination, with no private login/LLM. Parser version:
+issuer-holdings-2. Unknown fields stay empty; generic sector never implies GICS.
 
-`fund_sources.holding(..., gics_sector=None, icb_sector=None, issuer_sector=None)` 分別保存明確 GICS、ICB 及未確認體系的發行商產業；`country` 保留官方國別。Vanguard 查詢兩種分類欄位，先讀公開基金頁面設定 cookie 再呼叫官方分頁介面；不需要帳戶登入或 LLM。解析版本為 `issuer-holdings-2`。未知欄位保持空字串，不能用 generic sector 自動補成 GICS。
+`classification.calculate_classification(analysis, components, funds, identities, securities)`
+is pure Decimal, version official-classification-1, called by lookthrough.calculate.
+Components retain source_fund and original gics_sector/icb_sector/issuer_sector/
+official_country. Prefer own_official_row, then latest same-company evidence;
+equal-date conflicts: conflicting_latest_official_classification; absent:
+no_official_classification. Country/region mappings live in the module; unknown codes
+are not guessed.
 
-`classification.calculate_classification(analysis, components, funds, identities, securities)` 是無 I/O 的 Decimal 計算，版本 `official-classification-1`；由 `lookthrough.calculate()` 調用。`components` 包含 `source_fund`、原始 `gics_sector/icb_sector/issuer_sector/official_country`。先採 own_official_row，再按同公司最新有效日轉用；同日衝突為 `conflicting_latest_official_classification`，未找到為 `no_official_classification`。國別代碼與地理對照表在同模組，未知代碼不推測。
+payload.lookthrough.classification contains dimensions/full rows/two coverage measures/
+date ranges, components/assignments/evidence, condensed root_groups coefficients,
+root_coverage, denominators and policy/version/status. Each dimension reconciles to
+investment_total_cad with separate resolved/unknown equities, non-company and adjustment
+rows. Never normalize disclosed weights. Merge same-root currencies before coefficients.
 
-`payload.lookthrough.classification` 保存三維度 `dimensions`（完整 rows、兩種 coverage、日期範圍）、逐公司 `components`（原始分類及 assignments/evidence）、凝縮 `root_groups` 係數、`root_coverage`、分母與 policy/version/status。每維度合計必須等於 investment_total_cad；已解析股份、未知股份、非公司及調整分開，不正規化公開權重。相同根持倉跨幣別先合併，避免係數重複。
+classification_reports.report_section/workbook_tables/write_exports share this result;
+existing layers call them, with exports linked from lookthrough_reports.write_exports.
+allocation-exposure.csv and classification-detail.csv use UTF-8 BOM/fractional ratios;
+assignment JSON contains dates, official URLs, source funds, status and method.
+reporting._charts produces three same-run PNGs shared across formats.
 
-`classification_reports.report_section()`、`workbook_tables()` 及 `write_exports()` 共用該結果；前兩者由既有報告層調用，後者被 `lookthrough_reports.write_exports()` 連動。輸出新增 `allocation-exposure.csv` 與 `classification-detail.csv`，後者 assignments JSON 包含日期、官方網址、來源基金、狀態與方法。完整 CSV 為 UTF-8 BOM、比例為小數分數。三張 PNG 由 `reporting._charts()` 生成，ODS 與 MD／PDF 共用。
+Save classification in lookthrough_runs.payload_json without schema migration.
+run_id still checks valuation fingerprint; older analysis without classification
+replays original reports, newer analysis replays saved classifications without today's
+data. Optional manifest.classification records version/status/coverage/dates/exports.
+Analysis refresh does not add financial history or flows.
 
-分類隨既有 `lookthrough_runs.payload_json` 保存，沒有 schema 遷移。`attach_analysis(..., run_id=...)` 保留同估值指紋檢查：舊保存分析缺 classification 時仍可重播原報告，新版直接離線重播已凍結分類，不重新套今日資料。manifest 的可選 `classification` 含版本、狀態、各維度覆蓋／日期與新增匯出檔名。正式金融歷史及資金流不因分析刷新而新增。
+## Pre-Bull opening and unknown actual costs
 
+`crypto_opening.import_opening(project, json_path, source_account='bullbitcoin-main')`
+reads explicit total-wallet BTC+LBTC, calculates completed buys at reference_as_of and
+fixes the difference as attributed pre-Bull quantity. Validate finite/nonnegative
+satoshi precision, timezone/scope and total >= buys. Same account/source SHA deduplicates;
+new buys never recompute opening. Require imported Bull ledger with intact evidence.
 
-## 使用 Bull 前的期初量與未知實際成本
+Archive read-only declaration JSON by date/hash. Append
+crypto_opening_revisions(id, source_account, revision, payload_json, source_path,
+source_sha256, created_at), unique per account/revision, without modifying original
+crypto_accounts.opening_json. CLI backs up first. latest_opening(..., cutoff=None)
+reads latest revision/checksum. applies_from is provided-order tracking boundary,
+not invented acquisition time; earlier cutoffs do not apply it. No reconstructed
+trades/values.
 
-`crypto_opening.import_opening(project, json_path, source_account='bullbitcoin-main')` 讀取明示的全部錢包 BTC＋LBTC 總量，按 `reference_as_of` 計算已完成 Bull 購入，將差額固定保存為使用者指定的 pre-Bull 量。有限、非負、satoshi 精度、時區及範圍必須有效；低於購入量拒絕。同 source_account／來源 SHA-256 重交為 duplicate，不隨新訂單重算。需要已匯入且來源完整性通過的 Bull 帳本。
+Fields include reported_total_btc_equivalent, reference_purchased_btc_equivalent,
+opening_btc_equivalent_qty, declared_on, reference_as_of, applies_from, basis,
+confirmed_by and referenced CSVs. cost_cad/historical_contribution_cad=null,
+network_distribution=unknown, wallet_fees_accounted=false.
 
-原始 JSON 按聲明日期及雜湊唯讀封存。新增 `crypto_opening_revisions(id, source_account, revision, payload_json, source_path, source_sha256, created_at)`，每個來源／revision 唯一，追加而不改原 `crypto_accounts.opening_json`。CLI 匯入前自動 SQLite 備份。`latest_opening(..., cutoff=None)` 唯讀取得最新修訂並核對原始來源 SHA-256。`applies_from` 為已提供 Bull 訂單的追蹤邊界，不是推定取得日期；更早截止不套此筆期初。此介面不回建歷史買入或市值。
+make_crypto_view adds opening/purchased/opening equivalent quantities; without a
+wallet anchor total is fixed opening + completed buys. qty_btc/qty_lbtc/monthly/orders
+still describe Bull buys only. No invented Funding/Buy/flows/acquisition month.
 
-payload 記錄 reported_total_btc_equivalent、reference_purchased_btc_equivalent、opening_btc_equivalent_qty、declared_on、reference_as_of、applies_from、basis、confirmed_by 及參照原始 CSV。cost_cad、historical_contribution_cad 均為 null，network_distribution 為 unknown；wallet_fees_accounted 為 false。
+combined.py retains value/FX, but unknown opening makes complete CRYPTO book_native/
+book_cad/avg_cost/unrealized_native/unrealized_pct and affected native cost/P&L totals
+null. valuation also stores known_bull_cost_cad, opening_market_cad,
+bull_purchase_market_cad and cost_status. _partial_summary is combined-only, not a
+brokerage cost change. ODS actual fields use unknown text, never SUMIFS zeros. Explicit
+proxy estimates stay separate from actual payload fields.
 
-`make_crypto_view()` 新增 opening、purchased_btc_equivalent_qty、opening_btc_equivalent_qty；btc_equivalent_qty 為固定期初加完成購入。qty_btc／qty_lbtc、monthly 與原始 orders 仍只描述 Bull 購入。期初沒有新增 Funding、Buy、cash_flows 或偽造交易月份。
+scope_id includes opening_revision_id. Backfill/revision creates a new comparison
+baseline; preserve combined_observations/reports. No-input regeneration retains
+cutoff/frozen quotes. New scope changes valuation fingerprint, requiring new official
+ETF analysis, not an incompatible frozen replay.
 
-`combined.py` 保留市值及三幣換算，但未知期初成本時完整 CRYPTO 的 book_native／book_cad／avg_cost／unrealized_native／unrealized_pct，以及受影響原幣成本／損益合計均為 null。valuation 額外保存 known_bull_cost_cad、opening_market_cad、bull_purchase_market_cad 及 cost_status。`_partial_summary` 僅用於合併視圖，不改券商成本邏輯。ODS 持倉資料及組合分析必須以未知文字呈現相關實際欄位，不用 SUMIFS 的零值表示已知完整成本。選用 `bull_average_proxy` 時，BTC 主表另用上節 btc_cost_estimate 的全持倉推估，不覆寫實際 payload。
+## Wallet and operation APIs
 
-組合 scope_id 納入 opening_revision_id；補登及更正另立比較基準，舊 combined_observations 與舊報告保存。沒有新 CSV 的重產沿用最後估值時間、凍結價格與匯率；新增資產改變估值指紋，須重新取得官方 ETF 分析，不能套用舊指紋的 frozen replay。
+`wallet.add_balance(project, amount, as_of, source=..., time_basis=..., replaces=..., now=...)`
+saves all-wallet equivalents; equal-time duplicates deduplicate, changed quantities
+need revision. wallet.add_event needs type/quantity_btc/occurred_at/source/reference,
+optional balance_id. own_transfer/conversion have zero net quantity.
 
-## BTC 餘額／異動與操作 API
+`wallet.revise(... expected_revision, reason, action)` appends revisions; identity
+fields cannot change, requiring void/replacement. records/get_record/balance_detail/
+revision_history are read-only. wallet.make_crypto_view(project, cutoff, strict=True)
+wraps Bull with anchor/reconciliations/events/full-ledger expectation/unresolved state;
+only post-anchor events change reported quantity. Unknown history, negative holdings
+or archive-integrity contradictions may block valuation.
 
-`wallet.add_balance(project, amount, as_of, source=..., time_basis=..., replaces=..., now=...)` 保存全部錢包 BTC＋LBTC 等值；同時刻去重，數量衝突須明確修訂。`wallet.add_event` 需 type、quantity_btc、occurred_at、source、reference，可選 balance_id；零淨量 own_transfer／conversion 不扣持倉。
+operations.atomic_data validates importers in isolated SQLite, then installs via one
+transaction. Source bytes remain intact; failed data stages leave no partial formal
+records. execute_update separates commit/publication and saves request/result/fixed
+cutoff/fingerprint/publication in update_operations. Resume reuses accepted inputs,
+not original CSVs; reference overrides are archived. Later input revisions expire
+unpublished operations; published retries return saved results.
 
-`wallet.revise(... expected_revision, reason, action)` 追加修訂；kind 的身分欄位不可改，錯誤身分作廢後替代。records／get_record／balance_detail／revision_history 為唯讀。`wallet.make_crypto_view(project, cutoff, strict=True)` 包裝原 Bull 帳本；回傳 anchor、reconciliations、events、完整帳本預期及待釐清狀態，觀測後事件才加到回報量。未知歷史／負持倉／封存完整性矛盾可停止估值。
+Data-only APIs never publish. CLI uses project_lock/backup/operations; direct mutation
+callers must arrange backup/locking/batch safety. prepare_update can consume committed
+accepted input; formal CLI does not use it to commit external inputs one by one.
+No API/CLI needs an LLM.
 
-`operations.atomic_data` 以隔離暫存庫驗證既有匯入器，再用單一 SQLite 交易安裝資料；來源檔案保持原樣，資料失敗不留下部分正式紀錄。`execute_update` 分資料提交與報告發布兩階段；request、result、固定截止、輸入指紋及發布結果在 update_operations。resume 使用保存 inputs，不重讀原 CSV；參考覆寫 JSON 另封存。輸入修訂使未發布作業過期；published 作業重試直接回傳結果。
+Wallet tables initialize on first write: wallet_records stores stable identity/source
+keys; wallet_revisions appends declarations; wallet_links relates event revisions to
+selected/prior balances via foreign keys; wallet_balance_slots enforces one active
+same-scope/UTC observation. Presentation is America/Toronto; DB/evidence retain UTC/
+original times and explicit/execution_time basis.
 
-唯資料 API 本身不發布報告；CLI 使用 project_lock、事前備份及 operation 記錄。直接使用 mutating API 的呼叫端須自行安排備份／互斥及整批操作。prepare_update 可接 accepted 已提交輸入；正式 update CLI 不以它直接逐筆提交外部輸入。API／CLI 全部不用 LLM。
+crypto.monthly_purchase_price(row) returns Decimal buy_cost_cad/buy_btc_equivalent_qty
+or None for zero quantity. Monthly views serialize average_purchase_price_cad_per_btc
+as string/null. Reports reuse it without new DB columns or transaction changes.
 
-新錢包表第一次寫入時建立：wallet_records 保存穩定身分與來源唯一鍵，wallet_revisions 保存追加來源聲明，wallet_links 以外鍵保存異動修訂與指定／前一餘額關聯，wallet_balance_slots 限制同範圍、同 UTC 時刻只有一筆有效觀測。顯示層按 America/Toronto 呈現，SQLite 及原始聲明仍保留 UTC／原始時間，時間依據 explicit／execution_time 另列。
+## Report publication validation
 
-`crypto.monthly_purchase_price(row)` 以 Decimal 計算 buy_cost_cad／buy_btc_equivalent_qty，數量為零回傳 None。make_crypto_view 的 monthly 列保存 average_purchase_price_cad_per_btc（Decimal 字串／null），報告層沿用同一計算口徑；不改原始交易或建立新資料庫欄位。
+report_checks.validate_report_presentation(payload, output) uses existing pypdf and
+standard XML/JSON/Decimal to check effective opening/quantity, known Bull spend,
+unknown actual complete cost/P&L, policy-specific proxy values/formulas/supplements,
+quantity/fee provenance and reconciliation availability across formats. Unknown
+actual fields cannot have numbers/formulas. Valid zero quantity/gaps remain numeric.
+With backfill, old assumptions stay only in btc-opening-audit.json, which must match
+the payload/declaration. No crypto: not_applicable; success: passed/checks/policy;
+failure: ValueError.
 
+reporting.generate_reports returns supplement filenames and produces opening audit
+JSON for separate opening declarations, including report_as_of, original/effective
+assumptions, quantity/cash states and policy without input/DB mutation. Publisher
+checks after formula validation but before moving bundle/latest. Manifest records
+presentation_validation/reporting.supplements and selected btc_cost_policy; policy
+separates actual-only/proxy validation. Failures preserve operation/cutoff for retry.
 
-## 報告呈現發布檢查
+## Local policy and future adapters
 
-`report_checks.validate_report_presentation(payload, output)` 使用既有 pypdf、標準函式庫 XML／JSON／Decimal，核對 ODS／MD／PDF 的有效期初、總量、已知 Bull 成本、未知實際完整成本／損益、依成本政策適用的 Bull 均價推估數字／公式／附件、數量來源及費用涵蓋、錢包差額可用性。未知成本的持倉資料及組合分析列不得有數值或公式；有效零數量／零差額保持數字。原假設不得出現在已有後補期初的日常報告；另存 btc-opening-audit.json 並核對原假設和有效聲明與 payload 完全一致。無 crypto 回傳 not_applicable，成功回傳 passed／checks／policy，失敗拋出 ValueError。
+settings.btc_cost_policy(project, override=None): explicit override -> local setting
+-> actual_only. Reject unknown policies/invalid TOML. Ignored config/local.toml
+[reporting] btc_cost_policy or --btc-cost-policy chooses the proxy. It is presentation
+only. combined.make_combined_payload attaches cost_estimate_policy after saving
+financial observations; policy changes do not create observations.
+workflow.prepare_update(..., btc_cost_policy=None) passes it through; requests freeze
+resolved policy for retry despite later config changes. See config/local.example.toml.
 
-`reporting.generate_reports()` 額外回傳 supplements 檔名清單，存在獨立期初時產生 btc-opening-audit.json；包含 report_as_of、原始假設、有效聲明、數量／現金假設狀態及成本政策，不更改 payload／SQLite。publish 在既有公式檢查後、移動 bundle 或更新 latest 前呼叫發布檢查；manifest 記錄 presentation_validation 與 reporting.supplements；presentation_validation.btc_cost_policy 記錄本次實際選用政策，policy 區分實際成本限定與 Bull 均價代理檢查。失敗沿用 operation 固定截止重試政策。
+Current CSV detection supports two known formats. fund_sources.REGISTRY is official
+ETF support, not a general arbitrary-source plugin SDK. Future kinds, conflict/
+submission remain planned; SRC-001 canonical contracts are available in
+[adapter design](source-adapters.md);
+arbitrary bank/exchange CSVs cannot replace supported imports.
 
-## 本機成本政策與未來來源介接
+## Locale presentation APIs
 
-`settings.btc_cost_policy(project, override=None)` 依明確 override、本機設定、公開預設 `actual_only` 的順序解析；未知政策及非法 TOML 拒絕。忽略的 `config/local.toml` 可用 `[reporting] btc_cost_policy` 選擇 `bull_average_proxy`；`scripts/update.py --btc-cost-policy` 明確覆寫。此設定只控制報告展示，不改原始金融資料、歷史實際成本或供款。`combined.make_combined_payload` 在金融觀測保存後附加 `crypto.cost_estimate_policy`；切換展示政策不新增資產觀測。`workflow.prepare_update(..., btc_cost_policy=None)` 傳遞選項，CLI 在 request 保存解析後政策供 operation 重試，不因其後本機設定變動改寫該作業口徑。參考例在 `config/local.example.toml`。
+settings.report_locale(project, override=None) reads CLI/local/new/legacy defaults;
+ensure_report_locale_setting(project) saves defaults only during normal locked work.
+Invalid locale fails before submission; legacy defaults zh-TW, new defaults en-CA.
 
-目前股票／Bull CSV 辨識仍是已知兩種格式的流程；ETF 官方資料則有 `fund_sources.REGISTRY`。它們不是通用任意來源 plugin 系統。未來來源 adapter registry／protocol 的資料種類、偵測衝突、命名空間與 canonical records 契約尚待實作，見 [來源介接規劃](source-adapters.md)及 TODO；目前不能以任意銀行或交易所 CSV 取代支援來源。
+i18n.presentation_context uses ContextVar; tr validates named parameters;
+display_payload deep-copies presentation fields without mutating financial inputs.
+SourceText preserves source wording. validate_catalogs checks keys/parameters.
+context.metadata supplies catalog/font SHA and format/render versions.
 
+generate_reports(..., locale=...), build_workbook(..., locale=...) and
+render_preview(..., locale=...) share resources. Direct Python calls without locale
+retain legacy zh-TW compatibility; CLI separately resolves project settings.
+verify_workbook/validate_report_presentation discover ODS metadata or use legacy zh-TW.
+Formula sheet IDs map to localized display names.
 
-## 語系呈現 API
-
-`settings.report_locale(project, override=None)` 純讀取 CLI／本機設定／新舊專案預設；`ensure_report_locale_setting(project)` 僅用於正常加鎖作業保存預設。無效語系在金融提交前拒絕，舊專案保留 zh-TW，新專案 en-CA。
-
-`i18n.presentation_context(locale)` 用 ContextVar 隔離語言；`tr(key, **parameters)` 驗證具名參數。`display_payload(payload)` 深拷貝呈現欄位，不修改 financial payload。`SourceText` 保留來源原文。`validate_catalogs()` 驗證所有 key／參數一致。字型與 catalog SHA、格式／渲染版本由 context.metadata() 提供。
-
-`generate_reports(..., locale=...)`、`build_workbook(..., locale=...)`、`render_preview(..., locale=...)` 使用相同資源；Python 直接呼叫未傳 locale 時保留既有 zh-TW 相容預設。CLI 入口另按專案設定解決預設。`verify_workbook`／`validate_report_presentation` 未指定 locale 時讀取 ODS metadata；舊 ODS 缺 metadata 時維持繁中。公式用穩定 sheet ID 轉為實際表名。
-
-`editions.render_language_edition(source, output, locale)` 僅讀保存 bundle，輸出新版本；data.json 原位元不變，不存取帳本／網路／latest。manifest 記錄原 checksum／金融指紋與新呈現版本；舊 manifest 缺 checksum 時明列較弱的 metadata consistency。詳見 [語系契約](i18n-plan.md)。
+editions.render_language_edition(source, output, locale) reads a saved bundle into a
+new output, preserving data.json bytes without DB/network/latest access. Manifest
+records source checksum/fingerprint and new presentation version; missing legacy
+checksums disclose weaker metadata consistency. See [locale contract](i18n-plan.md).

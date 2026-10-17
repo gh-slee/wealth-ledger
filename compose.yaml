@@ -1,0 +1,56 @@
+services:
+  web:
+    image: wealth-ledger:local
+    build:
+      context: ${WEALTH_LEDGER_BUILD_CONTEXT:-./work/docker-context}
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      WEALTH_LEDGER_DATA_ROOT: /data
+      WEALTH_LEDGER_PUBLIC_ORIGIN: ${WEALTH_LEDGER_PUBLIC_ORIGIN:-http://localhost:8000}
+    volumes:
+      - wealth-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=10001,gid=10001,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,urllib.request; origin=os.environ['WEALTH_LEDGER_PUBLIC_ORIGIN']; request=urllib.request.Request('http://127.0.0.1:8000/healthz',headers={'Host':origin.split('://',1)[1]}); urllib.request.urlopen(request,timeout=3).close()"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+  worker:
+    image: wealth-ledger:local
+    pull_policy: never
+    command: ["worker"]
+    environment:
+      WEALTH_LEDGER_DATA_ROOT: /data
+      WEALTH_LEDGER_PUBLIC_ORIGIN: ${WEALTH_LEDGER_PUBLIC_ORIGIN:-http://localhost:8000}
+    volumes:
+      - wealth-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=10001,gid=10001,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  wealth-data:

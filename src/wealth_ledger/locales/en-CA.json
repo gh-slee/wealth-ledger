@@ -1213,6 +1213,7 @@
     "cli.c61acd0a4287": "Invalid translation catalog messages",
     "cli.dda57644410f": "Conflicting document locale metadata",
     "cli.764028d3627d": "Oversized document language metadata",
-    "cli.692ff10271e6": "Only named primitive message parameters are supported"
+    "cli.692ff10271e6": "Only named primitive message parameters are supported",
+    "cli.operation_retry.workspace": "Data saved; report not published. Operation {operation}; valuation {valuation}. Retry: {retry}. Cause: {cause}"
   }
 }

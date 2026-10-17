@@ -1,59 +1,79 @@
-# 合成範例與離線示範
+# Synthetic examples and offline demo
 
-這個目錄完全使用虛構資料，可公開分享及重複測試。CSV、帳戶識別碼、訂單、價格、匯率與 ETF 成分都不能當成真實金融紀錄。
+This directory contains invented data that can be shared and tested publicly.
+CSVs, account IDs, orders, prices, FX and ETF constituents are not financial records.
 
-## 檔案
+## Files
 
-| 檔案 | 用途 |
+| File | Purpose |
 |---|---|
-| `data/wealthsimple-holdings.csv` | 模擬 TFSA、RRSP 與 Non-registered 的 CAD／USD 證券及現金快照 |
-| `data/bull-orders.csv` | 模擬一筆 CAD Funding、BTC 與 LBTC 各一筆已完成購入；訂單沒有真實錢包地址 |
-| `data/fx.json` | 模擬 CAD／USD／TWD 匯率，與範例估值日期相符 |
-| `data/btc-price.json` | 模擬同截止時間的 BTC-USD 一分鐘完成 K 線，不是官方行情 |
-| `templates/cash_flows.csv` | 供款及轉移的空白欄位模板 |
-| `templates/btc_events.csv` | BTC 費用、收入及支出等異動的空白欄位模板 |
-| `../config/bull-opening.example.json` | 明確的虛構 Bull 零期初聲明；開始用自己的 CSV 前需根據自己的歷史修改 |
+| `data/wealthsimple-holdings.csv` | Simulated CAD/USD securities and cash in TFSA, RRSP and Non-registered accounts |
+| `data/bull-orders.csv` | One CAD Funding and completed BTC/LBTC purchases, without real wallet addresses |
+| `data/fx.json` | Invented CAD/USD/TWD FX matching the demo valuation date |
+| `data/btc-price.json` | Invented completed one-minute BTC-USD candle at the cutoff, not official pricing |
+| `templates/cash_flows.csv` | Empty contribution/transfer field template |
+| `templates/btc_events.csv` | Empty BTC fee/income/outflow event field template |
+| `../config/bull-opening.example.json` | Explicit invented Bull zero-opening declaration; adapt it to your own history before using real CSVs |
 
-## 生成 ODS、Markdown 與 PDF
+## Generate ODS, Markdown and PDF
 
-先依主 README 安裝相依套件。在 repository 根目錄執行：
-
-```bash
-.venv-portable/bin/python examples/demo.py --output work/demo
-```
-
-結果包括 `portfolio.ods`、`report.md`、`report.pdf`、PNG 圖表、CSV 分析附件及 `demo-manifest.json`。ODS／PDF 使用隨專案提供的中文字型，不需 LibreOffice、LLM 或其他本機應用程式。Markdown 的圖表連結為相對路徑，分享時保留同一輸出目錄。
-
-示範在系統暫存目錄建立獨立 SQLite，結束時清除；只把合成報告複製到指定輸出目錄。不讀取正式資料庫、`config/local.toml` 或既有報告；不查詢網路、不修改 `reports/latest.json`。已有同名輸出目錄會拒絕覆寫，請改用新的路徑。
-
-ETF 成分由程式提供虛構公司與配置，保存模式標示為 `synthetic_demo`，來源不是官方資料。這不是正式 `scripts/update.py` 的公開行情流程，不能以此確認官方網站仍可連線。
-
-## BTC 成本政策
-
-新帳本預設 `actual_only`：不將後來的 Bull 均價自動套用未知期初量。已知 Bull 購入支出仍會列出。
-
-若要檢查可選的全數量 Bull 均價代理：
+Install the locked dependencies as described in the main README. From the repository root:
 
 ```bash
-.venv-portable/bin/python examples/demo.py --output work/demo-proxy --btc-cost-policy bull_average_proxy
+python examples/demo.py --output work/demo
 ```
 
-此選項只影響示範的報告估算，不把估算成本寫成實際成本。正式工具的選項與本機設定方式見 [操作手冊](../docs/user-manual.md)。
+Outputs include `portfolio.ods`, `report.md`, `report.pdf`, PNG charts, CSV analysis
+supplements and `demo-manifest.json`. ODS/PDF use bundled fonts and require no
+LibreOffice, LLM or other local application. Markdown chart links are relative;
+keep the output directory together when sharing it.
 
-## 使用自己的資料
+The demo creates an isolated SQLite database in a system temporary directory and
+removes it on exit; only synthetic reports are copied to the chosen output. It
+never reads the real DB, `config/local.toml` or existing reports, queries the network
+or modifies `reports/latest.json`. An existing output directory is rejected; choose
+a new path rather than overwriting it.
 
-請把範例與正式帳本分開。不要先將示範 CSV 匯入日常帳本，再以真實 CSV 覆蓋；歷史資料是追加保存。首次 Bull 匯入需要明確的期初聲明，不能因為沒有歷史紀錄就擅自填零。
+Code supplies invented ETF companies/allocations, marked `synthetic_demo` in saved
+evidence. These are not official holdings. This is separate from the public-data
+workflow in `scripts/update.py` and cannot verify that issuer websites remain reachable.
 
-資料模板只包含欄位名稱。把填入個人資料後的檔案放在 `data/` 或私人輸入目錄，不能把它提交回 `examples/`。每次正式更新、餘額觀測及供款操作的完整範例見操作手冊。
+## BTC cost policy
 
+New ledgers default to `actual_only`: a later Bull average is not automatically
+applied to an opening quantity with unknown cost. Known Bull purchase spend is shown.
+
+To exercise the optional whole-quantity Bull average proxy:
+
+```bash
+python examples/demo.py --output work/demo-proxy --btc-cost-policy bull_average_proxy
+```
+
+This affects report estimates, not actual recorded costs. See the
+[user manual](../docs/user-manual.md) for production CLI and local configuration.
+
+## Use your own data
+
+Keep demonstrations separate from real ledgers. Do not import demo CSVs into your
+daily ledger and then replace them with real data: history is append-only. First
+Bull import requires an explicit opening declaration; missing history does not
+justify inventing a zero opening.
+
+Templates contain field names only. Store filled personal versions in `data/` or a
+private input directory and never commit them back to `examples/`. The manual covers
+normal updates, balance observations and contributions.
 
 ## Report languages
 
-The demo defaults to English (`en-CA`). Select `--locale zh-TW` or `--locale zh-CN` with a new output path for each run:
+The demo defaults to English (`en-CA`). Select `--locale zh-TW` or `--locale zh-CN`
+with a new output path for each run:
 
 ```bash
 python examples/demo.py --output work/demo-tc --locale zh-TW
 python examples/demo.py --output work/demo-sc --locale zh-CN
 ```
 
-Each run uses an isolated synthetic ledger, bundled fonts, and offline references. Source names and machine exports stay unchanged. The demo's manifest/data can also be used by scripts/render_report.py for an offline alternate language edition; it remains synthetic demonstration data.
+Each run uses an isolated synthetic ledger, bundled fonts and offline references.
+Source names and machine exports remain unchanged. Saved demo data/manifest also
+support an offline alternate-language edition through `scripts/render_report.py`;
+the results remain synthetic demonstrations.

@@ -7,6 +7,7 @@ import sys
 
 from .i18n import legacy_text, presentation_context, normalize_locale, LocalizationError, DEFAULT_LOCALE
 from .settings import report_locale
+from .workspace import workspace_from_args
 
 
 def selected_locale(project, argv=None):
@@ -44,6 +45,8 @@ class LedgerArgumentParser(argparse.ArgumentParser):
             super().__init__(*args, **kwargs)
             self._positionals.title = legacy_text("positional arguments")
             self._optionals.title = legacy_text("options")
+        self.add_argument("--workspace", default=argparse.SUPPRESS,
+                          help="Existing private portfolio directory; omit for legacy checkout-local use")
         self.add_argument("--locale", default=argparse.SUPPRESS,
                           help="Choose en-CA, zh-TW or zh-CN; aliases en, zh-Hant and zh-Hans are accepted")
 
@@ -64,7 +67,10 @@ class LedgerArgumentParser(argparse.ArgumentParser):
 
 
 def make_parser(project, **kwargs):
-    return LedgerArgumentParser(locale=selected_locale(project), **kwargs)
+    workspace = workspace_from_args(project)
+    parser = LedgerArgumentParser(locale=selected_locale(workspace.workspace_root), **kwargs)
+    parser.workspace = workspace
+    return parser
 
 
 def run_main(function, project):
@@ -73,12 +79,9 @@ def run_main(function, project):
     except (ValueError, OSError) as exc:
         # Errors are rendered only after the financial operation returns.
         try:
-            locale = selected_locale(project)
+            locale = selected_locale(workspace_from_args(project).workspace_root)
         except ValueError:
-            try:
-                locale = report_locale(project)
-            except ValueError:
-                locale = DEFAULT_LOCALE
+            locale = DEFAULT_LOCALE
         with presentation_context(locale):
             text = legacy_text(str(exc))
             print(legacy_text("error") + ": " + text, file=sys.stderr)

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from .i18n import tr, LabelCatalog, localized, sheet_title, legacy_text, current_context, font_path
 from dataclasses import dataclass, field
+from contextvars import ContextVar
+from functools import wraps
+from threading import RLock
+import tempfile
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from html import escape
@@ -79,12 +83,51 @@ def _font_path() -> Path:
     raise RuntimeError("Set WEALTH_LEDGER_FONT to an embeddable Traditional Chinese TTF font.")
 
 
+_RENDER_LOCK = RLock()
+_CACHE = ContextVar("report_cache", default=None)
+
+
+def _with_render_cache(function):
+    @wraps(function)
+    def render(*args, **kwargs):
+        with _RENDER_LOCK:
+            cache = _CACHE.get()
+            if cache is None:
+                with tempfile.TemporaryDirectory(prefix="wealth-ledger-chart-cache-") as temporary:
+                    return _cached_render(function, Path(temporary), args, kwargs)
+            return _cached_render(function, Path(cache), args, kwargs)
+    return render
+
+
+def _cached_render(function, cache, args, kwargs):
+    locations = {"MPLCONFIGDIR": cache / "matplotlib", "XDG_CACHE_HOME": cache / "system"}
+    previous = {key: os.environ.get(key) for key in locations}
+    getters = {}
+    try:
+        for key, path in locations.items():
+            path.mkdir(parents=True, exist_ok=True)
+            os.environ[key] = str(path)
+        import matplotlib
+        # The pinned Matplotlib memoizes these getters in closures, not lru_cache.
+        # Scope the public getters under the plotting lock, then restore identities.
+        for name in ("get_cachedir", "get_configdir"):
+            getters[name] = getattr(matplotlib, name)
+            setattr(matplotlib, name, lambda: str(locations["MPLCONFIGDIR"]))
+        with matplotlib.rc_context():
+            return function(*args, **kwargs)
+    finally:
+        if getters:
+            for name, getter in getters.items():
+                setattr(matplotlib, name, getter)
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+@_with_render_cache
 def _charts(payload: dict, directory: Path, font_path: Path) -> dict[str, Path]:
-    cache = Path(__file__).resolve().parents[2]/"work/cache"
-    (cache/"matplotlib").mkdir(parents=True,exist_ok=True)
-    (cache/"system").mkdir(parents=True,exist_ok=True)
-    os.environ.setdefault("MPLCONFIGDIR",str(cache/"matplotlib"))
-    os.environ.setdefault("XDG_CACHE_HOME",str(cache/"system"))
     import matplotlib
     matplotlib.use("Agg")
     from matplotlib import pyplot as plt
@@ -805,14 +848,18 @@ def _pdf(sections: list[ReportSection], payload: dict, output: Path, font_path: 
 
 
 @localized
-def generate_reports(payload: dict, output_dir: Path) -> dict:
+def generate_reports(payload: dict, output_dir: Path, *, cache_directory: Path | None = None) -> dict:
     """Create shared PNG charts, Markdown and a font-embedded PDF report."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True,exist_ok=True)
     from .i18n import display_payload, current_context
     display = display_payload(payload)
     font = _font_path()
-    chart_paths = _charts(display,output_dir/"charts",font)
+    token = _CACHE.set(cache_directory)
+    try:
+        chart_paths = _charts(display,output_dir/"charts",font)
+    finally:
+        _CACHE.reset(token)
     sections = _sections(display,chart_paths)
     for section in sections:
         section.title = legacy_text(section.title)

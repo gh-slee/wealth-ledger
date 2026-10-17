@@ -1,22 +1,43 @@
-# 可攜式 ODS 試算表
+# Portable ODS workbook
 
-每次正式匯入會產生 `portfolio.ods`。券商專屬報告包含資產總覽、幣別持倉、帳戶持倉、組合分析、圖表分析、歷史追蹤、資金流、持倉資料及匯率與說明共九個工作表；目前股票與 BTC 合併報告另含「比特幣追蹤」與「BTC餘額對帳」，共十一個工作表。
+Each formal import produces `portfolio.ods`. Broker-only reports contain nine sheets:
+overview, currency holdings, account holdings, portfolio analysis, chart analysis,
+history, cash flows, position data, and FX/notes. Combined securities/BTC reports add
+BTC tracking and BTC reconciliation, for eleven sheets. Display names are localized.
 
-原始持倉資料與凍結匯率提供計算來源。各帳戶及整體資產顯示 CAD、USD、TWD 等值；證券成本與未實現損益保留原幣。各幣別及各帳戶表另列原幣證券小計，現金列在總覽。具有相同帳戶類型的不同帳戶使用資料庫提供的帳戶標籤區分。
+Raw holdings/frozen FX supply calculations. Portfolio/accounts show CAD/USD/TWD
+equivalents; security cost/unrealized P&L stay in native currency. Currency/account
+tables include native-security subtotals; cash is in the overview. DB account labels
+distinguish separate accounts of the same type.
 
-ODS 內的匯率換算、帳戶合計、證券彙總、加權平均成本、未實現報酬率、集中度及權重矩陣使用儲存格公式。歷史快照採各期已保存的數值，修改本期匯率不會改寫過去紀錄。正式資料及歷史仍由 SQLite 管理；ODS 內的手動試算不會寫回資料庫。
+FX, account totals, security aggregation, weighted average cost, unrealized return,
+concentration and weight matrices use cell formulas. History uses saved period
+values, unaffected by editing current FX. SQLite remains the authoritative ledger;
+manual workbook scenarios do not write back.
 
-圖表分析包含八類分析：帳戶金額、交易幣別配置、證券市值排名、證券與帳戶分布、原幣未實現損益、原幣未實現報酬、工具類型配置及帳戶權重熱圖。第二個不同日期觀測後另加入歷史市值圖。圖表使用同一輪報告的 PNG，依原圖比例直接嵌入 ODS，避免手寫原生圖表物件在讀取器中的顯示差異；CAD／USD 原幣損益使用分開的面板。儲存格熱圖仍使用條件樣式。交易幣別配置不等於 ETF 底層地區或貨幣風險。
+Eight chart categories cover account values, trading currencies, security rankings,
+security/account distribution, native P&L, native return, instrument types and account
+weight heatmaps. A second distinct-date observation enables historical values.
+Embed same-run PNGs at original aspect ratios instead of hand-written native charts
+with reader-dependent rendering. Native CAD/USD P&L use separate panels. Cell heatmaps
+use conditional styles. Trading currency is not underlying ETF country/currency risk.
 
-只有第一期資料時，歷史追蹤列出基準且不產生虛構成長曲線。資金流尚未提供時，標示缺資料，不視為沒有投入或出金。現金 CAD 帳面成本異常保留原值並列為資料品質問題；估值採原幣現金市值，現金不參與成本及未實現損益分析。
+With only one observation, show the baseline without a fabricated growth curve.
+Missing flows mean missing data, not no contributions. Preserve anomalous CAD cash
+book values as quality findings; value cash by native market value and exclude it
+from cost/P&L analysis.
 
-正式封裝器只使用 Python 標準函式庫，直接寫入標準 OpenDocument 1.2 格式；PNG 由專案的 Matplotlib 流程產生。不依賴 LibreOffice、Node.js、Codex 快取或平台專用執行檔。LibreOffice 或其他支援 ODS 的試算表軟體僅用於開啟、檢視及重新計算表格公式。
+The ODS packager writes OpenDocument 1.2 with Python's standard library; Matplotlib
+creates PNGs. It requires no LibreOffice, Node, Codex cache or platform executable.
+ODS readers are only needed to open/inspect/recalculate formulas. Every formula
+includes a numeric cache calculated from the same inputs. PNGs live in `Pictures/`,
+so the workbook is self-contained. P&L/return charts retain negative ranges.
 
-每個公式另保存以相同來源計算的數值快取，讓尚未重新計算的讀取器仍能顯示正確結果。圖表 PNG 保存於 ODS 的 `Pictures/`，檔案自成一體，不依賴外部圖檔或閱讀軟體的中文字型。未實現損益及報酬圖保留負值範圍。
+Charts are static images without editable series or live redraw after cell edits.
+`scripts/update.py` regenerates reports/charts from the ledger. Formulas/manual
+scenarios remain available; original CSV/SQLite remain authoritative.
 
-圖表是靜態分析圖片，不能在 ODS 中編輯圖表系列；修改儲存格不會即時重畫。執行 `scripts/update.py` 會從 SQLite 重新產生全部圖表與報告。ODS 表格公式及手動試算仍保留，正式資料以來源 CSV 和 SQLite 為準。
-
-## Python 介面
+## Python interface
 
 ```python
 from pathlib import Path
@@ -26,66 +47,142 @@ result = build_workbook(payload, Path("portfolio.ods"), chart_images=report_resu
 checks = verify_workbook(Path("portfolio.ods"), payload["totals"]["total_cad"])
 ```
 
-`report_result` 由 `reporting.generate_reports()` 取得，`charts` 為圖表名稱到 PNG 路徑的映射。未提供 `chart_images` 時由 Python 依目前資料重新產生，避免沿用過期圖片；不產生空白圖表占位。程式讀取 JSON 報告資料，不直接匯入 CSV 或修改 SQLite。正式匯入及報告更新應透過專案的更新指令執行。
+`report_result` comes from `reporting.generate_reports()`; `charts` maps names to PNG
+paths. Without `chart_images`, Python regenerates charts from current data rather
+than reusing stale files or blank placeholders. This API consumes report JSON;
+it does not import CSV/write SQLite. Formal changes use the update CLI.
 
-每次匯出會核對報告總額、工具類型合計、ZIP 包裝、公式快取、圖表圖片與套件清單、圖片比例／位置及所有 XML 的可解析性；另核對內嵌圖像與同輪報告 PNG 完全一致。開發驗證使用 OASIS 官方 ODF 1.2 Relax NG 規格檢查各工作表、樣式、設定及套件清單。ODS 在各試算表軟體的顯示及重新計算行為由該軟體處理。
+Export checks cover totals, instrument sums, ZIP packaging, formula caches, image/
+manifest relationships, aspect/placement, parseable XML and byte-identical same-run
+PNGs. Development uses official OASIS ODF 1.2 Relax NG schemas for sheets, styles,
+settings and package manifests. Reader-specific display/recalculation still needs
+acceptance in that reader. See [OASIS OpenDocument 1.2](https://docs.oasis-open.org/office/v1.2/os/OpenDocument-v1.2-os.html).
 
-修改當期原始市值或匯率可用於表格試算；原始市值與未實現損益是來源觀測值，僅修改數量／市價不會自動重寫這兩個來源欄位。每次新 CSV 匯入會重新建立完整的持倉與分析圖像。
+Editing current raw market value/FX supports scenarios. Market value and unrealized
+P&L are source observations; editing quantity/price alone does not rewrite those two
+source fields. A new CSV rebuilds complete holdings/analysis images.
 
-規格來源：[OASIS OpenDocument 1.2](https://docs.oasis-open.org/office/v1.2/os/OpenDocument-v1.2-os.html)。
+ODS embeds the selected font/license, with Latin/Asian styles. Chart counts depend
+on actual inputs/history, not a fixed personal report. Crypto adds BTC tracking and
+two BTC charts; CRYPTO enters totals/instrument types but not native CAD/USD security
+tables. Reader font support varies; rasterized PNG labels are unaffected.
 
-ODS 同時嵌入 `Fonts/NotoSansTC-Regular.ttf` 與授權，文字樣式指定拉丁及亞洲字型。開發可使用隔離閱讀環境驗證中文與內嵌圖像；圖數依實際資料及可用歷史而定，不以某個本機報告版本固定規格。含 crypto 的合併報告增加「比特幣追蹤」工作表及兩張 BTC 圖；`CRYPTO` 納入總值與工具分類，原幣 CAD／USD 證券明細排除此估值代理。讀取器對內嵌字型的支援依軟體而定；PNG 標籤不受其影響。
+## ETF company exposure supplements
 
+Portfolio analysis retains security rankings/matrices and adds Top 20 companies:
+rank 1-20, company, direct/ETF indirect CAD, total CAD/USD/TWD and three denominator
+weights. Saved constituent coefficients/paths, fund coverage and official sources
+remain visible. Company amounts reference position-data CAD formulas. The principal
+denominator is noncash investments; the equity denominator uses resolved ETF company
+weights/direct stocks. Use disclosed weights without automatic rescaling.
 
-## ETF 公司穿透附表
+Sources/order are frozen. Workbook edits do not redownload official holdings or
+redraw PNGs; run a formal update. Chart analysis adds `12_company_exposure` with
+stacked direct/ETF weights. Image/font/cache/ODF checks continue; incomplete/unresolved
+sources and frozen replay are explicit, never silently zero.
 
-「組合分析」保留原有排名／矩陣，追加前 20 大公司；表格第一欄為排名 1–20，之後為公司、直接／ETF 間接 CAD、合計 CAD／USD／TWD、三種分母比例。另有保存的成分權重／計算路徑、各基金覆蓋率和官方來源。公司金額連動「持倉資料」CAD 公式；主分母連動非現金投資，股份分母連動各基金已解析公司比重及直接股票總值。公司股份以官方公布權重為輸入，不自動重新縮放。來源及當期排序已保存；編輯工作表不會重新下載官方成分或重繪 PNG，請用 update.py 正式更新。
+## Sector, country and region supplements
 
-「圖表分析」增加 12_company_exposure 直接／ETF 間接占比堆疊 PNG。原有圖表檢查、字型內嵌、公式快取獨立求值、ODF 結構驗證繼續套用。未解析、不完整來源及離線保存版重播在表格明示；未知不當零。
+Portfolio analysis includes complete GICS, official country/market and region tables:
+CAD/USD/TWD, weights against all noncash investments/resolved company equities,
+saved classification coverage/effective-date range, root-position coverage and audit
+coefficients. ODS keeps all countries; MD/PDF's Top 15 summary does not truncate it.
 
-## 產業／國別／地區附表
+Classification coefficients multiply root position-data CAD values, aggregate by
+dimension/category with `SUMIFS`, then convert to USD/TWD. Merge the same MIC/Symbol
+across trading currencies before computing root coefficients to avoid duplicate
+weights. Equity denominators include unclassified equities. Investment denominators
+exclude account cash but retain BTC, ETF cash and unknowns. Non-company equity
+weights are not applicable. Coefficients/dates/coverage are frozen inputs; amounts/
+principal weights are formulas. Manual changes do not update saved coverage/order/images.
 
-「組合分析」追加 GICS 產業、官方國別／市場及地理區域三組完整表：CAD／USD／TWD、占全部非現金投資與占已解析公司股份、保存時分類覆蓋／有效日期範圍、各根持倉覆蓋，以及可審核計算係數。國別保留完整清單；Markdown／PDF 的前 15 國摘要不縮減 ODS 內容。
+Charts add `13_sector_exposure`, `14_country_exposure`, `15_region_exposure`.
+Actual formula/chart counts depend on history, policy and observations; consult the
+manifest. Preserve tiny negative rounding adjustments and separate unclassified,
+non-company net amounts and unknowns. `classification-detail.csv` traces original/
+borrowed classifications; `allocation-exposure.csv` contains complete three-currency
+allocations. Older saved analysis without classification gets no fabricated tables/charts.
 
-分類金額使用根持倉的分類係數乘以「持倉資料」CAD 合計，依維度／類別用 `SUMIFS` 彙總，再換成 USD／TWD。相同 MIC／Symbol 的不同交易幣別合併成根持倉後計算係數，避免重複乘權重。公司股份分母包含未分類股份；投資分母排除帳戶現金而保留 BTC／ETF 現金／未知項。非公司項目的公司占比顯示不適用。保存係數、來源日期與覆蓋率為當輪輸入，金額與主要占比為公式；手動調整不重查分類或更新保存時覆蓋、排序與 PNG。
+## Backfilled BTC opening and unknown actual costs
 
-「圖表分析」同輪新增 `13_sector_exposure`、`14_country_exposure`、`15_region_exposure` 三張 PNG；圖數及公式數依歷史點、成本政策與觀測資料而變，實際值以各報告 manifest 為準。微小負的四捨五入差額保留精度，未分類、非公司淨額與未知另列。原始分類與轉用證據見 `classification-detail.csv`，完整三幣配置見 `allocation-exposure.csv`。舊保存分析未含 classification 時不追加這些表或圖。
+Without observations, CRYPTO quantity/value includes fixed opening, completed Bull
+purchases and known net events. Otherwise use the latest applicable balance plus
+later events. If opening actual cost is unknown, position-data/portfolio actual
+complete cost, average cost, P&L/rate remain unknown text without formulas. Explicit
+`bull_average_proxy` adds separate proxy formulas in BTC tracking. `SUMIFS` ignoring
+text must not create false zero cost. Values/weights/FX keep their formulas.
 
+BTC tracking shows known Bull spend, raw BTC/LBTC deliveries, backfilled equivalent
+opening, declared total/reference buys, declaration date, cutoff, source and SHA-256.
+Original Bull opening assumptions go to `btc-opening-audit.json`, marked as excluding
+the backfill, rather than the everyday main table. Monthly accumulation charts show
+real purchases, not invented acquisition months. Opening revisions create a separate
+comparison scope; one new-scope observation cannot create a history curve.
 
-## 後補期初 BTC 與未知成本
+## BTC reconciliation sheet
 
-尚無觀測時 CRYPTO 數量及三幣市值包含固定期初、Bull 已完成購入與已知淨異動；有觀測則按最近適用餘額與其後異動。持倉資料及組合分析的實際完整成本、平均成本、損益及損益率，在期初成本未知時保存「未知」文字並移除相關公式；明確選用 `bull_average_proxy` 時，比特幣追蹤另列下節的代理公式，不把 SUMIFS 忽略文字產生的零值當成完整成本。市值、權重及三幣換算仍保留公式。
+Keep BTC tracking and other sheets. Quantities use eight-decimal `btc_quantity`;
+remaining-gap formulas reference each row's reported/expected quantities. Unknown
+expectations are text, not zero. First-recorded/latest recalculated results and event
+sources/references are saved generation-time inputs, not editable ledger entries.
 
-比特幣追蹤另外列出 Bull 已知購入成本、原始 BTC／LBTC 交付累計、後補期初等值、聲明總量與參照購入量、聲明日期、計算截止、來源及 SHA-256。原 Bull 起始聲明另存 btc-opening-audit.json 並標示不含後補持倉，不在日常主表列舊假設；每月累計圖仍只畫購入數量，不假設取得月份。期初修訂另立比較基準，只有一個新範圍觀測時不生成歷史曲線，靜態 PNG 數量依實際可用歷史決定。
+With observations, chart analysis embeds `16_btc_wallet_reconciliation`, matching
+MD/PDF inputs. Without observations, create no chart or point. Zero holdings retain
+crypto/account identity with non-applicable zero-denominator weights/rates. Unknown
+wallet/opening actual costs must override position/analysis formulas; None must not
+be cleaned into zero cost or fake profit.
 
-## BTC餘額對帳工作表
+## Monthly BTC average purchase price
 
-含 crypto 的報告新增此工作表，原有比特幣追蹤及其他工作表保留。對帳數量採 btc_quantity（八位小數）；剩餘差額公式引用該列回報／預期量。未知預期為文字，不用零代替。首次記錄值、最新重算值及異動來源／reference 列在同表，均為生成時已保存資料，不以在 ODS 修改儲存格寫回 SQLite。
+BTC tracking adds column J, average CAD/BTC, using same-row CAD spend D / delivered
+BTC equivalent G. `IF` produces n.a. for zero G. Keep raw BTC/LBTC/cumulative quantities;
+show purchase price with two currency decimals. Workbook scenarios do not redraw
+static charts or write SQLite.
 
-有觀測時圖表分析額外嵌入代號 `16_btc_wallet_reconciliation` 的數量比較 PNG，與 MD／PDF 同輪資產一致；沒有觀測不造圖或觀測點。零持有量保留 crypto 列及帳戶身分，零分母權重／比例顯示不適用。未知錢包成本及原有未知期初成本都必須覆蓋來源明細與組合分析公式，不能由 None 清洗成零成本或假損益。
+With backfill, rows 32-39 show effective pre-Bull BTC+LBTC opening, unknown actual
+cost/contributions and declaration date, rather than old zero assumptions. Original
+assumptions/reasons remain in each `btc-opening-audit.json`. Without backfill, the
+applicable original declaration remains visible. Known Bull spend cannot replace
+unknown pre-CSV cost; unknown costs are never zero.
 
-## BTC 每月平均買入價
+## Effective-state and missing-data presentation
 
-比特幣追蹤的每月表在 J 欄追加平均買入價（CAD／BTC），引用同列 CAD 買入支出 D 欄與買入 BTC 等值 G 欄；用 IF 判斷 G＝0 時顯示 n.a.，避免零除。同列 BTC／LBTC 原始交付與累計數量保留，平均買入價採金額格式兩位小數。公式試算不重畫靜態圖表或改寫 SQLite。
+With explicit `bull_average_proxy`, the main BTC table labels whole-holding estimated
+cost/P&L/rate as Bull average estimates. C31=C18/C29 (no buys: n.a.); C9=C8*C31;
+C15=C12-C9; C16=C15/C9 (non-positive estimated cost: n.a.). Without an average, show
+not calculable/reason; with an average and zero holdings, estimated cost/P&L are zero.
+B9/B15/B16 must label both estimation and method. Row 20 explains coverage of opening/
+unexplained differences, not actual complete cost. Preserve monthly heading row 43,
+data from row 44.
 
-有後補期初時，第 32–39 列的主表顯示有效期初 BTC＋LBTC 等值、未知取得成本／歷史投入及聲明日期，不再列原始零假設。原零假設及其依據另存每份報告的 btc-opening-audit.json，不在日常表格列舊零假設。沒有後補期初的帳本仍在主表顯示適用原假設。Bull 已知買入支出另列，不能代替 CSV 以前未知取得成本；不將成本未知填為零。
+C18 stays known Bull purchase spend, separate from whole-holding estimates. The
+opening table keeps actual cost/contributions not supplied. Without observations,
+reconciliation shows not calculated/reason; known zero gaps remain numeric. Actual
+unknown cost/average/P&L in position/analysis tables has no numeric value/formula.
+`btc-cost-estimate.json` stores estimates without altering financial payload/flows/history.
 
+Before latest publication, `report_checks` reads ODS and text reports against the
+payload. Missing/inconsistent fields block latest. Formula-cache/three-currency
+checks remain. This is Python, not office software or runtime LLM validation.
 
-## 有效資料與缺失資料防混淆
+Row 21 uses `wallet_reports.quantity_basis_label` for reported baseline, subsequent
+estimate, formal observation and later-event estimates. Use `wrapped_body` for long
+labels. Row 24 separates event/fee coverage: supplied records only; never estimate
+or deduct unknown fees. Rows 43/44 remain fixed. Three-format checks enforce these
+labels/policies without creating balances or changing financial payloads.
 
-BTC 主表明確選用 `bull_average_proxy` 時顯示「Bull 均價推估」全持倉估算成本／損益／損益率。C31＝C18／C29（零購入為 n.a.），C9＝C8×C31，C15＝C12−C9，C16＝C15／C9（非正估算成本為 n.a.）。沒有參考均價時三項推估用未能計算及原因，不能填零；零持倉而有均價時估算成本／損益為零。B9／B15／B16 必須同時標示估算及 Bull 均價推估，第 20 列說明涵蓋期初與未解釋差額，不是實際完整成本。公式保持原每月表第 43 列標題／第 44 列起資料。
+Default `actual_only` produces no Bull proxy values/formulas. Actual known costs
+remain available; unknowns retain reasons. The opt-in report-layer proxy and method
+supplement cannot contaminate actual source costs. All formats share one policy.
 
-Bull 已知購入支出仍為 C18，不能被估算全持倉成本取代。有效期初表的實際成本／歷史投入仍用未提供；BTC餘額對帳無觀測顯示未計算與理由，有效零差額保持數字。持倉資料及組合分析的實際未知成本／平均成本／損益欄仍不能有數值或公式。推估保存在 btc-cost-estimate.json，來源金融 payload、供款及歷史觀測不因推估修改。
+## Localized sheets and fonts
 
-正式發布前 report_checks 解析 ODS 與兩種文字報告核對 payload，缺失或不一致阻止 latest 更新；所有公式快取與三幣摘要檢查仍保留。這是純 Python 檢查，不使用辦公室軟體或 LLM。
+Sheet names are localized displays, with stable English IDs. Locale controls names,
+charts and notes; generated escaped mappings handle cross-sheet references. Display
+language is not a financial category key. `meta.xml` stores report_locale; styles
+store language/region, and validators discover locale. Numbers/OpenFormula are untranslated.
 
-BTC 主表第 21 列的數量狀態使用 wallet_reports.quantity_basis_label，共同判定回報基準／後續推估／正式餘額及其後淨異動。文字採 wrapped_body，避免長標籤溢出。第 24 列另列異動／費用涵蓋：僅納入已提供紀錄，未知費用不自行估算或額外扣除；每月表仍保持原第 43／44 列。發布檢查核對三格式來源標籤及費用政策，沒有新增餘額或改金融 payload。
-
-公開預設 `actual_only` 不產生 Bull 均價代理數字／公式；實際已知成本照常呈現，未知仍為文字及原因。`bull_average_proxy` 為報告層明確選項，公式及方法附件可用，但不能污染實際成本來源。三種格式依同一政策生成及驗證。
-
-
-## 三語工作表與字型
-
-以上中文表名是 zh-TW 顯示名稱。內部使用英文穩定 ID，locale 選擇 en-CA／zh-TW／zh-CN 後再產生表名、圖表與說明；跨表公式由同一映射跳脫，不以顯示語言作金融分類鍵。ODS meta.xml 保存 report_locale，樣式另保存語言／地區，驗證器可自動讀取 locale。數字與 OpenFormula 不翻譯。
-
-英／繁中使用隨附 Noto Sans TC，簡中使用隨附 Noto Sans SC 與獨立授權。PNG、PDF、ODS 選用同一語系資源。來源證券／公司名稱與自訂文字保留原文。變換語言只另產生呈現，不改原帳本；純語言重繪使用 scripts/render_report.py，見 [語系契約](i18n-plan.md)。
+en-CA/zh-TW use Noto Sans TC; zh-CN uses Noto Sans SC with its separate license. PNG,
+PDF and ODS share locale resources. Security/company names/custom text stay verbatim.
+Use `scripts/render_report.py` for language-only editions without ledger changes;
+see [the locale contract](i18n-plan.md).
