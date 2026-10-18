@@ -57,8 +57,11 @@ class ApplicationService:
             result["pending_report_operations"] = pending
         return result
 
-    def record(self, request, action, *, label):
+    def record(self, request, action, *, label, operation_id=None, expected_fingerprint=None):
         """Shared lock, backup, staged commit and recovery record for data-only edits."""
         with operations.project_lock(self.root):
+            saved = next((row for row in self.operations() if row["operation_id"] == operation_id), None) if operation_id else None
+            if not saved and expected_fingerprint is not None and operations.input_fingerprint(self.root) != expected_fingerprint:
+                raise ValueError("Preview is stale; financial or configuration inputs changed")
             database_backup(self.root, label)
-            return operations.record_data_operation(self.root, request, action)
+            return operations.record_data_operation(self.root, request, action, operation_id=operation_id)

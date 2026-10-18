@@ -49,6 +49,7 @@ import {
   Overview,
 } from "./components/analysis";
 import { Imports } from "./components/imports";
+import { Financial } from "./components/financial";
 import { ReportExports } from "./components/report-exports";
 const navigation = [
   ["overview", ChartNoAxesCombined],
@@ -57,6 +58,7 @@ const navigation = [
   ["history", HistoryIcon],
   ["bitcoin", CircleDollarSign],
   ["imports", Upload],
+  ["records", BookOpen],
   ["reports", FileDown],
   ["settings", SettingsIcon],
 ] as const;
@@ -333,7 +335,9 @@ function PortfolioWorkspace({
     }
   }
   const navPage = navigation.find(([key]) => key === page)?.[0] ?? "overview";
-  const needsReport = !["imports", "reports", "settings"].includes(navPage);
+  const needsReport = !["imports", "records", "reports", "settings"].includes(
+    navPage,
+  );
   const data = report.data;
   return (
     <div className="app-shell">
@@ -483,6 +487,8 @@ function PortfolioWorkspace({
           <>
             {navPage === "imports" ? (
               <Imports portfolio={portfolio} />
+            ) : navPage === "records" ? (
+              <Financial key={portfolio} portfolio={portfolio} />
             ) : navPage === "settings" ? (
               <Settings portfolio={portfolio} />
             ) : navPage === "reports" ? (

@@ -31,7 +31,7 @@ Wealth Ledger is a **self-hosted investment tracking app** with a React/TypeScri
 
 Upload **Wealthsimple holdings**, **Bull Bitcoin orders**, or an optional dated **BTC total**. Review an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data.
 
-**Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; advanced financial forms and verified adoption of existing CLI data remain planned. See [project status](#project-status).
+**Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; financial declaration forms and trusted-host, copy-verified adoption of existing CLI data are implemented. See [project status](#project-status).
 
 ## Features
 
@@ -68,7 +68,7 @@ Open **[http://localhost:8000](http://localhost:8000)**. Sign in as `owner` usin
 
 The `web` and `worker` services share the private `wealth-data` named volume. Initialize the owner once. `docker compose down` retains the volume; deleting the volume removes its data. The sample deployment binds to loopback. For HTTPS, remote access, upgrades, fresh rebuild contexts, and password resets, follow [Web operations](docs/web-operations.md).
 
-**Existing CLI users:** keep your current workspace. Pointing the Web app at an old ledger is not a supported migration. Copy-verified adoption is planned separately.
+**Existing CLI users:** keep your current workspace. Pointing the Web app at an old ledger is not a supported migration. Use the explicit [copy-verified adoption commands](docs/web-adoption.md), preserving the original workspace.
 
 <details>
 <summary><strong>Use the Python CLI or try an offline report demo</strong></summary>
@@ -199,9 +199,9 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | Capability | Status |
 |---|---|
 | Browser login, independent portfolios, import previews/jobs, frozen analysis, registered report downloads | Implemented |
-| CLI contributions/coverage, BTC balances/events/revisions, report recovery | Implemented; advanced Web forms planned |
+| CLI/Web contributions/coverage, BTC balances/events/revisions, report recovery | Implemented: [financial declarations](docs/web-financial-records.md) |
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
-| Advanced financial forms and verified adoption of existing CLI workspaces | Planned: WEB-006 |
+| Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md); actual private migration is explicit |
 | Source-parser plugins | Versioned contract implemented; loader, SDK, and existing-importer migration planned: SRC-002–004 |
 | Broader platform/release acceptance and additional locales | Planned: WEB-007 / I18N-007 |
 
@@ -216,6 +216,7 @@ Current imports support the documented Wealthsimple holdings and Bull Bitcoin or
 | [Exports and private backups](docs/web-backups.md) | Report ZIPs, CSV/JSON ranges, consistent backups, empty-instance restore, and maintenance. |
 | [Reports](docs/report-spec.md) · [ODS](docs/workbook.md) | Interpretation, formulas, charts, evidence, and validation. |
 | [Core API](docs/core-api.md) · [BTC reconciliation](docs/btc-reconciliation-plan.md) | Data contracts, stable references, unknown costs, and later explanations. |
+| [Financial declarations](docs/web-financial-records.md) · [CLI adoption](docs/web-adoption.md) | Save contributions/BTC revisions and verify a retained-source migration. |
 | [Source adapters](docs/source-adapters.md) · [Languages](docs/i18n-plan.md) | Extensibility contracts, planned plugin support, and localization. |
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) · [Agent setup](docs/agent-development.md) | Reproducible development, checks, shared instructions, and private guidance. |
 

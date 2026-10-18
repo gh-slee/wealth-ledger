@@ -217,6 +217,49 @@ class DockerRuntimeTests(unittest.TestCase):
                 self.assertTrue(request_json(client, origin, "/api/v1/auth/session")["authenticated"])
                 self.assertEqual(request_json(client, origin,
                                  f"/api/v1/portfolios/{portfolio}/settings"), expected)
+                # Adopt an invented stopped CLI copy using the production host commands.
+                # Only this test volume and /tmp are mounted; no personal workspace.
+                adoption_script = """
+from pathlib import Path
+import json, shutil
+from wealth_ledger.web.config import WebSettings
+from wealth_ledger.web.adoption import prepare_adoption, confirm_adoption
+from wealth_ledger.web.backups import database_info
+root=Path('/data'); source=root/'portfolios'/PORTFOLIO
+legacy=Path('/tmp/stopped-cli'); legacy.mkdir(mode=0o700)
+for name in ('data','reports','config','backups'):
+    if (source/name).exists(): shutil.copytree(source/name,legacy/name,symlinks=True)
+(legacy/'work').mkdir()
+plan=Path('/tmp/private-cli.adoption.json')
+preview=prepare_adoption(WebSettings(root),legacy,'Adopted container CLI',plan)
+result=confirm_adoption(WebSettings(root),plan,preview['plan_sha256'])
+target=root/'portfolios'/result['portfolio_id']
+assert database_info(source/'data/db/portfolio.sqlite3')==database_info(target/'data/db/portfolio.sqlite3')
+assert (legacy/'reports/latest.json').read_bytes()==(target/'reports/latest.json').read_bytes()
+print(json.dumps(result))
+""".replace('PORTFOLIO', repr(portfolio))
+                # Full source reports exceed the deployment's 64 MiB /tmp. The
+                # invented source exists only for this one-off test container;
+                # real deployments use a durable source mount, not /tmp staging.
+                original_tmpfs=web["tmpfs"]
+                web["tmpfs"]=["/tmp:rw,noexec,nosuid,nodev,size=256m,uid=10001,gid=10001,mode=0700"]
+                config.write_text(json.dumps(model))
+                try:
+                    adoption_result = compose("run", "--rm", "--no-deps", "-T", "--entrypoint", "python",
+                        "web", "-c", adoption_script, capture_output=True)
+                except subprocess.CalledProcessError as exc:
+                    self.fail("Synthetic container adoption failed: " + exc.stderr.decode(errors="replace"))
+                finally:
+                    web["tmpfs"]=original_tmpfs
+                    config.write_text(json.dumps(model))
+                adopted = json.loads(adoption_result.stdout)
+                self.assertEqual(adopted["status"], "adopted")
+                adopted_id=adopted["portfolio_id"]
+                editions=request_json(client,origin,f"/api/v1/portfolios/{adopted_id}/reports")["reports"]
+                self.assertTrue(editions)
+                adopted_report=editions[0]["id"]
+                adopted_view=request_json(client,origin,f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}")
+                self.assertEqual(adopted_view["totals"],view["totals"])
                 # Full private archive roundtrip to a different empty volume; source stays intact.
                 bundle_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}/bundle.zip")
                 with client.open(bundle_request, timeout=15) as response:
@@ -249,6 +292,8 @@ class DockerRuntimeTests(unittest.TestCase):
                 restored_view=request_json(restored_client,new_origin,f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}")
                 self.assertEqual(restored_view["totals"],view["totals"])
                 self.assertEqual(restored_view["holdings"],view["holdings"])
+                restored_adopted=request_json(restored_client,new_origin,f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}")
+                self.assertEqual(restored_adopted["totals"],adopted_view["totals"])
                 self.assertEqual(request_json(restored_client,new_origin,f"/api/v1/portfolios/{portfolio}/artifacts")["artifacts"],registered)
                 self.assertEqual(request_json(client,origin,f"/api/v1/portfolios/{portfolio}/settings"),expected)
             finally:

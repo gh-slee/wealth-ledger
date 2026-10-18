@@ -13,17 +13,17 @@ CSV_BYTES = 10 * 1024 * 1024
 REFERENCE_BYTES = 64 * 1024
 BATCH_BYTES = 25 * 1024 * 1024
 MAX_ROWS = 50000
-KINDS = {"csv", "fx", "price", "opening"}
+KINDS = {"csv", "fx", "price", "opening", "cash_flows"}
 
 
 def inspect_bytes(raw, kind):
-    if kind not in KINDS or not raw or len(raw) > (CSV_BYTES if kind == "csv" else REFERENCE_BYTES):
+    if kind not in KINDS or not raw or len(raw) > (CSV_BYTES if kind in {"csv", "cash_flows"} else REFERENCE_BYTES):
         raise WebError(422, "invalid_upload", "Upload size or kind is invalid")
     try:
         text = raw.decode("utf-8-sig")
         if "\x00" in text:
             raise ValueError("NUL is not text evidence")
-        if kind != "csv":
+        if kind not in {"csv", "cash_flows"}:
             value = json.loads(text)
             if not isinstance(value, dict):
                 raise ValueError("Reference JSON must be an object")
@@ -34,6 +34,16 @@ def inspect_bytes(raw, kind):
         header = [field.strip() for field in next(reader)]
         if len(header) > 256 or len(set(header)) != len(header):
             raise ValueError("Invalid CSV header")
+        if kind == "cash_flows":
+            if not {"date","account_id","flow_type","currency","amount"}.issubset(header):
+                raise ValueError("Cash-flow CSV header is incomplete")
+            count = 0
+            for row in reader:
+                count += 1
+                if count > MAX_ROWS or len(row) > 256:
+                    raise ValueError("CSV row/column limit exceeded")
+            if count == 0: raise ValueError("Empty CSV")
+            return "cash_flows"
         providers = [name for name, fields in (("wealthsimple", HOLDINGS), ("bullbitcoin", ORDERS))
                      if set(fields).issubset(header)]
         if len(providers) != 1:
@@ -51,7 +61,7 @@ def inspect_bytes(raw, kind):
 
 
 def upload_path(store, row):
-    suffix = ".csv" if row["kind"] == "csv" else ".json"
+    suffix = ".csv" if row["kind"] in {"csv", "cash_flows"} else ".json"
     return contained(store.root, "uploads/" + row["portfolio_id"] + "/" + row["id"] + suffix)
 
 
@@ -68,7 +78,7 @@ def get_upload(store, portfolio_id, upload_id, owner_id=1):
 
 def verified_upload(store, row):
     path = upload_path(store, row)
-    maximum = CSV_BYTES if row["kind"] == "csv" else REFERENCE_BYTES
+    maximum = CSV_BYTES if row["kind"] in {"csv", "cash_flows"} else REFERENCE_BYTES
     if not path.is_file() or path.stat().st_size > maximum:
         raise WebError(409, "upload_integrity", "Upload integrity check failed")
     with path.open("rb") as stream:
@@ -88,12 +98,12 @@ async def receive_upload(store, portfolio_id, request, kind, filename, owner_id)
     if request.headers.get("content-type", "").split(";")[0].lower() not in {
             "application/octet-stream", "text/csv", "application/json"}:
         raise WebError(415, "invalid_upload", "Send raw CSV or JSON bytes")
-    maximum = CSV_BYTES if kind == "csv" else REFERENCE_BYTES
+    maximum = CSV_BYTES if kind in {"csv", "cash_flows"} else REFERENCE_BYTES
     directory = contained(store.root, "uploads/" + portfolio_id)
     directory.mkdir(exist_ok=True, mode=0o700)
     identifier = uuid.uuid4().hex
     partial = contained(directory, identifier + ".part")
-    final = contained(directory, identifier + (".csv" if kind == "csv" else ".json"))
+    final = contained(directory, identifier + (".csv" if kind in {"csv", "cash_flows"} else ".json"))
     size = 0
     installed = False
     try:

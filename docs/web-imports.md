@@ -8,8 +8,7 @@ specifies its API protocol and recovery behavior.
 
 Follow [Web operations](web-operations.md) for installation, owner authentication,
 CSRF, public origin, Docker context and private storage. Use synthetic files first.
-Existing CLI portfolios are never automatically adopted; copy/verify/switch is
-WEB-006. No Web instance defaults to a maintainer's ledger.
+Existing CLI portfolios are never automatically adopted; use the explicit [copy/verify/switch host commands](web-adoption.md). No Web instance defaults to a maintainer's ledger.
 
 ## Start the two services
 
@@ -97,7 +96,7 @@ A dated total alone is allowed without CSVs:
 
 That total establishes a quantity observation, not acquisition cost or a
 contribution. Gaps remain unresolved until supported events are entered through
-the existing CLI; advanced Web forms remain WEB-006.
+the existing CLI or [financial declaration forms](web-financial-records.md).
 
 Bull's first import requires an explicit opening declaration. Upload a user-reviewed
 `opening` JSON using the schema in [the manual](user-manual.md); the tool never
@@ -177,7 +176,7 @@ Check operation status, financial input fingerprint and any report manifest/byte
 Do not edit SQLite status columns, delete guards or rerun an import to guess the
 outcome. If evidence cannot prove a safe transition, retain `needs_review` and use
 a synthetic reproduction for a maintainer review. This version has no general
-"acknowledge discrepancy and force retry" endpoint. Advanced repair/adoption tooling
+"acknowledge discrepancy and force retry" endpoint. Advanced repair tooling
 remains future work.
 
 Only non-sensitive error codes are returned for execution failures. Core operation
@@ -206,8 +205,9 @@ fails closed on older/future incompatible metadata until the trusted host comman
 is used. Never downgrade DB files into older images. Compose replacement retains
 private volume state; `down --volumes` deletes it and is not an upgrade procedure.
 
-Complete consistent backup/restore, stronger retention UI, resource/crash testing
-across additional hosts/platforms and private legacy adoption remain separate work.
+[Complete consistent backup/restore](web-backups.md) and [copy-verified CLI adoption](web-adoption.md)
+are implemented. Stronger retention UI and resource/crash testing across additional
+hosts/platforms remain separate work. Actual private migration is an explicit operator action.
 
 Implementation references: [Huey API](https://huey.readthedocs.io/en/stable/api.html)
 and [consumer guide](https://huey.readthedocs.io/en/stable/guide.html). Queue storage

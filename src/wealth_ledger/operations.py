@@ -208,14 +208,22 @@ def list_operations(project):
     return result
 
 
-def record_data_operation(project, request, action):
-    """A data-only CLI command never advances valuation time or publishes."""
+def record_data_operation(project, request, action, *, operation_id=None):
+    """Commit data and its durable completion marker in the same transaction."""
     from .settings import ensure_report_locale_setting
     ensure_report_locale_setting(project)
-    op = start(project, request, data_only=True)
+    if operation_id:
+        saved = next((row for row in list_operations(project) if row["operation_id"] == operation_id), None)
+        if saved:
+            if saved["request"] != json.loads(json.dumps(request, default=str)) or saved["status"] != "data_only_complete":
+                raise ValueError("Existing data operation requires review")
+            return {"operation_id": operation_id, "report_published": False, **saved["result"]}
+    op = start(project, request, data_only=True, operation_id=operation_id)
+    def complete(conn, result, value):
+        conn.execute("UPDATE update_operations SET status='data_only_complete',result_json=?,fingerprint=?,updated_at=? WHERE operation_id=?",
+                     (json.dumps(result), value, datetime.now(timezone.utc).isoformat(), op))
     try:
-        result = atomic_data(project, action)
-        set_state(project, op, "data_only_complete", result_json=json.dumps(result), fingerprint=fingerprint(project))
+        result = atomic_data(project, action, finalize=complete)
         return {"operation_id": op, "report_published": False, **result}
     except Exception as exc:
         set_state(project, op, "data_failed", error=str(exc))

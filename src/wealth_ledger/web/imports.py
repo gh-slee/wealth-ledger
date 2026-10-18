@@ -22,6 +22,7 @@ class PreviewRequest(Input):
     btc_balance_source: str | None = Field(default=None, min_length=1, max_length=160, pattern=r"^[^\x00-\x1f\x7f]+$")
     as_of: str | None = Field(default=None, max_length=40)
     wealthsimple_only: bool = False
+    render_saved: bool = False
 
     @model_validator(mode="after")
     def validate_context(self):
@@ -87,7 +88,7 @@ def install_import_routes(app, store, auth, require_owner):
 
     @app.post(prefix + "/uploads", status_code=201, response_model=UploadView)
     async def upload(portfolio_id: str, request: Request,
-                     kind: Literal["csv", "fx", "price", "opening"] = Query(default="csv"),
+                     kind: Literal["csv", "fx", "price", "opening", "cash_flows"] = Query(default="csv"),
                      filename: str = Query(default="source.csv", min_length=1, max_length=160),
                      owner=Depends(require_owner)):
         row = await receive_upload(store, portfolio_id, request, kind, filename, owner["owner_id"])

@@ -39,8 +39,11 @@ export function Imports({ portfolio }: { portfolio: string }) {
         ? 1500
         : 5000,
   });
+  const importJobs =
+    jobs.data?.jobs.filter((job) => ["preview", "update"].includes(job.kind)) ??
+    [];
   const publishedIds =
-    jobs.data?.jobs
+    importJobs
       .filter((job) => job.kind === "update" && job.status === "published")
       .map((job) => job.id)
       .sort()
@@ -49,8 +52,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
     if (publishedIds)
       void client.invalidateQueries({ queryKey: [portfolio, "reports"] });
   }, [publishedIds, client, portfolio]);
-  const job =
-    jobs.data?.jobs.find((job) => job.id === selected) ?? jobs.data?.jobs[0];
+  const job = importJobs.find((job) => job.id === selected) ?? importJobs[0];
   const result = record(job?.result),
     preview = record(result.preview ?? result);
   const metrics = [
@@ -85,6 +87,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
       const body = {
         upload_ids: uploaded,
         kind: form.get("kind"),
+        render_saved: form.get("render_saved") === "on",
         ...(balance
           ? {
               btc_balance: balance,
@@ -177,6 +180,10 @@ export function Imports({ portfolio }: { portfolio: string }) {
               <input name="observed" placeholder="2026-10-17T18:00:00-04:00" />
             </label>
           </div>
+          <label className="check-label">
+            <input type="checkbox" name="render_saved" />
+            {t("renderSaved")}
+          </label>
           <details>
             <summary>{t("references")}</summary>
             <div className="form-grid">
@@ -383,9 +390,9 @@ export function Imports({ portfolio }: { portfolio: string }) {
       )}
       <section className="panel">
         <h2>{t("jobs")}</h2>
-        {jobs.data?.jobs.length ? (
+        {importJobs.length ? (
           <div className="job-list">
-            {jobs.data.jobs.map((value) => (
+            {importJobs.map((value) => (
               <button
                 className={job?.id === value.id ? "selected" : ""}
                 key={value.id}

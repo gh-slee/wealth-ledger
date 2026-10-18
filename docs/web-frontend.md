@@ -12,7 +12,7 @@ Docker builds the frontend automatically. Follow [Web operations](web-operations
 to prepare the audited image context, initialize a new dedicated instance and run
 the API plus worker. Open the configured origin, normally `http://localhost:8000/`.
 Do not mount a previous CLI workspace as the new Web instance; adoption remains a
-separate, copy-verified procedure planned under WEB-006.
+separate, [copy-verified trusted-host procedure](web-adoption.md).
 
 For native development, install Python Web dependencies and Node 24 LTS (or Node
 22.12+), then from the repository root:
@@ -52,7 +52,8 @@ keep the backend on port 8000 but configure its public origin as
    data commit from report publication. Resolve blocked inputs with a new preview.
    A failed report can resume its saved operation; uncertain states require trusted
    local review. Never reimport to guess whether a previous commit happened.
-6. Select a published observation for analysis. Change CAD/USD/TWD presentation or
+6. For contributions, coverage, BTC openings/events or corrections, use [Financial records](web-financial-records.md). Preview, confirm and save data first; prepare a separate report when ready.
+7. Select a published observation for analysis. Change CAD/USD/TWD presentation or
    interface language without changing the saved observation. Download original
    ODS, Markdown, PDF and evidence attachments from **Report library**.
 
@@ -77,8 +78,7 @@ download those attachments too, or choose **Download report ZIP** to preserve re
   Sector/country/region views use the frozen official classifications and show
   effective dates and coverage; unresolved portions remain visible.
 - Bull funding is unclassified funding until its origin is supplied. Purchase spend
-  is not a second contribution. Advanced cash-flow coverage/BTC event forms remain
-  in the CLI; their Web forms and verified legacy adoption are WEB-006.
+  is not a second contribution. Cash-flow coverage/BTC event forms share the CLI validators; [their manual](web-financial-records.md) explains saved-data report generation. [Verified CLI adoption](web-adoption.md) is a separate host operation.
 
 ## Sessions and privacy
 

@@ -100,8 +100,7 @@ be read-only. No local LibreOffice or runtime AI is required.
 Do not point the option at an unrelated directory or at another user's ledger.
 A workspace path is a trusted local operator choice, not Web authorization or a
 sandbox against malicious files. Keep backups of the complete workspace. Existing
-private migration is **not automatic**; a formal adoption/restore UI/command remains
-WEB-006 work. A new empty directory does not import the old ledger's history.
+private migration is **not automatic**; use the explicit [copy-verified adoption host commands](web-adoption.md). A new empty directory does not import the old ledger's history.
 
 ### Optional browser application
 
@@ -110,7 +109,7 @@ offline preview, explicit confirmation and durable report jobs. The React interf
 adds analysis, charts and a report library; see [the browser guide](web-frontend.md).
 Advanced financial records remain in this manual's CLI. See
 [Web operations](web-operations.md) and the [API import/job guide](web-imports.md).
-Existing CLI data is never adopted automatically.
+Existing CLI data is never adopted automatically. [Financial records](web-financial-records.md) provides Web forms for contributions/coverage and BTC declarations; saving data and publishing a report remain separate steps.
 
 ## 3. Monthly updates
 
@@ -1231,4 +1230,4 @@ CSV/JSON datasets with supported inclusive ranges. Full private instance backup
 and empty-instance restore are trusted-host commands, with maintenance barriers,
 SQLite/evidence verification and restored-session revocation. See [the complete
 backup/export guide](web-backups.md). This does not adopt an existing CLI ledger;
-copy-verified adoption remains WEB-006. Keep the original CLI workspace intact.
+use the [copy-verified adoption commands](web-adoption.md). Keep the original CLI workspace intact.

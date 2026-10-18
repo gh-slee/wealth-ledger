@@ -43,7 +43,7 @@ remain independent roadmap items; a Web UI does not implement them automatically
 package publisher, bundled/private alias provenance and writable chart caches.
 Synthetic tests cover isolation, recovery, copy equivalence and ODS/MD/PDF with an
 OS-read-only code tree. No private ledger has been migrated. WEB-002 adds the
-optional HTTP/auth/metadata foundation; jobs/UI and adoption remain later stages.
+optional HTTP/auth/metadata foundation. Jobs, browser UI, declarations and trusted-host adoption are now implemented; broader release acceptance remains pending.
 
 CLI and worker call Python application services independent of HTTP/React: detection,
 preview, backup, locking, data submission, analysis, report validation/publication.
@@ -120,7 +120,7 @@ example does not prescribe this project's session policy.
 
 1. After login, select a portfolio and upload either supported CSV or one of each,
    or provide an optional explicitly dated BTC total. Bull opening declarations and
-   reference JSON have explicit upload kinds; cash-flow forms remain WEB-006.
+   reference JSON have explicit upload kinds; cash-flow forms use the [financial declaration workflow](web-financial-records.md).
 2. Stream to isolated upload storage. Original filenames are metadata; server-generated
    IDs determine paths. Limits: 10 MiB per CSV, 25 MiB per batch, 64 KiB per reference
    JSON. API and worker both validate size, encoding and row limits.
@@ -139,8 +139,7 @@ Show source-uploaded, data-committed and report-published states separately. Mis
 CSVs do not prove zero activity; preserve irregular/carried-source semantics. First
 Bull import never assumes zero opening, and new CSVs never recalculate a saved opening/balance.
 
-Introduce Web forms for BTC balances/events, contributions, coverage and openings
-in stages; the CLI remains available. Event attribution uses balance IDs, with
+Web forms for BTC balances/events, contributions, coverage and openings are implemented; see [the declaration manual](web-financial-records.md). The CLI remains available. Event attribution uses balance IDs, with
 expected revision/reason for corrections/voids. Do not auto-classify gaps as fees/contributions.
 
 ## Background jobs and recovery
@@ -234,7 +233,7 @@ unencrypted; disk/backup protection is the deployer's responsibility.
 
 ## Adopt an existing CLI ledger
 
-Use **copy, verify, switch**, retaining the source.
+WEB-006 implements **copy, verify, switch**, retaining the source. See [trusted-host commands, exact scope and recovery](web-adoption.md).
 
 - Stop source writes; create a DB backup through a read-only connection. Copy raw
   evidence, historical reports, configuration and recovery files.
@@ -276,7 +275,7 @@ Use **copy, verify, switch**, retaining the source.
 | WEB-003 (accepted locally) | Upload/preview/Huey/recovery | No duplicate submission, stale preview rejection, kill/restart at commit boundaries, report-only recovery, uncertain state fails closed |
 | WEB-004 | React analysis/report library | Three currencies/locales, gaps/unknown/carried flags, cache clearing on switch/logout, desktop/mobile/keyboard/tooltip acceptance |
 | WEB-005 (implemented) | Exports/consistent backup/restore | Three formats match payload; protected downloads; raw evidence/logical finances preserved after empty-volume restore |
-| WEB-006 | Advanced forms/adoption | BTC opening/balance/event IDs, attribution/revisions/voids, flows/coverage and CLI/workspace interoperability |
+| WEB-006 (implemented) | Advanced forms/adoption | BTC opening/balance/event IDs, attribution/revisions/voids, flows/coverage and CLI/workspace interoperability |
 | WEB-007 | Release/operations | Clean install/upgrade/restart/off-device restore, image privacy, platform smoke tests, locked dependencies/licenses and complete guide |
 
 Use independent PRs/acceptance per stage, not one blanket completion. Preserve CLI
