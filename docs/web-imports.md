@@ -2,8 +2,9 @@
 
 The API can import Wealthsimple holdings CSVs, Bull Bitcoin orders CSVs, or both,
 and an optional explicitly dated BTC total. It reuses the financial CLI core and
-produces ODS, Markdown and PDF reports without an LLM or LibreOffice. React pages
-are WEB-004 work. This is an API workflow, not a ready browser dashboard.
+produces ODS, Markdown and PDF reports without an LLM or LibreOffice. The React
+workflow is described in [the browser guide](web-frontend.md); this document
+specifies its API protocol and recovery behavior.
 
 Follow [Web operations](web-operations.md) for installation, owner authentication,
 CSRF, public origin, Docker context and private storage. Use synthetic files first.

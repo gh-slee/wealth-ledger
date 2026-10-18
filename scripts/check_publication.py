@@ -24,7 +24,7 @@ PUBLIC_ROOT_FILES = {
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
-    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md',
+    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md',
 }
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
@@ -85,6 +85,19 @@ def path_allowed(path: str) -> bool:
         return False
     if len(parts) == 1:
         return path in PUBLIC_ROOT_FILES
+    if parts[0] == 'frontend':
+        if any(part in {'node_modules', 'dist', 'test-results', 'playwright-report'} or part.startswith('.') for part in parts[1:]):
+            return False
+        if len(parts) == 2:
+            return p.name in {'package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts',
+                              'vitest.config.ts', 'playwright.config.ts', 'index.html', 'components.json'}
+        if parts[1] in {'src', 'tests'}:
+            return p.suffix in {'.ts', '.tsx', '.css'} or (len(parts) == 4 and parts[1:3] == ('src', 'locales')
+                and p.name in {'en-CA.json', 'zh-TW.json', 'zh-CN.json'})
+        if parts[1] == 'scripts':
+            return len(parts) == 3 and p.name == 'check-source.mjs'
+        return len(parts) == 4 and parts[1:3] == ('public', 'licenses') and p.name in {
+            'ibm-plex-sans-condensed.txt', 'atkinson-hyperlegible.txt', 'shadcn-ui.txt'}
     if parts[0] == 'src':
         return (len(parts) >= 3 and parts[1] == 'wealth_ledger' and p.suffix == '.py'
                 or len(parts) == 4 and parts[1:3] == ('wealth_ledger', 'locales')
@@ -163,7 +176,18 @@ def content_issues(data: bytes, path: str) -> list[str]:
         except (UnicodeError, SyntaxError):
             pass
     for match in ASSIGNMENT.finditer(data):
-        if data[:match.start()].count(b"\n") + 1 in safe_typed_fields:
+        # Exact inert type declarations and catalog labels are not credentials.
+        # Other values in these files still pass all secret/assignment checks.
+        if path == 'frontend/src/lib/schema.d.ts' and re.fullmatch(rb'\s*password: string;', match.group(0)):
+            continue
+        if path == 'frontend/src/locales/en-CA.json' and match.group(0).strip() == b'"password": "Password':
+            continue
+        line_number = data[:match.start()].count(b"\n") + 1
+        # This exact live form read, like getpass below, contains no credential.
+        if path == 'frontend/src/App.tsx' and re.fullmatch(
+                rb'\s*password: values\.get\("password"\),', data.splitlines()[line_number-1]):
+            continue
+        if line_number in safe_typed_fields:
             continue
         if re.fullmatch(rb"""[ \t]*[\"']?password[\"']?[ \t]*[:=][ \t]*getpass\.getpass\(""", match.group(0)):
             continue
@@ -214,7 +238,7 @@ def scan_worktree(root: Path) -> dict:
             continue
         if path.name in {'.DS_Store', 'Thumbs.db', '.coverage'} or rel.lower().endswith(PRIVATE_SUFFIXES):
             continue
-        if parts[0] in IGNORED_ROOTS or any(part in {'.git', '__pycache__'} or part.startswith('.venv') or part.endswith('.egg-info') for part in parts):
+        if parts[0] in IGNORED_ROOTS or any(part in {'.git', '__pycache__', 'node_modules', 'dist', 'test-results', 'playwright-report'} or part.startswith('.venv') or part.endswith('.egg-info') for part in parts):
             continue
         if len(parts) >= 2 and parts[0] == 'config' and parts[1] not in PUBLIC_CONFIG:
             continue  # Ignored private config; Git modes still reject if tracked.

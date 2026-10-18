@@ -13,7 +13,11 @@ CODE_ROOT = Path(__file__).resolve().parents[1]
 FIXED = ("Dockerfile", ".dockerignore", "requirements.lock", "requirements-web.lock", "LICENSE",
          "THIRD_PARTY_NOTICES.md", "scripts/web.py", "config/company-aliases.json",
          "assets/fonts/NotoSansTC-Regular.ttf", "assets/fonts/NotoSansSC-Regular.ttf",
-         "assets/fonts/NotoSansSC-provenance.json", "assets/fonts/OFL.txt", "assets/fonts/OFL-SC.txt")
+         "assets/fonts/NotoSansSC-provenance.json", "assets/fonts/OFL.txt", "assets/fonts/OFL-SC.txt",
+         "frontend/package.json", "frontend/package-lock.json", "frontend/tsconfig.json",
+         "frontend/vite.config.ts", "frontend/index.html",
+         "frontend/public/licenses/ibm-plex-sans-condensed.txt",
+         "frontend/public/licenses/atkinson-hyperlegible.txt", "frontend/public/licenses/shadcn-ui.txt")
 
 
 def prepare_context(root, output):
@@ -28,6 +32,9 @@ def prepare_context(root, output):
         if "__pycache__" not in path.parts and (path.suffix == ".py" or
                 path.parent == root / "src/wealth_ledger/locales" and path.suffix == ".json"):
             names.append(relative)
+    for path in sorted((root / "frontend/src").rglob("*")):
+        if path.suffix in {".ts", ".tsx", ".css", ".json"} and path_allowed(path.relative_to(root).as_posix()):
+            names.append(path.relative_to(root).as_posix())
     files = {}
     for name in names:
         path = root / name

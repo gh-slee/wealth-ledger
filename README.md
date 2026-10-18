@@ -29,7 +29,7 @@
 
 Wealth Ledger combines **Wealthsimple holdings**, **Bull Bitcoin orders**, and optional **BTC balance declarations** in a local SQLite history. It produces **ODS spreadsheets, Markdown, PDF, and PNG charts** in English, Traditional Chinese, or Simplified Chinese.
 
-**Your CSVs, database, and reports stay in your checkout.** Normal updates download public reference data; they never commit or push your financial files to GitHub. The production workflow runs in Python, with no broker login, LLM, Node.js, or local LibreOffice installation required.
+**Your CSVs, database, and reports stay in your private workspace.** Normal updates download public reference data; they never commit or push your financial files to GitHub. The financial workflow runs in Python, with no broker login, LLM or local LibreOffice required. The optional browser UI builds with Node; its production server remains Python.
 
 ## At a glance
 
@@ -158,7 +158,8 @@ Upload either supported CSV, both, or an optional BTC total. Monthly snapshots a
 | Layer | Technology | Role |
 |---|---|---|
 | 🐍 Runtime | **Python 3.12+** | CLI, parsers, calculations, downloads, and report generation. |
-| 🔐 Optional API | **FastAPI · Pydantic · pwdlib/Argon2id · Uvicorn · Huey** | Server-side owner sessions, isolated portfolio settings and protected registered artifacts; browser workflow pending. |
+| 🔐 Optional API | **FastAPI · Pydantic · pwdlib/Argon2id · Uvicorn · Huey** | Server-side owner sessions, isolated portfolio settings and protected registered artifacts and isolated report jobs. |
+| 🖥️ Browser | **React · TypeScript · Vite · Tailwind · shadcn/Radix** | Same-origin dashboard, TanStack Query/Table and ECharts; static production assets. |
 | 🗄️ Ledger | **SQLite · `sqlite3`** | Local observations, order revisions, flows, and reconciliation history. |
 | 🧮 Financial arithmetic | **`decimal.Decimal` · satoshi precision** | Explicit precision; BTC quantities support eight decimal places. Unknown values stay distinct from zero. |
 | 📊 Charts | **Matplotlib · Pillow** | PNG analysis charts and image handling. |
@@ -242,6 +243,7 @@ The tracker does not trade, log into brokers/wallets, independently verify on-ch
 | [Report specification](docs/report-spec.md) · [ODS implementation](docs/workbook.md) | Report contents, interpretation, formulas, charts, and validation. |
 | [Core API](docs/core-api.md) · [BTC reconciliation](docs/btc-reconciliation-plan.md) | Data contracts, stable IDs, intervals, and financial invariants. |
 | [Languages](docs/i18n-plan.md) | Locale configuration, offline editions, and translation contributions. |
+| [Browser workflow](docs/web-frontend.md) | Sign-in, imports, frozen analysis, downloads and frontend development. |
 | [Source-adapter design](docs/source-adapters.md) | The planned extensible parser/plugin contract. |
 | [Development](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Agent setup](docs/agent-development.md) | Environment setup, verification, instructions, and pull requests. |
 | [Publishing](docs/publishing.md) · [Security](SECURITY.md) | Private/public separation and reporting a vulnerability. |
@@ -257,9 +259,9 @@ without an LLM. The shared project rules are in [AGENTS.md](AGENTS.md).
 
 ## Self-hosted web app progress
 
-The Docker self-hosted Web track targets one owner or household with multiple independent portfolios: React + TypeScript + Vite, a FastAPI API, Python background workers, SQLite, and persistent private storage. The API/worker reuse the CLI's financial services and preserve ODS, Markdown, and PDF exports; browser charts and report pages are the next stage.
+The Docker self-hosted Web track targets one owner or household with multiple independent portfolios: React + TypeScript + Vite, a FastAPI API, Python background workers, SQLite, and persistent private storage. The API/worker reuse the CLI's financial services and preserve ODS, Markdown, and PDF exports; browser charts and the report library read frozen published observations.
 
-**The API import/report workflow is implemented; the React interface is still planned.** Optional owner/session setup, independent portfolios and Docker operation are described in [Web operations](docs/web-operations.md). The [upload/job guide](docs/web-imports.md) covers CSV evidence, offline previews, explicit confirmation, isolated Huey/SQLite workers, three-format report downloads and interruption recovery. The CLI remains available for normal use and advanced financial records. Broader deployment acceptance remains planned. See the [architecture](docs/self-hosted-webapp.md) and [WEB-001–WEB-007 tracker](TODO.md).
+**The browser import/analysis/report workflow is implemented for local acceptance.** See [the browser guide](docs/web-frontend.md) for sign-in, previews, charts, downloads and build/test instructions. Optional owner/session setup, independent portfolios and Docker operation are described in [Web operations](docs/web-operations.md). The [upload/job guide](docs/web-imports.md) covers CSV evidence, offline previews, explicit confirmation, isolated Huey/SQLite workers, three-format report downloads and interruption recovery. The CLI remains available for normal use and advanced financial records. Broader deployment acceptance remains planned. See the [architecture](docs/self-hosted-webapp.md) and [WEB-001–WEB-007 tracker](TODO.md).
 
 ## Project status
 

@@ -65,3 +65,35 @@ jobs:
         run: docker compose config --quiet
       - name: Verify synthetic image privacy and restart persistence
         run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v
+
+  browser-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: python -m pip install -r requirements-web-test.lock
+      - run: npm --prefix frontend ci --ignore-scripts
+      - run: npm --prefix frontend run format:check
+      - run: npm --prefix frontend run check:source
+      - run: npm --prefix frontend test
+      - run: npm --prefix frontend run build
+      - name: Check generated API types
+        run: |
+          python scripts/export_web_schema.py --output work/web-schema.json
+          frontend/node_modules/.bin/openapi-typescript work/web-schema.json -o work/web-schema.d.ts
+          cmp frontend/src/lib/schema.d.ts work/web-schema.d.ts
+      - run: cd frontend && npx playwright install --with-deps chromium
+      - run: npm --prefix frontend run test:e2e

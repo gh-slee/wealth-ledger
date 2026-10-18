@@ -5,7 +5,8 @@ Wealthsimple/Bull CSVs into SQLite and generates ODS, Markdown and PDF reports.
 Production downloads, calculations, charts and report prose are deterministic code;
 no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
 supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.
-The React/TypeScript/Vite UI remains planned; advanced financial forms stay in the CLI.
+An optional React/TypeScript/Vite UI reads frozen publications and drives imports;
+advanced financial forms stay in the CLI.
 
 ## Working agreement
 
@@ -44,7 +45,11 @@ skip optional API tests. `scripts/web.py` manages trusted host initialization/up
 source-only image context. Container acceptance is explicitly opt-in:
 `WEALTH_LEDGER_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v`.
 It requires a running Docker daemon and uses only unique disposable synthetic resources.
-There is no frontend build or installable package build yet. CI runs Linux/Python 3.12 tests
+Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
+`npm --prefix frontend run build`, `npm --prefix frontend test`,
+`npm --prefix frontend run check:source` and `npm --prefix frontend run test:e2e`.
+Use Node 24 LTS (or 22.12+) and see docs/web-frontend.md for browser prerequisites.
+There is no installable Python package build yet. CI runs Linux/Python 3.12 tests
 and offline synthetic report demos for default/proxy policies and three locales.
 Use focused tests while iterating; report changes also need affected formula/cache,
 ODS/PDF presentation and locale checks. Documentation edits do not require real
@@ -80,6 +85,8 @@ portfolio updates. Report the checks actually run and any gaps.
 - Imports, dates and recovery: [user manual](docs/user-manual.md), [core API](docs/core-api.md).
 - BTC quantities/costs/events: [reconciliation](docs/btc-reconciliation-plan.md).
 - Reports and ETF analysis: [report spec](docs/report-spec.md), [ODS](docs/workbook.md).
+- Browser UI: [frontend workflow](docs/web-frontend.md); keep queries scoped, clear
+  caches on logout/switch, preserve decimal strings and use no persistent finance cache.
 - Locale changes: [i18n contract](docs/i18n-plan.md).
 - Web security, host commands and experimental containers: [Web operations](docs/web-operations.md), [imports/jobs](docs/web-imports.md).
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
