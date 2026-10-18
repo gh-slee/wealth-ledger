@@ -4,7 +4,8 @@ Wealth Ledger is a local-first Python 3.12+ investment ledger for financial CSV
 exports, SQLite history and ODS, Markdown and PDF reports. Its expansion path is
 source-parser plugins for banks, brokerages and Bitcoin platforms. Current native
 source importers are Wealthsimple holdings and Bull Bitcoin orders; the shared
-parser contract exists, but plugin loading and importer migration remain planned.
+parser contract and standalone trusted registry exist; shared source plans, plugin
+SDK and importer migration remain planned. The registry is not wired into imports.
 Production downloads, calculations, charts and report prose are deterministic code;
 no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
 supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.

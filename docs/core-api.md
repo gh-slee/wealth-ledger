@@ -500,8 +500,11 @@ resolved policy for retry despite later config changes. See config/local.example
 
 Current CSV detection supports two known formats. fund_sources.REGISTRY is official
 ETF support, not a general arbitrary-source plugin SDK. Future kinds, conflict/
-submission remain planned; SRC-001 canonical contracts are available in
-[adapter design](source-adapters.md);
+submission remain planned. SRC-001 canonical contracts and the independent
+SRC-002A `source_registry` library are described in
+[adapter design](source-adapters.md#implemented-registry-library-src-002a). The registry
+loads/detects explicitly enabled trusted parsers but is not called by current
+CLI/Web imports and cannot submit canonical batches;
 arbitrary bank/exchange CSVs cannot replace supported imports.
 
 ## Locale presentation APIs

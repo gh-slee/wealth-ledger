@@ -167,7 +167,11 @@ run additionally asserts an attempted code write raises PermissionError.
 `tests/test_source_protocol.py` checks SRC-001 version/identity/coverage/revision,
 unknown values, Decimal/time/precision, cancellation and detection ambiguity.
 This is a structural contract, not an external plugin loader or stateful economic
-validator. Keep SRC-002-004 pending until registration/SDK/migration acceptance.
+validator. `tests/test_source_registry.py` checks the independent SRC-002A registry,
+metadata-only discovery, exact enablement, real temporary entry-point loading,
+identity/provider collisions, compatibility and redacted/deterministic detection.
+This does not establish production import integration or financial completeness.
+Keep SRC-002B/SRC-003/SRC-004 pending until their acceptance gates pass.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
 

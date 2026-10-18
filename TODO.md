@@ -74,7 +74,7 @@ translated documentation and additional locales are separate work.
 - [x] **I18N-006 Docs/public manifest**: README/manual/API/report/development contracts, reviewed JSON/font/doc paths and public manifests; preserve first-publication approval requirements.
 - [ ] **I18N-007 More locales/translated documentation**: candidates fr-CA/ja-JP; verify formatting/fonts/terms/licenses and maintain complete translated README/manual editions separately.
 
-## Extensible source adapters (contract implemented; loading/migration planned)
+## Extensible source adapters (contract/registry implemented; integration planned)
 
 Product direction: one application for bank, brokerage, Bitcoin broker and exchange
 exports through source-parser plugins. Wealthsimple and Bull Bitcoin are the first
@@ -82,13 +82,17 @@ built-in importers. Current support is format-specific, not universal CSV suppor
 
 - [x] **SRC-001 Versioned adapter/external parser protocol**: canonical `holdings`, `cash_flows`, `crypto_transactions`; source/account namespaces, stable IDs, time/currency, revisions/voids/coverage and ambiguous detection.
 - [ ] **SRC-002 Registration/discovery/compatibility**: trusted Python parsers enabled explicitly or through versioned package entry points; reject duplicate adapter IDs/conflicting provider metadata, unknown API versions and ambiguous formats without changes to core ledger/reports.
+- [x] **SRC-002A Independent registry library**: explicit exact distribution/version/entry-point enablement, metadata-only discovery, same-provider multiple formats, adapter/provider collision checks, API compatibility, deterministic detection/explicit selection and redacted failures. Existing CLI/Web imports are unchanged.
+- [ ] **SRC-002B Source plans/configuration fingerprints**: shared CLI/Web selection, host configuration, input/mapping/catalog/plugin code and dependency digests, stale-preview rejection and bounded execution; protocol-v1 records remain unbookable through plugins.
 - [ ] **SRC-003 Example plugin/contract test toolkit**: synthetic fixtures, detector/normalizer/validator examples and offline deduplication/revision/transfer/scope/privacy tests; author/install/enable instructions.
 - [ ] **SRC-004 Existing-adapter migration/new sources**: move Wealthsimple/Bull to the versioned registry, prove ledger/CLI compatibility, then add banks, brokers and exchanges.
 
 SRC-001 provides `wealth_ledger.source_protocol` dataclasses, pure adapter Protocol,
 structural validation, auditable detection resolution and lossless evidence JSON.
-It does not load plugins or book financial effects. SRC-002-004 follow the first
-usable Web MVP; the first browser workflow is implemented; SRC-002 is ready for a separately selected task. Existing importers remain unchanged.
+SRC-002A adds the independent `wealth_ledger.source_registry` library for explicitly
+enabled trusted loading/detection. It is not called by production import paths and
+does not book records. SRC-002 remains open until SRC-002B integration is verified;
+SRC-003-004 remain planned. Existing importers remain unchanged.
 
 Current CSV support is Wealthsimple/Bull only. The official ETF registry is separate
 from a general source-plugin system. Bank records can establish boundary cash flows
@@ -97,7 +101,7 @@ user-installed Python; never execute code from a CSV/network automatically or us
 an LLM to generate/select parsers at runtime. See [adapter design](docs/source-adapters.md);
 no SDK/install command is available yet.
 
-The [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004) now specifies module boundaries, trusted-host loading, CLI/Web preview fingerprints, protocol-v2 completeness gaps, preserved identity bindings and phased acceptance. This is design work only; SRC-002-004 remain unimplemented. Registry/provider multiplicity, external package-code digests and generic ingestion must be verified before claiming full decoupling.
+The [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004) now specifies module boundaries, trusted-host loading, CLI/Web preview fingerprints, protocol-v2 completeness gaps, preserved identity bindings and phased acceptance. SRC-002A is now implemented and verified independently; source-plan fingerprints and generic ingestion remain unimplemented. Full decoupling requires the remaining integration and migration acceptance gates.
 
 ## Cash flows and additional data
 

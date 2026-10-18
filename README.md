@@ -32,7 +32,7 @@ Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking 
 
 Review supported inputs in an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data. One owner or household can keep multiple independent portfolios in an instance, through a React/TypeScript interface or the supported **Python CLI**. Both use the same Python financial core.
 
-**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. Arbitrary bank/broker/exchange exports and external parser loading are not yet supported. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
+**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. Arbitrary bank/broker/exchange exports and custom-parser imports through the CLI/Web workflow are not yet supported. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
 
 **Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; financial declaration forms and trusted-host, copy-verified adoption of existing CLI data are implemented. See [project status](#project-status).
 
@@ -61,11 +61,11 @@ The application is intended to keep portfolio history, validation, analysis, and
 | Dated BTC quantity | Optional total-balance observation, independent of either source CSV. |
 | Other banks, brokers, Bitcoin platforms, and exchanges | Planned parser plugins; arbitrary source CSVs are not accepted today. |
 
-The versioned **parser contract is implemented** (`SRC-001`). The remaining steps are **registration/loading** (`SRC-002`), a **plugin author toolkit and synthetic example** (`SRC-003`), and **migration of the two existing importers followed by additional sources** (`SRC-004`). A parser contract alone does not make an importer a loadable plugin.
+The versioned **parser contract** (`SRC-001`) and an independent **trusted registration/loading library** (`SRC-002A`) are implemented. The remaining steps are **shared source plans and configuration/code fingerprints** (`SRC-002B`), a **plugin author toolkit and synthetic example** (`SRC-003`), and **migration of the two existing importers followed by additional sources** (`SRC-004`). The registry is not yet connected to CLI/Web imports; the existing importers are not loadable plugins.
 
 The planned boundary is: a trusted parser detects and normalizes an export; the shared core validates it, preserves original evidence, handles revisions, and produces the same reports. Source support must declare its export versions, record types, and completeness. A bank cash-flow export does not automatically add bank balances to investment assets. Parsing and financial processing run entirely in code, without runtime LLM calls.
 
-Want to contribute a source? Start with the [adapter contract and planned author workflow](docs/source-adapters.md), [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004), [roadmap](TODO.md), and [contribution guide](CONTRIBUTING.md). The external loader and author SDK are not available yet; do not upload real financial exports to public issues.
+Want to contribute a source? Start with the [adapter contract and planned author workflow](docs/source-adapters.md), [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004), [roadmap](TODO.md), and [contribution guide](CONTRIBUTING.md). Normal application integration and the author SDK are not available yet; do not upload real financial exports to public issues.
 
 ## Quick start
 
@@ -225,7 +225,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | CLI/Web contributions/coverage, BTC balances/events/revisions, report recovery | Implemented: [financial declarations](docs/web-financial-records.md) |
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md) and opt-in [legacy report evidence](docs/web-legacy-reports.md); actual private migration is explicit |
-| Extensible financial CSV sources | Two built-in source importers today; parser contract implemented, with loader, SDK, importer migration and more sources planned: [SRC-002–004](docs/source-adapters.md) |
+| Extensible financial CSV sources | Two built-in source importers today; contract and independent registry implemented, with import integration, SDK, importer migration and more sources planned: [SRC-002–004](docs/source-adapters.md) |
 | Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |

@@ -6,9 +6,10 @@ institution. Source-specific parsers will normalize supported formats while shar
 services own validation, evidence, history and reports. Wealthsimple holdings and
 Bull Bitcoin orders are the first built-in importers, not a limit on that scope.
 
-**SRC-001 is implemented as a Python version-1 normalization contract in
-`wealth_ledger.source_protocol`.** General registration, external plugin loading,
-an author SDK and migration of the current importers are still planned (SRC-002-004).
+**SRC-001 is implemented as the version-1 normalization contract in
+`wealth_ledger.source_protocol`; SRC-002A provides an independent trusted registry
+in `wealth_ledger.source_registry`.** Shared source plans/fingerprints (SRC-002B),
+an author SDK and migration of the current importers remain planned (SRC-003-004).
 The current CLI and Web workflow use direct built-in Wealthsimple/Bull importers,
 not a source-plugin registry. They also support normalized cash-flow inputs and
 explicit BTC declarations; they cannot import arbitrary institution CSVs. Moving
@@ -174,13 +175,74 @@ After the SDK is implemented, users should be able to:
 5. Preview offline before normal core submission; maintain parser versions/tests
    when export formats change.
 
-No SDK installer or enable command exists yet. SRC-001 is complete; implement
-SRC-002-SRC-004 after the first usable Web MVP before claiming additional support.
+No SDK installer or enable command exists yet. SRC-001 and the independent SRC-002A
+registry are complete; finish SRC-002B through SRC-004 before claiming production
+custom-parser imports or support for additional institutions.
+
+## Implemented registry library (SRC-002A)
+
+`source_registry.py` is an optional Python library. The production CLI/Web upload,
+preview and import paths do not invoke it yet, and it does not normalize batches,
+write the ledger, install packages or generate reports. No built-in institution
+has been migrated to a `SourceAdapter` factory yet.
+
+- `ProviderInfo(provider_id, display_name)` gives consistent provider metadata.
+  Multiple adapters/export formats may share a provider; conflicting metadata or
+  duplicate adapter IDs fail. Adapter IDs and metadata use the existing API-v1
+  contract plus bounded registry names/text; unsupported API versions are rejected.
+- `AdapterRegistration(provider, adapter)` supplies a trusted built-in instance,
+  or is returned by an external entry point's no-argument factory. The adapter must
+  expose valid `info` plus callable `detect` and `normalize` methods. This verifies
+  the interface, not the safety or financial correctness of installed Python.
+- `discover_plugins()` returns sorted `PluginCandidate` metadata from installed
+  distributions under `wealth_ledger.source_adapters`, without loading entry points.
+  Invalid metadata and colliding distribution/entry-point identities fail explicitly.
+- `PluginSelection(distribution, version, entry_point, adapter_id)` enables one exact
+  installed distribution version and entry point. Distribution names are normalized
+  for comparison; versions are exact strings, not version ranges. Each selected
+  package must return the expected adapter ID. Adapter versions and distribution
+  versions are separate fields and may differ.
+- `build_registry(builtins=(), enabled=(), catalog=None)` returns an immutable
+  `SourceRegistry` snapshot. Empty enablement does not scan installed distributions
+  unless a catalog is supplied. Metadata availability/version and selection collisions
+  are checked before any selected factory loads. Only explicitly enabled factories
+  run; nothing is enabled merely because it is installed or matches an input.
+- `registry.adapters` returns immutable descriptors with provider, declared adapter
+  info and optional external selection. `registry.detect(raw, adapter_id=None)`
+  accepts nonempty `bytes` up to 10 MiB. It returns `SourceMatch` with the descriptor,
+  selected export version and source reason. It never calls `normalize` or books
+  financial effects. Mutable/empty/oversized inputs and malformed detector results
+  fail; changing an adapter's declared info after registration is rejected.
+- Detection evaluates adapters in stable ID order. No match fails; multiple matches
+  require an explicit enabled adapter ID. A detector exception fails the scan even
+  if another adapter matches. An explicit ID narrows detection to that adapter and
+  must still match; it cannot force unsupported bytes through a parser.
+- `RegistryError.code` is stable (`unavailable_plugin`, `ambiguous_plugin`,
+  `duplicate_adapter`, `conflicting_provider`, `incompatible_adapter`,
+  `detection_failed`, `invalid_detection`, `no_match`, `ambiguous_detection`, and
+  other structural configuration/adapter/input codes). Messages and suppressed
+  plugin exception chains do not contain raw rows, paths or plugin exceptions.
+  Returned detector reasons remain private source evidence, not public log text.
+
+This library currently accepts host-supplied immutable Python configuration only.
+It does not read a new settings file, expose an enable endpoint or attest installed
+code/dependencies. Preview code/config fingerprints are SRC-002B. Schema validation
+and financial submission remain separate contracts; discovery/loading alone does
+not make an additional CSV format importable through the normal application.
+
+Offline tests use built-in fakes and an independently written temporary module with
+real distribution/entry-point metadata. Existing commands to run focused checks:
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_registry.py' -v
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_protocol.py' -v
+```
 
 ## Implementation blueprint (planned: SRC-002 through SRC-004)
 
-This section is the implementation plan, not a description of available modules,
-configuration, commands or endpoints. Keep the existing CLI/Web behavior until each
+This section plans the remaining integration. SRC-002A is implemented only as the
+independent library above; the other proposed modules/configuration/endpoints below
+are not available. Keep the existing CLI/Web behavior until each
 replacement passes its acceptance gate. The production parser pipeline remains
 Python code; external Python parsers are explicitly trusted extensions.
 
@@ -224,12 +286,12 @@ calculate contribution coverage, render reports or declare a transfer matched.
 The shared service remains responsible for these financial and operational decisions.
 ETF/FX/BTC reference retrieval remains separate from financial CSV parser loading.
 
-Proposed module boundaries (new modules do not exist yet):
+Module boundaries (only the protocol and registry exist today):
 
 | Module | Responsibility |
 |---|---|
 | Existing `source_protocol.py` | Versioned immutable contracts, structural validation and deterministic evidence serialization |
-| Proposed `source_registry.py` | Catalog, explicit enablement, compatibility checks and deterministic candidate selection |
+| Implemented `source_registry.py` (SRC-002A) | Catalog, explicit enablement, compatibility checks and deterministic candidate selection; not wired into imports |
 | Proposed `source_pipeline.py` | Bounded parsing, context, selection, normalized plan and reproducible digests shared by CLI/Web |
 | Proposed `source_ingestion.py` | Stateful validation, identity binding, revision/conflict policies and submission through existing operations |
 | Proposed `adapters/wealthsimple.py`, `adapters/bullbitcoin.py` | Built-in syntax/normalization implementations with no database/report access |
@@ -384,7 +446,7 @@ arbitrary valuation currencies as part of source-plugin support.
 
 | Increment | Deliverable | Required evidence before claiming completion |
 |---|---|---|
-| SRC-002A | Registry and explicit discovery/enablement, independent of ingestion | Synthetic catalog tests: IDs, multiple formats/provider, disabled plugins not imported, compatibility, deterministic ambiguity and load failures; current imports unchanged |
+| SRC-002A (implemented) | Registry and explicit discovery/enablement, independent of ingestion | Synthetic catalog tests: IDs, multiple formats/provider, disabled plugins not imported, compatibility, deterministic ambiguity and load failures; current imports unchanged |
 | SRC-002B | Source plans and configuration/code fingerprinting | Identical CLI/Web selection, stale plugin/config/environment rejection, bounded inputs and redacted errors; no financial submission through protocol v1 |
 | SRC-003 | Author toolkit and independently packaged synthetic parser | Installation into an isolated environment, entry-point discovery, contract tests and documented native/derived-image workflow; advertise only capabilities actually bookable |
 | SRC-004A | Version-2 contract, central ingestion, identity bindings and necessary schema upgrades | Lossless source-field parity, collision/lineage/coverage checks, atomic rollback/retry, backups/empty restore and no duplicated effects |
@@ -405,9 +467,9 @@ as appropriate; synthetic tests must not read the maintainer's portfolio or requ
 live accounts or live market/reference downloads. Source contract tests alone do
 not establish that the core can ingest an arbitrary new provider.
 
-There is no new parser installation command or API endpoint in this design-only
-change. Implementation should be reviewed in bounded increments on a dedicated
-source-plugin branch after preserving the current unrelated working tree.
+There is no parser installation command or API enable endpoint. The registry
+library is the first bounded implementation increment; remaining integration should
+be reviewed separately without changing existing financial behavior prematurely.
 
 ## Trust and publication
 

@@ -2,7 +2,9 @@
 
 Wealth Ledger welcomes synthetic parser fixtures, financial regression fixes,
 translations, documentation and portability improvements. Discuss new financial
-models or source-adapter contracts before implementation; plugin loading remains planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
+models or source-adapter contracts before implementation. An independent trusted
+parser registry is implemented; normal import integration, the author SDK and
+existing-importer migration remain planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
 
 ## Development setup
 
