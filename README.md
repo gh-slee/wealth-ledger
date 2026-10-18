@@ -27,7 +27,7 @@
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
-Wealth Ledger is a **self-hosted investment tracking app** with a React/TypeScript interface, a FastAPI API, Python background workers, and SQLite history. One owner or household can keep multiple independent portfolios in an instance. The same financial core also powers the supported **Python CLI**.
+Wealth Ledger is an **open-source, self-hosted investment tracking app** with a React/TypeScript interface, a FastAPI API, Python background workers, and SQLite history. One owner or household can keep multiple independent portfolios in an instance. The same financial core also powers the supported **Python CLI**.
 
 Upload **Wealthsimple holdings**, **Bull Bitcoin orders**, or an optional dated **BTC total**. Review an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data.
 
@@ -205,7 +205,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md); actual private migration is explicit |
 | Source-parser plugins | Versioned contract implemented; loader, SDK, and existing-importer migration planned: SRC-002–004 |
-| Operations acceptance | Upgrade/capacity/interruption checks, dependency inventory and [rollback runbook](docs/web-release-acceptance.md) implemented; WEB-007 closes after candidate validation and merged CI |
+| Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |
 
