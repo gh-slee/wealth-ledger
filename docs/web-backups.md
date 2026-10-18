@@ -160,8 +160,10 @@ backup. The instance marker is installed last; a process crash before that point
 leaves an incomplete target that must not be served. Retry into another empty target.
 
 Restore revokes all saved sessions and clears login budgets. Existing username and
-password hash are retained: sign in again with the same owner password. Old previews
-expire; generate a new preview. Queued confirmed work retains its stable IDs, and
+password hash are retained: sign in again with the same owner password. Old financial and nonbooking source-plan previews
+expire; generate a new preview. Private `admin/source-parsers.json`, source uploads
+and plan receipts are preserved, but restore does not install/load plugin packages.
+Use a verified matching environment and create a fresh plan before parser work. Queued confirmed work retains its stable IDs, and
 interrupted jobs are reconciled from durable core markers on worker startup. A
 proven committed operation resumes reporting; uncertain work stays `needs_review`.
 There is no automatic CSV reimport or financial recalculation during restoration.

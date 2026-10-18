@@ -10,6 +10,15 @@ Follow [Web operations](web-operations.md) for installation, owner authenticatio
 CSRF, public origin, Docker context and private storage. Use synthetic files first.
 Existing CLI portfolios are never automatically adopted; use the explicit [copy/verify/switch host commands](web-adoption.md). No Web instance defaults to a maintainer's ledger.
 
+## Independent parser source plans
+
+An advanced, nonbooking API path accepts `source_csv` uploads and queues
+`POST /source-plans` jobs using trusted host parser configuration. It shares the
+CLI source-plan runner and environment/config/input digests. It is separate from
+financial `/previews`: source plans cannot confirm, resume financially or generate
+reports. See [source-plan configuration, API and revalidation](source-adapters.md#nonbooking-source-plans-src-002b).
+No browser source-plan form or plugin installation/enable endpoint exists yet.
+
 ## Start the two services
 
 Install `requirements-web.lock`, initialize the owner once, then run these in

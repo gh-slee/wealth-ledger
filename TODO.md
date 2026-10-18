@@ -81,9 +81,9 @@ exports through source-parser plugins. Wealthsimple and Bull Bitcoin are the fir
 built-in importers. Current support is format-specific, not universal CSV support.
 
 - [x] **SRC-001 Versioned adapter/external parser protocol**: canonical `holdings`, `cash_flows`, `crypto_transactions`; source/account namespaces, stable IDs, time/currency, revisions/voids/coverage and ambiguous detection.
-- [ ] **SRC-002 Registration/discovery/compatibility**: trusted Python parsers enabled explicitly or through versioned package entry points; reject duplicate adapter IDs/conflicting provider metadata, unknown API versions and ambiguous formats without changes to core ledger/reports.
+- [x] **SRC-002 Registration/discovery/compatibility (nonbooking parser path)**: trusted Python parsers enabled explicitly or through versioned package entry points; reject duplicate adapter IDs/conflicting provider metadata, unknown API versions and ambiguous formats without changes to core ledger/reports.
 - [x] **SRC-002A Independent registry library**: explicit exact distribution/version/entry-point enablement, metadata-only discovery, same-provider multiple formats, adapter/provider collision checks, API compatibility, deterministic detection/explicit selection and redacted failures. Existing CLI/Web imports are unchanged.
-- [ ] **SRC-002B Source plans/configuration fingerprints**: shared CLI/Web selection, host configuration, input/mapping/catalog/plugin code and dependency digests, stale-preview rejection and bounded execution; protocol-v1 records remain unbookable through plugins.
+- [x] **SRC-002B Nonbooking source plans/configuration fingerprints**: shared CLI/API runner, strict trusted-host configuration, input/mapping/catalog/normalized digests, actual runtime/core/site-file hashes, fresh child/timeout, stale-plan rejection and API/worker environment checks. Owner-scoped source_csv/source_plan jobs cannot confirm/resume financially and expire on restore. Protocol-v1 records remain unbookable; browser forms, SDK and production parser migration remain later work.
 - [ ] **SRC-003 Example plugin/contract test toolkit**: synthetic fixtures, detector/normalizer/validator examples and offline deduplication/revision/transfer/scope/privacy tests; author/install/enable instructions.
 - [ ] **SRC-004 Existing-adapter migration/new sources**: move Wealthsimple/Bull to the versioned registry, prove ledger/CLI compatibility, then add banks, brokers and exchanges.
 
@@ -91,8 +91,9 @@ SRC-001 provides `wealth_ledger.source_protocol` dataclasses, pure adapter Proto
 structural validation, auditable detection resolution and lossless evidence JSON.
 SRC-002A adds the independent `wealth_ledger.source_registry` library for explicitly
 enabled trusted loading/detection. It is not called by production import paths and
-does not book records. SRC-002 remains open until SRC-002B integration is verified;
-SRC-003-004 remain planned. Existing importers remain unchanged.
+does not book records. SRC-002B now connects the shared nonbooking plan runner to
+CLI and owner-only API jobs; financial import/confirmation still use existing
+importers. SRC-003-004 remain planned. Existing importers remain unchanged.
 
 Current CSV support is Wealthsimple/Bull only. The official ETF registry is separate
 from a general source-plugin system. Bank records can establish boundary cash flows
@@ -101,7 +102,7 @@ user-installed Python; never execute code from a CSV/network automatically or us
 an LLM to generate/select parsers at runtime. See [adapter design](docs/source-adapters.md);
 no SDK/install command is available yet.
 
-The [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004) now specifies module boundaries, trusted-host loading, CLI/Web preview fingerprints, protocol-v2 completeness gaps, preserved identity bindings and phased acceptance. SRC-002A is now implemented and verified independently; source-plan fingerprints and generic ingestion remain unimplemented. Full decoupling requires the remaining integration and migration acceptance gates.
+The [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004) now specifies module boundaries, trusted-host loading, CLI/Web preview fingerprints, protocol-v2 completeness gaps, preserved identity bindings and phased acceptance. SRC-002A/B are implemented for nonbooking parser previews and revalidation; generic financial ingestion remains unimplemented. Full decoupling requires the remaining integration and migration acceptance gates.
 
 ## Cash flows and additional data
 

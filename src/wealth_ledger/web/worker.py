@@ -55,7 +55,7 @@ def publish_registry(store, jobs, row, service, saved):
 def reconcile_one(store, jobs, row):
     """Called only with the job guard; a running child cannot be reconciled."""
     _, project = store.portfolio(row["portfolio_id"])
-    if row["kind"] in {"preview", "record_preview"}:
+    if row["kind"] in {"preview", "record_preview", "source_plan"}:
         jobs.state(row["id"], "interrupted", error="preview_interrupted")
         return
     try:
@@ -105,6 +105,10 @@ def execute_job(settings, job_id):
         _, project = store.portfolio(row["portfolio_id"])
         service = ApplicationService(resolve_workspace(explicit=project))
         try:
+            if row["kind"] == "source_plan":
+                from .source_plans import execute_plan
+                execute_plan(store, jobs, row)
+                return
             if row["kind"] == "record_preview":
                 from .financial import declaration_upload, preview_declaration
                 before = input_fingerprint(project)
@@ -151,7 +155,7 @@ def execute_job(settings, job_id):
         except LockBusy:
             jobs.state(job_id, "queued", error="portfolio_busy")
         except Exception as exc:
-            if row["kind"] in {"preview", "record_preview"}:
+            if row["kind"] in {"preview", "record_preview", "source_plan"}:
                 jobs.state(job_id, "blocked", error=exc.code if isinstance(exc, WebError) else "preview_failed")
                 return
             saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)

@@ -1231,3 +1231,14 @@ and empty-instance restore are trusted-host commands, with maintenance barriers,
 SQLite/evidence verification and restored-session revocation. See [the complete
 backup/export guide](web-backups.md). This does not adopt an existing CLI ledger;
 use the [copy-verified adoption commands](web-adoption.md). Keep the original CLI workspace intact.
+
+## Developer parser previews (nonbooking)
+
+The normal update/import workflow above still supports the documented built-in
+formats. Developers can inspect an explicitly installed trusted parser with
+`scripts/source_parsers.py` or the owner-only Web `/source-plans` API. Both produce
+a private receipt and can reject stale code/config/input evidence. They cannot
+import positions, record contributions or generate reports. Host configuration,
+implemented commands and revalidation examples are in the
+[source-plan guide](source-adapters.md#nonbooking-source-plans-src-002b). The author
+SDK and existing-parser migration are still planned; there is no runtime LLM.

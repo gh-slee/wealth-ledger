@@ -8,8 +8,9 @@ Bull Bitcoin orders are the first built-in importers, not a limit on that scope.
 
 **SRC-001 is implemented as the version-1 normalization contract in
 `wealth_ledger.source_protocol`; SRC-002A provides an independent trusted registry
-in `wealth_ledger.source_registry`.** Shared source plans/fingerprints (SRC-002B),
-an author SDK and migration of the current importers remain planned (SRC-003-004).
+in `wealth_ledger.source_registry`. SRC-002B adds nonbooking CLI/API source plans
+and code/configuration fingerprints.** An author SDK and migration of the current
+importers remain planned (SRC-003-004).
 The current CLI and Web workflow use direct built-in Wealthsimple/Bull importers,
 not a source-plugin registry. They also support normalized cash-flow inputs and
 explicit BTC declarations; they cannot import arbitrary institution CSVs. Moving
@@ -176,13 +177,14 @@ After the SDK is implemented, users should be able to:
    when export formats change.
 
 No SDK installer or enable command exists yet. SRC-001 and the independent SRC-002A
-registry are complete; finish SRC-002B through SRC-004 before claiming production
-custom-parser imports or support for additional institutions.
+registry and SRC-002B nonbooking plans are complete; finish SRC-003/SRC-004 before
+claiming production custom-parser imports or support for additional institutions.
 
 ## Implemented registry library (SRC-002A)
 
 `source_registry.py` is an optional Python library. The production CLI/Web upload,
-preview and import paths do not invoke it yet, and it does not normalize batches,
+financial preview and import paths do not invoke it yet. The independent source-plan
+CLI/API does use this registry, while the registry itself does not normalize batches,
 write the ledger, install packages or generate reports. No built-in institution
 has been migrated to a `SourceAdapter` factory yet.
 
@@ -224,10 +226,10 @@ has been migrated to a `SourceAdapter` factory yet.
   plugin exception chains do not contain raw rows, paths or plugin exceptions.
   Returned detector reasons remain private source evidence, not public log text.
 
-This library currently accepts host-supplied immutable Python configuration only.
-It does not read a new settings file, expose an enable endpoint or attest installed
-code/dependencies. Preview code/config fingerprints are SRC-002B. Schema validation
-and financial submission remain separate contracts; discovery/loading alone does
+The registry accepts immutable Python configuration. The SRC-002B layer below
+loads strict host JSON, fingerprints code/configuration and runs bounded nonbooking
+previews; there is no browser enable endpoint. Financial submission remains a
+separate contract; discovery/loading/planning alone does
 not make an additional CSV format importable through the normal application.
 
 Offline tests use built-in fakes and an independently written temporary module with
@@ -238,11 +240,148 @@ PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_registry.py'
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_protocol.py' -v
 ```
 
+## Nonbooking source plans (SRC-002B)
+
+`source_pipeline.plan_sources` is shared by `scripts/source_parsers.py` and the
+owner-only Web API. It runs trusted detection/normalization in a fresh Python child,
+validates the protocol-v1 batch and returns a JSON summary/receipt. **Every result
+is `status: plan_only`, `ingestible: false`, with `protocol_v1_not_bookable`.** There
+is no financial confirmation path, SQLite submission, contribution inference,
+reference download or report publication. Existing financial imports and `--dry-run`
+retain their current behavior. The browser interface has no source-plan form yet.
+
+### Host configuration
+
+The CLI requires an explicit `--config` file. Web uses the private instance file
+`admin/source-parsers.json`; absence means no external adapters enabled. Only a
+trusted host operator edits it. Browser requests cannot supply configuration,
+Python paths, factories, package names/URLs or enablement. Do not store credentials
+in this file. Example **hypothetical** parser configuration (not an available bank):
+
+```json
+{
+  "schema_version": 1,
+  "enabled": [
+    {
+      "distribution": "example-bank-parser",
+      "version": "1.0.0",
+      "entry_point": "holdings",
+      "adapter_id": "example.holdings"
+    }
+  ],
+  "bindings": []
+}
+```
+
+The schema requires exactly these top-level keys. Unknown/duplicate keys, nonfinite
+JSON, invalid identities and duplicate account bindings fail. At most 32 enablements,
+200 bindings and 64 KiB are allowed. An optional binding has `provider_id`,
+`source_account_id`, and `ledger_account_id`; its exact configuration is fingerprinted.
+Version 1 does **not** rewrite account IDs or apply these mappings to ledger rows;
+stateful identity binding and source parse context are SRC-004 work. Real financial
+bindings must be portfolio-scoped and checked against that ledger; never apply this
+host-level planning declaration across portfolios as a global account assignment. An enabled
+entry-point factory still must return `AdapterRegistration` with API-v1 metadata.
+
+Normal dependency installation/packaging is an operator prerequisite, not a feature
+of this command. The author SDK/installable application package remains SRC-003.
+The application does not fetch or install plugins when given a CSV. Use only trusted
+compatible code in the same controlled Python environment as the application.
+Change installed packages while services are stopped, then restart API/worker
+together; do not update executable dependencies in a running financial environment.
+
+### CLI preview and revalidation
+
+After installing/enabling a compatible trusted parser and saving private host
+configuration, these are implemented commands. The example paths are placeholders:
+
+```bash
+python scripts/source_parsers.py /path/to/export.csv \
+  --config /path/to/private/source-parsers.json > /path/to/private/source-plan.json
+
+python scripts/source_parsers.py /path/to/export.csv \
+  --config /path/to/private/source-parsers.json \
+  --verify /path/to/private/source-plan.json
+```
+
+Use private directories/files (for example, a shell `umask 077`). Up to five CSV
+paths can be supplied. Optional `--select 1=example.holdings` selects an enabled
+adapter for the first file; repeat for other 1-based slots. Unsupported or ambiguous
+formats fail, and an explicit choice must still match. `--timeout` is a positive
+wall-clock limit no greater than 60 seconds. Failure returns exit code 2 and a
+redacted JSON error; success returns the plan and exit code 0. There is no import
+or commit option. A plan contains hashes/counts/metadata rather than account IDs,
+raw rows or normalized financial records, but still belongs in private storage.
+
+### Web API preview and revalidation
+
+Use the existing authenticated, CSRF-protected API under
+`/api/v1/portfolios/{portfolio_id}`:
+
+1. Upload bounded CSV bytes with `POST /uploads?kind=source_csv&filename=export.csv`.
+   HTTP checks generic CSV structure only; it never executes a detector/factory.
+2. Send `POST /source-plans` with `Idempotency-Key` and
+   `{"upload_ids":["SERVER_UPLOAD_ID"],"selections":{}}`.
+3. The existing worker runs a `source_plan` job. Poll the existing `/jobs/{job_id}`.
+   A successful result is `ready` **for inspection only**, with no core operation ID.
+4. Revalidate using another `/source-plans` request with the same input IDs/options
+   plus `"previous_plan_id":"COMPLETED_PLAN_JOB_ID"`. It compares the new receipt
+   against the prior one. Prior jobs must belong to the same portfolio, be ready,
+   remain within 24 hours and have unchanged portfolio inputs.
+
+`selections` maps 1-based input slots to enabled adapter IDs, just as the CLI does.
+`source_csv` uploads are rejected by normal financial `/previews`; source-plan jobs
+are rejected by financial `/jobs` confirmation and `/resume`. Existing upload byte,
+quota, authorization and evidence hash checks still apply. Interrupted source plans
+are marked interrupted rather than retried as financial work. Backups retain host
+configuration, uploads and receipts; restore expires queued/running/ready source
+plans and never loads/installs a plugin. Frozen reports remain readable without it.
+
+### Fingerprints, limits and guarantees
+
+The receipt binds raw bytes and slot selections, exact host configuration/account
+mapping hashes, selected adapter/API/export metadata, enabled registry catalog,
+canonical normalized-output digest and runtime/core/dependency environment digest.
+Its own fingerprint covers the entire receipt body. Modified receipt JSON fails
+validation. Receipts are integrity comparisons, not signed attestations or authority
+to book protocol-v1 records.
+
+`source_environment` hashes actual files in the application package, Python standard
+library, installed site-package roots (including unlisted files and distribution
+metadata), and the Python executable/runtime identity. This catches same-version
+plugin/dependency edits, not just package version changes. There is no persistent
+hash cache. Scans fail if incomplete or beyond 50,000 files/1 GiB. Unsupported
+external/editable paths, executable `.pth` hooks, directory symlinks and escaping
+file links fail rather than being omitted. Recognized standard-library libpython
+links within the Python base installation are hashed through their targets.
+API/worker environments must match; incompatible environments block processing.
+This is a controlled-environment requirement, not cross-platform equivalence.
+
+Each child starts with a private empty bytecode prefix and bytecode writes disabled,
+so excluded caches cannot supply stale code. Its environment is limited to required
+OS variables plus fixed Python settings. Inputs/configuration and receipt IO use
+private temporary storage removed afterward. Child stdout/stderr are discarded;
+plugin exceptions become stable redacted codes. The parent enforces the wall limit,
+checks bounded receipt output and rechecks original inputs/config after processing.
+The child compares environment hashes before loading and after normalization.
+
+Limits are five files, 10 MiB/file, 25 MiB/batch, 50,000 CSV rows and 256 columns;
+normalized evidence is limited to 4 MiB/file and a receipt to 1 MiB. These limits do
+not sandbox trusted Python or guarantee a memory ceiling for a malicious plugin.
+Parsing must remain offline and side-effect-free under the contract. Generic
+financial validation, lossless protocol-v2 context, transaction-time lineage checks,
+persisted canonical submission and provider-neutral report projections remain SRC-004.
+
+Synthetic acceptance covers actual entry-point metadata in a temporary isolated venv,
+identical CLI/Web receipts using that real child/adapter, same-version code/dependency
+changes, config/input changes, timeouts, redacted failures, API scope/idempotency,
+nonbooking rejection, crash interruption and empty-instance backup restore.
+
 ## Implementation blueprint (planned: SRC-002 through SRC-004)
 
-This section plans the remaining integration. SRC-002A is implemented only as the
-independent library above; the other proposed modules/configuration/endpoints below
-are not available. Keep the existing CLI/Web behavior until each
+This section plans financial integration. SRC-002A and SRC-002B are implemented
+as the independent registry and nonbooking plan paths above; ingestion, SDK and
+existing-parser migration remain unavailable. Keep the existing CLI/Web behavior until each
 replacement passes its acceptance gate. The production parser pipeline remains
 Python code; external Python parsers are explicitly trusted extensions.
 
@@ -286,13 +425,13 @@ calculate contribution coverage, render reports or declare a transfer matched.
 The shared service remains responsible for these financial and operational decisions.
 ETF/FX/BTC reference retrieval remains separate from financial CSV parser loading.
 
-Module boundaries (only the protocol and registry exist today):
+Module boundaries (the protocol, registry and nonbooking pipeline exist today):
 
 | Module | Responsibility |
 |---|---|
 | Existing `source_protocol.py` | Versioned immutable contracts, structural validation and deterministic evidence serialization |
 | Implemented `source_registry.py` (SRC-002A) | Catalog, explicit enablement, compatibility checks and deterministic candidate selection; not wired into imports |
-| Proposed `source_pipeline.py` | Bounded parsing, context, selection, normalized plan and reproducible digests shared by CLI/Web |
+| Implemented `source_pipeline.py` / `source_environment.py` (SRC-002B) | Bounded nonbooking CLI/API parsing, selection, normalized digests and code/config revalidation; protocol-v2 context remains planned |
 | Proposed `source_ingestion.py` | Stateful validation, identity binding, revision/conflict policies and submission through existing operations |
 | Proposed `adapters/wealthsimple.py`, `adapters/bullbitcoin.py` | Built-in syntax/normalization implementations with no database/report access |
 | Proposed `source_testing.py` and synthetic example | Offline author contract checks; not a generic install/execute service |
@@ -447,7 +586,7 @@ arbitrary valuation currencies as part of source-plugin support.
 | Increment | Deliverable | Required evidence before claiming completion |
 |---|---|---|
 | SRC-002A (implemented) | Registry and explicit discovery/enablement, independent of ingestion | Synthetic catalog tests: IDs, multiple formats/provider, disabled plugins not imported, compatibility, deterministic ambiguity and load failures; current imports unchanged |
-| SRC-002B | Source plans and configuration/code fingerprinting | Identical CLI/Web selection, stale plugin/config/environment rejection, bounded inputs and redacted errors; no financial submission through protocol v1 |
+| SRC-002B (implemented, nonbooking) | Source plans and configuration/code fingerprinting | Identical CLI/Web selection, stale plugin/config/environment rejection, bounded inputs and redacted errors; no financial submission through protocol v1 |
 | SRC-003 | Author toolkit and independently packaged synthetic parser | Installation into an isolated environment, entry-point discovery, contract tests and documented native/derived-image workflow; advertise only capabilities actually bookable |
 | SRC-004A | Version-2 contract, central ingestion, identity bindings and necessary schema upgrades | Lossless source-field parity, collision/lineage/coverage checks, atomic rollback/retry, backups/empty restore and no duplicated effects |
 | SRC-004B | Built-in Wealthsimple/Bull migration across CLI/Web/preview | Old-versus-new synthetic fixtures preserve IDs, rows, costs, quantities, warnings, source dates, duplicates/revisions and account/balance/event links; no direct provider dispatch in active core/report paths |
@@ -467,8 +606,8 @@ as appropriate; synthetic tests must not read the maintainer's portfolio or requ
 live accounts or live market/reference downloads. Source contract tests alone do
 not establish that the core can ingest an arbitrary new provider.
 
-There is no parser installation command or API enable endpoint. The registry
-library is the first bounded implementation increment; remaining integration should
+There is no parser installation command or API enable endpoint. The registry and
+nonbooking plans are implemented increments; remaining financial integration should
 be reviewed separately without changing existing financial behavior prematurely.
 
 ## Trust and publication

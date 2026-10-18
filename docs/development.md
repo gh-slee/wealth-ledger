@@ -171,7 +171,10 @@ validator. `tests/test_source_registry.py` checks the independent SRC-002A regis
 metadata-only discovery, exact enablement, real temporary entry-point loading,
 identity/provider collisions, compatibility and redacted/deterministic detection.
 This does not establish production import integration or financial completeness.
-Keep SRC-002B/SRC-003/SRC-004 pending until their acceptance gates pass.
+`tests/test_source_pipeline.py` and `tests/test_web_source_plans.py` verify shared
+nonbooking receipts, actual same-version code/dependency edits, fresh isolated
+execution, limits, stale verification, owner scope and backup/restore expiration.
+Keep SRC-003/SRC-004 pending; source-plan success does not authorize financial booking.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
 

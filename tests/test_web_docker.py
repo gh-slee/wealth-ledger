@@ -212,6 +212,16 @@ class DockerRuntimeTests(unittest.TestCase):
                 preview = completed(submit(f"/api/v1/portfolios/{portfolio}/previews", {"upload_ids": uploads}), "ready")
                 formal = completed(submit(f"/api/v1/portfolios/{portfolio}/jobs", {"preview_id": preview["id"]}), "published")
                 self.assertTrue(formal["result"]["artifact_ids"])
+                # Nonbooking plans use the same image environment in API/child.
+                source_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/uploads?kind=source_csv&filename=synthetic.csv",
+                    data=b"symbol,quantity\nDEMO,1\n", headers={"Origin": origin, "X-CSRF-Token": csrf,
+                        "Content-Type": "text/csv"})
+                with client.open(source_request, timeout=10) as response:
+                    source_upload = json.load(response)["id"]
+                source_plan = completed(submit(f"/api/v1/portfolios/{portfolio}/source-plans",
+                    {"upload_ids": [source_upload]}), "blocked")
+                self.assertEqual(source_plan["error_code"], "no_match")
+                self.assertIsNone(source_plan["core_operation_id"])
                 reports = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/reports")["reports"]
                 self.assertEqual(reports[0]["id"], formal["id"])
                 view = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}")

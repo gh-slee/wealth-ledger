@@ -92,6 +92,8 @@ class Jobs:
             raise WebError(422, "invalid_request", "Duplicate or excessive uploads")
         if sum(row["byte_size"] for row in rows) > BATCH_BYTES:
             raise WebError(413, "batch_too_large", "Evidence batch is too large")
+        if any(row["kind"] == "source_csv" for row in rows):
+            raise WebError(422, "invalid_upload", "Use nonbooking source plans for parser CSVs")
         if any(row["kind"] == "cash_flows" for row in rows):
             raise WebError(422, "invalid_upload", "Use financial declarations for cash-flow CSVs")
         slots = [row["provider"] if row["kind"] == "csv" else row["kind"] for row in rows]
