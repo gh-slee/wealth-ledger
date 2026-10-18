@@ -68,3 +68,24 @@ under SIL OFL 1.1. Full notices are in
 [IBM Plex](frontend/public/licenses/ibm-plex-sans-condensed.txt), also copied into
 built assets under `/licenses/`. System fonts provide CJK browser fallback;
 report fonts remain the separately bundled Noto assets described above.
+
+## Reproducible dependency review
+
+Run `python scripts/dependency_inventory.py --require-declared` in the locked Web
+virtual environment. `--python-lock requirements-web-test.lock` includes test-only
+Python packages; the default covers Web runtime packages. The standard-library tool
+makes no network calls and reads no financial workspaces. It verifies installed
+Python versions against exact recursive pins, records upstream license expressions,
+legacy metadata/classifiers and hashes of installed license/notice files. npm records
+come from the complete lock, including optional platform and development entries;
+they are not a list of JavaScript modules actually included in a browser bundle.
+Bundled project/font/component notices are also hashed. Missing declarations stay
+unknown; `--require-declared` fails for review rather than assigning a license.
+
+The deterministic JSON is a review inventory, not an SPDX license parser, a legal
+compatibility decision, a vulnerability scan or an operating-system/image SBOM.
+A license-file hash establishes retained evidence, not an inferred SPDX expression.
+Keep upstream notices with redistributed packages. Before public prebuilt-image
+publication, review the final image/base OS and bundled browser notices as part of
+[the distribution gate](docs/web-release-acceptance.md). No image is published by
+this inventory command or the current CI.

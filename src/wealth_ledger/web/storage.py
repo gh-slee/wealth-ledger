@@ -110,9 +110,19 @@ def prepare_instance(settings: WebSettings):
             backups = contained(root, "admin/backups")
             backups.mkdir(exist_ok=True, mode=0o700)
             backup = backups / ("app-v1-" + uuid.uuid4().hex + ".sqlite3")
-            with closing(sqlite3.connect(backup)) as target:
-                conn.backup(target)
-            backup.chmod(0o600)
+            temporary = backup.with_name("." + backup.name)
+            try:
+                descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                os.close(descriptor)
+                with closing(sqlite3.connect(temporary)) as target:
+                    conn.backup(target)
+                    if target.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+                        raise ValueError("Metadata backup integrity verification failed")
+                with temporary.open("rb") as stream:
+                    os.fsync(stream.fileno())
+                os.link(temporary, backup)
+            finally:
+                temporary.unlink(missing_ok=True)
             conn.executescript("""
             BEGIN IMMEDIATE;
             CREATE TABLE uploads(id TEXT PRIMARY KEY, portfolio_id TEXT NOT NULL REFERENCES portfolios(id),
@@ -131,6 +141,26 @@ def prepare_instance(settings: WebSettings):
             COMMIT;
             """)
     db.chmod(0o600)
+
+
+def upgrade_instance(settings, *, timeout=30):
+    """Drain standard clients before upgrading only the Web metadata database."""
+    from .maintenance import maintenance
+    validate_identity(settings)
+    with maintenance(settings.data_root, timeout=timeout, purpose="upgrade"):
+        prepare_instance(settings)
+
+
+def validate_identity(settings):
+    """Identify an existing instance without requiring the current metadata schema."""
+    root = settings.data_root
+    marker = contained(root, "admin/instance.json")
+    key = contained(root, "secrets/csrf.key")
+    db = contained(root, "admin/app.sqlite3")
+    if not marker.is_file() or not key.is_file() or not db.is_file():
+        raise ValueError("Initialize an instance before performing maintenance")
+    if json.loads(marker.read_text()) != {"schema_version": 1} or len(key.read_bytes()) != 32:
+        raise ValueError("Invalid instance identity; review or restore it offline")
 
 
 class Store:

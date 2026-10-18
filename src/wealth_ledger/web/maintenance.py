@@ -43,8 +43,10 @@ def workspace_activity(project):
 
 
 @contextmanager
-def maintenance(root, *, timeout=30):
+def maintenance(root, *, timeout=30, purpose="backup"):
     """Block new entrants, drain existing readers/writers, then hold the barrier."""
+    if purpose not in {"backup", "upgrade"}:
+        raise ValueError("Unsupported maintenance purpose")
     if not 0 <= timeout <= 300:
         raise ValueError("Maintenance timeout must be between 0 and 300 seconds")
     root = Path(root)
@@ -53,7 +55,7 @@ def maintenance(root, *, timeout=30):
         if marker.exists():
             raise ValueError("Interrupted maintenance needs the trusted maintenance-clear command")
         token = uuid.uuid4().hex
-        private_write(marker, json.dumps({"token": token, "purpose": "backup"}).encode())
+        private_write(marker, json.dumps({"token": token, "purpose": purpose}).encode())
         try:
             deadline = time.monotonic() + timeout
             while True:

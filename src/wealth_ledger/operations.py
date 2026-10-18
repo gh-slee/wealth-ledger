@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import hashlib
 import json
+import os
 import shutil
 import shlex
 import sqlite3
@@ -96,6 +97,20 @@ def input_fingerprint(project):
     return hashlib.sha256(json.dumps([fingerprint(project), evidence], sort_keys=True).encode()).hexdigest()
 
 
+def _install_evidence(source, destination):
+    """Never expose a partially copied immutable file after an interrupted write."""
+    descriptor, name = tempfile.mkstemp(prefix=".evidence-", dir=destination.parent)
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        shutil.copy2(source, temporary)
+        with temporary.open("rb") as stream:
+            os.fsync(stream.fileno())
+        os.link(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def atomic_data(project, action, *, finalize=None):
     """Run importers in an isolated database and install all rows atomically.
 
@@ -106,21 +121,21 @@ def atomic_data(project, action, *, finalize=None):
     initialize(project)
     expected = fingerprint(project)
     directory = Path(tempfile.mkdtemp(prefix="input-stage-", dir=project / "work"))
-    stage = directory / "project"
-    (stage / "data/db").mkdir(parents=True)
-    (stage / "work").mkdir()
-    for child in (project / "data").iterdir():
-        if child.name != "db":
-            destination = stage / "data" / child.name
-            if child.is_dir():
-                shutil.copytree(child, destination)
-            else:
-                shutil.copy2(child, destination)
-    if (project / "config").exists():
-        shutil.copytree(project / "config", stage / "config")
-    with closing(sqlite3.connect(_db(project))) as source, closing(sqlite3.connect(_db(stage))) as target:
-        source.backup(target)
     try:
+        stage = directory / "project"
+        (stage / "data/db").mkdir(parents=True)
+        (stage / "work").mkdir()
+        for child in (project / "data").iterdir():
+            if child.name != "db":
+                destination = stage / "data" / child.name
+                if child.is_dir():
+                    shutil.copytree(child, destination)
+                else:
+                    shutil.copy2(child, destination)
+        if (project / "config").exists():
+            shutil.copytree(project / "config", stage / "config")
+        with closing(sqlite3.connect(_db(project))) as source, closing(sqlite3.connect(_db(stage))) as target:
+            source.backup(target)
         result = action(stage)
         with closing(sqlite3.connect(_db(project))) as conn, conn:
             conn.execute("PRAGMA foreign_keys=ON")
@@ -136,7 +151,7 @@ def atomic_data(project, action, *, finalize=None):
                     if destination.exists() and destination.read_bytes() != path.read_bytes():
                         raise ValueError(f"Immutable input/cache collision: {relative}")
                     if not destination.exists():
-                        shutil.copy2(path, destination)
+                        _install_evidence(path, destination)
             conn.execute("PRAGMA defer_foreign_keys=ON")
             schema = conn.execute("SELECT name,sql FROM candidate.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
             for name, sql in schema:

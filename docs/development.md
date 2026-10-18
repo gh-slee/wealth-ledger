@@ -229,3 +229,15 @@ Docker acceptance additionally adopts an invented stopped CLI copy inside dispos
 containers and checks the adopted reports survive empty-volume restoration. Never
 mount a maintainer's real workspace for these tests. See [declarations](web-financial-records.md)
 and [trusted-host adoption](web-adoption.md) for supported scope and remaining limits.
+
+## Operations and dependency acceptance
+
+See [the upgrade/resource/platform matrix](web-release-acceptance.md). Focused
+`test_web_operations.py` uses ENOSPC injection and actual subprocess exits, preserving
+source/evidence and checking retry or fail-closed behavior. `test_dependency_inventory.py`
+checks exact pins, missing licenses, deterministic metadata and npm optional scope.
+Run `python scripts/dependency_inventory.py --require-declared` in the locked Web
+venv; CI also inventories the test lock. No network/financial workspace is consulted.
+Docker CI asserts Linux/x86_64; local acceptance records the actual guest architecture.
+A synthetic v1 schema fixture verifies migration mechanics, not an untested historical
+image upgrade or every host OS. Public prebuilt image distribution remains separate.

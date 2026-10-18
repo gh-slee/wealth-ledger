@@ -24,7 +24,7 @@ PUBLIC_ROOT_FILES = {
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
-    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md',
+    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md',
 }
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',

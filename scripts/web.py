@@ -102,15 +102,13 @@ def main():
                 print(json.dumps(restore_instance(settings, args.archive)))
         elif args.command == "maintenance-clear":
             from wealth_ledger.web.maintenance import clear_maintenance
-            from wealth_ledger.web.storage import Store
-            Store(settings)
+            from wealth_ledger.web.storage import validate_identity
+            validate_identity(settings)
             clear_maintenance(settings.data_root)
             print(json.dumps({"status":"maintenance_cleared"}))
         elif args.command == "upgrade":
-            from wealth_ledger.web.storage import prepare_instance
-            from wealth_ledger.web.maintenance import instance_activity
-            with instance_activity(settings.data_root):
-                prepare_instance(settings)
+            from wealth_ledger.web.storage import upgrade_instance
+            upgrade_instance(settings)
             print(json.dumps({"status": "metadata_ready"}))
         elif args.command == "worker":
             from wealth_ledger.web.worker import run_worker

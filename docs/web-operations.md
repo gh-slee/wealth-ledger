@@ -10,6 +10,8 @@ Native HTTP startup/restart and synthetic security tests pass. Docker image
 startup/restart and Compose health/container-replacement tests have also passed
 locally on Linux/arm64 using Docker Desktop. This accepts the WEB-002 foundation;
 it does not establish wider platform/release acceptance or a complete investment app.
+See the [operations acceptance and upgrade runbook](web-release-acceptance.md) for
+the current platform matrix, capacity/crash tests and pending distribution gate.
 WEB-003 additionally passes synthetic transaction/process interruption tests and
 Compose CSV/preview/worker-report persistence acceptance; see [imports/jobs](web-imports.md).
 
@@ -233,9 +235,10 @@ persistence. Only test listener/context/resource names and timing/restart behavi
 are overridden; production service security settings remain in place. Native HTTP
 restart acceptance runs without Docker. Do not substitute a real ledger for these tests.
 
-Pending gates: broader resource/crash tests and wider release/platform/security
-acceptance. Local container acceptance covers Linux/arm64; it does not claim
-Linux/amd64 CI or every Docker host has passed. No dependency/source check proves
+The WEB-007 candidate adds explicit upgrade/capacity/crash acceptance and an offline
+dependency inventory. See the [evidence matrix](web-release-acceptance.md) for exact
+checks, current-candidate CI requirements and host limitations. Prebuilt images and
+broader host distribution remain WEB-008. No dependency/source check proves
 the absence of all possible sensitive values. Review concrete staged content/history before publication.
 
 Official implementation references:
