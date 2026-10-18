@@ -49,6 +49,7 @@ import {
   Overview,
 } from "./components/analysis";
 import { Imports } from "./components/imports";
+import { ReportExports } from "./components/report-exports";
 const navigation = [
   ["overview", ChartNoAxesCombined],
   ["holdings", Landmark],
@@ -500,6 +501,7 @@ function PortfolioWorkspace({
                           )}
                         </small>
                       </div>
+                      <ReportExports portfolio={portfolio} report={value.id} />
                       <div className="actions">
                         {value.artifacts.map((artifact) => (
                           <Button

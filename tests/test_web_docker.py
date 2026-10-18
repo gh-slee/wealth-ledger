@@ -143,6 +143,9 @@ class DockerRuntimeTests(unittest.TestCase):
             def compose(*arguments, **kwargs):
                 return subprocess.run(command + list(arguments), check=True, **kwargs)
 
+            restore_volume = token + "-restored-data"
+            restore_container = token + "-restored-web"
+            restore_created = False
             try:
                 compose("build", "web")
                 supplied = secrets.token_urlsafe(32)
@@ -214,7 +217,44 @@ class DockerRuntimeTests(unittest.TestCase):
                 self.assertTrue(request_json(client, origin, "/api/v1/auth/session")["authenticated"])
                 self.assertEqual(request_json(client, origin,
                                  f"/api/v1/portfolios/{portfolio}/settings"), expected)
+                # Full private archive roundtrip to a different empty volume; source stays intact.
+                bundle_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}/bundle.zip")
+                with client.open(bundle_request, timeout=15) as response:
+                    self.assertTrue(response.read(2).startswith(b"PK"))
+                archive = compose("run", "--rm", "--no-deps", "-T", "web", "backup", "--stdout", capture_output=True).stdout
+                self.assertTrue(archive.startswith(b"PK"))
+                subprocess.run(["docker", "volume", "create", restore_volume],check=True,capture_output=True)
+                restore_created = True
+                isolated = ["docker","run","--rm","--read-only","--cap-drop=ALL","--security-opt=no-new-privileges",
+                            "--tmpfs","/tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700",
+                            "--volume",restore_volume+":/data"]
+                restored = subprocess.run([*isolated,"-i",image,"restore","--stdin"],input=archive,check=True,capture_output=True)
+                self.assertEqual(json.loads(restored.stdout)["status"],"restored")
+                subprocess.run([*isolated,image,"worker","--once"],check=True,capture_output=True)
+                new_port=free_port();new_origin=f"http://localhost:{new_port}"
+                subprocess.run(["docker","run","--detach","--name",restore_container,"--read-only","--cap-drop=ALL",
+                    "--security-opt=no-new-privileges","--pids-limit=256","--memory=1g",
+                    "--tmpfs","/tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700",
+                    "--volume",restore_volume+":/data","--publish",f"127.0.0.1:{new_port}:8000",
+                    "--env","WEALTH_LEDGER_PUBLIC_ORIGIN="+new_origin,image],check=True,capture_output=True)
+                wait_ready(new_origin)
+                try:
+                    request_json(client,new_origin,"/api/v1/auth/session")
+                    self.fail("Restored sessions must be revoked")
+                except urllib.error.HTTPError as exc:
+                    self.assertEqual(exc.code,401)
+                restored_client=http_client()
+                restored_csrf=request_json(restored_client,new_origin,"/api/v1/auth/csrf")["csrf_token"]
+                request_json(restored_client,new_origin,"/api/v1/auth/login",{"username":"owner","password":supplied},restored_csrf)
+                restored_view=request_json(restored_client,new_origin,f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}")
+                self.assertEqual(restored_view["totals"],view["totals"])
+                self.assertEqual(restored_view["holdings"],view["holdings"])
+                self.assertEqual(request_json(restored_client,new_origin,f"/api/v1/portfolios/{portfolio}/artifacts")["artifacts"],registered)
+                self.assertEqual(request_json(client,origin,f"/api/v1/portfolios/{portfolio}/settings"),expected)
             finally:
+                subprocess.run(["docker","rm","--force",restore_container],capture_output=True)
+                if restore_created:
+                    subprocess.run(["docker","volume","rm",restore_volume],capture_output=True)
                 subprocess.run(command + ["down", "--volumes", "--remove-orphans"], capture_output=True)
                 subprocess.run(["docker", "image", "rm", image], capture_output=True)
 

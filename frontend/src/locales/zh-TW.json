@@ -197,5 +197,21 @@
   "status.user_reported_balance": "使用者回報錢包總量",
   "status.balance_plus_known_changes_estimate": "回報餘額加已知異動（估計）",
   "status.ledger_plus_events_estimate": "帳本加已記錄異動（估計）",
-  "status.wallet_only_unknown_history": "錢包總量；取得歷史未知"
+  "status.wallet_only_unknown_history": "錢包總量；取得歷史未知",
+  "bundleDownload": "下載報告 ZIP",
+  "exportData": "匯出報告資料",
+  "exportDataset": "資料類型",
+  "exportFormat": "格式",
+  "exportStart": "開始日期（選填）",
+  "exportEnd": "結束日期（選填）",
+  "exportDownload": "下載資料",
+  "exportScope": "匯出取自這份已儲存報告。缺值仍為未知；這不是完整備份。日期範圍包含首尾；BTC 每月資料以整月篩選。",
+  "export.holdings": "持倉",
+  "export.accounts": "帳戶",
+  "export.history": "已記錄歷史",
+  "export.cash_flows": "已記錄資金流",
+  "export.btc_monthly": "BTC 每月購入",
+  "error.maintenance": "正在維護，請稍後重試。",
+  "error.export_too_large": "匯出超過上限或報告組合不完整。請個別下載檔案或在主機檢查。",
+  "error.invalid_export_range": "請檢查日期範圍並選擇含日期的資料類型。"
 }

@@ -99,6 +99,54 @@ test("frozen reports, charts, three locales, mobile, downloads and cache isolati
     .getByRole("button", { name: "portfolio.ods", exact: true })
     .click();
   expect((await saved).suggestedFilename()).toBe("portfolio.ods");
+  const zipDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download report ZIP", exact: true })
+    .click();
+  const bundle = await zipDownload;
+  expect(bundle.suggestedFilename()).toMatch(/^report-[a-f0-9]{32}\.zip$/);
+  expect(
+    readFileSync((await bundle.path())!)
+      .subarray(0, 2)
+      .toString(),
+  ).toBe("PK");
+  await page.getByText("Export report data", { exact: true }).click();
+  const csvDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download data", exact: true })
+    .click();
+  const csv = await csvDownload;
+  expect(readFileSync((await csv.path())!, "utf8")).toContain("market_cad");
+  await page
+    .getByRole("combobox", { name: "Dataset", exact: true })
+    .selectOption("history");
+  await page
+    .getByRole("combobox", { name: "Format", exact: true })
+    .selectOption("json");
+  await page
+    .getByLabel("From date (optional)", { exact: true })
+    .fill("2099-01-01");
+  const jsonDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download data", exact: true })
+    .click();
+  const exported = JSON.parse(
+    readFileSync((await (await jsonDownload).path())!, "utf8"),
+  );
+  expect(exported.rows).toEqual([]);
+  expect(exported.dataset).toBe("history");
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())
+      .violations,
+  ).toEqual([]);
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
+  await page.screenshot({
+    path: "test-results/report-exports-mobile.png",
+    fullPage: true,
+  });
   await page
     .getByRole("combobox", { name: "Portfolio", exact: true })
     .selectOption({ label: "Empty synthetic portfolio" });

@@ -22,6 +22,8 @@
 *.ods
 *.pdf
 *.xlsx
+*.zip
+*.zip.part
 !/examples/data/*.csv
 !/examples/templates/*.csv
 !/tests/fixtures/fund_sources/blackrock.csv

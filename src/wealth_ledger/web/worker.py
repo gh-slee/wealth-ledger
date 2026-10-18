@@ -37,6 +37,8 @@ def publish_registry(store, jobs, row, service, saved):
     from ..publishing import verify_bundle
     output = saved.get("output") or {}
     target = Path(output.get("output", ""))
+    from .backups import restored_report_path
+    target = restored_report_path(store, row["portfolio_id"], target)
     manifest = verify_bundle(service.root, target, row["core_operation_id"])
     names = sorted(manifest["bundle_files"]) + ["manifest.json"]
     artifacts = []
@@ -91,7 +93,8 @@ def reconcile(store):
 def execute_job(settings, job_id):
     store = Store(settings); jobs = Jobs(store)
     row = jobs.internal(job_id)
-    with job_guard(store, job_id):
+    from .maintenance import instance_activity
+    with instance_activity(store.root), job_guard(store, job_id):
         if not jobs.claim(job_id):
             return
         row = jobs.internal(job_id)
@@ -161,9 +164,11 @@ def run_worker(settings, *, once=False):
     if not store.owner():
         raise ValueError("Initialize the owner before starting a worker")
     with file_lock(contained(store.root, "admin/worker.guard")):
-        reconcile(store)
-        queue, dispatch = make_queue(store)
-        notify_pending(store, dispatch, force=True)
+        from .maintenance import instance_activity
+        with instance_activity(store.root):
+            reconcile(store)
+            queue, dispatch = make_queue(store)
+            notify_pending(store, dispatch, force=True)
         if once:
             while (task := queue.dequeue()) is not None:
                 queue.execute(task)
@@ -172,8 +177,9 @@ def run_worker(settings, *, once=False):
         def pulse():
             while not stopped.wait(5):
                 try:
-                    reconcile(store)
-                    notify_pending(store, dispatch)
+                    with instance_activity(store.root):
+                        reconcile(store)
+                        notify_pending(store, dispatch)
                 except Exception:
                     # Persisted jobs remain authoritative; retry the notification
                     # scan, never dump financial request/exception values to logs.

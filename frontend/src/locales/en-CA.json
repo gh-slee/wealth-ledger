@@ -197,5 +197,21 @@
   "status.user_reported_balance": "User-reported wallet total",
   "status.balance_plus_known_changes_estimate": "Reported balance plus known changes (estimate)",
   "status.ledger_plus_events_estimate": "Ledger plus recorded events (estimate)",
-  "status.wallet_only_unknown_history": "Wallet total; acquisition history unknown"
+  "status.wallet_only_unknown_history": "Wallet total; acquisition history unknown",
+  "bundleDownload": "Download report ZIP",
+  "exportData": "Export report data",
+  "exportDataset": "Dataset",
+  "exportFormat": "Format",
+  "exportStart": "From date (optional)",
+  "exportEnd": "To date (optional)",
+  "exportDownload": "Download data",
+  "exportScope": "Exports use this saved report. Missing values stay unknown; this is not a full backup. Date limits are inclusive; BTC monthly limits include whole months.",
+  "export.holdings": "Holdings",
+  "export.accounts": "Accounts",
+  "export.history": "Recorded history",
+  "export.cash_flows": "Recorded cash flows",
+  "export.btc_monthly": "BTC monthly purchases",
+  "error.maintenance": "Maintenance is in progress. Retry shortly.",
+  "error.export_too_large": "The export exceeds its limit or the bundle is incomplete. Download individual files or review on the host.",
+  "error.invalid_export_range": "Check the date range and choose a dated dataset."
 }

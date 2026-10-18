@@ -204,6 +204,9 @@ TS clients with tests at each stage; unavailable URLs are not operating instruct
 
 ## Persistence, backup and restore
 
+WEB-005 is implemented; see [commands, archive contract and limits](web-backups.md).
+Broader platform/resource acceptance remains WEB-007.
+
 A named volume preserves all `/data` through ordinary image/container replacement.
 Persistence is not off-device backup. Explain volume deletion and never present
 commands that delete data as routine upgrades.
@@ -272,7 +275,7 @@ Use **copy, verify, switch**, retaining the source.
 | WEB-002 (foundation accepted locally) | FastAPI/auth/metadata/Compose | Login/logout/revocation/CSRF/throttling/portfolio/path tests, no unauthenticated owner claim, persistent settings |
 | WEB-003 (accepted locally) | Upload/preview/Huey/recovery | No duplicate submission, stale preview rejection, kill/restart at commit boundaries, report-only recovery, uncertain state fails closed |
 | WEB-004 | React analysis/report library | Three currencies/locales, gaps/unknown/carried flags, cache clearing on switch/logout, desktop/mobile/keyboard/tooltip acceptance |
-| WEB-005 | Exports/consistent backup/restore | Three formats match payload; protected downloads; raw evidence/logical finances preserved after empty-volume restore |
+| WEB-005 (implemented) | Exports/consistent backup/restore | Three formats match payload; protected downloads; raw evidence/logical finances preserved after empty-volume restore |
 | WEB-006 | Advanced forms/adoption | BTC opening/balance/event IDs, attribution/revisions/voids, flows/coverage and CLI/workspace interoperability |
 | WEB-007 | Release/operations | Clean install/upgrade/restart/off-device restore, image privacy, platform smoke tests, locked dependencies/licenses and complete guide |
 

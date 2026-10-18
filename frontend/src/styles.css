@@ -922,3 +922,11 @@ tbody tr:hover {
   margin: 0.3rem 0;
   font-weight: 700;
 }
+.report-exports {
+  margin: 1rem 0;
+}
+.export-form {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  margin-top: 1rem;
+  align-items: end;
+}

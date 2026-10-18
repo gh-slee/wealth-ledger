@@ -122,17 +122,24 @@ export async function download(
   portfolio: string,
   artifact: Models["Artifact"],
 ): Promise<void> {
-  const started = generation;
-  const blob = await transport(
+  return downloadFile(
     `/portfolios/${portfolio}/artifacts/${artifact.id}`,
-    (response) => response.blob(),
+    artifact.filename,
   );
+}
+export async function downloadFile(
+  path: string,
+  filename: string,
+): Promise<void> {
+  const started = generation;
+  const blob = await transport(path, (response) => response.blob());
   if (started !== generation) return;
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = artifact.filename;
+  link.download = filename;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
 export const scope = (portfolio: string) => `/portfolios/${portfolio}`;

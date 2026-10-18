@@ -31,7 +31,7 @@ Wealth Ledger is a **self-hosted investment tracking app** with a React/TypeScri
 
 Upload **Wealthsimple holdings**, **Bull Bitcoin orders**, or an optional dated **BTC total**. Review an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data.
 
-**Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full backup/restore, advanced financial forms, and verified adoption of existing CLI data remain planned. See [project status](#project-status).
+**Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; advanced financial forms and verified adoption of existing CLI data remain planned. See [project status](#project-status).
 
 ## Features
 
@@ -162,9 +162,10 @@ Pinned dependencies live in [requirements.lock](requirements.lock), [requirement
 | `report.md` | Readable analysis and tables with relative chart links; download the chart attachments too. |
 | `report.pdf` | Portable fixed-layout analysis with embedded fonts and charts. |
 | `charts/` | PNG figures from the same report run. |
+| Report ZIP / CSV / JSON exports | Complete registered edition with relative chart links, or selected frozen datasets with supported date ranges. |
 | JSON and CSV attachments | Frozen financial payload, source evidence, applicable company/classification detail, and BTC reconciliation/cost audits. |
 
-Reports cover account/native-currency holdings, CAD/USD/TWD totals, concentration, ETF company exposure, classifications, BTC accumulation and purchase rates, recorded history, cash-flow coverage, and quality findings. [Report specification](docs/report-spec.md) · [ODS implementation](docs/workbook.md).
+Reports cover account/native-currency holdings, CAD/USD/TWD totals, concentration, ETF company exposure, classifications, BTC accumulation and purchase rates, recorded history, cash-flow coverage, and quality findings. [Report specification](docs/report-spec.md) · [ODS implementation](docs/workbook.md) · [Exports and private backups](docs/web-backups.md).
 
 Successful updates preserve report editions. Unknown values stay distinct from zero. Unrealized P/L is not a period return; combined brokerage-plus-BTC Modified Dietz/XIRR remains disabled until the necessary flow, scope, and valuation coverage exists. The default cost policy uses actual known costs; a Bull average-cost estimate is an explicit opt-in, not reconstructed acquisition history.
 
@@ -187,7 +188,7 @@ Canonical developer documentation is English. See [localization](docs/i18n-plan.
 
 Uploads go to **your own instance**. Its private volume holds the instance metadata, uploads, keys, portfolio ledgers, preserved source evidence, and reports. The application does not publish financial files to GitHub or send them to an AI service. Normal analysis jobs retrieve public reference data.
 
-Login protects the application; **SQLite files and backups are not encrypted by this tool**. Protect the host and complete private volume. Built-in full consistent backup/restore is still planned; container replacement and same-disk database copies are not complete backups. [Security policy](SECURITY.md) · [Web operations](docs/web-operations.md).
+Login protects the application; **SQLite files and backups are not encrypted by this tool**. Protect the host and complete private volume. Use the [full private backup/restore commands](docs/web-backups.md) and keep a protected off-device copy; container replacement and same-disk database copies are not complete backups. [Security policy](SECURITY.md) · [Web operations](docs/web-operations.md).
 
 The CLI also supports explicit private workspaces outside the source checkout. Financial directories and local settings are Git-ignored, with additional publication/image allowlists for contributors. Public examples and screenshots are synthetic. Do not attach real exports, databases, or reports to public issues. [Publication safeguards](docs/publishing.md).
 
@@ -199,7 +200,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 |---|---|
 | Browser login, independent portfolios, import previews/jobs, frozen analysis, registered report downloads | Implemented |
 | CLI contributions/coverage, BTC balances/events/revisions, report recovery | Implemented; advanced Web forms planned |
-| Broader exports, report ZIPs, full consistent backup/restore | Planned: WEB-005 |
+| Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Advanced financial forms and verified adoption of existing CLI workspaces | Planned: WEB-006 |
 | Source-parser plugins | Versioned contract implemented; loader, SDK, and existing-importer migration planned: SRC-002–004 |
 | Broader platform/release acceptance and additional locales | Planned: WEB-007 / I18N-007 |
@@ -212,6 +213,7 @@ Current imports support the documented Wealthsimple holdings and Bull Bitcoin or
 |---|---|
 | [Browser workflow](docs/web-frontend.md) · [Web operations](docs/web-operations.md) | Sign-in, uploads, analysis, exports, installation, HTTPS, and host commands. |
 | [User manual](docs/user-manual.md) · [Examples](examples/README.md) | CLI/private workspaces, source setup, contributions, balances, and recovery. |
+| [Exports and private backups](docs/web-backups.md) | Report ZIPs, CSV/JSON ranges, consistent backups, empty-instance restore, and maintenance. |
 | [Reports](docs/report-spec.md) · [ODS](docs/workbook.md) | Interpretation, formulas, charts, evidence, and validation. |
 | [Core API](docs/core-api.md) · [BTC reconciliation](docs/btc-reconciliation-plan.md) | Data contracts, stable references, unknown costs, and later explanations. |
 | [Source adapters](docs/source-adapters.md) · [Languages](docs/i18n-plan.md) | Extensibility contracts, planned plugin support, and localization. |

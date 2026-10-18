@@ -34,6 +34,20 @@ class SecurityBoundary:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
+        from ..locking import LockBusy
+        from .maintenance import instance_activity
+        try:
+            with instance_activity(self.settings.data_root):
+                await self._request(scope, receive, send)
+        except LockBusy:
+            response = error_response(503, "maintenance", "Instance maintenance is in progress", uuid.uuid4().hex)
+            response.headers.update({"Cache-Control": "no-store, private", "Retry-After": "30",
+                "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"})
+            await response(scope, receive, send)
+
+    async def _request(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
         request = Request(scope)
         request_id = uuid.uuid4().hex
         scope.setdefault("state", {})["request_id"] = request_id
@@ -207,7 +221,7 @@ def create_app(settings: WebSettings | None = None, *, clock=None, frontend_root
         raise ValueError("Initialize the owner through the host CLI before serving")
     auth = Auth(store)
     app = FastAPI(title="Wealth Ledger API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None,
-                  responses={code: {"model": ErrorView} for code in (400,401,403,404,409,413,422,429,500)})
+                  responses={code: {"model": ErrorView} for code in (400,401,403,404,409,413,422,429,500,503)})
     session_cookie = APIKeyCookie(name=settings.cookie_name, auto_error=False, scheme_name="OwnerSession")
     app.state.store, app.state.auth, app.state.settings = store, auth, settings
     app.add_middleware(SecurityBoundary, settings=settings, auth=auth)
@@ -332,6 +346,8 @@ def create_app(settings: WebSettings | None = None, *, clock=None, frontend_root
     from .reports import install_report_routes
     install_import_routes(app, store, auth, require_owner)
     install_report_routes(app, store, require_owner)
+    from .exports import install_export_routes
+    install_export_routes(app, store, require_owner)
 
     @app.get("/api/v1/openapi.json", include_in_schema=False)
     def openapi(owner=Depends(require_owner)):

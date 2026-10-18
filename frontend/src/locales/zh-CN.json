@@ -197,5 +197,21 @@
   "status.user_reported_balance": "用户回报钱包总量",
   "status.balance_plus_known_changes_estimate": "回报余额加已知变动（估计）",
   "status.ledger_plus_events_estimate": "账本加已记录变动（估计）",
-  "status.wallet_only_unknown_history": "钱包总量；取得历史未知"
+  "status.wallet_only_unknown_history": "钱包总量；取得历史未知",
+  "bundleDownload": "下载报告 ZIP",
+  "exportData": "导出报告数据",
+  "exportDataset": "数据类型",
+  "exportFormat": "格式",
+  "exportStart": "开始日期（选填）",
+  "exportEnd": "结束日期（选填）",
+  "exportDownload": "下载数据",
+  "exportScope": "导出取自这份已保存报告。缺值仍为未知；这不是完整备份。日期范围包含首尾；BTC 每月数据按整月筛选。",
+  "export.holdings": "持仓",
+  "export.accounts": "账户",
+  "export.history": "已记录历史",
+  "export.cash_flows": "已记录资金流",
+  "export.btc_monthly": "BTC 每月买入",
+  "error.maintenance": "正在维护，请稍后重试。",
+  "error.export_too_large": "导出超过上限或报告组合不完整。请单独下载文件或在主机检查。",
+  "error.invalid_export_range": "请检查日期范围并选择包含日期的数据类型。"
 }
