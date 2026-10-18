@@ -196,13 +196,13 @@ The foundation's local startup sequence is:
 
 ```bash
 docker compose build
-docker compose run --rm -it web init-owner
+docker compose run --rm web init-owner
 docker compose up -d
 ```
 
 The image serves the built browser UI at the configured origin. Broader release
 and platform acceptance remain WEB-007.
-Use `docker compose run --rm -it web reset-password` for a trusted host reset.
+Use `docker compose run --rm web reset-password` for a trusted host reset.
 `docker compose down` retains the named volume. Volume deletion removes private
 state and is never a routine upgrade step. Image/container replacement is not an
 off-device backup. Do not mount the old CLI directory as `/data` to migrate it.

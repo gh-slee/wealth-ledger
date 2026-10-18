@@ -1,285 +1,228 @@
 <p align="center">
-  <img src="assets/readme/wealth-ledger-mark.svg" width="80" height="80" alt="Wealth Ledger icon">
+  <img src="assets/readme/wealth-ledger-mark.svg" width="76" height="76" alt="Wealth Ledger icon">
 </p>
 
 <h1 align="center">Wealth Ledger</h1>
 
 <p align="center">
-  <strong>Turn brokerage and Bitcoin CSVs into a private investment ledger.</strong><br>
-  Keep your source evidence, track your history, and generate reports you can inspect.
+  <strong>Track your investments on your own server.</strong><br>
+  Import brokerage and Bitcoin CSVs, explore your portfolio, and keep reports you can inspect.
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12 or newer"></a>
-  <a href="#tech-stack"><img src="https://img.shields.io/badge/Storage-SQLite-003B57?style=flat-square&amp;logo=sqlite&amp;logoColor=white" alt="Local SQLite storage"></a>
+  <a href="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml"><img src="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
+  <a href="#tech-stack"><img src="https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-149ECA?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React and TypeScript frontend"></a>
+  <a href="#tech-stack"><img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12 or newer"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?style=flat-square&amp;logo=docker&amp;logoColor=white" alt="Docker Compose deployment"></a>
+  <a href="#tech-stack"><img src="https://img.shields.io/badge/Storage-SQLite-003B57?style=flat-square&amp;logo=sqlite&amp;logoColor=white" alt="SQLite storage"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-208C8A?style=flat-square" alt="MIT license"></a>
-  <a href="#languages"><img src="https://img.shields.io/badge/Reports-3_languages-536B8E?style=flat-square" alt="Reports in three languages"></a>
   <a href="#project-status"><img src="https://img.shields.io/badge/Status-Pre--release-D3973F?style=flat-square" alt="Pre-release"></a>
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
-  <a href="#reports">Reports</a> ·
-  <a href="#tech-stack">Tech stack</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#architecture">Architecture</a> ·
   <a href="#documentation">Documentation</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
----
+Wealth Ledger is a **self-hosted investment tracking app** with a React/TypeScript interface, a FastAPI API, Python background workers, and SQLite history. One owner or household can keep multiple independent portfolios in an instance. The same financial core also powers the supported **Python CLI**.
 
-Wealth Ledger combines **Wealthsimple holdings**, **Bull Bitcoin orders**, and optional **BTC balance declarations** in a local SQLite history. It produces **ODS spreadsheets, Markdown, PDF, and PNG charts** in English, Traditional Chinese, or Simplified Chinese.
+Upload **Wealthsimple holdings**, **Bull Bitcoin orders**, or an optional dated **BTC total**. Review an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data.
 
-**Your CSVs, database, and reports stay in your private workspace.** Normal updates download public reference data; they never commit or push your financial files to GitHub. The financial workflow runs in Python, with no broker login, LLM or local LibreOffice required. The optional browser UI builds with Node; its production server remains Python.
+**Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full backup/restore, advanced financial forms, and verified adoption of existing CLI data remain planned. See [project status](#project-status).
 
-## At a glance
+## Features
 
-| | What you get |
+| | What you can do |
 |---|---|
-| 📚 **A traceable ledger** | Original CSV evidence, checksums, dated observations, deduplicated orders, and append-only revisions. |
-| 💱 **Three valuation currencies** | CAD/USD native holdings, account breakdowns, and CAD/USD/TWD equivalents with saved reference rates. |
-| ₿ **Brokerage + Bitcoin** | TFSA, RRSP, Non-registered, and BTC/LBTC equivalents in one report, with independent source dates and completeness. |
-| 🔎 **ETF company exposure** | Direct stocks plus recursive ETF holdings, a ranked top 20, and official sector/country classifications with coverage. |
-| 📊 **Reports you can inspect** | Spreadsheet formulas and caches, embedded charts, a portable PDF, Markdown, and machine-readable audit exports. |
-| 🧾 **Cash flow and reconciliation** | Explicit contributions, withdrawals, transfers, BTC balances, fees, and unresolved differences with stable IDs. |
-| 🌐 **Localized presentation** | `en-CA`, `zh-TW`, and `zh-CN` share the same calculations and preserve source names and references. |
-| 🛡️ **Safe import preview** | Optional offline `--dry-run` validates inputs in a disposable project without changing the real ledger. |
-
-Daily commands also support `--workspace /path/to/private/portfolio` to keep data,
-reports and backups outside the code checkout. The directory must already exist;
-omitting it preserves existing checkout-local use. See [workspace setup](docs/user-manual.md#separate-code-from-private-portfolio-data).
-
-## Reports
-
-<p align="center">
-  <img src="assets/readme/report-preview.png" width="1120" alt="Synthetic Wealth Ledger report preview: CAD, USD and TWD totals, account values, company exposure, and sector allocation">
-</p>
-
-<p align="center"><em>Invented holdings, prices, accounts, and ETF constituents. This is an offline demonstration, not live market data.</em></p>
-
-| View | Included analysis |
-|---|---|
-| **Portfolio overview** | The same assets valued in CAD, USD, and TWD; account totals, native amounts, rate dates, and source status. |
-| **Holdings** | Separate CAD/USD security tables, account tables, position detail, concentration, and account/security matrices. |
-| **Company and allocation exposure** | Top 20 companies through ETFs, official GICS and country/market data, geographic groups, and unresolved amounts. |
-| **Bitcoin** | BTC/LBTC purchases, quantity-weighted CAD/BTC purchase rates, monthly funding, valuation, optional cost estimates, and balance reconciliation. |
-| **History and cash flows** | Actual observation dates, source carry-forward, scope changes, verified flows, and eligible brokerage-period analysis. |
-| **Quality and evidence** | Missing information, effective dates, source hashes, methods, and CSV/JSON audit attachments. |
-
-<details>
-<summary><strong>What each output is for</strong></summary>
-
-| Output | Purpose |
-|---|---|
-| `portfolio.ods` | Formula-based tables, cached numeric results, embedded PNG charts, and bundled font licensing. |
-| `report.md` | Readable analysis and tables with relative links to charts. |
-| `report.pdf` | Fixed-layout analysis with embedded fonts and charts. |
-| `charts/` | Standalone PNG figures from the same report run. |
-| `data.json`, `manifest.json` | Financial payload, dates, policies, reference sources, localization metadata, and validation. |
-| Exposure and BTC audit exports | Full company/classification detail, unresolved exposure, and applicable BTC cost/reconciliation evidence. |
-
-Successful updates preserve editions under `reports/YYYY-MM-DD_HHMM/rNN/`; `reports/latest.json` points to the latest successful publication. ODS charts are static images: spreadsheet edits do not redraw them or write back to SQLite. Regenerate for consistent authoritative outputs.
-
-</details>
+| 🗂️ **Independent portfolios** | Sign in to your instance and keep separate ledgers, settings, source evidence, and reports. |
+| 📥 **Preview before importing** | Provide either supported CSV, both, or a dated BTC quantity. Review source dates and checks, then explicitly confirm the background job. |
+| 💱 **Three valuation currencies** | View CAD/USD/TWD equivalents, with account filters and separate native CAD/USD securities. |
+| 📊 **Interactive analysis** | Explore holdings, account allocation, recorded value history, BTC purchases, and sector/country/region exposure. |
+| 🔎 **ETF company exposure** | Rank the top 20 companies across direct stocks and supported ETF constituents; retain effective dates and unresolved coverage. |
+| 🧾 **Traceable history** | Preserve original evidence and append-only revisions. Irregular submissions use actual observation dates, without inventing missing month-end balances. |
+| 📄 **Portable reports** | Download formula-based ODS spreadsheets, Markdown, PDF, chart images, and applicable audit attachments. |
+| 🌐 **Three languages** | Use English, Traditional Chinese, or Simplified Chinese for the interface and report presentation. |
 
 ## Quick start
 
-Requires **Python 3.12+**. Installation currently uses a source checkout and the locked dependencies; there is no supported PyPI/wheel installation.
+### Self-host with Docker Compose
+
+Prerequisites: **Git**, **Python 3.12+** for the source-context helper, and **Docker with Compose v2**. The helper uses Python's standard library; it does not require the financial dependencies. Docker builds the frontend and installs the server dependencies inside the image.
 
 ```bash
 git clone https://github.com/gh-slee/wealth-ledger.git
 cd wealth-ledger
-python3 -m venv .venv-portable
-source .venv-portable/bin/activate
-python -m pip install -r requirements.lock
 
-# Try invented data first. No network or personal ledger is used.
+# Prepare a source-only build context; private workspaces are excluded.
+python3 scripts/docker_context.py --output work/docker-context
+
+docker compose build web
+docker compose run --rm web init-owner
+docker compose up -d
+```
+
+Open **[http://localhost:8000](http://localhost:8000)**. Sign in as `owner` using the password you set on the host, create a portfolio, and open **Import & jobs**. New instances start with no financial history or personal accounts. Try the [invented example files](examples/README.md) first.
+
+The `web` and `worker` services share the private `wealth-data` named volume. Initialize the owner once. `docker compose down` retains the volume; deleting the volume removes its data. The sample deployment binds to loopback. For HTTPS, remote access, upgrades, fresh rebuild contexts, and password resets, follow [Web operations](docs/web-operations.md).
+
+**Existing CLI users:** keep your current workspace. Pointing the Web app at an old ledger is not a supported migration. Copy-verified adoption is planned separately.
+
+<details>
+<summary><strong>Use the Python CLI or try an offline report demo</strong></summary>
+
+From the cloned repository, install the core dependencies with Python 3.12+:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.lock
 python examples/demo.py --output work/demo
 ```
 
-Open `work/demo/report.pdf`, `work/demo/report.md`, or `work/demo/portfolio.ods`. Choose a new output directory for each demo run. See [the example guide](examples/README.md) for other languages and the explicit BTC cost-proxy demonstration.
+Open `work/demo/portfolio.ods`, `work/demo/report.md`, or `work/demo/report.pdf`. The demo creates its own temporary synthetic ledger and performs no market/reference downloads. Choose a new output directory for each run.
 
-<details>
-<summary><strong>Windows PowerShell</strong></summary>
-
-```powershell
-git clone https://github.com/gh-slee/wealth-ledger.git
-cd wealth-ledger
-py -3.12 -m venv .venv-portable
-.venv-portable\Scripts\python.exe -m pip install -r requirements.lock
-.venv-portable\Scripts\python.exe examples/demo.py --output work/demo
-```
-
-No activation is required with these explicit paths. For the remaining examples, replace `python` with `.venv-portable\Scripts\python.exe`, and use single-line commands instead of Bash continuations. Recreate the virtual environment when changing platforms. Full Windows acceptance remains pending; see [project status](#project-status).
+On Windows, use `.venv\Scripts\python.exe` instead of Unix activation. Broader Windows acceptance remains pending. See the [example guide](examples/README.md) and [user manual](docs/user-manual.md) for supported inputs, private `--workspace` directories, first Bull opening declarations, contributions, BTC events, and recovery.
 
 </details>
 
-### Use your own data
+### Your first import
 
-A new checkout has **no financial history or personal accounts**. Your first valid input creates your own ledger and baseline.
+1. Create or select an independent portfolio.
+2. Supply a Wealthsimple holdings CSV, a Bull Bitcoin order CSV, both, or an optional **BTC quantity with its observation time**. A BTC quantity is not its CAD/USD market value.
+3. Review the preview and any missing references. The first Bull import needs an explicit opening declaration; the [browser guide](docs/web-frontend.md) links the supported JSON format.
+4. Confirm the import and leave the worker running. Once published, open the analysis pages or **Report library**.
 
-```bash
-# Preview supported inputs without committing financial data.
-python scripts/update.py /path/to/holdings.csv --dry-run
+Cash-flow coverage, contributions, and detailed BTC-event maintenance currently use the CLI. Holdings changes and purchase spending do not establish contributions. See [the manual](docs/user-manual.md).
 
-# Import Wealthsimple holdings and generate reports.
-python scripts/update.py /path/to/holdings.csv
+## Screenshots
 
-# Use either source, or both after their initial setup.
-python scripts/update.py /path/to/holdings.csv /path/to/orders.csv
+<p align="center">
+  <img src="assets/readme/web-overview.png" width="1200" alt="Synthetic Web dashboard showing a frozen portfolio value, independent source dates, recorded history, and account allocation">
+</p>
+
+<p align="center"><em>Invented accounts, holdings, prices, and dates from the disposable browser fixture. This is a saved demonstration observation, not live market data or a real portfolio.</em></p>
+
+<details>
+<summary><strong>Company rankings and classified exposure</strong></summary>
+
+<p align="center">
+  <img src="assets/readme/web-exposure.png" width="1200" alt="Synthetic sector allocation, classification coverage, ranked ETF and direct company exposure, and frozen source dates">
+</p>
+
+The top-20 table combines direct and ETF holdings. Whole-portfolio weights include cash; unresolved constituents remain visible in coverage and report attachments. [Screenshot provenance and reproduction](assets/readme/README.md).
+
+</details>
+
+## Architecture
+
+```mermaid
+flowchart TB
+    Browser["React + TypeScript UI"] <-->|"Sessions and CSRF"| API["FastAPI"]
+    API -->|"Confirmed updates"| Jobs["Huey / SQLite jobs"]
+    Jobs --> Worker["Isolated Python worker"]
+    Worker --> Core["Shared Python financial core"]
+    CLI["Python CLI"] --> Core
+    References["Official ETF / FX / BTC references"] --> Core
+    subgraph Private["Private portfolio workspace"]
+        Ledger["SQLite + original source evidence"]
+        Reports["Frozen reports + analysis attachments"]
+    end
+    Core --> Ledger
+    Core --> Reports
+    API -->|"Verified reads and downloads"| Reports
 ```
 
-| Input | Current support | First-use requirement |
-|---|---|---|
-| **Wealthsimple** | Native Holdings report CSV with required columns and an `As of` footer; long CAD/USD holdings. | A complete export for the intended accounts. Screenshots and native activity statements are not holdings inputs. |
-| **Bull Bitcoin** | Supported CAD Funding/Buy Bitcoin orders; BTC/LBTC delivery. | Supply your checked Bull opening declaration with `--bull-opening-file`. |
-| **Optional BTC total** | Dated BTC quantity across the tracked wallets, including LBTC at 1:1 equivalent. | Supply quantity, not its CAD/USD market value. No CSV is required for a balance-only update. |
-| **Cash flow / BTC events** | Documented normalized CSV templates and explicit CLI commands. | Verified evidence, stable account/event references, and coverage declarations where required. |
+The browser reads **published observations**. Opening a page does not fetch market quotes, revalue history, or regenerate reports. Formal analysis uses the latest published data from supported official issuers and retains effective/retrieval dates, hashes, and classification coverage. Historical FX and BTC prices remain frozen.
 
-For the first Bull import, copy [the synthetic opening template](config/bull-opening.example.json) to a private file, verify its assumptions, and replace its example evidence:
-
-```bash
-python scripts/update.py /path/to/orders.csv \
-  --bull-opening-file /path/to/private-bull-opening.json
-```
-
-Pre-Bull holdings are a separate declaration; do not invent purchases or treat the template's zero assumptions as your actual whole-wallet opening. [The manual](docs/user-manual.md) covers opening quantity, contributions, optional balances, late explanations, revisions, and recovery.
-
-### Dates, missing months, and performance
-
-Upload either supported CSV, both, or an optional BTC total. Monthly snapshots are a convention, not a deadline: a six-week or two-month gap uses actual dates and never fabricates missing month-end observations.
-
-- Carried sources retain their original dates. Bull exports deduplicate orders; they do not prove historical wallet balances.
-- No-input `update.py` preserves the saved valuation time while requesting latest official ETF analysis. It does not create a fresh observation for today.
-- Holdings changes and purchase spending do not establish contributions. Transfers and Bull Funding/Buy must not be counted twice.
-- Unrealized P&L is not a period return. Combined brokerage+BTC Modified Dietz/XIRR remain disabled until the required flow, scope, and valuation coverage exists.
+Docker uses a Node build stage for static frontend assets. The final image runs Python API/worker processes and serves those assets. Financial features require no LLM, Codex, or local LibreOffice. [Architecture and contracts](docs/self-hosted-webapp.md).
 
 ## Tech stack
 
-| Layer | Technology | Role |
-|---|---|---|
-| 🐍 Runtime | **Python 3.12+** | CLI, parsers, calculations, downloads, and report generation. |
-| 🔐 Optional API | **FastAPI · Pydantic · pwdlib/Argon2id · Uvicorn · Huey** | Server-side owner sessions, isolated portfolio settings and protected registered artifacts and isolated report jobs. |
-| 🖥️ Browser | **React · TypeScript · Vite · Tailwind · shadcn/Radix** | Same-origin dashboard, TanStack Query/Table and ECharts; static production assets. |
-| 🗄️ Ledger | **SQLite · `sqlite3`** | Local observations, order revisions, flows, and reconciliation history. |
-| 🧮 Financial arithmetic | **`decimal.Decimal` · satoshi precision** | Explicit precision; BTC quantities support eight decimal places. Unknown values stay distinct from zero. |
-| 📊 Charts | **Matplotlib · Pillow** | PNG analysis charts and image handling. |
-| 📄 PDF | **ReportLab · pypdf** | Embedded-font PDF generation and presentation checks. |
-| 📑 Spreadsheets | **Python `zipfile` / XML · ODF 1.2** | Direct ODS packaging, OpenFormula references, cached values, and embedded images. |
-| 🌐 Localization | **UTF-8 JSON · `ContextVar` · Noto Sans TC/SC** | Three static language catalogs, isolated rendering contexts, and bundled fonts. |
-| 🔗 Reference data | **Python HTTP clients · certifi** | Official issuer holdings, FX references, and saved BTC price evidence. |
-| 🧪 Verification | **`unittest` · formula/cache and PDF/XML checks** | Isolated synthetic tests, source consistency, and publication checks. |
-| ⚙️ Automation | **GitHub Actions · `requirements.lock`** | Linux/Python 3.12 tests and offline demos; the initial remote run passed. |
+| Layer | Technology |
+|---|---|
+| **Browser UI** | React, TypeScript, Vite, Tailwind CSS, local shadcn/Radix components, Lucide icons |
+| **Navigation and data views** | React Router, TanStack Query, TanStack Table, ECharts SVG charts |
+| **API and authentication** | FastAPI, Pydantic, Uvicorn, Argon2id password hashes, opaque server-side sessions |
+| **Background jobs** | Huey with SQLite notifications and isolated Python execution |
+| **Storage and arithmetic** | SQLite / Python `sqlite3`, `decimal.Decimal`, satoshi precision; Decimal.js for browser display/sorting |
+| **Report generation** | Matplotlib, ReportLab, pypdf, direct ODF/XML packaging, bundled Noto fonts |
+| **Deployment** | Docker multi-stage build, Docker Compose, persistent private volume |
+| **Verification** | Python `unittest`, Vitest, Playwright, accessibility checks, formula/cache validation, GitHub Actions |
 
-No database server, JavaScript runtime, office suite, or AI service is required for production use. GitHub CLI is only for the separate maintainer publication workflow. Core dependency versions are pinned in [requirements.lock](requirements.lock); the optional API uses [requirements-web.lock](requirements-web.lock). third-party licenses are described in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Pinned dependencies live in [requirements.lock](requirements.lock), [requirements-web.lock](requirements-web.lock), and [frontend/package-lock.json](frontend/package-lock.json). Node is a build/test dependency, not a production server. [Third-party notices](THIRD_PARTY_NOTICES.md).
 
-### How it works
+## Reports
 
-```mermaid
-flowchart LR
-    CSV["Your CSV exports / balance declarations"] --> Import["Validate, deduplicate, and append revisions"]
-    Import --> Ledger[("Local SQLite ledger")]
-    Import --> Evidence["Preserved source evidence"]
-    Ledger --> Analysis["Shared financial and analysis payload"]
-    References["Official ETF holdings, FX, and BTC reference prices"] --> Analysis
-    Analysis --> Reports["ODS / Markdown / PDF / PNG"]
-```
+| Output | Purpose |
+|---|---|
+| `portfolio.ods` | Formula-based spreadsheet tables, cached results, embedded chart images, and font licensing. |
+| `report.md` | Readable analysis and tables with relative chart links; download the chart attachments too. |
+| `report.pdf` | Portable fixed-layout analysis with embedded fonts and charts. |
+| `charts/` | PNG figures from the same report run. |
+| JSON and CSV attachments | Frozen financial payload, source evidence, applicable company/classification detail, and BTC reconciliation/cost audits. |
 
-Normal analysis fetches the latest data **published by supported official issuers**, with effective dates, download times, hashes, and parser versions. Unsupported funds and failed or partial classifications remain visible. Sector uses explicit official GICS; country is not revenue geography or listing currency. Saved historical FX/prices are not replaced by today's references. See [the report specification](docs/report-spec.md).
+Reports cover account/native-currency holdings, CAD/USD/TWD totals, concentration, ETF company exposure, classifications, BTC accumulation and purchase rates, recorded history, cash-flow coverage, and quality findings. [Report specification](docs/report-spec.md) · [ODS implementation](docs/workbook.md).
+
+Successful updates preserve report editions. Unknown values stay distinct from zero. Unrealized P/L is not a period return; combined brokerage-plus-BTC Modified Dietz/XIRR remains disabled until the necessary flow, scope, and valuation coverage exists. The default cost policy uses actual known costs; a Bull average-cost estimate is an explicit opt-in, not reconstructed acquisition history.
+
+<details>
+<summary><strong>Exported report preview</strong></summary>
+
+<img src="assets/readme/report-preview.png" width="1120" alt="Synthetic exported report with CAD/USD/TWD totals, company rankings, and sector allocation">
+
+All values and ETF constituents in this preview are invented. ODS charts are embedded images; editing cells does not redraw them or write back to SQLite. Regenerate a report for consistent outputs.
+
+</details>
 
 ## Languages
 
-| Locale | Report language | Default behavior |
-|---|---|---|
-| `en-CA` | English (Canada) | New ledgers. |
-| `zh-TW` | Traditional Chinese (Taiwan) | Existing ledgers without an explicit language setting. |
-| `zh-CN` | Simplified Chinese (China) | Available by explicit selection. |
+**English (`en-CA`)**, **Traditional Chinese (`zh-TW`)**, and **Simplified Chinese (`zh-CN`)** are supported. New installations default to English. Interface language is independent of the language of a saved report; changing settings for future reports does not rewrite previous editions. Dates use `America/Toronto`.
 
-```bash
-python scripts/update.py /path/to/holdings.csv --locale zh-TW
-python scripts/btc_events.py --locale zh-CN --help
-```
-
-For a lasting preference, copy `config/local.example.toml` to ignored `config/local.toml` and edit its existing `[reporting]` section. A CLI override affects only that invocation. Symbols, company/account names, user notes, source references, JSON keys, and CSV headers remain unchanged. Language does not change currencies, timezone, or financial history; dates still use `America/Toronto`.
-
-To create another language edition of a saved report **without downloads or ledger/latest changes**:
-
-```bash
-python scripts/render_report.py \
-  --from-report /path/to/saved-report-bundle \
-  --locale en-CA \
-  --output /path/to/new-english-edition
-```
-
-The bundle needs `data.json`, a manifest, and frozen analysis; output must be a new directory outside it. Legacy manifests without a data checksum provide metadata consistency checks rather than full source authentication. See [the locale guide](docs/i18n-plan.md). Canonical project documentation is English. Reports and daily CLI output support the three locales above; translated documentation editions remain planned.
+Canonical developer documentation is English. See [localization](docs/i18n-plan.md) for CLI settings, unchanged source names, and offline language editions.
 
 ## Data and privacy
 
-```text
-data/db/portfolio.sqlite3    Your local ledger
-data/raw/                   Your original imports and source evidence
-reports/                    Your immutable report editions and charts
-backups/                    Your local database backups
-config/local.toml           Your ignored language and cost settings
-config/publish.local.toml   Optional ignored maintainer publication authorization
-```
+Uploads go to **your own instance**. Its private volume holds the instance metadata, uploads, keys, portfolio ledgers, preserved source evidence, and reports. The application does not publish financial files to GitHub or send them to an AI service. Normal analysis jobs retrieve public reference data.
 
-**Normal imports and reports never upload financial files or publish to GitHub.** Your accounts, opening holdings, and history come from your own inputs. Public examples and the README preview contain invented data only.
+Login protects the application; **SQLite files and backups are not encrypted by this tool**. Protect the host and complete private volume. Built-in full consistent backup/restore is still planned; container replacement and same-disk database copies are not complete backups. [Security policy](SECURITY.md) · [Web operations](docs/web-operations.md).
 
-Private directories, databases, reports, and local settings are Git-ignored. Optional maintainer hooks and publication tools additionally check reviewed paths, staged contents, and reachable history. Ignore rules do not remove already tracked data, and checks cannot guarantee protection against every human mistake. Never paste financial data into public source/examples or attach it to an issue. See [publishing guidance](docs/publishing.md) and [the security policy](SECURITY.md).
-
-SQLite has no built-in password or encryption in this tool. Protect local files and backups; same-disk copies do not replace a separate backup of the complete private state.
-
-### Calculation boundaries
-
-The default BTC policy is **`actual_only`**. Missing pre-Bull acquisition costs and unknown wallet cost allocation are not filled with zero. The optional `bull_average_proxy` applies the completed-Bull weighted purchase price to current BTC-equivalent quantity as a clearly labeled estimate; it does not reconstruct actual historical costs or settle reconciliation gaps.
-
-The tracker does not trade, log into brokers/wallets, independently verify on-chain ownership, calculate tax ACB/CRA contribution room, or assume omitted files mean no activity. Read [the manual](docs/user-manual.md) before using estimated costs or period analysis.
-
-## Documentation
-
-| Guide | Start here for… |
-|---|---|
-| [User manual](docs/user-manual.md) | Input setup, contributions, BTC balances/events, dates, revisions, and recovery. |
-| [Report specification](docs/report-spec.md) · [ODS implementation](docs/workbook.md) | Report contents, interpretation, formulas, charts, and validation. |
-| [Core API](docs/core-api.md) · [BTC reconciliation](docs/btc-reconciliation-plan.md) | Data contracts, stable IDs, intervals, and financial invariants. |
-| [Languages](docs/i18n-plan.md) | Locale configuration, offline editions, and translation contributions. |
-| [Browser workflow](docs/web-frontend.md) | Sign-in, imports, frozen analysis, downloads and frontend development. |
-| [Source-adapter design](docs/source-adapters.md) | The planned extensible parser/plugin contract. |
-| [Development](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Agent setup](docs/agent-development.md) | Environment setup, verification, instructions, and pull requests. |
-| [Publishing](docs/publishing.md) · [Security](SECURITY.md) | Private/public separation and reporting a vulnerability. |
-
-Need help? Check `python scripts/update.py --help`, then [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with a minimal **synthetic** reproduction. Do not upload real exports or reports. A failed report operation can be inspected/resumed with `--show-operation` / `--resume-operation`; do not repeat an unspecified-time balance as a recovery shortcut.
-
-## Development
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for installation and tests,
-[development procedures](docs/development.md) for CI/report verification, and
-[agent setup](docs/agent-development.md) for optional Codex guidance. Features run
-without an LLM. The shared project rules are in [AGENTS.md](AGENTS.md).
-
-## Self-hosted web app progress
-
-The Docker self-hosted Web track targets one owner or household with multiple independent portfolios: React + TypeScript + Vite, a FastAPI API, Python background workers, SQLite, and persistent private storage. The API/worker reuse the CLI's financial services and preserve ODS, Markdown, and PDF exports; browser charts and the report library read frozen published observations.
-
-**The browser import/analysis/report workflow is implemented for local acceptance.** See [the browser guide](docs/web-frontend.md) for sign-in, previews, charts, downloads and build/test instructions. Optional owner/session setup, independent portfolios and Docker operation are described in [Web operations](docs/web-operations.md). The [upload/job guide](docs/web-imports.md) covers CSV evidence, offline previews, explicit confirmation, isolated Huey/SQLite workers, three-format report downloads and interruption recovery. The CLI remains available for normal use and advanced financial records. Broader deployment acceptance remains planned. See the [architecture](docs/self-hosted-webapp.md) and [WEB-001–WEB-007 tracker](TODO.md).
+The CLI also supports explicit private workspaces outside the source checkout. Financial directories and local settings are Git-ignored, with additional publication/image allowlists for contributors. Public examples and screenshots are synthetic. Do not attach real exports, databases, or reports to public issues. [Publication safeguards](docs/publishing.md).
 
 ## Project status
 
-**Pre-release.** The public source checkout has passed local synthetic tests, a fresh macOS/Python 3.12 dependency-install check, and [Linux/Python 3.12 CI](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491) with 263 tests plus offline default/proxy and three-language report demonstrations. Broader platform acceptance and an installable distribution remain pending.
+**Pre-release, with an implemented browser/API/worker workflow and a supported CLI.** CI exercises synthetic core/API/report tests, frontend builds and generated API types, unit/browser workflows, offline reports in three languages, and Docker privacy/restart persistence. See [the CI workflow](.github/workflows/ci.yml) for current checks; broader platform and release acceptance remains pending.
 
-Current CSV import supports the documented Wealthsimple and Bull formats. Official ETF adapters have their own registry; version-1 [normalization contracts](docs/source-adapters.md) are implemented, while the general installable bank/broker/exchange **parser-plugin SDK, loader and importer migration remain planned**.
+| Capability | Status |
+|---|---|
+| Browser login, independent portfolios, import previews/jobs, frozen analysis, registered report downloads | Implemented |
+| CLI contributions/coverage, BTC balances/events/revisions, report recovery | Implemented; advanced Web forms planned |
+| Broader exports, report ZIPs, full consistent backup/restore | Planned: WEB-005 |
+| Advanced financial forms and verified adoption of existing CLI workspaces | Planned: WEB-006 |
+| Source-parser plugins | Versioned contract implemented; loader, SDK, and existing-importer migration planned: SRC-002–004 |
+| Broader platform/release acceptance and additional locales | Planned: WEB-007 / I18N-007 |
 
-Near-term work is tracked in [TODO.md](TODO.md):
+Current imports support the documented Wealthsimple holdings and Bull Bitcoin order formats. The tool does not trade, log into broker/wallet accounts, independently verify on-chain ownership, or calculate tax ACB/CRA contribution room. [Roadmap and acceptance facts](TODO.md) · [Supported inputs and financial boundaries](docs/user-manual.md).
 
-- [ ] Unified read-only ledger/source/reconciliation status.
-- [ ] Historical exports and a local report index.
-- [ ] ETF overlap and market-value change decomposition.
-- [ ] Bull funding origins/transfers and supported combined performance.
-- [ ] Versioned source adapters so contributors can implement trusted parsers.
-- [ ] More locales and complete translated documentation.
+## Documentation
 
-Contributions to supported parsers, synthetic fixtures, translations, documentation, and portability checks are welcome. Please discuss a new financial model or source-adapter contract before implementation.
+| Guide | Read it for… |
+|---|---|
+| [Browser workflow](docs/web-frontend.md) · [Web operations](docs/web-operations.md) | Sign-in, uploads, analysis, exports, installation, HTTPS, and host commands. |
+| [User manual](docs/user-manual.md) · [Examples](examples/README.md) | CLI/private workspaces, source setup, contributions, balances, and recovery. |
+| [Reports](docs/report-spec.md) · [ODS](docs/workbook.md) | Interpretation, formulas, charts, evidence, and validation. |
+| [Core API](docs/core-api.md) · [BTC reconciliation](docs/btc-reconciliation-plan.md) | Data contracts, stable references, unknown costs, and later explanations. |
+| [Source adapters](docs/source-adapters.md) · [Languages](docs/i18n-plan.md) | Extensibility contracts, planned plugin support, and localization. |
+| [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) · [Agent setup](docs/agent-development.md) | Reproducible development, checks, shared instructions, and private guidance. |
+
+For help, [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with a minimal **synthetic** reproduction. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+
+## Development
+
+Development setup and detailed maintenance procedures live in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md). Application features remain deterministic code and run independently of development agents. Shared project instructions live in [AGENTS.md](AGENTS.md).
 
 ## License
 
-Code and project documentation are [MIT licensed](LICENSE). Bundled Noto fonts retain their SIL Open Font License terms; downloaded official data and dependencies retain their own rights and licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The README mark is project artwork; the report preview is generated from the repository's synthetic examples.
+Code and canonical documentation are [MIT licensed](LICENSE). Bundled fonts and dependencies retain their own licenses; downloaded official data retains its provider's rights. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Project artwork and screenshot provenance are documented in [assets/readme/README.md](assets/readme/README.md).

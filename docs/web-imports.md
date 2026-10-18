@@ -25,7 +25,7 @@ For a prepared Docker context/initialized volume:
 
 ```bash
 docker compose build
-docker compose run --rm -it web init-owner
+docker compose run --rm web init-owner
 docker compose up -d
 ```
 
