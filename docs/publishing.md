@@ -129,3 +129,11 @@ never treat them as a substitute for review or an upload-proof guarantee.
 Audit exits: `0` passed, `1` violations, `2` unable to complete. Publisher failures
 exit `2`. Tests use temporary synthetic repositories/mocked commands and do not
 publish to a real remote or mutate a financial ledger.
+
+## Local Python build artifacts
+
+The [SDK guide](parser-sdk.md) documents an audited, minimal wheel/sdist build.
+Its source allowlist is independent of Git ignore/index state; do not replace it
+with a recursive checkout copy. Review artifact members with `scripts/check_packages.py`
+as well as source/index/history before any separately authorized publication.
+Building local artifacts does not publish them or authorize package-registry uploads.

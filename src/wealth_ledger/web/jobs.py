@@ -19,8 +19,8 @@ def digest(value):
 
 
 def engine_fingerprint():
-    from ..workspace import CODE_ROOT
-    base = CODE_ROOT / "src/wealth_ledger"
+    from ..workspace import PACKAGE_ROOT
+    base = PACKAGE_ROOT
     return digest([(path.relative_to(base).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
                    for path in sorted(base.rglob("*")) if path.suffix in {".py", ".json"} and path.is_file()])
 

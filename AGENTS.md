@@ -5,7 +5,8 @@ exports, SQLite history and ODS, Markdown and PDF reports. Its expansion path is
 source-parser plugins for banks, brokerages and Bitcoin platforms. Current native
 source importers are Wealthsimple holdings and Bull Bitcoin orders; the shared
 parser contract, trusted registry and nonbooking CLI/API source plans exist. Plugin
-SDK and financial importer migration remain planned. Source plans cannot book data.
+SDK and an independently installable synthetic example exist; financial importer
+migration remains planned. Source plans cannot book data.
 Production downloads, calculations, charts and report prose are deterministic code;
 no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
 supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.
@@ -53,7 +54,8 @@ Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 `npm --prefix frontend run build`, `npm --prefix frontend test`,
 `npm --prefix frontend run check:source` and `npm --prefix frontend run test:e2e`.
 Use Node 24 LTS (or 22.12+) and see docs/web-frontend.md for browser prerequisites.
-There is no installable Python package build yet. CI runs Linux/Python 3.12 tests
+An installable core/contract wheel and SDK are available; see [packaging](docs/parser-sdk.md).
+Keep build tooling separate from runtime. CI runs Linux/Python 3.12 tests
 and offline synthetic report demos for default/proxy policies and three locales.
 Use focused tests while iterating; report changes also need affected formula/cache,
 ODS/PDF presentation and locale checks. Documentation edits do not require real
@@ -97,6 +99,7 @@ portfolio updates. Report the checks actually run and any gaps.
 - Exports, consistent snapshots, maintenance and empty-target restore: [Web backups](docs/web-backups.md); use synthetic instances only and retain original evidence.
 - Upgrade/rollback, capacity/crash tests, dependency inventory and platform evidence: [operations acceptance](docs/web-release-acceptance.md). Run `python scripts/dependency_inventory.py --require-declared` in the locked Web venv; no runtime AI or financial workspace access is needed.
 - Web security, host commands and experimental containers: [Web operations](docs/web-operations.md), [imports/jobs](docs/web-imports.md).
+- Parser author/build/install acceptance: [SDK guide](docs/parser-sdk.md); preserve nonbooking v1 limits and audit wheel/sdist contents.
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
   [self-hosted web app](docs/self-hosted-webapp.md).
 - Publication/privacy: [publishing](docs/publishing.md), [SECURITY.md](SECURITY.md).

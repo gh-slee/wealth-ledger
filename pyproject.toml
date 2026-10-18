@@ -1,16 +1,27 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "build_backend"
+backend-path = ["."]
+
 [project]
 name = "wealth-ledger"
 version = "0.1.0"
 description = "Local, reproducible holdings and Bitcoin ledger with ODS, Markdown and PDF reports"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.12"
 dependencies = ["matplotlib>=3.9,<4", "reportlab>=4,<5", "pypdf>=5", "Pillow>=10", "tzdata>=2025.2", "certifi>=2026.2.25,<2027"]
 
 [project.optional-dependencies]
 web = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1", "pwdlib[argon2]>=0.2,<1", "huey>=3.4,<4"]
 
-[tool.wealth-ledger]
-package-directory = "src/wealth_ledger"
+[project.scripts]
+wealth-ledger-source-parsers = "wealth_ledger.source_cli:main"
 
-# Supported setup: clone this repository and install requirements.lock into a venv.
-# The CLI and bundled font assets resolve relative to the checkout; a pip wheel
-# distribution is not currently supported.
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["wealth_ledger*"]
+
+[tool.setuptools.package-data]
+wealth_ledger = ["locales/*.json", "_bundle/assets/fonts/*", "_bundle/config/company-aliases.json"]

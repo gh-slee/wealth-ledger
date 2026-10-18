@@ -10,7 +10,8 @@ not every document before each edit. Private instructions and session state use
 
 The implemented application is Python 3.12+, SQLite, Matplotlib, ReportLab and
 standard ODF generation. Source-checkout installation uses `requirements.lock`;
-there is no supported Python wheel yet. The optional FastAPI API and Python
+the [core wheel/SDK](parser-sdk.md) also supports independent installation without
+the frontend or checkout wrappers. The optional FastAPI API and Python
 worker have [operating guidance](web-operations.md). The React/TypeScript/Vite
 frontend builds from a pinned npm lock; see [browser development](web-frontend.md)
 for actual build, generated-type and synthetic browser-test commands.
@@ -115,7 +116,7 @@ Use [report spec](report-spec.md), [ODS implementation](workbook.md) and
 ## Public source and maintenance
 
 Source adapters require minimal synthetic format/error fixtures and documented
-support; the [plugin SDK](source-adapters.md) remains planned. Use English in all
+support; use the implemented [plugin SDK](parser-sdk.md) for nonbooking plans. Use English in all
 canonical documentation and generic examples; preserve product localization.
 Keep TODO and affected contracts aligned with actual behavior. Personal balances,
 source filenames, verification history and preferences are not public documentation.
@@ -174,7 +175,8 @@ This does not establish production import integration or financial completeness.
 `tests/test_source_pipeline.py` and `tests/test_web_source_plans.py` verify shared
 nonbooking receipts, actual same-version code/dependency edits, fresh isolated
 execution, limits, stale verification, owner scope and backup/restore expiration.
-Keep SRC-003/SRC-004 pending; source-plan success does not authorize financial booking.
+SRC-003 packaging/author acceptance is documented in [the SDK guide](parser-sdk.md).
+SRC-004 remains pending; source-plan success does not authorize financial booking.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
 

@@ -9,8 +9,9 @@ Bull Bitcoin orders are the first built-in importers, not a limit on that scope.
 **SRC-001 is implemented as the version-1 normalization contract in
 `wealth_ledger.source_protocol`; SRC-002A provides an independent trusted registry
 in `wealth_ledger.source_registry`. SRC-002B adds nonbooking CLI/API source plans
-and code/configuration fingerprints.** An author SDK and migration of the current
-importers remain planned (SRC-003-004).
+and code/configuration fingerprints. SRC-003 adds an installable core/contract,
+[author SDK and independent synthetic parser](parser-sdk.md).** Migration of current
+importers and financial integration remain planned (SRC-004).
 The current CLI and Web workflow use direct built-in Wealthsimple/Bull importers,
 not a source-plugin registry. They also support normalized cash-flow inputs and
 explicit BTC declarations; they cannot import arbitrary institution CSVs. Moving
@@ -165,7 +166,7 @@ no cash counterpart cannot invent cash; quantities alone do not establish comple
 
 ## Intended custom-parser workflow
 
-After the SDK is implemented, users should be able to:
+The [SDK guide](parser-sdk.md) now supports these steps for nonbooking plans:
 
 1. Read the public protocol/schema and synthetic example plugin.
 2. Implement detection/normalization with explicit supported formats/types.
@@ -173,12 +174,12 @@ After the SDK is implemented, users should be able to:
    tests using synthetic or properly sanitized fixtures.
 4. Install a trusted package into their venv and enable registration/entry points
    without editing the core.
-5. Preview offline before normal core submission; maintain parser versions/tests
+5. Preview offline without financial submission; maintain parser versions/tests
    when export formats change.
 
-No SDK installer or enable command exists yet. SRC-001 and the independent SRC-002A
-registry and SRC-002B nonbooking plans are complete; finish SRC-003/SRC-004 before
-claiming production custom-parser imports or support for additional institutions.
+Native wheel installation, exact host enablement and a derived-image workflow are
+documented in the SDK guide. Finish SRC-004 before claiming production custom-parser
+financial imports or support for additional institutions.
 
 ## Implemented registry library (SRC-002A)
 
@@ -284,7 +285,8 @@ host-level planning declaration across portfolios as a global account assignment
 entry-point factory still must return `AdapterRegistration` with API-v1 metadata.
 
 Normal dependency installation/packaging is an operator prerequisite, not a feature
-of this command. The author SDK/installable application package remains SRC-003.
+of this command. The [installable core/author SDK](parser-sdk.md) is SRC-003;
+financial submission and importer migration remain SRC-004.
 The application does not fetch or install plugins when given a CSV. Use only trusted
 compatible code in the same controlled Python environment as the application.
 Change installed packages while services are stopped, then restart API/worker
@@ -380,8 +382,8 @@ nonbooking rejection, crash interruption and empty-instance backup restore.
 ## Implementation blueprint (planned: SRC-002 through SRC-004)
 
 This section plans financial integration. SRC-002A and SRC-002B are implemented
-as the independent registry and nonbooking plan paths above; ingestion, SDK and
-existing-parser migration remain unavailable. Keep the existing CLI/Web behavior until each
+as the independent registry and nonbooking plan paths above; SRC-003 adds the
+installable SDK. Ingestion and existing-parser migration remain unavailable. Keep the existing CLI/Web behavior until each
 replacement passes its acceptance gate. The production parser pipeline remains
 Python code; external Python parsers are explicitly trusted extensions.
 
@@ -500,9 +502,9 @@ migration must preserve the two existing formats' supported/rejected behavior.
   parsers in the controlled processing path, not an async HTTP request handler.
   Preserve process isolation for Web jobs. Limits/timeouts must have actual tests;
   pure typing and a child process do not sandbox trusted Python or prevent host I/O.
-- The repository currently has no supported application wheel. SRC-003 must add
-  and verify installable application/contract packaging before documenting a working
-  third-party install flow. Keep a single versioned `wealth_ledger.source_protocol`
+- SRC-003 provides an audited core wheel/source distribution and independent
+  synthetic plugin install flow; see [the SDK guide](parser-sdk.md). Keep a single
+  versioned `wealth_ledger.source_protocol`
   implementation shared with plugins; do not vendor incompatible copies of its
   dataclasses into a separate SDK. Packaging or registry work does not authorize
   publishing a package to an external registry.

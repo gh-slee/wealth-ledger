@@ -1241,4 +1241,5 @@ a private receipt and can reject stale code/config/input evidence. They cannot
 import positions, record contributions or generate reports. Host configuration,
 implemented commands and revalidation examples are in the
 [source-plan guide](source-adapters.md#nonbooking-source-plans-src-002b). The author
-SDK and existing-parser migration are still planned; there is no runtime LLM.
+SDK is available for nonbooking development ([guide](parser-sdk.md));
+existing-parser migration remains planned. There is no runtime LLM.

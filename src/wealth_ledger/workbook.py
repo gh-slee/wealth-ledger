@@ -12,6 +12,8 @@ from datetime import date
 from decimal import Decimal, localcontext
 from pathlib import Path
 from collections.abc import Mapping
+from .workspace import CODE_ROOT
+
 import hashlib
 import json
 import math
@@ -49,8 +51,8 @@ ROW_HEIGHT_CM = Decimal("0.65")
 FONT_NAME = "Noto Sans TC"
 FONT_PACKAGE_PATH = "Fonts/NotoSansTC-Regular.ttf"
 FONT_MEDIA_TYPE = "application/x-font-ttf"
-FONT_PATH = Path(__file__).resolve().parents[2] / "assets/fonts/NotoSansTC-Regular.ttf"
-FONT_LICENSE_PATH = Path(__file__).resolve().parents[2] / "assets/fonts/OFL.txt"
+FONT_PATH = CODE_ROOT / "assets/fonts/NotoSansTC-Regular.ttf"
+FONT_LICENSE_PATH = CODE_ROOT / "assets/fonts/OFL.txt"
 
 
 def tag(name: str) -> str:

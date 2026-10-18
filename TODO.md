@@ -70,7 +70,7 @@ translated documentation and additional locales are separate work.
 - [x] **I18N-002 Catalogs/formatting**: three JSON catalogs/registry, named parameters, Decimal/date formatting, version/completeness checks; no runtime LLM.
 - [x] **I18N-003 ODS/MD/PDF/charts**: shared locale context, cross-sheet formulas, bundled fonts/layout and consistent unknown/zero semantics.
 - [x] **I18N-004 Daily CLI/offline editions**: locale options, help/errors/previews, frozen operation locale and output without financial changes.
-- [x] **I18N-005 Regressions/contributor tools**: matching amounts/formulas, missing/mixed-language/broken-reference rejection, additional-language guidance and planned plugin namespaces (SDK not implemented).
+- [x] **I18N-005 Regressions/contributor tools**: matching amounts/formulas, missing/mixed-language/broken-reference rejection, additional-language guidance and planned plugin message namespaces (not part of the parser SDK).
 - [x] **I18N-006 Docs/public manifest**: README/manual/API/report/development contracts, reviewed JSON/font/doc paths and public manifests; preserve first-publication approval requirements.
 - [ ] **I18N-007 More locales/translated documentation**: candidates fr-CA/ja-JP; verify formatting/fonts/terms/licenses and maintain complete translated README/manual editions separately.
 
@@ -83,8 +83,8 @@ built-in importers. Current support is format-specific, not universal CSV suppor
 - [x] **SRC-001 Versioned adapter/external parser protocol**: canonical `holdings`, `cash_flows`, `crypto_transactions`; source/account namespaces, stable IDs, time/currency, revisions/voids/coverage and ambiguous detection.
 - [x] **SRC-002 Registration/discovery/compatibility (nonbooking parser path)**: trusted Python parsers enabled explicitly or through versioned package entry points; reject duplicate adapter IDs/conflicting provider metadata, unknown API versions and ambiguous formats without changes to core ledger/reports.
 - [x] **SRC-002A Independent registry library**: explicit exact distribution/version/entry-point enablement, metadata-only discovery, same-provider multiple formats, adapter/provider collision checks, API compatibility, deterministic detection/explicit selection and redacted failures. Existing CLI/Web imports are unchanged.
-- [x] **SRC-002B Nonbooking source plans/configuration fingerprints**: shared CLI/API runner, strict trusted-host configuration, input/mapping/catalog/normalized digests, actual runtime/core/site-file hashes, fresh child/timeout, stale-plan rejection and API/worker environment checks. Owner-scoped source_csv/source_plan jobs cannot confirm/resume financially and expire on restore. Protocol-v1 records remain unbookable; browser forms, SDK and production parser migration remain later work.
-- [ ] **SRC-003 Example plugin/contract test toolkit**: synthetic fixtures, detector/normalizer/validator examples and offline deduplication/revision/transfer/scope/privacy tests; author/install/enable instructions.
+- [x] **SRC-002B Nonbooking source plans/configuration fingerprints**: shared CLI/API runner, strict trusted-host configuration, input/mapping/catalog/normalized digests, actual runtime/core/site-file hashes, fresh child/timeout, stale-plan rejection and API/worker environment checks. Owner-scoped source_csv/source_plan jobs cannot confirm/resume financially and expire on restore. Protocol-v1 records remain unbookable; browser forms and production parser migration remain later work; SRC-003 supplies the SDK.
+- [x] **SRC-003 Installable core/example plugin/contract toolkit**: audited core wheel/sdist with fonts/locales/aliases, installed nonbooking CLI, shared contract assertions and independent synthetic plugin; overlap/revision/transfer/scope/privacy fixtures, native/derived-image instructions and isolated install/CLI/API-worker/three-locale report acceptance. This does not implement stateful ingestion.
 - [ ] **SRC-004 Existing-adapter migration/new sources**: move Wealthsimple/Bull to the versioned registry, prove ledger/CLI compatibility, then add banks, brokers and exchanges.
 
 SRC-001 provides `wealth_ledger.source_protocol` dataclasses, pure adapter Protocol,
@@ -93,14 +93,15 @@ SRC-002A adds the independent `wealth_ledger.source_registry` library for explic
 enabled trusted loading/detection. It is not called by production import paths and
 does not book records. SRC-002B now connects the shared nonbooking plan runner to
 CLI and owner-only API jobs; financial import/confirmation still use existing
-importers. SRC-003-004 remain planned. Existing importers remain unchanged.
+importers. SRC-003 adds installable core/author tooling; SRC-004 remains planned.
+Existing financial importers remain unchanged.
 
 Current CSV support is Wealthsimple/Bull only. The official ETF registry is separate
 from a general source-plugin system. Bank records can establish boundary cash flows
 without adding bank cash to investment assets. External plugins run as trusted,
 user-installed Python; never execute code from a CSV/network automatically or use
 an LLM to generate/select parsers at runtime. See [adapter design](docs/source-adapters.md);
-no SDK/install command is available yet.
+see the implemented [SDK/build/install guide](docs/parser-sdk.md).
 
 The [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004) now specifies module boundaries, trusted-host loading, CLI/Web preview fingerprints, protocol-v2 completeness gaps, preserved identity bindings and phased acceptance. SRC-002A/B are implemented for nonbooking parser previews and revalidation; generic financial ingestion remains unimplemented. Full decoupling requires the remaining integration and migration acceptance gates.
 

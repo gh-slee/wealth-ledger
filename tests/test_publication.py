@@ -18,7 +18,10 @@ import dev_publish as publisher
 
 class PublicationPolicyTests(unittest.TestCase):
     def test_curated_public_paths(self):
-        for path in ('README.md', 'src/wealth_ledger/core.py', 'scripts/update.py',
+        for path in ('build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'docs/parser-sdk.md',
+                     'examples/parser-plugin/pyproject.toml', 'examples/parser-plugin/LICENSE',
+                     'examples/parser-plugin/tests/test_installed_api.py',
+                     'README.md', 'src/wealth_ledger/core.py', 'scripts/update.py',
                      'tests/test_publication.py', 'config/publish.example.toml',
                      'docs/development.md', '.githooks/pre-push', 'examples/data/wealthsimple-holdings.csv',
                      'examples/data/bull-orders.csv', 'examples/data/fx.json',
@@ -42,6 +45,9 @@ class PublicationPolicyTests(unittest.TestCase):
                      'src/wealth_ledger/__pycache__/core.py', 'scripts/token.key',
                      'tests/fixtures/user.csv', 'examples/data/user-holdings.csv',
                      'examples/templates/private.csv', 'examples/arbitrary/example.csv',
+                     'examples/parser-plugin/build/lib/synthetic_parser/__init__.py',
+                     'examples/parser-plugin/private.csv', 'examples/parser-plugin/.env',
+                     'examples/parser-plugin/AGENTS.override.md', 'src/wealth_ledger/_bundle/private.json',
                      'examples/demo.csv', 'unreviewed.md', '../README.md', '/README.md',
                      'src\\wealth_ledger\\core.py', '.github/workflows/deploy.yml',
                      'src/wealth_ledger/locales/user.json', 'assets/fonts/downloaded-font.ttf',

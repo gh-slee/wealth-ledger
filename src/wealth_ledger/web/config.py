@@ -15,8 +15,8 @@ class WebSettings:
         if not root.is_absolute():
             raise ValueError("Web data root must be an explicit absolute directory")
         root = root.resolve()
-        from ..workspace import CODE_ROOT
-        if root == Path(root.anchor) or root == Path.home() or root == CODE_ROOT or root.is_relative_to(CODE_ROOT):
+        from ..workspace import INSTALLATION_ROOT
+        if root == Path(root.anchor) or root == Path.home() or root == INSTALLATION_ROOT or root.is_relative_to(INSTALLATION_ROOT):
             raise ValueError("Web data root must be a dedicated directory outside the code checkout")
         origin = urlsplit(self.public_origin)
         if (origin.scheme not in {"http", "https"} or not origin.hostname or origin.username or origin.password

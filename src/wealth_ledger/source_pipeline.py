@@ -194,7 +194,7 @@ def validate_receipt(value):
 def plan_sources(paths, *, config_path=None, selections=None, previous=None, expected_environment=None,
                  timeout=60, python=None):
     """CLI/Web shared nonbooking runner with private temporary IO and a wall limit."""
-    from .workspace import CODE_ROOT
+    from .workspace import PACKAGE_ROOT
     if type(timeout) not in {int, float} or not 0 < timeout <= 60:
         raise SourcePlanError("invalid_timeout")
     if not isinstance(paths, (tuple, list)) or not 1 <= len(paths) <= 5:
@@ -218,7 +218,7 @@ def plan_sources(paths, *, config_path=None, selections=None, previous=None, exp
         (root / "request.json").write_text(json.dumps(request), encoding="utf-8")
         (root / "request.json").chmod(0o600)
         env = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR") if key in os.environ}
-        env.update({"PYTHONPATH": str(CODE_ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1",
+        env.update({"PYTHONPATH": str(PACKAGE_ROOT.parent), "PYTHONDONTWRITEBYTECODE": "1",
                     "PYTHONPYCACHEPREFIX": str(root / "bytecode"), "PYTHONHASHSEED": "0", "PYTHONUTF8": "1", "TZ": "UTC"})
         try:
             result = subprocess.run([str(python or sys.executable), "-B", "-m", "wealth_ledger.source_pipeline", str(root)],

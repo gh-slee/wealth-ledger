@@ -509,6 +509,16 @@ configuration/code fingerprints and bounded nonbooking execution. Normal financi
 imports retain their current implementations; source plans cannot submit batches;
 arbitrary bank/exchange CSVs cannot replace supported imports.
 
+SRC-003 ships that same contract in an audited installable core wheel, together
+with `source_testing.check_contract`, `check_rejected` and `record_index`.
+The installed console and checkout wrapper share `source_cli.main`.
+See [the SDK guide](parser-sdk.md) for the independent example, explicit enablement,
+artifact privacy, installation/derived-image acceptance and v1 limits. Installed
+resources use `workspace.CODE_ROOT` (the package resource bundle); `PACKAGE_ROOT`
+identifies executable modules. `resolve_workspace(explicit=...)` requires a private
+existing directory outside the package installation; no implicit site-packages
+ledger is created. Source checkouts retain their original workspace behavior.
+
 ## Locale presentation APIs
 
 settings.report_locale(project, override=None) reads CLI/local/new/legacy defaults;

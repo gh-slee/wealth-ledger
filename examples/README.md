@@ -77,3 +77,8 @@ Each run uses an isolated synthetic ledger, bundled fonts and offline references
 Source names and machine exports remain unchanged. Saved demo data/manifest also
 support an offline alternate-language edition through `scripts/render_report.py`;
 the results remain synthetic demonstrations.
+
+## Independent parser package
+
+See [parser-plugin](parser-plugin/README.md) and [the SDK guide](../docs/parser-sdk.md)
+for trusted versioned parser authoring and isolated nonbooking acceptance.

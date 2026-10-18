@@ -28,9 +28,9 @@ def environment_fingerprint(*, roots=None, executable=None):
     uses an empty bytecode prefix and disables writes, so caches are excluded.
     Injectable roots/executable support small, independently authored test fixtures.
     """
-    from .workspace import CODE_ROOT
+    from .workspace import PACKAGE_ROOT
     if roots is None:
-        roots = {"core": CODE_ROOT / "src/wealth_ledger", "stdlib": Path(sysconfig.get_path("stdlib"))}
+        roots = {"core": PACKAGE_ROOT, "stdlib": Path(sysconfig.get_path("stdlib"))}
         sites = sorted({sysconfig.get_path("purelib"), sysconfig.get_path("platlib")})
         roots.update({"site-" + str(index): Path(path) for index, path in enumerate(sites)})
     total, count, evidence = 0, 0, []

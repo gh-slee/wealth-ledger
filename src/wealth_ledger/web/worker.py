@@ -11,7 +11,7 @@ import threading
 from ..application import ApplicationService
 from ..locking import file_lock, LockBusy
 from ..operations import input_fingerprint, project_lock
-from ..workspace import CODE_ROOT, resolve_workspace
+from ..workspace import PACKAGE_ROOT, resolve_workspace
 from .config import WebSettings
 from .jobs import Jobs
 from .storage import Store, WebError, contained
@@ -195,7 +195,7 @@ def execute_record(store, jobs, row, service):
 def execute_isolated(settings, job_id):
     # Fixed module/arguments; no user-supplied program, task name, shell or pickle.
     env = {**os.environ, "WEALTH_LEDGER_DATA_ROOT": str(settings.data_root),
-           "WEALTH_LEDGER_PUBLIC_ORIGIN": settings.public_origin, "PYTHONPATH": str(CODE_ROOT / "src"),
+           "WEALTH_LEDGER_PUBLIC_ORIGIN": settings.public_origin, "PYTHONPATH": str(PACKAGE_ROOT.parent),
            "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run([sys.executable, "-m", "wealth_ledger.web.worker", job_id], env=env,
                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
