@@ -36,7 +36,8 @@ def project_lock(project):
     import os
     from .locking import file_lock
     path = Path(project) / "work/update.lock"
-    with file_lock(path.with_name("update.guard")):
+    from .web.maintenance import workspace_activity
+    with workspace_activity(project), file_lock(path.with_name("update.guard")):
         if path.is_symlink():
             raise ValueError("Unsafe update lock path")
         if path.exists():

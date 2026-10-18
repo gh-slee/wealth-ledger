@@ -52,7 +52,8 @@ class PublicationPolicyTests(unittest.TestCase):
                      'scripts/AGENTS.OVERRIDE.MD', 'frontend/AGENTS.override.md',
                      'frontend/src/AGENTS.override.md', 'frontend/.env', 'frontend/dist/index.html',
                      'frontend/node_modules/private.json', 'frontend/src/user.json', 'frontend/public/wallet.csv',
-                     'assets/readme/wallet.png', 'frontend/scripts/arbitrary-capture.mjs'):
+                     'assets/readme/wallet.png', 'frontend/scripts/arbitrary-capture.mjs',
+                     'instance-backup.zip', 'instance-backup.zip.part', 'docs/backup.zip'):
             self.assertFalse(guard.path_allowed(path), path)
 
     def test_synthetic_secret_patterns(self):

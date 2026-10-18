@@ -324,3 +324,12 @@ Manifests record locale/catalog SHA, format/render versions, fonts/SHA, data che
 and financial fingerprint. Offline editions preserve data.json, mark frozen analysis,
 record render time and never update quotes/ledger/latest. Legacy checksum gaps are
 metadata-consistency limitations. See [i18n contract](i18n-plan.md).
+
+## Frozen Web exports
+
+Registered editions can be downloaded as complete ZIP bundles preserving relative
+chart links, or projected CSV/JSON datasets. Inclusive date filters apply only to
+dated rows/months already present in the selected report. These are not all-ledger
+revision exports or full instance backups. Unknowns, source dates and precision
+remain explicit; CSV escapes spreadsheet formula text. See [exports and private
+backups](web-backups.md) for scope, limits, API routes and restoration.

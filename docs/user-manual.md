@@ -1223,3 +1223,12 @@ historical costs/contributions.
 Canonical documentation is English; complete translated editions remain planned.
 Developer Git tools/external raw diagnostics may remain English. See
 [the locale contract](i18n-plan.md) for additional-language requirements.
+
+## Web exports and full instance backups
+
+The optional Web interface exports registered report ZIPs and selected frozen
+CSV/JSON datasets with supported inclusive ranges. Full private instance backup
+and empty-instance restore are trusted-host commands, with maintenance barriers,
+SQLite/evidence verification and restored-session revocation. See [the complete
+backup/export guide](web-backups.md). This does not adopt an existing CLI ledger;
+copy-verified adoption remains WEB-006. Keep the original CLI workspace intact.

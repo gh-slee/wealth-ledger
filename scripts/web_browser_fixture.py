@@ -20,6 +20,7 @@ def main():
     from wealth_ledger.web.jobs import Jobs
     from wealth_ledger.web.storage import Store, prepare_instance
     import json
+    import hashlib
     with tempfile.TemporaryDirectory(prefix="wealth-browser-synthetic-") as temporary:
         settings = WebSettings(Path(temporary) / "instance", "http://localhost:8765")
         prepare_instance(settings)
@@ -34,6 +35,11 @@ def main():
         jobs = Jobs(store)
         with store.transaction() as conn:
             row = jobs._insert(conn, portfolio["id"], "update", {}, uuid.uuid4().hex, "synthetic-browser-fixture")
+        bundle_files = {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in output.rglob("*") if p.is_file() and p.suffix in (".md", ".pdf", ".ods", ".json", ".csv", ".png")}
+        (output / "manifest.json").write_text(json.dumps({"synthetic":True,
+            "import":{"operation_id":row["core_operation_id"]}, "bundle_files":bundle_files,
+            "data_sha256":bundle_files["data.json"]}))
         for path in output.rglob("*"):
             if path.is_file() and path.suffix in (".md", ".pdf", ".ods", ".json", ".csv", ".png"):
                 store.register_artifact(portfolio["id"], row["id"], path.relative_to(project).as_posix())

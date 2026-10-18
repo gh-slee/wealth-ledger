@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearTransport, read, mutate } from "../src/lib/api";
+import { clearTransport, read, mutate, downloadFile } from "../src/lib/api";
 afterEach(() => {
   clearTransport();
   vi.unstubAllGlobals();
@@ -61,5 +61,26 @@ describe("in-flight context isolation", () => {
     finish({ csrf_token: "example-placeholder" });
     await expect(request).rejects.toMatchObject({ name: "AbortError" });
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("does not download a financial blob after its portfolio context changes", async () => {
+    let finish!: (value: Blob) => void;
+    const createElement = vi.fn();
+    vi.stubGlobal("document", { createElement });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        blob: () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      }),
+    );
+    const request = downloadFile("/synthetic/export", "synthetic.csv");
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    clearTransport();
+    finish(new Blob(["old portfolio"]));
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(createElement).not.toHaveBeenCalled();
   });
 });

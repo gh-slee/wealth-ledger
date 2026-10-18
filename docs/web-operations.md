@@ -3,7 +3,7 @@
 The optional API implements owner sessions, independent portfolios/settings, bounded
 CSV/reference uploads, offline preview, explicit confirmation, isolated durable
 report jobs and protected artifact downloads. React analysis/report pages are implemented; advanced
-financial forms and full backup/adoption remain planned. The CLI stays available.
+financial forms and legacy adoption remain planned. Full private backup/restore and report/data exports are implemented; see [exports and backups](web-backups.md). The CLI stays available.
 See the [upload/job protocol and recovery guide](web-imports.md). See [the staged design](self-hosted-webapp.md)
 and [TODO](../TODO.md). Production features do not use an LLM.
 
@@ -123,6 +123,8 @@ Amounts in financial responses remain Decimal strings, never float truth.
 | `GET /api/v1/portfolios/{id}/reports/{report_id}?locale=en-CA` | Hash-verified frozen analysis; no imports, reference fetches or revaluation |
 | `GET /api/v1/portfolios/{id}/artifacts` | Registered artifact metadata only |
 | `GET /api/v1/portfolios/{id}/artifacts/{artifact_id}` | Scoped attachment with size/hash validation |
+| `GET /api/v1/portfolios/{id}/reports/{report_id}/bundle.zip` | Verified complete frozen report ZIP |
+| `GET /api/v1/portfolios/{id}/reports/{report_id}/export` | Selected frozen CSV/JSON dataset and supported date range |
 | `GET /api/v1/openapi.json` | Versioned authenticated schema |
 
 New portfolios default to `en-CA`/`actual_only`. Settings support `en-CA`, `zh-TW`,
@@ -142,8 +144,7 @@ stores SHA-256/size/media type. Downloads are owner/portfolio scoped, reject tra
 and symlinks, check the bytes before returning them, use attachment names generated
 from artifact IDs, and cap a file at 64 MiB. No unregistered local report is
 implicitly published. Completed worker bundles are verified and registered with the
-published job in one metadata transaction. The browser report library lists registered frozen editions; ZIPs/streaming
-exports remain WEB-005.
+published job in one metadata transaction. The browser report library lists registered frozen editions; frozen report ZIPs and selected CSV/JSON exports are described in [exports and backups](web-backups.md).
 
 Errors use `{"error":{"code":"...","message":"...","request_id":"..."}}`.
 Validation responses do not echo passwords, supplied values or filesystem errors.
@@ -162,7 +163,7 @@ or environment variable. Only hashes are stored in `admin/app.sqlite3`; opaque
 session tokens are random and stored as SHA-256 hashes. CSRF HMAC uses the private
 32-byte `secrets/csrf.key`. Missing/invalid instance secrets fail closed, not silent
 rotation. Keep the complete instance/secret directory private and backed up.
-SQLite remains unencrypted. Full consistent backup/restore is WEB-005.
+SQLite remains unencrypted. Use the [full private backup/empty-target restore commands](web-backups.md); protect the archive because it includes authentication material.
 
 Login budgets persist in metadata: five attempts per transport peer/15 minutes,
 20 per instance/15 minutes, reset on successful login. CSRF creation is limited to
@@ -233,8 +234,7 @@ persistence. Only test listener/context/resource names and timing/restart behavi
 are overridden; production service security settings remain in place. Native HTTP
 restart acceptance runs without Docker. Do not substitute a real ledger for these tests.
 
-Pending gates: remote CI for this scope, broader export/backup workflows,
-full backup/adoption, resource/crash tests and wider release/platform/security
+Pending gates: verified existing-ledger adoption, broader resource/crash tests and wider release/platform/security
 acceptance. Local container acceptance covers Linux/arm64; it does not claim
 Linux/amd64 CI or every Docker host has passed. No dependency/source check proves
 the absence of all possible sensitive values. Review concrete staged content/history before publication.

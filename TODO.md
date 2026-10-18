@@ -35,7 +35,7 @@ runnable; the browser workflow reads frozen reports and drives confirmed jobs.
 - [x] **WEB-002 Auth/API/Docker foundation**: owner CLI, Argon2id/opaque sessions, CSRF/origin/host/limits, versioned metadata, portfolios/settings, artifact registry and image/Compose. Synthetic native HTTP/security/restart, context privacy, Linux/arm64 container restart and Compose health/container-replacement acceptance passed locally. Broader platform/release acceptance remains WEB-007. See [Web operations](docs/web-operations.md).
 - [x] **WEB-003 Upload/preview/background jobs**: bounded raw uploads, offline preview/explicit confirmation, JSON-ID Huey/SQLite notifications, isolated workers, durable job/operation linkage, atomic financial commit markers, idempotency, stale-preview rejection, report/artifact recovery and protected three-format downloads. Synthetic transaction/process interruption and Compose worker/replacement acceptance passed locally; uncertain states require review. See [imports/jobs](docs/web-imports.md).
 - [x] **WEB-004 Browser analysis/report library**: React/TypeScript/Vite, three locales/currencies, tables/ECharts, frozen publications/source dates/gaps/unknowns, imports/jobs/settings/downloads and portfolio-scoped in-memory caches. See [browser workflow](docs/web-frontend.md); wider release acceptance remains WEB-007.
-- [ ] **WEB-005 Exports and backup/restore**: build on registered ODS/MD/PDF/CSV/JSON downloads; add broader data exports, report ZIPs, full consistent backups and restore to a fresh empty volume.
+- [x] **WEB-005 Exports and backup/restore**: owner-scoped frozen report ZIPs and CSV/JSON datasets/ranges; maintenance/drain barriers, private versioned full backups, SQLite snapshots/evidence/logical checks, empty-target restore and session/recovery handling. See [exports and backups](docs/web-backups.md); broad platform/resource acceptance remains WEB-007.
 - [ ] **WEB-006 Advanced forms and existing-ledger adoption**: BTC openings/balances/events/revisions, contributions/coverage and copy-verified migration while preserving the old CLI workspace.
 - [ ] **WEB-007 Release/operations acceptance**: clean container install/upgrade/restart, image privacy, supported platforms, dependency licenses and three-locale operating guidance.
 
@@ -52,7 +52,7 @@ migration is a separate explicit operation.
 | FUT-004 | Not implemented | ETF shared-company/weighted overlap: define denominators/formulas, reuse official evidence/identities and disclose dates, parsing coverage and unknown weights |
 | FUT-005 | Not implemented | Separate quantity, market-price and FX effects on value; define interaction allocation and identify splits/scope/mixed dates/missing quotes; quantity effects are not contributions |
 
-WEB-005 is next on the active Web track. FUT-002 remains an optional convenience feature. Bull funding-source classification
+WEB-006 advanced forms and copy-verified existing-ledger adoption are next on the active Web track. FUT-002 remains an optional convenience feature. Bull funding-source classification
 and transfer matching is next on the cash-flow track. Unfinished items do not block
 currently supported updates.
 

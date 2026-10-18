@@ -59,7 +59,7 @@ keep the backend on port 8000 but configure its public origin as
 Changing future report language/cost policy in **Settings** does not rewrite old
 reports. Interface language is independent of the saved report language. Downloads
 remain in their original published language. Markdown refers to its chart files:
-download those attachments too; a portable report ZIP remains WEB-005.
+download those attachments too, or choose **Download report ZIP** to preserve relative links. **Export report data** offers CSV/JSON holdings, accounts, history, cash flows and monthly BTC data, with supported inclusive date ranges. See [exports and private backups](web-backups.md).
 
 ## Analysis semantics
 

@@ -9,7 +9,7 @@ class LockBusy(ValueError):
 
 
 @contextmanager
-def file_lock(path):
+def file_lock(path, *, shared=False):
     """Lock a stable inode, shared by CLI and containers; never unlink this file."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -23,13 +23,13 @@ def file_lock(path):
                 handle.write(b"0"); handle.flush()
             handle.seek(0)
             try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBRLCK if shared else msvcrt.LK_NBLCK, 1)
             except OSError as exc:
                 raise LockBusy("Another process holds the advisory lock") from exc
         else:
             import fcntl
             try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(handle, (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB)
             except BlockingIOError as exc:
                 raise LockBusy("Another process holds the advisory lock") from exc
         try:

@@ -24,7 +24,7 @@ PUBLIC_ROOT_FILES = {
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
-    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md',
+    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-backups.md',
 }
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
@@ -45,7 +45,7 @@ IGNORED_ROOTS = {
     '.pytest_cache', '.mypy_cache', '.ruff_cache',
 }
 PRIVATE_SUFFIXES = ('.db', '.sqlite', '.sqlite3', '.pem', '.key', '.p12', '.pfx',
-                    '.keystore', '.log', '.bak', '.pyc', '.pyo')
+                    '.keystore', '.log', '.bak', '.pyc', '.pyo', '.zip', '.zip.part')
 SECRET_PATTERNS = (
     ('private key', re.compile(rb'-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----')),
     ('GitHub credential', re.compile(rb'\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{30,}\b')),
