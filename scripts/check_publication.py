@@ -34,6 +34,10 @@ PUBLIC_FUND_FIXTURES = {
     'README.md', 'blackrock.csv', 'bmo.json', 'ci.html', 'fidelity.json',
     'invesco.json', 'vanguard.json', 'vaneck.xlsx',
 }
+PUBLIC_README_PNGS = {
+    'assets/readme/report-preview.png', 'assets/readme/web-overview.png',
+    'assets/readme/web-exposure.png',
+}
 PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {
     '.git', 'data', 'reports', 'backups', 'work', 'private', 'outputs', 'output',
@@ -95,7 +99,7 @@ def path_allowed(path: str) -> bool:
             return p.suffix in {'.ts', '.tsx', '.css'} or (len(parts) == 4 and parts[1:3] == ('src', 'locales')
                 and p.name in {'en-CA.json', 'zh-TW.json', 'zh-CN.json'})
         if parts[1] == 'scripts':
-            return len(parts) == 3 and p.name == 'check-source.mjs'
+            return len(parts) == 3 and p.name in {'check-source.mjs', 'capture-readme.mjs'}
         return len(parts) == 4 and parts[1:3] == ('public', 'licenses') and p.name in {
             'ibm-plex-sans-condensed.txt', 'atkinson-hyperlegible.txt', 'shadcn-ui.txt'}
     if parts[0] == 'src':
@@ -119,7 +123,7 @@ def path_allowed(path: str) -> bool:
     if parts[0] == 'config':
         return len(parts) == 2 and p.name in PUBLIC_CONFIG
     if parts[:2] == ('assets', 'readme'):
-        return len(parts) == 3 and p.name in {'wealth-ledger-mark.svg', 'report-preview.png', 'README.md'}
+        return len(parts) == 3 and (p.name in {'wealth-ledger-mark.svg', 'README.md'} or path in PUBLIC_README_PNGS)
     if parts[:2] == ('assets', 'fonts'):
         return len(parts) == 3 and p.name in {'NotoSansTC-Regular.ttf', 'NotoSansSC-Regular.ttf', 'NotoSansSC-provenance.json', 'OFL.txt', 'OFL-SC.txt', 'README.md'}
     if parts[0] == '.githooks':
@@ -132,9 +136,9 @@ def path_allowed(path: str) -> bool:
 
 
 def content_issues(data: bytes, path: str) -> list[str]:
-    is_readme_preview = path == 'assets/readme/report-preview.png'
+    is_readme_preview = path in PUBLIC_README_PNGS
     if is_readme_preview:
-        # This one image is generated from pinned synthetic examples, then visually reviewed.
+        # These named images come from synthetic fixtures and need visual review.
         if (len(data) < 45 or len(data) > 4 * 1024 * 1024
                 or data[:8] != b'\x89PNG\r\n\x1a\n' or data[8:16] != b'\x00\x00\x00\x0dIHDR'
                 or data[-12:] != b'\x00\x00\x00\x00IEND\xaeB`\x82'):

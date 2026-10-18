@@ -31,7 +31,9 @@ class PublicationPolicyTests(unittest.TestCase):
                      'assets/fonts/NotoSansSC-provenance.json',
                      'assets/readme/wealth-ledger-mark.svg', 'assets/readme/report-preview.png',
                      'assets/readme/README.md', 'frontend/package-lock.json', 'frontend/src/App.tsx',
-                     'frontend/src/locales/zh-TW.json', 'docs/web-frontend.md'):
+                     'frontend/src/locales/zh-TW.json', 'docs/web-frontend.md',
+                     'frontend/scripts/capture-readme.mjs', 'assets/readme/web-overview.png',
+                     'assets/readme/web-exposure.png'):
             self.assertTrue(guard.path_allowed(path), path)
 
     def test_private_and_unknown_paths(self):
@@ -49,7 +51,8 @@ class PublicationPolicyTests(unittest.TestCase):
                      'src/wealth_ledger/locales/AGENTS.override.md',
                      'scripts/AGENTS.OVERRIDE.MD', 'frontend/AGENTS.override.md',
                      'frontend/src/AGENTS.override.md', 'frontend/.env', 'frontend/dist/index.html',
-                     'frontend/node_modules/private.json', 'frontend/src/user.json', 'frontend/public/wallet.csv'):
+                     'frontend/node_modules/private.json', 'frontend/src/user.json', 'frontend/public/wallet.csv',
+                     'assets/readme/wallet.png', 'frontend/scripts/arbitrary-capture.mjs'):
             self.assertFalse(guard.path_allowed(path), path)
 
     def test_synthetic_secret_patterns(self):
@@ -76,20 +79,21 @@ class PublicationPolicyTests(unittest.TestCase):
         self.assertTrue(guard.content_issues(b'abc\0abc', 'README.md'))
         self.assertTrue(guard.content_issues(b'not a font', 'assets/fonts/NotoSansTC-Regular.ttf'))
 
-    def test_only_reviewed_readme_png_has_bounded_binary_support(self):
+    def test_only_named_reviewed_readme_pngs_have_bounded_binary_support(self):
         import base64
         import struct
         import zlib
         png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
-        path = 'assets/readme/report-preview.png'
-        self.assertEqual(guard.content_issues(png, path), [])
+        for path in sorted(guard.PUBLIC_README_PNGS):
+            with self.subTest(path=path):
+                self.assertEqual(guard.content_issues(png, path), [])
+                self.assertTrue(guard.content_issues(b'not an image', path))
+                self.assertTrue(guard.content_issues(png[:-12], path))
+                self.assertTrue(guard.content_issues(png[:16]+struct.pack('>II',4001,1)+png[24:], path))
+                text = b'Comment\x00ghp_' + b'a'*36 + b' '
+                chunk = struct.pack('>I',len(text)) + b'tEXt' + text + struct.pack('>I',zlib.crc32(b'tEXt'+text))
+                self.assertTrue(guard.content_issues(png[:-12] + chunk + png[-12:], path))
         self.assertTrue(guard.content_issues(png, 'assets/readme/private.png'))
-        self.assertTrue(guard.content_issues(b'not an image', path))
-        self.assertTrue(guard.content_issues(png[:-12], path))
-        self.assertTrue(guard.content_issues(png[:16]+struct.pack('>II',4001,1)+png[24:], path))
-        text = b'Comment\x00ghp_' + b'a'*36 + b' '
-        chunk = struct.pack('>I',len(text)) + b'tEXt' + text + struct.pack('>I',zlib.crc32(b'tEXt'+text))
-        self.assertTrue(guard.content_issues(png[:-12] + chunk + png[-12:], path))
 
     def test_scanner_and_tests_do_not_match_their_own_patterns(self):
         for path in (SCRIPTS / 'check_publication.py', Path(__file__)):
