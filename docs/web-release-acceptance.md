@@ -105,7 +105,9 @@ Default Compose gives **each** service a 1 GiB memory ceiling, 256 PID limit and
 promise for large portfolios. `/data` persists all authoritative instance state.
 Staging and backups can require multiple copies of data plus an archive; check free
 space on both the volume and backup destination before upgrades/imports/adoption.
-Use a durable read-only source mount for large CLI adoption, not the small `/tmp`.
+Use a durable source mount for large CLI adoption, not the small `/tmp`. The
+source needs permission to create/open `work/update.guard`; financial source files
+are not rewritten. A fully read-only source mount cannot acquire that guard.
 One API, one worker and local SQLite storage are the supported topology; adding API
 replicas does not increase acceptance. No automatic job replay after an uncertain commit.
 
