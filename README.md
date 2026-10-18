@@ -66,7 +66,9 @@ docker compose up -d
 
 Open **[http://localhost:8000](http://localhost:8000)**. Sign in as `owner` using the password you set on the host, create a portfolio, and open **Import & jobs**. New instances start with no financial history or personal accounts. Try the [invented example files](examples/README.md) first.
 
-The `web` and `worker` services share the private `wealth-data` named volume. Initialize the owner once. `docker compose down` retains the volume; deleting the volume removes its data. The sample deployment binds to loopback. For HTTPS, remote access, upgrades, fresh rebuild contexts, and password resets, follow [Web operations](docs/web-operations.md).
+The `web` and `worker` services share the private `wealth-data` named volume. Initialize the owner once. `docker compose down` retains the volume; deleting the volume removes its data. The sample deployment binds to loopback. For HTTPS, remote access, upgrades, fresh rebuild contexts, and password resets, follow [Web operations](docs/web-operations.md) and the [upgrade/rollback runbook](docs/web-release-acceptance.md).
+
+Prebuilt multi-architecture images and a pull-only Compose recipe are planned. Current installation builds locally. The platform/evidence matrix is in [operations acceptance](docs/web-release-acceptance.md); Windows and macOS hosts use Linux containers.
 
 **Existing CLI users:** keep your current workspace. Pointing the Web app at an old ledger is not a supported migration. Use the explicit [copy-verified adoption commands](docs/web-adoption.md), preserving the original workspace.
 
@@ -95,7 +97,7 @@ On Windows, use `.venv\Scripts\python.exe` instead of Unix activation. Broader W
 3. Review the preview and any missing references. The first Bull import needs an explicit opening declaration; the [browser guide](docs/web-frontend.md) links the supported JSON format.
 4. Confirm the import and leave the worker running. Once published, open the analysis pages or **Report library**.
 
-Cash-flow coverage, contributions, and detailed BTC-event maintenance currently use the CLI. Holdings changes and purchase spending do not establish contributions. See [the manual](docs/user-manual.md).
+Use **Financial records** for cash-flow coverage, contributions and BTC openings/balances/events, including append-only corrections. The same operations remain available in the CLI. Holdings changes and purchase spending do not establish contributions. See [financial declarations](docs/web-financial-records.md).
 
 ## Screenshots
 
@@ -194,7 +196,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 
 ## Project status
 
-**Pre-release, with an implemented browser/API/worker workflow and a supported CLI.** CI exercises synthetic core/API/report tests, frontend builds and generated API types, unit/browser workflows, offline reports in three languages, and Docker privacy/restart persistence. See [the CI workflow](.github/workflows/ci.yml) for current checks; broader platform and release acceptance remains pending.
+**Pre-release, with an implemented browser/API/worker workflow and a supported CLI.** CI exercises synthetic core/API/report tests, frontend builds and generated API types, unit/browser workflows, offline reports in three languages, and Docker install/metadata-upgrade/crash/restart/adoption/restore checks. See [the CI workflow](.github/workflows/ci.yml) and [acceptance matrix](docs/web-release-acceptance.md). Use the candidate version’s actual results; automated checks do not mean a personal instance has been deployed or migrated.
 
 | Capability | Status |
 |---|---|
@@ -203,7 +205,9 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md); actual private migration is explicit |
 | Source-parser plugins | Versioned contract implemented; loader, SDK, and existing-importer migration planned: SRC-002–004 |
-| Broader platform/release acceptance and additional locales | Planned: WEB-007 / I18N-007 |
+| Operations acceptance | Upgrade/capacity/interruption checks, dependency inventory and [rollback runbook](docs/web-release-acceptance.md) implemented; WEB-007 closes after candidate validation and merged CI |
+| Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
+| Additional locales | Planned: I18N-007 |
 
 Current imports support the documented Wealthsimple holdings and Bull Bitcoin order formats. The tool does not trade, log into broker/wallet accounts, independently verify on-chain ownership, or calculate tax ACB/CRA contribution room. [Roadmap and acceptance facts](TODO.md) · [Supported inputs and financial boundaries](docs/user-manual.md).
 
@@ -213,7 +217,7 @@ Current imports support the documented Wealthsimple holdings and Bull Bitcoin or
 |---|---|
 | [Browser workflow](docs/web-frontend.md) · [Web operations](docs/web-operations.md) | Sign-in, uploads, analysis, exports, installation, HTTPS, and host commands. |
 | [User manual](docs/user-manual.md) · [Examples](examples/README.md) | CLI/private workspaces, source setup, contributions, balances, and recovery. |
-| [Exports and private backups](docs/web-backups.md) | Report ZIPs, CSV/JSON ranges, consistent backups, empty-instance restore, and maintenance. |
+| [Exports and private backups](docs/web-backups.md) · [Operations acceptance](docs/web-release-acceptance.md) | Report ZIPs, CSV/JSON ranges, consistent backups, empty-instance restore, upgrades, rollback, resources and platform evidence. |
 | [Reports](docs/report-spec.md) · [ODS](docs/workbook.md) | Interpretation, formulas, charts, evidence, and validation. |
 | [Core API](docs/core-api.md) · [BTC reconciliation](docs/btc-reconciliation-plan.md) | Data contracts, stable references, unknown costs, and later explanations. |
 | [Financial declarations](docs/web-financial-records.md) · [CLI adoption](docs/web-adoption.md) | Save contributions/BTC revisions and verify a retained-source migration. |

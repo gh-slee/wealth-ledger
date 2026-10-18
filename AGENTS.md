@@ -90,6 +90,7 @@ portfolio updates. Report the checks actually run and any gaps.
   caches on logout/switch, preserve decimal strings and use no persistent finance cache.
 - Locale changes: [i18n contract](docs/i18n-plan.md).
 - Exports, consistent snapshots, maintenance and empty-target restore: [Web backups](docs/web-backups.md); use synthetic instances only and retain original evidence.
+- Upgrade/rollback, capacity/crash tests, dependency inventory and platform evidence: [operations acceptance](docs/web-release-acceptance.md). Run `python scripts/dependency_inventory.py --require-declared` in the locked Web venv; no runtime AI or financial workspace access is needed.
 - Web security, host commands and experimental containers: [Web operations](docs/web-operations.md), [imports/jobs](docs/web-imports.md).
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
   [self-hosted web app](docs/self-hosted-webapp.md).

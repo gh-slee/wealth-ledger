@@ -179,7 +179,7 @@ restore test. Never delete the original volume as a routine step.
 
 ## Interrupted maintenance and limits
 
-If a backup process is killed, its durable maintenance marker intentionally blocks
+If a backup or metadata-upgrade process is killed, its durable maintenance marker intentionally blocks
 new work. After verifying the backup coordinator stopped, use the trusted host:
 
 ```bash
@@ -201,3 +201,8 @@ acceptance is pending. There is no automatic encryption, scheduling or remote st
 
 Implementation references: [SQLite backup API](https://docs.python.org/3.12/library/sqlite3.html#sqlite3.Connection.backup)
 and [ZIP extraction warnings](https://docs.python.org/3.12/library/zipfile.html#zipfile.ZipFile.extractall).
+
+Upgrade/rollback order, resource failures and current platform acceptance are in
+[the operations runbook](web-release-acceptance.md). Interrupted upgrade cleanup
+validates the instance identity without requiring the newer schema; it does not
+upgrade or rewrite financial data merely to clear the maintenance barrier.

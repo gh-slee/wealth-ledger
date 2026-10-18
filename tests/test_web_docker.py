@@ -97,6 +97,28 @@ class DockerRuntimeTests(unittest.TestCase):
             request_json(client, origin, f"/api/v1/portfolios/{portfolio}/settings", expected, csrf, "PUT")
             check = "import os,pathlib; assert os.getuid()==10001; assert not pathlib.Path('/app/data').exists(); assert not list(pathlib.Path('/app').rglob('AGENTS.override.md')); assert not list(pathlib.Path('/app').rglob('*.sqlite3')); import shutil; assert shutil.which('node') is None; assert pathlib.Path('/app/frontend/dist/index.html').is_file()"
             subprocess.run(["docker", "exec", container, "python", "-c", check], check=True, capture_output=True)
+            platform = subprocess.run(["docker", "exec", container, "python", "-c",
+                "import platform,sys; assert sys.platform=='linux'; assert platform.machine() in ('aarch64','x86_64'); print(platform.machine())"],
+                check=True, capture_output=True, text=True).stdout.strip()
+            expected_platform = os.environ.get("WEALTH_LEDGER_EXPECT_ARCH")
+            if expected_platform:
+                self.assertEqual(platform, expected_platform)
+            print("Synthetic Docker acceptance architecture: " + platform, flush=True)
+            subprocess.run(["docker", "stop", container], check=True, capture_output=True)
+            # Reconstruct the supported v1 metadata schema offline, preserving owner/settings.
+            legacy = "import sqlite3; c=sqlite3.connect('/data/admin/app.sqlite3'); c.executescript('DROP TABLE jobs; DROP TABLE uploads; PRAGMA user_version=1;'); c.close()"
+            subprocess.run(["docker", "run", "--rm", "--read-only", "--cap-drop=ALL",
+                "--security-opt=no-new-privileges", "--volume", volume+":/data", "--entrypoint", "python",
+                image, "-c", legacy], check=True, capture_output=True)
+            subprocess.run(["docker", "run", "--rm", "--read-only", "--cap-drop=ALL",
+                "--security-opt=no-new-privileges", "--volume", volume+":/data", image, "upgrade"],
+                check=True, capture_output=True)
+            subprocess.run(["docker", "start", container], check=True, capture_output=True)
+            wait_ready(origin)
+            self.assertEqual(request_json(client, origin, f"/api/v1/portfolios/{portfolio}/settings"), expected)
+            subprocess.run(["docker", "kill", "--signal=KILL", container], check=True, capture_output=True)
+            subprocess.run(["docker", "start", container], check=True, capture_output=True)
+            wait_ready(origin)
             subprocess.run(["docker", "restart", container], check=True, capture_output=True)
             wait_ready(origin)
             self.assertTrue(request_json(client, origin, "/api/v1/auth/session")["authenticated"])
