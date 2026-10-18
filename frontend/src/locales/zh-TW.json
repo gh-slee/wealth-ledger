@@ -321,5 +321,6 @@
   "status.unexplained": "差額待補證據",
   "status.partially_explained": "差額已部分說明",
   "status.link_conflict": "關聯待核對",
-  "status.ledger_conflict": "期初或來源重疊待核對"
+  "status.ledger_conflict": "期初或來源重疊待核對",
+  "migrationVerification": "於遷移時核對；原始發佈校驗資料未提供，不能據此證明歷史真實性。"
 }

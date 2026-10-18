@@ -124,6 +124,9 @@ def validate_instance(root):
             path = contained(project, row["relative_path"])
             if not path.is_file() or path.stat().st_size != row["byte_size"] or file_hash(path) != row["sha256"]:
                 raise ValueError("Registered artifact integrity failed")
+        from .report_evidence import legacy_evidence
+        for row in conn.execute("SELECT id,portfolio_id FROM jobs WHERE kind='update' AND status='published'"):
+            legacy_evidence(store,row["portfolio_id"],row["id"])
         from .uploads import verified_upload
         for row in conn.execute("SELECT * FROM uploads"):
             verified_upload(store, dict(row))

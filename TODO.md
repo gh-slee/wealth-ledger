@@ -40,6 +40,8 @@ runnable; the browser workflow reads frozen reports and drives confirmed jobs.
 - [x] **WEB-007 Release/operations acceptance**: exclusive metadata upgrades, atomic capacity-failure cleanup, abrupt-exit/retry tests, offline dependency-license inventory and [upgrade/rollback/platform guidance](docs/web-release-acceptance.md). Synthetic local acceptance, Linux/arm64 Docker Desktop and merged Linux/amd64 CI passed. This establishes readiness to review deployment/adoption, not an already migrated or running private instance.
 - [ ] **WEB-008 Prebuilt multi-architecture distribution**: public GHCR Linux/amd64 and Linux/arm64 images, digest/version-pinned pull-only Compose, explicit image publication approval, final-image/browser/OS notices and SBOM/vulnerability review, provenance/signatures, clean pull/install/upgrade/restore tests and documented Docker Desktop macOS/Windows plus Linux host matrix. Keep local source builds available; no source checkout, host Python or npm required for end users. Do not claim arbitrary CPUs, Windows-native containers, NAS or rootless hosts are accepted without evidence.
 
+- [x] **WEB-009 Recognized legacy publication adoption**: implemented and verified locally with explicit pre-checksum acceptance, preserved report bytes/dates, separate migration-time evidence, three-locale UI notices and bound downloads/exports/backup restore. Candidate CI/review and merge remain required before relying on it for deployment. See [legacy report adoption](docs/web-legacy-reports.md).
+
 This track does not complete the source-plugin SDK, new currencies or combined
 performance automatically. Keep each stage planned until accepted; actual private
 migration is a separate explicit operation.
@@ -53,7 +55,7 @@ migration is a separate explicit operation.
 | FUT-004 | Not implemented | ETF shared-company/weighted overlap: define denominators/formulas, reuse official evidence/identities and disclose dates, parsing coverage and unknown weights |
 | FUT-005 | Not implemented | Separate quantity, market-price and FX effects on value; define interaction allocation and identify splits/scope/mixed dates/missing quotes; quantity effects are not contributions |
 
-WEB-007 operations acceptance is verified and merged. WEB-008 is next on the public Web track for pull-only distribution. Actual deployment/adoption remains an explicit operator action. WEB-006 is implemented and verified locally; it does not itself authorize deployment or private migration. FUT-002 remains an optional convenience feature. Bull funding-source classification
+WEB-007 operations acceptance is verified and merged. WEB-009 legacy compatibility is the active local candidate; WEB-008 remains the separate pull-only distribution track. Actual deployment/adoption remains an explicit operator action. WEB-006 is implemented and verified locally; it does not itself authorize deployment or private migration. FUT-002 remains an optional convenience feature. Bull funding-source classification
 and transfer matching is next on the cash-flow track. Unfinished items do not block
 currently supported updates.
 
@@ -74,8 +76,12 @@ translated documentation and additional locales are separate work.
 
 ## Extensible source adapters (contract implemented; loading/migration planned)
 
+Product direction: one application for bank, brokerage, Bitcoin broker and exchange
+exports through source-parser plugins. Wealthsimple and Bull Bitcoin are the first
+built-in importers. Current support is format-specific, not universal CSV support.
+
 - [x] **SRC-001 Versioned adapter/external parser protocol**: canonical `holdings`, `cash_flows`, `crypto_transactions`; source/account namespaces, stable IDs, time/currency, revisions/voids/coverage and ambiguous detection.
-- [ ] **SRC-002 Registration/discovery/compatibility**: trusted Python parsers enabled explicitly or through versioned package entry points; reject duplicate provider IDs, unknown API versions and ambiguous formats without changes to core ledger/reports.
+- [ ] **SRC-002 Registration/discovery/compatibility**: trusted Python parsers enabled explicitly or through versioned package entry points; reject duplicate adapter IDs/conflicting provider metadata, unknown API versions and ambiguous formats without changes to core ledger/reports.
 - [ ] **SRC-003 Example plugin/contract test toolkit**: synthetic fixtures, detector/normalizer/validator examples and offline deduplication/revision/transfer/scope/privacy tests; author/install/enable instructions.
 - [ ] **SRC-004 Existing-adapter migration/new sources**: move Wealthsimple/Bull to the versioned registry, prove ledger/CLI compatibility, then add banks, brokers and exchanges.
 
@@ -90,6 +96,8 @@ without adding bank cash to investment assets. External plugins run as trusted,
 user-installed Python; never execute code from a CSV/network automatically or use
 an LLM to generate/select parsers at runtime. See [adapter design](docs/source-adapters.md);
 no SDK/install command is available yet.
+
+The [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004) now specifies module boundaries, trusted-host loading, CLI/Web preview fingerprints, protocol-v2 completeness gaps, preserved identity bindings and phased acceptance. This is design work only; SRC-002-004 remain unimplemented. Registry/provider multiplicity, external package-code digests and generic ingestion must be verified before claiming full decoupling.
 
 ## Cash flows and additional data
 

@@ -48,7 +48,7 @@ WEALTH_LEDGER_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests 
 | Capacity failure | Injected ENOSPC at staged import, immutable evidence, upload, backup ZIP and restore writes; rows unchanged, partial files cleaned, safe retry |
 | Hard process exits | Actual subprocess exits during schema transaction, backup and restore installation; Docker SIGKILL; earlier worker transaction/publication interruption tests |
 | Full private backup to empty storage | `test_web_backups.py` and Compose different-volume restore, auth revocation and frozen report comparison |
-| Existing CLI adoption | `test_web_adoption.py` and Compose copy/verify; original source retained, no reimport/revaluation |
+| Existing CLI adoption | `test_web_adoption.py`, `test_web_legacy_adoption.py` and Compose copy/verify; original source retained, explicit legacy evidence, no reimport/revaluation |
 | Three product locales | Existing catalog/report tests, offline demos and browser workflow; operating procedure below applies to each |
 | Dependency evidence | `test_dependency_inventory.py`, exact lock versions, upstream declarations/files and bundled notice hashes |
 

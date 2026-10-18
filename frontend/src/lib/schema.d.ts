@@ -964,6 +964,12 @@ export interface components {
             valuation_as_of: string;
             /** Published At */
             published_at: number;
+            /**
+             * Verification Basis
+             * @default publication_manifest
+             * @enum {string}
+             */
+            verification_basis: "publication_manifest" | "migration_capture";
             /** Artifacts */
             artifacts: components["schemas"]["Artifact"][];
         };

@@ -241,3 +241,13 @@ venv; CI also inventories the test lock. No network/financial workspace is consu
 Docker CI asserts Linux/x86_64; local acceptance records the actual guest architecture.
 A synthetic v1 schema fixture verifies migration mechanics, not an untested historical
 image upgrade or every host OS. Public prebuilt image distribution remains separate.
+
+## Legacy publication acceptance
+
+[Legacy report adoption](web-legacy-reports.md) is explicit and records separate
+migration-time evidence. Preserve strict modern manifest verification and all original
+bytes. Synthetic old-format fixtures must be authored independently, never copied
+from a personal report. Run `test_web_legacy_adoption.py`, browser workflows and the
+opt-in Docker suite for changes to receipt/download/restore behavior. Source format
+recognition does not establish historical authenticity. Never repair a source manifest
+to make migration pass.

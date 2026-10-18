@@ -44,6 +44,29 @@ def main():
             if path.is_file() and path.suffix in (".md", ".pdf", ".ods", ".json", ".csv", ".png"):
                 store.register_artifact(portfolio["id"], row["id"], path.relative_to(project).as_posix())
         jobs.state(row["id"], "published", result={"valuation_as_of":payload["meta"]["as_of"]})
+        # Independent old-format declaration; all bytes originate in the synthetic demo.
+        import shutil
+        from wealth_ledger.core import import_holdings
+        from wealth_ledger.crypto import import_bull_orders
+        from wealth_ledger.combined import make_combined_payload
+        from wealth_ledger.web.adoption import prepare_adoption, confirm_adoption
+        legacy = Path(temporary) / "legacy-cli"
+        data = ROOT / "examples/data"
+        fx = json.loads((data / "fx.json").read_text())
+        import_holdings(legacy, data / "wealthsimple-holdings.csv", "baseline", fx)
+        import_bull_orders(legacy, data / "bull-orders.csv", opening_assumption=json.loads((ROOT / "config/bull-opening.example.json").read_text()))
+        make_combined_payload(legacy, as_of=payload["meta"]["as_of"], price_file=data / "btc-price.json", fx=fx)
+        folder = legacy / "reports/legacy"
+        shutil.copytree(output, folder, ignore=shutil.ignore_patterns("*.txt"))
+        (folder / "manifest.json").write_text(json.dumps({
+            "snapshot_id": payload["meta"]["snapshot_id"], "snapshot_as_of": payload["meta"]["as_of"],
+            "report_generated_at": "2024-02-02T12:00:00-05:00", "import": {},
+            "workbook_validation": {"generator": "python_odf_direct"}, "database_backup": None,
+            "reporting": {"markdown": "report.md", "pdf": "report.pdf"}}))
+        (legacy / "reports/latest.json").write_text(json.dumps({"path":"reports/legacy", "snapshot_id":payload["meta"]["snapshot_id"]}))
+        plan = Path(temporary) / "private-legacy-plan.json"
+        preview = prepare_adoption(settings,legacy,"Legacy synthetic portfolio",plan,allow_legacy_reports=True)
+        confirm_adoption(settings,plan,preview["plan_sha256"])
         environment = {**os.environ, "WEALTH_LEDGER_DATA_ROOT":str(settings.data_root),
                        "WEALTH_LEDGER_PUBLIC_ORIGIN":settings.public_origin, "PYTHONDONTWRITEBYTECODE":"1"}
         worker = subprocess.Popen([sys.executable, str(ROOT / "scripts/web.py"), "worker"], env=environment)

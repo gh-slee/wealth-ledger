@@ -321,5 +321,6 @@
   "status.unexplained": "差额待补证据",
   "status.partially_explained": "差额已部分说明",
   "status.link_conflict": "关联待核对",
-  "status.ledger_conflict": "期初或来源重叠待核对"
+  "status.ledger_conflict": "期初或来源重叠待核对",
+  "migrationVerification": "于迁移时核对；原始发布校验资料未提供，不能据此证明历史真实性。"
 }

@@ -5,8 +5,8 @@
 <h1 align="center">Wealth Ledger</h1>
 
 <p align="center">
-  <strong>Track your investments on your own server.</strong><br>
-  Import brokerage and Bitcoin CSVs, explore your portfolio, and keep reports you can inspect.
+  <strong>Your financial CSVs. One investment ledger. Your own server.</strong><br>
+  Bring bank, brokerage, and Bitcoin platform exports into a shared tracking and reporting workflow as source support grows.
 </p>
 
 <p align="center">
@@ -21,15 +21,18 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
+  <a href="#sources-and-parser-plugins">Sources &amp; plugins</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#documentation">Documentation</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
-Wealth Ledger is an **open-source, self-hosted investment tracking app** with a React/TypeScript interface, a FastAPI API, Python background workers, and SQLite history. One owner or household can keep multiple independent portfolios in an instance. The same financial core also powers the supported **Python CLI**.
+Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by reusable parser plugins as that architecture is completed.
 
-Upload **Wealthsimple holdings**, **Bull Bitcoin orders**, or an optional dated **BTC total**. Review an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data.
+Review supported inputs in an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data. One owner or household can keep multiple independent portfolios in an instance, through a React/TypeScript interface or the supported **Python CLI**. Both use the same Python financial core.
+
+**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. Arbitrary bank/broker/exchange exports and external parser loading are not yet supported. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
 
 **Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; financial declaration forms and trusted-host, copy-verified adoption of existing CLI data are implemented. See [project status](#project-status).
 
@@ -38,13 +41,31 @@ Upload **Wealthsimple holdings**, **Bull Bitcoin orders**, or an optional dated 
 | | What you can do |
 |---|---|
 | 🗂️ **Independent portfolios** | Sign in to your instance and keep separate ledgers, settings, source evidence, and reports. |
-| 📥 **Preview before importing** | Provide either supported CSV, both, or a dated BTC quantity. Review source dates and checks, then explicitly confirm the background job. |
+| 📥 **Preview before importing** | Provide supported source exports independently or together, or a dated BTC quantity. Review source dates and checks, then explicitly confirm the background job. |
 | 💱 **Three valuation currencies** | View CAD/USD/TWD equivalents, with account filters and separate native CAD/USD securities. |
 | 📊 **Interactive analysis** | Explore holdings, account allocation, recorded value history, BTC purchases, and sector/country/region exposure. |
 | 🔎 **ETF company exposure** | Rank the top 20 companies across direct stocks and supported ETF constituents; retain effective dates and unresolved coverage. |
 | 🧾 **Traceable history** | Preserve original evidence and append-only revisions. Irregular submissions use actual observation dates, without inventing missing month-end balances. |
 | 📄 **Portable reports** | Download formula-based ODS spreadsheets, Markdown, PDF, chart images, and applicable audit attachments. |
 | 🌐 **Three languages** | Use English, Traditional Chinese, or Simplified Chinese for the interface and report presentation. |
+
+## Sources and parser plugins
+
+The application is intended to keep portfolio history, validation, analysis, and reports independent of each institution's CSV layout. More banks, brokerages, Bitcoin brokers, and exchanges will be added through parser plugins, including user-authored parsers. This is the expansion path; the current importers have not yet been migrated to that architecture.
+
+| Source or input | Current support |
+|---|---|
+| Wealthsimple | Built-in holdings CSV importer for documented export formats. |
+| Bull Bitcoin | Built-in order CSV importer for documented funding and purchase records. |
+| Normalized cash-flow CSV | Shared contribution/withdrawal/transfer input for tracked accounts; native bank activity must currently be mapped to this format. |
+| Dated BTC quantity | Optional total-balance observation, independent of either source CSV. |
+| Other banks, brokers, Bitcoin platforms, and exchanges | Planned parser plugins; arbitrary source CSVs are not accepted today. |
+
+The versioned **parser contract is implemented** (`SRC-001`). The remaining steps are **registration/loading** (`SRC-002`), a **plugin author toolkit and synthetic example** (`SRC-003`), and **migration of the two existing importers followed by additional sources** (`SRC-004`). A parser contract alone does not make an importer a loadable plugin.
+
+The planned boundary is: a trusted parser detects and normalizes an export; the shared core validates it, preserves original evidence, handles revisions, and produces the same reports. Source support must declare its export versions, record types, and completeness. A bank cash-flow export does not automatically add bank balances to investment assets. Parsing and financial processing run entirely in code, without runtime LLM calls.
+
+Want to contribute a source? Start with the [adapter contract and planned author workflow](docs/source-adapters.md), [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004), [roadmap](TODO.md), and [contribution guide](CONTRIBUTING.md). The external loader and author SDK are not available yet; do not upload real financial exports to public issues.
 
 ## Quick start
 
@@ -70,7 +91,7 @@ The `web` and `worker` services share the private `wealth-data` named volume. In
 
 Prebuilt multi-architecture images and a pull-only Compose recipe are planned. Current installation builds locally. The platform/evidence matrix is in [operations acceptance](docs/web-release-acceptance.md); Windows and macOS hosts use Linux containers.
 
-**Existing CLI users:** keep your current workspace. Pointing the Web app at an old ledger is not a supported migration. Use the explicit [copy-verified adoption commands](docs/web-adoption.md), preserving the original workspace.
+**Existing CLI users:** keep your current workspace. Pointing the Web app at an old ledger is not a supported migration. Use the explicit [copy-verified adoption commands](docs/web-adoption.md), preserving the original workspace. Recognized older reports require an explicit [legacy acceptance preview](docs/web-legacy-reports.md); their separate migration-time evidence does not replace missing historical publication checksums.
 
 <details>
 <summary><strong>Use the Python CLI or try an offline report demo</strong></summary>
@@ -203,8 +224,8 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | Browser login, independent portfolios, import previews/jobs, frozen analysis, registered report downloads | Implemented |
 | CLI/Web contributions/coverage, BTC balances/events/revisions, report recovery | Implemented: [financial declarations](docs/web-financial-records.md) |
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
-| Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md); actual private migration is explicit |
-| Source-parser plugins | Versioned contract implemented; loader, SDK, and existing-importer migration planned: SRC-002–004 |
+| Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md) and opt-in [legacy report evidence](docs/web-legacy-reports.md); actual private migration is explicit |
+| Extensible financial CSV sources | Two built-in source importers today; parser contract implemented, with loader, SDK, importer migration and more sources planned: [SRC-002–004](docs/source-adapters.md) |
 | Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |

@@ -24,15 +24,20 @@ installing this code or running synthetic tests.
   Missing/changed evidence, invalid SQLite integrity/foreign keys, unsupported files,
   unexpected symlinks and incomplete report manifests fail closed.
 - The plan is private, unencrypted and contains original paths, inventory/checksums
-  and database row counts. Keep it outside both state directories, protect it with
+  and database row counts. Legacy acceptance additionally records current-byte
+verification evidence, not original historical publication proof. Keep the plan
+outside both state directories, protect it with
   file permissions and never attach it to GitHub. Publication guards reject its
   format marker even under a normally public filename.
 
-Version one accepts the current CLI state format, validated using its existing
+The adoption service accepts the current CLI financial state format, validated using its existing
 read-only queries and bundle contracts. It is not a general migration from arbitrary
 older schemas. Keep the original version available if preflight identifies an
 unsupported historical layout; do not edit historical database rows or manifests to
-make validation pass.
+make validation pass. Recognized pre-checksum report manifests require an explicit
+`--allow-legacy-reports` preview and separate migration-time evidence; see
+[legacy report adoption](web-legacy-reports.md). The default still requires modern
+checksummed publications.
 
 ## Native host commands
 

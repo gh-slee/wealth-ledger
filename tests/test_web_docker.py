@@ -252,8 +252,17 @@ legacy=Path('/tmp/stopped-cli'); legacy.mkdir(mode=0o700)
 for name in ('data','reports','config','backups'):
     if (source/name).exists(): shutil.copytree(source/name,legacy/name,symlinks=True)
 (legacy/'work').mkdir()
+# Independently authored legacy manifest around the invented report bytes.
+for path in (legacy/'reports').rglob('manifest.json'):
+    original=json.loads(path.read_text())
+    payload=json.loads((path.parent/'data.json').read_text())
+    path.write_text(json.dumps({'snapshot_id':payload['meta']['snapshot_id'],
+        'snapshot_as_of':payload['meta']['as_of'],'report_generated_at':original['report_generated_at'],
+        'import':original['import'],'workbook_validation':original['workbook_validation'],
+        'reporting':original['reporting'],'database_backup':None}))
 plan=Path('/tmp/private-cli.adoption.json')
-preview=prepare_adoption(WebSettings(root),legacy,'Adopted container CLI',plan)
+preview=prepare_adoption(WebSettings(root),legacy,'Adopted container CLI',plan,allow_legacy_reports=True)
+assert preview['legacy_reports']==1
 result=confirm_adoption(WebSettings(root),plan,preview['plan_sha256'])
 target=root/'portfolios'/result['portfolio_id']
 assert database_info(source/'data/db/portfolio.sqlite3')==database_info(target/'data/db/portfolio.sqlite3')
@@ -282,6 +291,11 @@ print(json.dumps(result))
                 adopted_report=editions[0]["id"]
                 adopted_view=request_json(client,origin,f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}")
                 self.assertEqual(adopted_view["totals"],view["totals"])
+                self.assertEqual(adopted_view["report"]["verification_basis"],"migration_capture")
+                import io, zipfile
+                with client.open(origin+f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}/bundle.zip") as response:
+                    with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
+                        self.assertIn("migration-verification.json",archive.namelist())
                 # Full private archive roundtrip to a different empty volume; source stays intact.
                 bundle_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}/bundle.zip")
                 with client.open(bundle_request, timeout=15) as response:
@@ -316,6 +330,9 @@ print(json.dumps(result))
                 self.assertEqual(restored_view["holdings"],view["holdings"])
                 restored_adopted=request_json(restored_client,new_origin,f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}")
                 self.assertEqual(restored_adopted["totals"],adopted_view["totals"])
+                self.assertEqual(restored_adopted["report"]["verification_basis"],"migration_capture")
+                with restored_client.open(new_origin+f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}/bundle.zip") as response:
+                    self.assertEqual(response.read(2),b"PK")
                 self.assertEqual(request_json(restored_client,new_origin,f"/api/v1/portfolios/{portfolio}/artifacts")["artifacts"],registered)
                 self.assertEqual(request_json(client,origin,f"/api/v1/portfolios/{portfolio}/settings"),expected)
             finally:

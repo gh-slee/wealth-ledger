@@ -58,7 +58,7 @@ def export_data(store, portfolio, report, dataset, *, start=None, end=None, owne
         rows = [row for row in rows if (day := observed_day(row)) is not None
                 and (lower is None or day >= lower) and (upper is None or day <= upper)]
     return {"schema_version":1, "report_id":report, "valuation_as_of":data["as_of"],
-            "dataset":dataset, "scope":"Selected frozen report; not all ledger revisions or a backup",
+            "dataset":dataset, "verification_basis":data["report"]["verification_basis"], "scope":"Selected frozen report; not all ledger revisions or a backup",
             "data_status":data["data_status"], "is_complete":data["is_complete"],
             "start":start.isoformat() if start else None, "end":end.isoformat() if end else None,
             "range_semantics":"inclusive months" if dataset=="btc_monthly" else "inclusive observation dates in report timezone",
@@ -74,6 +74,8 @@ def report_zip(store, portfolio, report, owner_id=1):
     payload = [r for r in artifacts if PurePosixPath(r["relative_path"]).name=="data.json"]
     if len(payload)!=1 or not payload[0]["relative_path"].startswith("reports/"):
         raise WebError(409, "report_integrity", "Report bundle needs local review")
+    from .report_evidence import legacy_evidence, ZIP_EVIDENCE
+    legacy = legacy_evidence(store, portfolio, report)
     directory = PurePosixPath(payload[0]["relative_path"]).parent
     expected = {}
     for artifact in artifacts:
@@ -96,13 +98,15 @@ def report_zip(store, portfolio, report, owner_id=1):
                 if name=="manifest.json":
                     manifest=json.loads(raw)
                     files=manifest.get("bundle_files",{})
-                    if set(files)!=set(expected)-{"manifest.json"} or any(files[p]!=expected[p]["sha256"] for p in files):
+                    if legacy is None and (set(files)!=set(expected)-{"manifest.json"} or any(files[p]!=expected[p]["sha256"] for p in files)):
                         raise WebError(409,"report_integrity","Registered bundle differs from its frozen manifest")
                     registration=json.loads(row["result_json"])
                     expected_operation=registration.get("source_operation_id") if registration.get("adopted") is True else row["core_operation_id"]
                     if manifest.get("import",{}).get("operation_id")!=expected_operation:
                         raise WebError(409,"report_integrity","Report operation linkage differs")
                 archive.writestr(name,raw)
+            if legacy is not None:
+                archive.writestr(ZIP_EVIDENCE,json.dumps({**legacy,"notice":"Migration-time verification only; original historical publication checksums were absent"},sort_keys=True,indent=2).encode())
         handle.seek(0)
         return handle
     except (ValueError, TypeError, KeyError) as exc:

@@ -444,3 +444,55 @@ test("financial declarations preview, save, revise and remain isolated from froz
   ).toBeVisible();
   await expect(page.getByText("B000001", { exact: true })).toHaveCount(0);
 });
+
+test("legacy migration basis is visible in three locales and retained downloads work", async ({
+  page,
+}) => {
+  await login(page);
+  await page
+    .getByRole("combobox", { name: "Portfolio", exact: true })
+    .selectOption({ label: "Legacy synthetic portfolio" });
+  await expect(
+    page.getByText("Verified at migration.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "CA$1,930.00", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Interface language", exact: true })
+    .selectOption("zh-TW");
+  await expect(page.getByText("於遷移時核對", { exact: false })).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "介面語言", exact: true })
+    .selectOption("zh-CN");
+  await expect(page.getByText("于迁移时核对", { exact: false })).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "界面语言", exact: true })
+    .selectOption("en-CA");
+  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  await expect(
+    page
+      .locator(".report-row")
+      .getByText("Verified at migration.", { exact: false }),
+  ).toBeVisible();
+  const saved = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download report ZIP", exact: true })
+    .click();
+  const file = await saved;
+  expect(
+    readFileSync((await file.path())!)
+      .subarray(0, 2)
+      .toString(),
+  ).toBe("PK");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze())
+      .violations,
+  ).toEqual([]);
+});

@@ -1,7 +1,10 @@
 # Agent development guide
 
-Wealth Ledger is a local-first Python 3.12+ investment ledger. It imports supported
-Wealthsimple/Bull CSVs into SQLite and generates ODS, Markdown and PDF reports.
+Wealth Ledger is a local-first Python 3.12+ investment ledger for financial CSV
+exports, SQLite history and ODS, Markdown and PDF reports. Its expansion path is
+source-parser plugins for banks, brokerages and Bitcoin platforms. Current native
+source importers are Wealthsimple holdings and Bull Bitcoin orders; the shared
+parser contract exists, but plugin loading and importer migration remain planned.
 Production downloads, calculations, charts and report prose are deterministic code;
 no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
 supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.
@@ -86,6 +89,7 @@ portfolio updates. Report the checks actually run and any gaps.
 - BTC quantities/costs/events: [reconciliation](docs/btc-reconciliation-plan.md).
 - Reports and ETF analysis: [report spec](docs/report-spec.md), [ODS](docs/workbook.md).
 - Financial declarations and copy-verified CLI adoption: [forms](docs/web-financial-records.md), [adoption](docs/web-adoption.md); preserve append-only data and the original workspace.
+- [Legacy report acceptance](docs/web-legacy-reports.md) requires explicit opt-in and separate migration-time evidence; never rewrite old manifests or weaken modern verification.
 - Browser UI: [frontend workflow](docs/web-frontend.md); keep queries scoped, clear
   caches on logout/switch, preserve decimal strings and use no persistent finance cache.
 - Locale changes: [i18n contract](docs/i18n-plan.md).

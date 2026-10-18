@@ -321,5 +321,6 @@
   "status.unexplained": "Difference awaiting evidence",
   "status.partially_explained": "Difference partially explained",
   "status.link_conflict": "Attribution needs review",
-  "status.ledger_conflict": "Opening or source overlap needs review"
+  "status.ledger_conflict": "Opening or source overlap needs review",
+  "migrationVerification": "Verified at migration. Original publication checksums were unavailable; historical authenticity is not established."
 }

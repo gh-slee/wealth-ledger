@@ -134,3 +134,12 @@ bounded evidence rather than a claim of universal deployment compatibility.
 The lockfile pins actual versions. Font and component licenses are retained in
 `frontend/public/licenses/` and the production image; see
 [third-party notices](../THIRD_PARTY_NOTICES.md).
+
+## Legacy publication evidence
+
+Explicitly adopted pre-checksum reports show a migration verification notice in
+analysis and the report library, localized in all three UI languages. Their historical
+report-generation time remains the published-time display; migration time is separate.
+The notice does not claim original publication checksums or historical authenticity.
+Legacy ZIP downloads preserve all original bytes and add a separate verification
+attachment. See [legacy report adoption](web-legacy-reports.md).

@@ -26,7 +26,7 @@ The data form exports CSV or JSON from the selected saved report:
 Ranges do not query later reports, reconstruct missing observations, infer
 contributions or select every ledger revision. Daily date boundaries use the
 recorded report date in the project's Toronto timezone; BTC monthly boundaries
-include the entire selected months. JSON contains scope, cutoff, completeness,
+include the entire selected months. JSON contains scope, cutoff, verification basis, completeness,
 range metadata and rows, preserving nulls and decimal strings. CSV repeats context
 columns, uses UTF-8 BOM and leaves unknown values empty. Numeric values retain
 precision; text beginning with spreadsheet formula syntax is prefixed with an
@@ -194,10 +194,10 @@ marker, not financial records, archives, reports or unknown legacy update locks.
 An initialization/upgrade/password-reset command also honors maintenance.
 
 Version-one bounds: 100,000 files/directories/links, 8 GiB total expanded file content, 2 GiB per file,
-16 MiB manifest and a 300-second maximum drain timeout. Disk quotas, broad crash/
-resource testing and wider platform acceptance remain WEB-007. Synthetic native and
-Docker acceptance are described in the tests; Windows-specific restore/symlink
-acceptance is pending. There is no automatic encryption, scheduling or remote storage.
+16 MiB manifest and a 300-second maximum drain timeout. Capacity/crash acceptance
+and the upgrade/rollback runbook are documented in [operations acceptance](web-release-acceptance.md).
+Broader host distribution and Windows-specific restore/symlink acceptance remain
+separate platform gates under WEB-008. There is no automatic encryption, scheduling or remote storage.
 
 Implementation references: [SQLite backup API](https://docs.python.org/3.12/library/sqlite3.html#sqlite3.Connection.backup)
 and [ZIP extraction warnings](https://docs.python.org/3.12/library/zipfile.html#zipfile.ZipFile.extractall).
@@ -206,3 +206,8 @@ Upgrade/rollback order, resource failures and current platform acceptance are in
 [the operations runbook](web-release-acceptance.md). Interrupted upgrade cleanup
 validates the instance identity without requiring the newer schema; it does not
 upgrade or rewrite financial data merely to clear the maintenance barrier.
+
+Recognized older publications can be adopted explicitly with separate
+[migration-time evidence](web-legacy-reports.md). Legacy ZIPs add a verification
+attachment while preserving the original manifest/report bytes. Full backup/restore
+retains and checks the private receipt and its binding to report/artifact registrations.

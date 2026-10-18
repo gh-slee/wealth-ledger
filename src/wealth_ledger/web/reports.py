@@ -1,5 +1,6 @@
 """Read selected registered publications; viewing never imports, values or renders."""
 from contextlib import closing
+from datetime import datetime
 import json
 from typing import Literal
 
@@ -27,6 +28,7 @@ class ReportSummary(ViewModel):
     id: str
     valuation_as_of: str
     published_at: float
+    verification_basis: Literal["publication_manifest", "migration_capture"] = "publication_manifest"
     artifacts: list[Artifact]
 
 
@@ -149,7 +151,10 @@ class Publications:
             files = conn.execute("SELECT * FROM artifacts WHERE portfolio_id=? AND report_id=? ORDER BY relative_path",
                                  (row["portfolio_id"], row["id"])).fetchall()
         result = json.loads(row["result_json"])
-        return {"id": row["id"], "valuation_as_of": result["valuation_as_of"], "published_at": row["updated_at"],
+        from .report_evidence import legacy_evidence
+        verification = legacy_evidence(self.store,row["portfolio_id"],row["id"]) if result.get("adopted") is True else None
+        return {"id": row["id"], "valuation_as_of": result["valuation_as_of"], "published_at": datetime.fromisoformat(verification["evidence"]["published_at"]).timestamp() if verification else row["updated_at"],
+                "verification_basis": "migration_capture" if verification is not None else "publication_manifest",
                 "artifacts": [{"id": file["id"], "filename": PurePosixPath(file["relative_path"]).name,
                                **{key: file[key] for key in ("media_type", "byte_size", "sha256")}} for file in files]}
 
