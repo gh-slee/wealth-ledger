@@ -36,6 +36,14 @@ def main():
     source.add_argument("--archive", type=Path)
     source.add_argument("--stdin", action="store_true", help="Read a bounded private ZIP from stdin")
     commands.add_parser("maintenance-clear", help="Clear an interrupted backup barrier only when no coordinator or active work holds it")
+    adoption = commands.add_parser("adopt-preview", help="Inspect a stopped CLI ledger and save a private copy/verify plan")
+    adoption.add_argument("--workspace", type=Path, required=True)
+    adoption.add_argument("--name", required=True)
+    adoption.add_argument("--output", type=Path, required=True)
+    adoption = commands.add_parser("adopt-confirm", help="Copy an exact reviewed plan into a new Web portfolio; retain source")
+    adoption.add_argument("--plan", type=Path, required=True)
+    adoption.add_argument("--plan-sha256", required=True)
+
     worker = commands.add_parser("worker", help="Run the single durable job consumer with isolated execution")
     worker.add_argument("--once", action="store_true", help="Reconcile and drain currently queued work, then exit")
     serve = commands.add_parser("serve")
@@ -49,7 +57,13 @@ def main():
         if not root:
             raise ValueError("Specify --data-root or WEALTH_LEDGER_DATA_ROOT; no personal-ledger default")
         settings = WebSettings(Path(root), args.public_origin or os.environ.get("WEALTH_LEDGER_PUBLIC_ORIGIN", "http://localhost:8000"))
-        if args.command == "backup":
+        if args.command == "adopt-preview":
+            from wealth_ledger.web.adoption import prepare_adoption
+            print(json.dumps(prepare_adoption(settings,args.workspace,args.name,args.output)))
+        elif args.command == "adopt-confirm":
+            from wealth_ledger.web.adoption import confirm_adoption
+            print(json.dumps(confirm_adoption(settings,args.plan,args.plan_sha256)))
+        elif args.command == "backup":
             from wealth_ledger.web.backups import backup_instance
             if args.stdout:
                 import shutil

@@ -368,7 +368,7 @@ def restore_instance(settings, archive_path, *, incoming=False):
             with closing(sqlite3.connect(restored / "admin/app.sqlite3")) as conn, conn:
                 conn.execute("DELETE FROM sessions")
                 conn.execute("DELETE FROM throttle")
-                conn.execute("UPDATE jobs SET status='interrupted',error_code='restore_preview_expired' WHERE kind='preview' AND status IN ('queued','running','ready')")
+                conn.execute("UPDATE jobs SET status='interrupted',error_code='restore_preview_expired' WHERE kind IN ('preview','record_preview') AND status IN ('queued','running','ready')")
                 conn.execute("UPDATE jobs SET enqueued_at=NULL WHERE status='queued'")
             old_receipt = restored / "admin/restore.json"
             if old_receipt.exists() and old_receipt.stat().st_size > 65536:
@@ -407,6 +407,11 @@ def restored_report_path(store, portfolio_id, target):
     target = Path(target)
     if target.is_relative_to(project / "reports"):
         return target
+    adoption = contained(store.root, "admin/adoptions/" + portfolio_id + ".json")
+    if adoption.is_file():
+        old = Path(json.loads(adoption.read_text())["source_root"]) / "reports"
+        if target.is_relative_to(old):
+            return project / "reports" / target.relative_to(old)
     receipt = contained(store.root, "admin/restore.json")
     if receipt.exists():
         for source in json.loads(receipt.read_text()).get("source_roots", []):

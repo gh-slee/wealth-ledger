@@ -6,7 +6,7 @@ Production downloads, calculations, charts and report prose are deterministic co
 no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
 supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.
 An optional React/TypeScript/Vite UI reads frozen publications and drives imports;
-advanced financial forms stay in the CLI.
+financial declarations share the CLI core; legacy adoption uses trusted-host commands.
 
 ## Working agreement
 
@@ -85,6 +85,7 @@ portfolio updates. Report the checks actually run and any gaps.
 - Imports, dates and recovery: [user manual](docs/user-manual.md), [core API](docs/core-api.md).
 - BTC quantities/costs/events: [reconciliation](docs/btc-reconciliation-plan.md).
 - Reports and ETF analysis: [report spec](docs/report-spec.md), [ODS](docs/workbook.md).
+- Financial declarations and copy-verified CLI adoption: [forms](docs/web-financial-records.md), [adoption](docs/web-adoption.md); preserve append-only data and the original workspace.
 - Browser UI: [frontend workflow](docs/web-frontend.md); keep queries scoped, clear
   caches on logout/switch, preserve decimal strings and use no persistent finance cache.
 - Locale changes: [i18n contract](docs/i18n-plan.md).

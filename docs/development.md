@@ -210,3 +210,22 @@ Never unlink stable `update.guard`, per-job or worker advisory guard files. A pr
 ID is diagnostic only; keep unknown legacy lock handling conservative. Preserve
 financial commit markers, fixed job/operation linkage, checksummed report recovery
 and idempotent atomic artifact registration when changing worker behavior.
+
+
+## Financial declaration and adoption acceptance
+
+WEB-006 reuses core import/wallet validators through isolated worker simulations and
+confirmed data-only operations. `tests/test_web_financial.py` checks offline read-only
+previews, explicit openings/revisions, balance attribution, idempotency, cash-flow FX/
+coverage, scope/CSRF and transaction-interruption recovery. A completion marker must
+commit with financial rows; uncertain operations must not be automatically replayed.
+The browser workflow exercises real preview/confirmation, mobile layout, automated
+WCAG and frozen-report isolation. Keep generated API types and three locales aligned.
+
+`tests/test_web_adoption.py` uses invented CLI copies to verify schemas/logical values,
+original bytes/IDs/settings/reports, source preservation, rollback, stale-plan and
+host-path/lock/symlink rejection, and a subsequent private backup/restore. Opt-in
+Docker acceptance additionally adopts an invented stopped CLI copy inside disposable
+containers and checks the adopted reports survive empty-volume restoration. Never
+mount a maintainer's real workspace for these tests. See [declarations](web-financial-records.md)
+and [trusted-host adoption](web-adoption.md) for supported scope and remaining limits.

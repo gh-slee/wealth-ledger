@@ -55,14 +55,18 @@ def publish_registry(store, jobs, row, service, saved):
 def reconcile_one(store, jobs, row):
     """Called only with the job guard; a running child cannot be reconciled."""
     _, project = store.portfolio(row["portfolio_id"])
-    if row["kind"] == "preview":
+    if row["kind"] in {"preview", "record_preview"}:
         jobs.state(row["id"], "interrupted", error="preview_interrupted")
         return
     try:
         with project_lock(project):
             service = ApplicationService(resolve_workspace(explicit=project))
             saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)
-            if saved and saved["status"] == "published":
+            if row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
+                from .financial import safe_record
+                jobs.state(row["id"], "recorded", result={"operation_id":row["core_operation_id"],
+                    "report_published":False, "result":safe_record(saved["result"])})
+            elif saved and saved["status"] == "published":
                 publish_registry(store, jobs, row, service, saved)
             elif saved and saved["status"] in {"data_committed", "report_failed"}:
                 # The financial transaction contains this commit marker. Requeue
@@ -101,6 +105,19 @@ def execute_job(settings, job_id):
         _, project = store.portfolio(row["portfolio_id"])
         service = ApplicationService(resolve_workspace(explicit=project))
         try:
+            if row["kind"] == "record_preview":
+                from .financial import declaration_upload, preview_declaration
+                before = input_fingerprint(project)
+                upload = declaration_upload(store,row)
+                request = json.loads(row["request_json"])["declaration"]
+                preview = preview_declaration(project,request,upload_path=upload,now=row["execution_at"])
+                if input_fingerprint(project) != before:
+                    jobs.state(job_id,"blocked",error="stale_preview");return
+                jobs.state(job_id,"ready",result=safe_preview(preview,project,store.root/"uploads"),fingerprint=before)
+                return
+            if row["kind"] == "record":
+                execute_record(store,jobs,row,service)
+                return
             if row["kind"] == "preview":
                 core = jobs.core_request(row)
                 before = input_fingerprint(project)
@@ -134,11 +151,15 @@ def execute_job(settings, job_id):
         except LockBusy:
             jobs.state(job_id, "queued", error="portfolio_busy")
         except Exception as exc:
-            if row["kind"] == "preview":
+            if row["kind"] in {"preview", "record_preview"}:
                 jobs.state(job_id, "blocked", error=exc.code if isinstance(exc, WebError) else "preview_failed")
                 return
             saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)
-            if saved and saved["status"] in {"data_committed", "report_failed"}:
+            if row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
+                from .financial import safe_record
+                jobs.state(job_id,"recorded",result={"operation_id":row["core_operation_id"],
+                    "report_published":False,"result":safe_record(saved["result"])})
+            elif saved and saved["status"] in {"data_committed", "report_failed"}:
                 jobs.state(job_id, "report_failed", error="report_failed")
             elif saved and saved["status"] == "data_failed":
                 jobs.state(job_id, "failed", error="input_rejected")
@@ -147,6 +168,24 @@ def execute_job(settings, job_id):
                 jobs.state(job_id, "blocked", error=code)
             else:
                 jobs.state(job_id, "needs_review", error="execution_requires_review")
+
+
+def execute_record(store, jobs, row, service):
+    from .financial import apply_declaration, declaration_upload, safe_record
+    saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)
+    if saved:
+        if saved["status"] == "data_only_complete":
+            jobs.state(row["id"],"recorded",result={"operation_id":row["core_operation_id"],
+                "report_published":False,"result":safe_record(saved["result"])})
+        else:
+            jobs.state(row["id"],"needs_review",error="commit_state_requires_review")
+        return
+    upload = declaration_upload(store,row)
+    request = json.loads(row["request_json"])["declaration"]
+    result = service.record(request,lambda stage:apply_declaration(stage,request,upload_path=upload,now=row["execution_at"]),
+        label="before-web-declaration",operation_id=row["core_operation_id"],expected_fingerprint=row["input_fingerprint"])
+    jobs.state(row["id"],"recorded",result={"operation_id":row["core_operation_id"],
+        "report_published":False,"result":safe_record(result)})
 
 
 def execute_isolated(settings, job_id):

@@ -315,3 +315,132 @@ test("a dated BTC total can be submitted without either CSV", async ({
     page.locator(".source-date").getByText("Wealthsimple", { exact: true }),
   ).toHaveCount(0);
 });
+
+test("financial declarations preview, save, revise and remain isolated from frozen reports", async ({
+  page,
+}) => {
+  await login(page);
+  await page
+    .getByRole("link", { name: "Financial records", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Declarations and corrections" }),
+  ).toBeVisible();
+  await page
+    .getByLabel("What would you like to record?")
+    .selectOption("balance");
+  await page
+    .getByLabel("BTC equivalent quantity", { exact: true })
+    .fill("0.02000000");
+  await page
+    .getByLabel("Balance observed at (with UTC offset)", { exact: true })
+    .fill("2024-01-15T12:00:00-05:00");
+  await page
+    .getByLabel("Evidence source", { exact: true })
+    .fill("Synthetic browser wallet");
+  await page
+    .getByRole("button", { name: "Preview declaration", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Confirm and save declaration",
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 30000 });
+  await page
+    .getByRole("button", { name: "Confirm and save declaration", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm and save declaration", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Data saved. Review current records, then prepare a new report to include these changes.",
+    ),
+  ).toBeVisible({ timeout: 30000 });
+  await page
+    .getByRole("button", { name: "Refresh records", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("cell", { name: "B000001", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "What would you like to record?" })
+    .selectOption("revision");
+  await page
+    .getByRole("combobox", { name: "Record ID", exact: true })
+    .selectOption("B000001");
+  await page
+    .getByLabel("BTC equivalent quantity", { exact: true })
+    .fill("0.01990000");
+  await page
+    .getByLabel("Reason for this correction")
+    .fill("Synthetic corrected wallet total");
+  await page
+    .getByRole("button", { name: "Preview declaration", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Confirm and save declaration",
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 30000 });
+  const axe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(axe.violations).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({
+    path: "test-results/financial-mobile.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Confirm and save declaration", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm and save declaration", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Data saved. Review current records, then prepare a new report to include these changes.",
+    ),
+  ).toBeVisible({ timeout: 30000 });
+  await page
+    .getByRole("button", { name: "Refresh records", exact: true })
+    .first()
+    .click();
+  await page
+    .getByRole("button", {
+      name: "Details and revision history B000001",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByText("Revision 2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Expected quantity unknown", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Overview", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "CA$1,930.00", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Portfolio", exact: true })
+    .selectOption({ label: "Empty synthetic portfolio" });
+  await page
+    .getByRole("link", { name: "Financial records", exact: true })
+    .click();
+  await expect(
+    page
+      .getByText("No records yet. Add evidence above when available.")
+      .first(),
+  ).toBeVisible();
+  await expect(page.getByText("B000001", { exact: true })).toHaveCount(0);
+});

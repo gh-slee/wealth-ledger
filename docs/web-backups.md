@@ -1,8 +1,7 @@
 # Web exports, private backups and restore
 
 WEB-005 provides frozen report ZIPs, selected report-data exports, and trusted-host
-full instance backup/restore. These are different scopes. Existing CLI-ledger
-adoption and advanced financial forms remain WEB-006; this is not an adoption command.
+full instance backup/restore. These are different scopes. These commands do not adopt a standalone CLI workspace. Use [copy-verified adoption](web-adoption.md) for that task and [financial declarations](web-financial-records.md) for manual records.
 
 ## Download a report or dataset
 

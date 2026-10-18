@@ -98,7 +98,9 @@ def report_zip(store, portfolio, report, owner_id=1):
                     files=manifest.get("bundle_files",{})
                     if set(files)!=set(expected)-{"manifest.json"} or any(files[p]!=expected[p]["sha256"] for p in files):
                         raise WebError(409,"report_integrity","Registered bundle differs from its frozen manifest")
-                    if manifest.get("import",{}).get("operation_id")!=row["core_operation_id"]:
+                    registration=json.loads(row["result_json"])
+                    expected_operation=registration.get("source_operation_id") if registration.get("adopted") is True else row["core_operation_id"]
+                    if manifest.get("import",{}).get("operation_id")!=expected_operation:
                         raise WebError(409,"report_integrity","Report operation linkage differs")
                 archive.writestr(name,raw)
         handle.seek(0)

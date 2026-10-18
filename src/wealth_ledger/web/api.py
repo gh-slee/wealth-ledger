@@ -348,6 +348,8 @@ def create_app(settings: WebSettings | None = None, *, clock=None, frontend_root
     install_report_routes(app, store, require_owner)
     from .exports import install_export_routes
     install_export_routes(app, store, require_owner)
+    from .financial import install_financial_routes
+    install_financial_routes(app, store, auth, require_owner)
 
     @app.get("/api/v1/openapi.json", include_in_schema=False)
     def openapi(owner=Depends(require_owner)):

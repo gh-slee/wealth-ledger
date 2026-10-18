@@ -399,6 +399,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolios/{portfolio_id}/financial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** State */
+        get: operations["state_api_v1_portfolios__portfolio_id__financial_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/financial/records/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Record */
+        get: operations["record_api_v1_portfolios__portfolio_id__financial_records__record_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/financial/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview */
+        post: operations["preview_api_v1_portfolios__portfolio_id__financial_previews_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/financial/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm */
+        post: operations["confirm_api_v1_portfolios__portfolio_id__financial_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -457,6 +525,58 @@ export interface components {
             /** Media Type */
             media_type: string;
         };
+        /** BalanceDeclaration */
+        BalanceDeclaration: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            command: "balance";
+            /** Quantity Btc */
+            quantity_btc: string;
+            /** As Of */
+            as_of: string;
+            /** Source */
+            source: string;
+            /** Replaces */
+            replaces?: string | null;
+        };
+        /** CashFlowDeclaration */
+        CashFlowDeclaration: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            command: "cash_flow";
+            /** Date */
+            date: string;
+            /** Account Id */
+            account_id: string;
+            /**
+             * Flow Type
+             * @enum {string}
+             */
+            flow_type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out" | "income" | "fee" | "internal";
+            /**
+             * Currency
+             * @enum {string}
+             */
+            currency: "CAD" | "USD";
+            /** Amount */
+            amount: string;
+            /** Flow Id */
+            flow_id: string;
+            /** Transfer Id */
+            transfer_id?: string | null;
+            /** Usd Cad */
+            usd_cad?: string | null;
+            /** Amount Cad */
+            amount_cad?: string | null;
+            /** Fx Date */
+            fx_date?: string | null;
+            /** Fx Source */
+            fx_source?: string | null;
+        };
         /** Company */
         Company: {
             /** Rank */
@@ -478,6 +598,28 @@ export interface components {
         Confirmation: {
             /** Preview Id */
             preview_id: string;
+        };
+        /** CoverageDeclaration */
+        CoverageDeclaration: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            command: "coverage";
+            /** Start Date */
+            start_date: string;
+            /** End Date */
+            end_date: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "partial" | "complete" | "no_external";
+            /**
+             * Account Id
+             * @default portfolio
+             */
+            account_id: string;
         };
         /** CsrfView */
         CsrfView: {
@@ -522,6 +664,87 @@ export interface components {
         /** ErrorView */
         ErrorView: {
             error: components["schemas"]["ErrorDetail"];
+        };
+        /** EventDeclaration */
+        EventDeclaration: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            command: "event";
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "fee" | "sale" | "spend" | "external_out" | "external_in" | "own_transfer" | "conversion";
+            /** Quantity Btc */
+            quantity_btc: string;
+            /** Occurred At */
+            occurred_at: string;
+            /** Source */
+            source: string;
+            /** Reference */
+            reference: string;
+            /** Balance Id */
+            balance_id?: string | null;
+            /** Replaces */
+            replaces?: string | null;
+        };
+        /** FinancialRecordDetail */
+        FinancialRecordDetail: {
+            /** Record */
+            record: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Revisions */
+            revisions: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Reconciliation */
+            reconciliation?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+        };
+        /** FinancialState */
+        FinancialState: {
+            /** Accounts */
+            accounts: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Balances */
+            balances: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Events */
+            events: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Opening */
+            opening: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Cash Flows */
+            cash_flows: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Coverage */
+            coverage: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Input Fingerprint */
+            input_fingerprint: string;
+            /** Truncated */
+            truncated: boolean;
+        };
+        /** FlowUpload */
+        FlowUpload: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            command: "cash_flow_upload";
+            /** Upload Id */
+            upload_id: string;
         };
         /** Holding */
         Holding: {
@@ -645,6 +868,31 @@ export interface components {
             /** Total Twd */
             total_twd?: string | null;
         };
+        /** OpeningDeclaration */
+        OpeningDeclaration: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            command: "opening";
+            /** Expected Revision */
+            expected_revision: number;
+            /** Reported Total Btc Equivalent */
+            reported_total_btc_equivalent: string;
+            /** Reference As Of */
+            reference_as_of: string;
+            /** Declared On */
+            declared_on: string;
+            /**
+             * Balance Scope
+             * @constant
+             */
+            balance_scope: "all_wallets_btc_plus_lbtc";
+            /** Basis */
+            basis: string;
+            /** Confirmed By */
+            confirmed_by: string;
+        };
         /** PasswordChange */
         PasswordChange: {
             /**
@@ -695,6 +943,11 @@ export interface components {
              * @default false
              */
             wealthsimple_only: boolean;
+            /**
+             * Render Saved
+             * @default false
+             */
+            render_saved: boolean;
         };
         /** ReportList */
         ReportList: {
@@ -834,6 +1087,35 @@ export interface components {
             byte_size: number;
             /** Created At */
             created_at: number;
+        };
+        /** WalletRevision */
+        WalletRevision: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            command: "revision";
+            /** Record Id */
+            record_id: string;
+            /** Expected Revision */
+            expected_revision: number;
+            /** Reason */
+            reason: string;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "revise" | "void" | "link" | "unlink";
+            /** Quantity Btc */
+            quantity_btc?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Type */
+            type?: ("fee" | "sale" | "spend" | "external_out" | "external_in" | "own_transfer" | "conversion") | null;
+            /** Occurred At */
+            occurred_at?: string | null;
+            /** Balance Id */
+            balance_id?: string | null;
         };
     };
     responses: never;
@@ -2518,7 +2800,7 @@ export interface operations {
     upload_api_v1_portfolios__portfolio_id__uploads_post: {
         parameters: {
             query?: {
-                kind?: "csv" | "fx" | "price" | "opening";
+                kind?: "csv" | "fx" | "price" | "opening" | "cash_flows";
                 filename?: string;
             };
             header?: never;
@@ -3796,6 +4078,467 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                     "text/csv": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    state_api_v1_portfolios__portfolio_id__financial_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialState"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    record_api_v1_portfolios__portfolio_id__financial_records__record_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: string;
+                record_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialRecordDetail"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    preview_api_v1_portfolios__portfolio_id__financial_previews_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BalanceDeclaration"] | components["schemas"]["EventDeclaration"] | components["schemas"]["WalletRevision"] | components["schemas"]["OpeningDeclaration"] | components["schemas"]["CashFlowDeclaration"] | components["schemas"]["FlowUpload"] | components["schemas"]["CoverageDeclaration"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    confirm_api_v1_portfolios__portfolio_id__financial_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Confirmation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
                 };
             };
             /** @description Bad Request */

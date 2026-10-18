@@ -2,8 +2,7 @@
 
 The optional API implements owner sessions, independent portfolios/settings, bounded
 CSV/reference uploads, offline preview, explicit confirmation, isolated durable
-report jobs and protected artifact downloads. React analysis/report pages are implemented; advanced
-financial forms and legacy adoption remain planned. Full private backup/restore and report/data exports are implemented; see [exports and backups](web-backups.md). The CLI stays available.
+report jobs and protected artifact downloads. React analysis/report pages, [financial declarations](web-financial-records.md) and [trusted-host CLI adoption](web-adoption.md) are implemented. Full private backup/restore and report/data exports are implemented; see [exports and backups](web-backups.md). The CLI stays available.
 See the [upload/job protocol and recovery guide](web-imports.md). See [the staged design](self-hosted-webapp.md)
 and [TODO](../TODO.md). Production features do not use an LLM.
 
@@ -43,7 +42,7 @@ HTTPS. `serve --host`/`--port` control the listener independently for reverse pr
 `WEALTH_LEDGER_DATA_ROOT` is an alternative to `--data-root`. There is **no** fallback
 to a checkout-local or maintainer ledger. The Web root must be outside the code
 checkout, not the home/filesystem root. CLI data cannot be adopted by pointing the
-API at an existing nonempty ledger. Formal copy/verify/switch remains WEB-006.
+API at an existing nonempty ledger. Use the explicit [copy/verify/switch commands](web-adoption.md).
 
 ## Authentication protocol
 
@@ -234,7 +233,7 @@ persistence. Only test listener/context/resource names and timing/restart behavi
 are overridden; production service security settings remain in place. Native HTTP
 restart acceptance runs without Docker. Do not substitute a real ledger for these tests.
 
-Pending gates: verified existing-ledger adoption, broader resource/crash tests and wider release/platform/security
+Pending gates: broader resource/crash tests and wider release/platform/security
 acceptance. Local container acceptance covers Linux/arm64; it does not claim
 Linux/amd64 CI or every Docker host has passed. No dependency/source check proves
 the absence of all possible sensitive values. Review concrete staged content/history before publication.

@@ -455,7 +455,7 @@ cutoff/fingerprint/publication in update_operations. Resume reuses accepted inpu
 not original CSVs; reference overrides are archived. Later input revisions expire
 unpublished operations; published retries return saved results.
 
-Data-only APIs never publish. CLI uses project_lock/backup/operations; direct mutation
+Data-only APIs never publish. `ApplicationService.record` supports an optional stable operation ID and expected input fingerprint; data and its `data_only_complete` marker commit atomically, while exact completed retries reuse the saved result. CLI uses project_lock/backup/operations; direct mutation
 callers must arrange backup/locking/batch safety. prepare_update can consume committed
 accepted input; formal CLI does not use it to commit external inputs one by one.
 No API/CLI needs an LLM.

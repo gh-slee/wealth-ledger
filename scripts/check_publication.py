@@ -24,7 +24,7 @@ PUBLIC_ROOT_FILES = {
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
-    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-backups.md',
+    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md',
 }
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
@@ -51,6 +51,7 @@ SECRET_PATTERNS = (
     ('GitHub credential', re.compile(rb'\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{30,}\b')),
     ('AWS access key', re.compile(rb'\b(?:AKIA|ASIA)[A-Z0-9]{16}\b')),
     ('credential-bearing URL', re.compile(rb'https?://[^\s/:]+:[^\s/@]+@')),
+    ('private adoption plan', re.compile(rb'"format"\s*:\s*"wealth-ledger-private-' + rb'adoption"')),
     ('explicit private fixture marker', re.compile(rb'\b(?:PRIVATE_' + rb'FINANCIAL_FIXTURE|DO_NOT_PUBLISH_' + rb'PERSONAL_DATA)\b')),
     ('machine-specific home path', re.compile(rb'/(?:Users|home)/[A-Za-z0-9_.-]+/')),
 )

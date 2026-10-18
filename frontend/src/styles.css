@@ -930,3 +930,43 @@ tbody tr:hover {
   margin-top: 1rem;
   align-items: end;
 }
+
+.record-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.record-workflow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  padding: 1rem 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.record-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 0.75rem;
+}
+.record-summary div {
+  min-width: 0;
+}
+.record-summary dt {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+.record-summary dd {
+  margin: 0.2rem 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.check-label input {
+  width: auto;
+}

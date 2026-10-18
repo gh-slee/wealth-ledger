@@ -487,5 +487,13 @@ class TypedSchemaPrivacyTests(unittest.TestCase):
         quoted = b'password = "getpass.getpass("\n'
         self.assertIn('possible credential assignment', guard.content_issues(quoted, 'docs/web-operations.md'))
 
+class AdoptionPrivacyTests(unittest.TestCase):
+    def test_private_adoption_plan_content_is_rejected_even_under_a_public_path(self):
+        import json
+        marker='wealth-ledger-private-'+'adoption'
+        raw=json.dumps({'format':marker,'source_root':'/example/private-ledger'}).encode()
+        self.assertTrue(any('adoption' in message for message in guard.content_issues(raw,'examples/data/fx.json')))
+
+
 if __name__ == '__main__':
     unittest.main()
