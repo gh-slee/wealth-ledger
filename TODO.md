@@ -89,7 +89,7 @@ built-in importers. Current support is format-specific, not universal CSV suppor
 - [x] **SRC-004A Canonical ingestion foundation**: immutable host context and lossless v2 records, additive portfolio-scoped bindings/append-only facts/scopes/effects, strict archived replay, state/code revalidation, atomic operation receipts, backup/empty restore and explicit report-projection phase gate. Trusted developer API only; production import/report routes remain unchanged.
 - [ ] **SRC-004B Built-in/production pipeline migration**: pure Wealthsimple/Bull v2 parsers, isolated context-aware plans, compatible central submission with frozen evidence, portfolio mappings and CLI/Web confirmation/recovery parity; keep original IDs/history.
 - [x] **SRC-004B1 Pure built-ins/context previews**: one byte-only grammar per current format shared with legacy imports, explicit v2 built-in registrations, isolated context-aware CLI/API previews, strict frozen normalization and legacy ID/financial-field parity. Preview only; no production confirmation or daily workflow switch.
-- [ ] **SRC-004B2 Production submission/recovery**: finish compatible central confirmation, portfolio mapping review, frozen-evidence recovery and CLI/Web parity before switching native financial routes; preserve original rows, IDs and reports.
+- [x] **SRC-004B2 Opt-in canonical submission/recovery**: frozen raw/normalized evidence, explicit portfolio mapping review and exact approval, CLI/owner-only isolated API confirmation, atomic receipt-only recovery, completed native-order compatibility and restore invalidation. This is data-only with an explicit no-report acknowledgement; native daily-workflow cutover remains gated by SRC-004C.
 - [ ] **SRC-004C Source-neutral projections/extension acceptance**: replace provider dispatch across valuation/history/report projections, preserve unknown/completeness semantics and verify a synthetic third provider through real imports/reports without new provider branches. Real additional institutions need a specified/sanitized format.
 
 SRC-001 provides `wealth_ledger.source_protocol` dataclasses, pure adapter Protocol,
@@ -98,7 +98,7 @@ SRC-002A adds the independent `wealth_ledger.source_registry` library for explic
 enabled trusted loading/detection. It is not called by production import paths and
 does not book records. SRC-002B now connects the shared nonbooking plan runner to
 CLI and owner-only API jobs; financial import/confirmation still use existing
-importers. SRC-003 adds installable core/author tooling; SRC-004A adds the [canonical foundation](docs/source-ingestion.md). SRC-004B1 adds pure built-ins and explicit-context previews; production submission (B2) and projections (C) remain planned.
+importers. SRC-003 adds installable core/author tooling; SRC-004A adds the [canonical foundation](docs/source-ingestion.md). SRC-004B1 adds pure built-ins and explicit-context previews; B2 adds explicitly confirmed data-only submissions and receipt recovery; native cutover and projections (C) remain incomplete.
 Existing financial workflows retain their behavior and storage/report paths.
 
 Current CSV support is Wealthsimple/Bull only. The official ETF registry is separate

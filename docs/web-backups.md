@@ -222,3 +222,20 @@ Backup and CLI adoption validate decoded facts/scopes/effects against these arch
 Restore retains them without loading/installing a parser. Current report projection
 gates remain in force; frozen historical publications still work. Synthetic native
 and Docker acceptance include a full backup to an empty instance/volume.
+
+## Frozen source submissions
+
+Full backups also preserve `admin/source-submissions` bundles and canonical source
+facts/operation receipts. Restore expires source-ingestion previews and marks pending
+source confirmations `needs_review`, so an old workspace-bound approval never runs
+automatically at a new root. Already recorded source jobs retain their receipts;
+receipt recovery strictly verifies archived canonical evidence without plugins.
+Unstarted or matching failed jobs may be explicitly discarded in job metadata;
+financial audit rows and frozen evidence remain. Ambiguous/committed operations
+cannot be discarded as unstarted. Native and Docker acceptance cover real isolated
+API confirmation followed by full backup and fresh empty-volume restore. See the
+[submission recovery contract](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+
+CLI frozen-preview writes against a Web-managed portfolio also enter the instance
+activity barrier before parsing or saving metadata. Active backup/upgrade maintenance
+blocks them, preventing a partially saved bundle from entering a full snapshot.

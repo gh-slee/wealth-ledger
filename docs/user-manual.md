@@ -1254,3 +1254,15 @@ source retrieval times and a stable Bull account alias. It does not update your
 ledger or generate reports. Keep using the normal supported CLI/Web financial
 workflow until production migration and report compatibility are complete. Do not
 reimport a real historical portfolio into the developer canonical API as a shortcut.
+
+## Experimental canonical data-only confirmation
+
+The [B2 usage guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2)
+shows the complete `source_ingestion.py preview`, `inspect`, `confirm` and `recover`
+commands, binding files and owner-only API routes. It supports either implemented
+CSV format or both, with one explicit context per file and reviewed account mappings.
+This route does not yet generate ODS/Markdown/PDF reports or portfolio performance.
+Keep an existing daily ledger on its normal workflow until C compatibility and a
+separately approved migration are complete. Do not interpret a `recorded` source job
+as a published report. Completed receipt recovery never needs an LLM, original CSV
+path, configuration file or parser; an unproven operation requires review.

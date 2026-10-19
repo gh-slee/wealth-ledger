@@ -40,6 +40,8 @@ class ApplicationService:
     def update(self, request, *, resume=None, operation_id=None, expected_fingerprint=None, on_data_committed=None):
         from .workflow import identify_inputs, validate_update_request
         if not resume:
+            from .source_ingestion import require_report_projection
+            require_report_projection(self.root)
             # Core services also validate requests; callers need not be CLI parsers.
             validate_update_request(request)
             identified = identify_inputs(request.get("paths", []))
@@ -57,10 +59,13 @@ class ApplicationService:
             result["pending_report_operations"] = pending
         return result
 
-    def record(self, request, action, *, label, operation_id=None, expected_fingerprint=None):
+    def record(self, request, action, *, label, operation_id=None, expected_fingerprint=None, require_clear_operations=False):
         """Shared lock, backup, staged commit and recovery record for data-only edits."""
         with operations.project_lock(self.root):
             saved = next((row for row in self.operations() if row["operation_id"] == operation_id), None) if operation_id else None
+            if not saved and require_clear_operations and any(row["status"] in {"started","data_started","data_committed","report_failed"}
+                    for row in self.operations()):
+                raise ValueError("Unfinished financial operation requires review")
             if not saved and expected_fingerprint is not None and operations.input_fingerprint(self.root) != expected_fingerprint:
                 raise ValueError("Preview is stale; financial or configuration inputs changed")
             database_backup(self.root, label)

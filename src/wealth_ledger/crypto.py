@@ -169,6 +169,8 @@ def import_bull_orders(project: Path, csv_path: Path, source_account="bullbitcoi
     The first import requires explicit zero opening assumptions. Reimporting an
     already-seen export is harmless, even after its pending orders completed.
     """
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     project, csv_path = Path(project).resolve(), Path(csv_path)
     source_account = str(source_account).strip()
     if not source_account or len(source_account) > 160:

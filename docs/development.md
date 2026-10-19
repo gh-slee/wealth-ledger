@@ -274,3 +274,15 @@ Use the existing core/crypto suite plus `test_source_builtin.py`,
 must cover actual isolated execution, stale context/environment rejection, private
 summary fields, explicit parents and inability to confirm or financially resume.
 The generated OpenAPI types must be regenerated when the API models/routes change.
+
+## Frozen-submission changes
+
+Run `test_source_submission.py` and `test_web_source_submission.py` for B2 changes,
+then the full suite and installed/Docker acceptance. They must preserve exact frozen
+scope, immutable source fields, legacy identities, strict mapping/approval, state
+and environment rejection, no-plugin confirmation, atomic receipts and conservative
+unknown-state recovery. Include pending and completed full backup/empty-root restore.
+`source_native_compatibility` carries migration-specific policies; arbitrary audit
+fields never drive financial decisions. Changing job kinds also requires mutual
+exclusion, recovery and restore invalidation review. A complete source receipt is
+not a published report or authorization to migrate a real portfolio.

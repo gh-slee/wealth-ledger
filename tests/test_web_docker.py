@@ -200,9 +200,9 @@ class DockerRuntimeTests(unittest.TestCase):
                     with client.open(request, timeout=10) as response:
                         return json.load(response)
 
-                def completed(job, status):
+                def completed(job, status, portfolio_id=None):
                     for _ in range(120):
-                        current = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/jobs/" + job["id"])
+                        current = request_json(client, origin, f"/api/v1/portfolios/{portfolio_id or portfolio}/jobs/" + job["id"])
                         if current["status"] == status:
                             return current
                         self.assertNotIn(current["status"], {"blocked", "failed", "needs_review", "report_failed"}, current)
@@ -323,29 +323,24 @@ print(json.dumps(result))
                 # Canonical-v2 facts use a separate synthetic portfolio: no report projection yet.
                 canonical_id=request_json(client,origin,"/api/v1/portfolios",
                     {"name":"Synthetic canonical-v2 portfolio"},csrf)["id"]
+                canonical_upload_request=urllib.request.Request(origin+f"/api/v1/portfolios/{canonical_id}/uploads?kind=source_csv&filename=orders.csv",
+                    data=(ROOT/"examples/data/bull-orders.csv").read_bytes(),headers={"Origin":origin,"X-CSRF-Token":csrf,"Content-Type":"text/csv"})
+                with client.open(canonical_upload_request,timeout=10) as response:
+                    canonical_upload=json.load(response)["id"]
+                canonical_preview=completed(submit(f"/api/v1/portfolios/{canonical_id}/source-ingestion-previews",
+                    {"upload_ids":[canonical_upload],"contexts":[{"evidence_at":"2024-03-01T12:00:00+00:00",
+                        "source_reference":"synthetic-docker-orders","account_alias":"synthetic-docker-bull"}],
+                     "bindings":[{"provider":"bullbitcoin","source_account_id":name,"target_kind":"new"}
+                        for name in ("synthetic-docker-bull","synthetic-docker-bull:cad")]}),"ready",canonical_id)
+                canonical_job=completed(submit(f"/api/v1/portfolios/{canonical_id}/source-ingestions",
+                    {"preview_id":canonical_preview["id"],"approval_sha256":canonical_preview["result"]["approval_sha256"],
+                     "acknowledge_no_reports":True}),"recorded",canonical_id)
+                self.assertFalse(canonical_job["result"]["report_published"])
                 canonical_seed="""
 from pathlib import Path
-from datetime import datetime,timezone
-from decimal import Decimal
 import hashlib,json
-from wealth_ledger import source_v2 as v
-from wealth_ledger.source_protocol import AccountKey,AdapterInfo,Money,RecordKey
-from wealth_ledger.source_ingestion import SourceInput,new_binding,prepare_ingestion,commit_ingestion,read_facts,require_report_projection,IngestionError
-from wealth_ledger.workspace import resolve_workspace
+from wealth_ledger.source_ingestion import read_facts,require_report_projection,IngestionError
 project=Path('/data/portfolios')/PORTFOLIO
-raw=b'format,id,amount\\nsynthetic-v2,funding-001,100\\n'
-at=datetime(2024,1,31,12,tzinfo=timezone.utc)
-a=AccountKey('synthetic','canonical-001')
-info=AdapterInfo('synthetic','synthetic.v2','0.1.0',('synthetic-v2',),('cash_flows',),api_version=2)
-context=v.ParseContext(at,'synthetic-docker-fixture',format_selection='synthetic-v2')
-evidence=v.Evidence(hashlib.sha256(raw).hexdigest(),context,at,'Explicit source event ID')
-flow=v.CashFlow(RecordKey(a,'funding-001','r1'),at,'deposit','in',Money(Decimal('100.00'),'CAD'),'completed','unclassified')
-batch=v.NormalizedBatch(info,'synthetic-v2',evidence,(v.Account(a,'crypto','Synthetic canonical account','crypto'),),
-    v.Membership('exported-accounts','s1',(a,),'partial','Explicit synthetic scope'),(),
-    (v.Coverage('cash_flows',a,at,at,'partial','Explicit synthetic scope','events','s1'),),(flow,))
-plan=prepare_ingestion(project,(SourceInput(batch,raw),),bindings=(new_binding(a),))
-result=commit_ingestion(resolve_workspace(explicit=project),plan)
-assert result['new_records']==1 and not result['report_projection_ready']
 try:require_report_projection(project)
 except IngestionError as exc:assert exc.code=='report_projection_unavailable'
 else:raise AssertionError('Unprojected facts must block new reports')
@@ -373,6 +368,13 @@ print(hashlib.sha256(json.dumps(read_facts(project),sort_keys=True).encode()).he
                     "print(hashlib.sha256(json.dumps(read_facts(Path('/data/portfolios')/"+repr(canonical_id)+"),sort_keys=True).encode()).hexdigest())")
                 recovered=subprocess.run([*isolated,"--entrypoint","python",image,"-c",canonical_check],check=True,capture_output=True,text=True)
                 self.assertEqual(recovered.stdout.strip(),canonical_hash)
+                receipt_check=("from wealth_ledger.web.storage import Store; from wealth_ledger.web.config import WebSettings; "
+                    "from wealth_ledger.web.jobs import Jobs; from wealth_ledger.web.source_submissions import completed_result; from pathlib import Path; "
+                    "store=Store(WebSettings(Path('/data'))); row=Jobs(store).get("+repr(canonical_id)+","+repr(canonical_job["id"])+"); "
+                    "assert row['status']=='recorded'; result=completed_result(store,row); assert result['operation_id']=="+repr(canonical_job["core_operation_id"])+"; print('source-receipt-restored')")
+                receipt=subprocess.run([*isolated,"--entrypoint","python",image,"-c",receipt_check],check=True,capture_output=True,text=True)
+                self.assertEqual(receipt.stdout.strip(),"source-receipt-restored")
+
                 new_port=free_port();new_origin=f"http://localhost:{new_port}"
                 subprocess.run(["docker","run","--detach","--name",restore_container,"--read-only","--cap-drop=ALL",
                     "--security-opt=no-new-privileges","--pids-limit=256","--memory=1g",

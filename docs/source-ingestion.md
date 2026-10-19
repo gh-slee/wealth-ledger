@@ -2,14 +2,14 @@
 
 SRC-004A implements an explicit-context parser-v2 contract and a stateful canonical
 store in the existing financial SQLite database. It is a **trusted developer API**,
-not a new production CSV import command. No runtime LLM or new application dependency
+supplemented by the opt-in frozen CSV submission path described below. No runtime LLM or new application dependency
 is used. Wealthsimple/Bull financial imports, browser upload confirmation and the
 existing reports retain their current paths.
 
 SRC-004B1 supplies pure built-in v2 parsers and nonbooking context previews.
-SRC-004B2 must migrate production financial submission/confirmation/recovery;
-SRC-004C must implement source-neutral portfolio/report projections. Neither is
-complete. Do not advertise arbitrary bank/exchange imports. A structurally valid
+SRC-004B2 provides explicitly confirmed data-only submission/recovery.
+SRC-004C must implement source-neutral portfolio/report projections and native daily
+cutover; that acceptance is not complete. Do not advertise arbitrary bank/exchange imports. A structurally valid
 parser batch does not establish complete costs, portfolio membership or investment
 performance. The [architecture blueprint](source-adapters.md#implementation-blueprint-planned-src-002-through-src-004)
 remains the integration acceptance contract.
@@ -279,6 +279,171 @@ strictly decoded/validated by the parent and removed after return. The trusted
 
 A ready plan cannot be confirmed through financial jobs or financially resumed.
 Context-free v1 plans keep their original schema/blocker. The canonical developer
-API's report phase gate still applies. SRC-004B2 must provide compatible production
-submission/recovery and SRC-004C source-neutral report projections before any daily
-workflow switch; this preview is not a completed production migration.
+API's report phase gate still applies. A separate SRC-004B2 frozen ingestion preview/confirmation is required to commit
+canonical data. SRC-004C must complete source-neutral report projections before any
+daily workflow switch; this nonbooking preview is not a production migration.
+
+## Frozen submission and recovery (SRC-004B2)
+
+B2 adds an **opt-in canonical data-only path**, separate from the existing daily
+update workflow and both nonbooking source-plan APIs. It parses once in a bounded
+child, validates the complete batch and portfolio mappings, freezes original and
+canonical bytes, then requires an exact approval fingerprint and acknowledgement
+that reports are unavailable. Confirmation never invokes the parser or downloads
+references. It commits through the existing lock, backup, staging transaction and
+atomic financial completion marker. No runtime LLM or new dependency is involved.
+
+A successful receipt has `status: canonical_committed`, `report_published: false`,
+`report_projection_ready: false` and `contributions_calculated: false`. This is not
+a current valuation, return, contribution total, report publication or personal
+migration. Use a disposable synthetic workspace for evaluation. Native daily
+cutover is still blocked by SRC-004C; do not import a daily portfolio here as a shortcut.
+
+### Mapping review and preserved identities
+
+Each declared account requires an explicit portfolio-scoped choice. Missing choices
+produce `status: mapping_required` with `account_review`/`suggested_choice`; no frozen
+bundle or financial database is created. Review those suggestions before supplying
+bindings. Already stored canonical mappings are retained. Host-global source-plan
+bindings do not assign financial identities across portfolios.
+
+A binding file has `schema_version: 1` and `bindings`. Each item has `provider`,
+`source_account_id`, `target_kind`. `new` explicitly chooses a deterministic new
+canonical ID. `canonical`, `legacy_holdings` and `legacy_crypto` also require
+`ledger_account_id`. A detected matching legacy account must use its original ID;
+choosing `new` cannot silently duplicate it. Type/masked-identity/provider/source
+checks still apply. Existing legacy rows, IDs, FX, report editions and archive paths
+are never rewritten. The new facts/evidence are additive.
+
+Native compatibility policies remain isolated in `source_native_compatibility`:
+completed Bull economics/creation/completion times cannot be changed or reverted;
+source metadata updates still require explicit revision parents. Previously archived
+revisions can replay without replacing current heads. Wealthsimple backfill before
+the established baseline is rejected. Unsupported/unrepresentable native cases
+remain rejected; this does not broaden current format support or complete cutover.
+
+### CLI: inspect, freeze, confirm and recover
+
+The checkout command is `python scripts/source_ingestion.py`; the installed console
+is `wealth-ledger-source-ingestion`. All subcommands require an explicit existing
+`--workspace`. They never fall back to an installation or the maintainer's workspace.
+The following example uses only the public synthetic Bull fixture.
+
+Create a dedicated empty `work/canonical-demo` directory and these private files:
+
+`work/parsers.json`:
+
+```json
+{"schema_version": 1, "enabled": [], "bindings": []}
+```
+
+`work/bull-context.json`:
+
+```json
+{"schema_version": 1, "inputs": [{"evidence_at": "2024-03-01T12:00:00+00:00", "source_reference": "synthetic-orders-export", "account_alias": "synthetic-bull"}]}
+```
+
+First discover account mappings without committing or saving a bundle:
+
+```bash
+python scripts/source_ingestion.py preview examples/data/bull-orders.csv --workspace work/canonical-demo --context work/bull-context.json --config work/parsers.json --plan-directory work/bull-frozen
+```
+
+Review the returned `account_review`. For this synthetic empty portfolio, save
+`work/bull-bindings.json`:
+
+```json
+{"schema_version": 1, "bindings": [
+  {"provider": "bullbitcoin", "source_account_id": "synthetic-bull", "target_kind": "new"},
+  {"provider": "bullbitcoin", "source_account_id": "synthetic-bull:cad", "target_kind": "new"}
+]}
+```
+
+Freeze a new preview and inspect the exact mappings/record count/approval hash:
+
+```bash
+python scripts/source_ingestion.py preview examples/data/bull-orders.csv --workspace work/canonical-demo --context work/bull-context.json --config work/parsers.json --bindings work/bull-bindings.json --plan-directory work/bull-frozen
+python scripts/source_ingestion.py inspect --workspace work/canonical-demo --plan-directory work/bull-frozen --approval-sha256 APPROVAL_SHA256_FROM_PREVIEW
+```
+
+`inspect` only displays the frozen scope (`freshness: not_revalidated`); it does not
+assert the state is still current. A frozen directory must be new, outside protected
+financial/configuration directories. Keep it in ignored private storage. POSIX
+bundles are mode 0700 with mode 0400 files. The exact manifest, original CSVs,
+canonical JSON and host configuration are retained. Public source/package locations
+are rejected; checkout `work`/`private` are allowed. There is no encryption claim.
+
+Confirm only after reviewing the scope and accepting the report phase gate:
+
+```bash
+python scripts/source_ingestion.py confirm --workspace work/canonical-demo --plan-directory work/bull-frozen --config work/parsers.json --approval-sha256 APPROVAL_SHA256_FROM_PREVIEW --acknowledge-no-reports
+```
+
+The two hashes differ: `approval_sha256` approves frozen bytes, mappings, workspace,
+state, configuration, environment and fixed operation ID; `plan_sha256` identifies
+the core plan in its durable receipt. Save both and `operation_id`. Confirmation
+checks the current workspace/configuration/environment under the existing safety
+boundary; changed evidence/state rejects. Missing source paths after freezing do
+not trigger reparsing. Unknown operation states never automatically retry effects.
+
+After a lost response or missing preview directory, recover only a matching proven
+completion, without a CSV, configuration file, parser or original environment:
+
+```bash
+python scripts/source_ingestion.py recover --workspace work/canonical-demo --operation-id OPERATION_ID_FROM_PREVIEW --plan-sha256 PLAN_SHA256_FROM_PREVIEW
+```
+
+Recovery verifies the stored operation type/plan/completion marker and archived
+canonical evidence. A nonexistent or incomplete operation is not success. A failed
+uncommitted operation requires a fresh review/new operation; never delete an audit
+row or invent a compensating trade to force recovery. Reconfirmation of a complete
+operation returns its receipt; no second financial effect is created.
+
+For Wealthsimple or both CSVs, supply one context per input and explicit choices
+for every new account shown in review. Existing mappings can be reused. The same
+five-input, raw-byte, canonical-byte and context bounds apply. No monthly observation,
+missing activity, opening balance, wallet fee or contribution is inferred.
+
+### Owner-only API and isolated jobs
+
+Use authenticated, CSRF-protected portfolio routes with `Idempotency-Key` for jobs:
+
+| Endpoint | Contract |
+|---|---|
+| `POST /source-ingestion-previews` | `upload_ids` (`source_csv`), `contexts`, optional `bindings`/`selections`; queues `source_preview` |
+| `POST /source-ingestions` | `preview_id`, exact `approval_sha256`, `acknowledge_no_reports: true`; queues fixed-ID `source_commit` |
+| `POST /source-ingestions/{job_id}/recover` | Receipt-only completion recovery for an inactive job |
+| `POST /source-ingestions/{job_id}/discard` | Explicitly discard a never-started or matching proven-failed job; retain all audit rows/evidence |
+
+Paths are prefixed by `/api/v1/portfolios/{portfolio_id}`. Requests cannot supply
+host paths, package enablement, code or operation IDs. Mapping-required results
+cannot confirm. Nonbooking `source_plan` jobs cannot convert to financial jobs.
+Ready ingestion previews expire after 24 hours; queued commits also recheck expiry.
+Existing update/declaration/source-commit work is mutually exclusive. A preview has
+one fixed financial operation ID; idempotent retries cannot create another effect.
+
+API/worker use `admin/source-submissions/{portfolio_id}/{preview_id}` for frozen
+private evidence. Confirmation checks uploads/configuration/state/engine and the
+frozen summary, then commits decoded bytes. Committed recovery ignores stale parser
+configuration and verifies the durable receipt. Active jobs are protected by their
+kernel guard. `recorded` is data-only and never creates a report registry entry.
+There is no new browser form yet.
+
+### Backup, restore and daily-workflow boundary
+
+Full backups preserve frozen bundles, original uploads and canonical facts/receipts.
+CLI preview writes for Web-managed portfolios share the instance maintenance barrier,
+so backups cannot capture a partially saved bundle.
+Restoration expires ready/queued/running source previews and marks pending source
+confirmations `needs_review`; it never silently reuses an old workspace-bound approval.
+Completed receipts remain recoverable at the new root without loading a parser.
+An unstarted or matching `data_failed` job can be explicitly discarded in metadata,
+without deleting its financial audit row. Started/ambiguous or committed operations
+cannot be discarded as unstarted; inspect them and recover a proven receipt.
+
+Once canonical data is committed, legacy CSV mutation paths and new financial
+reports fail with the phase gate. Existing frozen reports, downloads and backups
+remain readable. Normal workspaces with no canonical batches retain their existing
+workflow. B2 does not switch a personal workspace, migrate historical reports or
+complete provider-neutral valuation/history/contribution/report projections. Those
+remain SRC-004C acceptance requirements before any daily-use cutover.

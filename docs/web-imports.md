@@ -234,3 +234,19 @@ portfolio isolation, expiration and restore invalidation match other source plan
 There is no browser form or confirm/financial-resume route. A ready result always
 has `ingestible: false`, `booking_blocker: production_v2_pipeline_pending`.
 The ordinary holdings/order import routes retain their behavior.
+
+## Opt-in data-only source submission
+
+B2 adds `POST /source-ingestion-previews` and `POST /source-ingestions` beneath the
+same portfolio prefix. They are separate from nonbooking source plans and normal
+report-producing updates. A preview accepts source uploads, explicit contexts and
+reviewed bindings. Missing bindings return mapping suggestions, not permission to
+book. Exact `approval_sha256` and `acknowledge_no_reports: true` confirm a frozen
+source batch; no parser runs during confirmation. The isolated job becomes
+`recorded`, never `published`. Fixed operation IDs, input/configuration/environment
+checks, one-preview/one-operation and financial-job mutual exclusion prevent replay.
+Inactive `/source-ingestions/{job_id}/recover` is receipt-only; `/discard` only
+abandons a never-started or matching proven-failed job, preserving its audit rows.
+Unknown starts cannot be discarded or automatically repeated. Full schemas,
+24-hour expiry, restore invalidation and CLI equivalents are in the [B2 guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+There is no new browser form and no native daily-workflow cutover in B2.

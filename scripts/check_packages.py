@@ -170,6 +170,8 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
             "version":"0.1.0", "entry_point":"synthetic", "adapter_id":"synthetic.holdings"}], "bindings": []}))
         console = python.parent / ("wealth-ledger-source-parsers.exe" if os.name == "nt" else "wealth-ledger-source-parsers")
         command = [str(console), str(source), "--config", str(config)]
+        submission_console=python.parent / ("wealth-ledger-source-ingestion.exe" if os.name=="nt" else "wealth-ledger-source-ingestion")
+        run([str(submission_console),"--help"],base,env)
         plan = json.loads(run(command, base, env))
         assert plan["ingestible"] is False and plan["booking_blocker"] == "protocol_v1_not_bookable"
         assert plan["inputs"][0]["record_counts"] == {"holdings": 1}
@@ -187,16 +189,18 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
         for name in ("company-aliases.json", "bull-opening.example.json"):
             shutil.copyfile(ROOT / "config" / name, demo / "config" / name)
         canonical = base / "canonical"; (canonical / "tests").mkdir(parents=True)
-        for name in ("test_source_v2.py", "test_source_ingestion.py", "test_source_builtin.py", "test_source_context_pipeline.py"):
+        for name in ("test_source_v2.py", "test_source_ingestion.py", "test_source_builtin.py", "test_source_context_pipeline.py", "test_source_submission.py"):
             shutil.copyfile(ROOT / "tests" / name, canonical / "tests" / name)
         (canonical / "examples/data").mkdir(parents=True)
         for name in ("wealthsimple-holdings.csv", "bull-orders.csv", "fx.json"):
             shutil.copyfile(ROOT / "examples/data" / name, canonical / "examples/data" / name)
-        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=64)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=86)
         for locale in ("en-CA", "zh-TW", "zh-CN"):
             run([str(python), "-I", str(demo / "examples/demo.py"), "--output", str(base / locale), "--locale", locale], base, env)
-    return {"installed_outside_checkout": True, "plugin_tests": 7, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "plan_and_revalidation": True,
-            "report_locales": ["en-CA", "zh-TW", "zh-CN"], "financial_booking": False}
+    return {"installed_outside_checkout": True, "plugin_tests": 7, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "plan_and_revalidation": True,
+            "report_locales": ["en-CA", "zh-TW", "zh-CN"], "financial_booking": False,
+            "financial_booking_scope": "v1_nonbooking_source_plan",
+            "synthetic_canonical_submission": True, "real_financial_data_used": False}
 
 
 def main():

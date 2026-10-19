@@ -594,7 +594,7 @@ def _apply(project, plan):
             "contributions_calculated":False, "policy":POLICY, "environment_sha256":plan.environment_sha256}
 
 
-def commit_ingestion(workspace, plan, *, operation_id=None):
+def commit_ingestion(workspace, plan, *, operation_id=None, expected_fingerprint=None, require_clear_operations=False, configuration_evidence=None):
     """Trusted core API; the existing service provides lock/backup/atomic recovery.
 
     Saved completed operations replay their receipt without calling parsers or
@@ -603,8 +603,22 @@ def commit_ingestion(workspace, plan, *, operation_id=None):
     from .application import ApplicationService
     _validate_plan(plan)
     service = ApplicationService(workspace)
+    def check_configuration():
+        if configuration_evidence is not None:
+            from .source_pipeline import host_config
+            path,sha=configuration_evidence
+            if _hash(host_config(path))!=sha:raise IngestionError("stale_configuration")
+    def apply(stage):
+        check_configuration()
+        if require_clear_operations:
+            from .source_native_compatibility import validate_native_compatibility
+            validate_native_compatibility(stage,plan.inputs)
+        result=_apply(stage,plan)
+        check_configuration()
+        return result
     return service.record({"type":"source_v2_canonical_ingestion", "plan_sha256":plan.fingerprint, "policy":POLICY},
-                          lambda stage:_apply(stage,plan), label="before-source-v2", operation_id=operation_id)
+                          apply, label="before-source-v2", operation_id=operation_id,
+                          expected_fingerprint=expected_fingerprint, require_clear_operations=require_clear_operations)
 
 
 def read_facts(project):

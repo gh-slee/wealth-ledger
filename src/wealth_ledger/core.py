@@ -231,6 +231,8 @@ def inspect_holdings(project, csv_path, kind="monthly"):
 
 
 def import_holdings(project: Path, csv_path: Path, kind: str, fx: dict) -> dict:
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     if kind not in ("baseline", "monthly", "interim"):
         raise ValueError("Snapshot kind must be baseline, monthly, or interim")
     raw, as_of, records, accounts, issues = _parse_holdings(csv_path)

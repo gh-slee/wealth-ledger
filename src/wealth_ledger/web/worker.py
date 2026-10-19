@@ -55,14 +55,21 @@ def publish_registry(store, jobs, row, service, saved):
 def reconcile_one(store, jobs, row):
     """Called only with the job guard; a running child cannot be reconciled."""
     _, project = store.portfolio(row["portfolio_id"])
-    if row["kind"] in {"preview", "record_preview", "source_plan"}:
+    if row["kind"] in {"preview", "record_preview", "source_plan", "source_preview"}:
         jobs.state(row["id"], "interrupted", error="preview_interrupted")
         return
     try:
         with project_lock(project):
             service = ApplicationService(resolve_workspace(explicit=project))
             saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)
-            if row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
+            if row["kind"] == "source_commit":
+                if saved and saved["status"]=="data_failed":
+                    jobs.state(row["id"],"failed",error="input_rejected");return
+                from .source_submissions import completed_result
+                result=completed_result(store,row)
+                jobs.state(row["id"],"recorded" if result is not None else "needs_review",result=result,
+                    error=None if result is not None else "commit_state_requires_review")
+            elif row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
                 from .financial import safe_record
                 jobs.state(row["id"], "recorded", result={"operation_id":row["core_operation_id"],
                     "report_published":False, "result":safe_record(saved["result"])})
@@ -105,6 +112,10 @@ def execute_job(settings, job_id):
         _, project = store.portfolio(row["portfolio_id"])
         service = ApplicationService(resolve_workspace(explicit=project))
         try:
+            if row["kind"] in {"source_preview","source_commit"}:
+                from .source_submissions import execute_preview,execute_commit
+                (execute_preview if row["kind"]=="source_preview" else execute_commit)(store,jobs,row)
+                return
             if row["kind"] == "source_plan":
                 from .source_plans import execute_plan
                 execute_plan(store, jobs, row)
@@ -155,10 +166,18 @@ def execute_job(settings, job_id):
         except LockBusy:
             jobs.state(job_id, "queued", error="portfolio_busy")
         except Exception as exc:
-            if row["kind"] in {"preview", "record_preview", "source_plan"}:
-                jobs.state(job_id, "blocked", error=exc.code if isinstance(exc, WebError) else "preview_failed")
+            if row["kind"] in {"preview", "record_preview", "source_plan", "source_preview"}:
+                jobs.state(job_id, "blocked", error=getattr(exc,"code","preview_failed"))
                 return
             saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)
+            if row["kind"] == "source_commit":
+                from .source_submissions import completed_result
+                try: completed=completed_result(store,row)
+                except ValueError: completed=None
+                if completed is not None:jobs.state(job_id,"recorded",result=completed)
+                elif saved:jobs.state(job_id,"failed" if saved["status"]=="data_failed" else "needs_review",error="commit_state_requires_review")
+                else:jobs.state(job_id,"blocked",error=getattr(exc,"code","source_submission_rejected"))
+                return
             if row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
                 from .financial import safe_record
                 jobs.state(job_id,"recorded",result={"operation_id":row["core_operation_id"],

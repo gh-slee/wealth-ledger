@@ -373,7 +373,8 @@ def restore_instance(settings, archive_path, *, incoming=False):
             with closing(sqlite3.connect(restored / "admin/app.sqlite3")) as conn, conn:
                 conn.execute("DELETE FROM sessions")
                 conn.execute("DELETE FROM throttle")
-                conn.execute("UPDATE jobs SET status='interrupted',error_code='restore_preview_expired' WHERE kind IN ('preview','record_preview','source_plan') AND status IN ('queued','running','ready')")
+                conn.execute("UPDATE jobs SET status='interrupted',error_code='restore_preview_expired' WHERE kind IN ('preview','record_preview','source_plan','source_preview') AND status IN ('queued','running','ready')")
+                conn.execute("UPDATE jobs SET status='needs_review',error_code='restore_source_confirmation_expired' WHERE kind='source_commit' AND status IN ('queued','running')")
                 conn.execute("UPDATE jobs SET enqueued_at=NULL WHERE status='queued'")
             old_receipt = restored / "admin/restore.json"
             if old_receipt.exists() and old_receipt.stat().st_size > 65536:

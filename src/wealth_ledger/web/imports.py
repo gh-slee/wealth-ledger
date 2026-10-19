@@ -82,6 +82,8 @@ def upload_view(row):
 def install_import_routes(app, store, auth, require_owner):
     from .source_plans import install_source_plan_routes
     install_source_plan_routes(app, store, auth, require_owner)
+    from .source_submissions import install_routes
+    install_routes(app, store, auth, require_owner)
     jobs = Jobs(store)
     prefix = "/api/v1/portfolios/{portfolio_id}"
 

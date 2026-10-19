@@ -630,3 +630,14 @@ Shared parsers must not include real accounts, names, trades, addresses or repor
 Use synthetic fixtures. Core validation protects financial contracts, not the host
 from malicious Python. Follow [publication](publishing.md) and
 [development](development.md) procedures.
+
+## Opt-in canonical confirmation (SRC-004B2)
+
+The [frozen submission boundary](source-ingestion.md#frozen-submission-and-recovery-src-004b2)
+is now implemented for explicitly acknowledged data-only commits. It preserves pure
+parsers and portfolio-scoped mappings, validates native compatibility, freezes raw
+and normalized evidence, confirms without plugins and recovers only durable receipts.
+Original source-plan APIs remain nonbooking. Native daily-workflow/report cutover
+and the complete third-provider acceptance remain SRC-004C; this does not advertise
+support for arbitrary institution exports or complete source decoupling in reports.
+Migration-specific native policies are isolated rather than mixed into parser IO.

@@ -199,6 +199,12 @@ Neither preview version has production financial confirmation. Do not claim gene
 bank/exchange support from the ability to register or normalize a parser.
 
 Installed acceptance copies only named public synthetic tests/fixtures outside the
-checkout. It exercises 35 canonical foundation tests plus 29 built-in/context tests,
+checkout. It exercises 35 canonical foundation tests, 29 built-in/context tests and 22 frozen-submission tests,
 the independent v1 plugin tests, real child/CLI/API paths and three report locales.
 Build artifacts remain subject to source/member audits before any publication.
+
+The installed core also exposes `wealth-ledger-source-ingestion` for explicit frozen
+preview/confirmation and receipt-only recovery. Its [B2 guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2)
+requires exact account mapping review and the no-report acknowledgement. This does
+not change the v1 example plugin's nonbooking contract. Installed acceptance invokes
+the new console and verifies its actual child/CLI data-only flow outside checkout.

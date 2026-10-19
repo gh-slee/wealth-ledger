@@ -564,3 +564,24 @@ again. Results are private evidence, not permission to book or publish reports.
 normalized bytes, selections, configuration, catalog and actual environment participate
 in its fingerprint. Revalidation rejects changes; it does not update a saved receipt.
 See [schema and limitations](source-ingestion.md#explicit-context-previews-src-004b1).
+
+## Frozen canonical submission
+
+`source_submission.prepare_submission` composes the isolated v2 parser runner,
+portfolio-scoped binding review, native migration policies and canonical planning,
+then saves immutable evidence outside protected financial directories. Missing
+mappings return `mapping_required` without a bundle or financial writes. Explicit
+mappings preserve detected legacy identities. `load_submission` only decodes closed
+core schemas; `confirm_submission` requires the exact approval plus no-report
+acknowledgement and never reparses inputs. `recover_submission` only returns a
+matching durable completed operation after archive verification; it needs no
+preview directory, plugin or original environment. See [full CLI/API examples](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+
+`commit_ingestion` now accepts trusted internal `expected_fingerprint`,
+`require_clear_operations` and `configuration_evidence`. The application service
+checks the financial/configuration input fingerprint and unfinished operations
+inside the project lock, before backup/start. Staging checks native policies and
+host configuration before/after applying facts. The existing atomic completion
+marker proves committed recovery; a failed or unknown marker never proves success.
+Native CSV mutation/new-report paths reject canonical workspaces until C completes
+projection parity. Read-only frozen publications and full backup/restore remain supported.
