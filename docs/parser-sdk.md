@@ -211,5 +211,7 @@ the new console and verifies its actual child/CLI data-only flow outside checkou
 
 The installed core includes [C1 internal projections](source-projections.md), tested
 without loading a parser. The separate [C2 compatibility function](source-projections.md#legacy-and-wallet-compatibility-src-004c2)
-adds identity-bound legacy/wallet/frozen-history read projections. Neither function
-enables production declaration/import/report cutover.
+adds identity-bound legacy/wallet/frozen-history read projections. C3A uses this model for BTC
+opening/balance/event declarations; its 25-case suite also runs outside the checkout
+against installed wheels. These data-only edits do not enable daily import/report
+cutover. V1 parser plans remain nonbooking.

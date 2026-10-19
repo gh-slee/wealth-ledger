@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record or inspect user-declared, unknown-cost pre-Bull holdings."""
+"""Record or inspect user-declared, unknown-cost pre-tracking BTC holdings."""
 import argparse
 import json
 from pathlib import Path

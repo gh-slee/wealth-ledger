@@ -375,15 +375,26 @@ def _wallet(project, model, legacy, canonical, purchases, history_known, cutoff)
     eligible = [row for row in openings.values() if _time(json.loads(row["payload_json"])["applies_from"]) <= cutoff]
     if len(eligible) > 1:
         raise ProjectionError("ambiguous_all_wallet_opening")
-    opening = json.loads(eligible[0]["payload_json"]) if eligible else None
+    opening = {**json.loads(eligible[0]["payload_json"]), **{key: eligible[0][key] for key in ("id", "revision", "source_path", "source_sha256")}} if eligible else None
     overlap = False
     if opening:
-        if D(opening["opening_btc_equivalent_qty"]) + D(opening["reference_purchased_btc_equivalent"]) != D(opening["reported_total_btc_equivalent"]):
+        from .wallet_basis import purchase_footprint, event_footprint
+        known_events = opening.get("reference_known_event_btc", "0")
+        if sats(opening["opening_btc_equivalent_qty"]) + sats(opening["reference_purchased_btc_equivalent"]) + sats(known_events) != sats(opening["reported_total_btc_equivalent"]):
             raise ProjectionError("legacy_opening_integrity")
-        ids = {row["id"] for row in opening["reference_sources"]}
-        referenced = {row["order_key"] for row in legacy["crypto_order_revisions"] if row["source_id"] in ids
-                      and _complete(json.loads(row["payload_json"]))}
-        overlap = any(row["source_id"] not in referenced and _time(row["occurred_at"]) <= _time(opening["reference_as_of"]) for row in purchases)
+        if "reference_purchases" in opening:
+            reference_time = min(cutoff, _time(opening["reference_as_of"]))
+            current = purchase_footprint([row for row in purchases if _time(row["occurred_at"]) <= reference_time])
+            current_events = event_footprint([row for row in records(project, "event", include_void=False)
+                                             if _time(row["occurred_at"]) <= reference_time])
+            expected_purchases = [row for row in opening["reference_purchases"] if _time(row["occurred_at"]) <= reference_time]
+            expected_events = [row for row in opening["reference_events"] if _time(row["occurred_at"]) <= reference_time]
+            overlap = current != expected_purchases or current_events != expected_events
+        else:
+            ids = {row["id"] for row in opening["reference_sources"]}
+            referenced = {row["order_key"] for row in legacy["crypto_order_revisions"] if row["source_id"] in ids
+                          and _complete(json.loads(row["payload_json"]))}
+            overlap = any(row["source_id"] not in referenced and _time(row["occurred_at"]) <= _time(opening["reference_as_of"]) for row in purchases)
     quantities = [{"occurred_at": row["occurred_at"], "quantity_btc": row["net_recorded_quantity_change"]} for row in purchases]
     times = [row["first_created_at"] for row in legacy["crypto_sources"]]
     times += [row["lifecycle"]["created_at"] if row.get("lifecycle") else row["occurred_at"] for row in canonical["records"] if row["kind"] == "crypto_transactions"]
@@ -391,6 +402,8 @@ def _wallet(project, model, legacy, canonical, purchases, history_known, cutoff)
                               opening_quantity=opening["opening_btc_equivalent_qty"] if opening else "0" if history_known else None,
                               acquisition_history_known=history_known or opening is not None, history_start=min(times, key=_time) if times else None,
                               opening_overlap=overlap)
+    result["acquisition_history_known"] = history_known
+    result["history_start"] = min(times, key=_time) if times else None
     return result, opening
 
 
@@ -591,6 +604,8 @@ def project_compatible_sources(project, *, as_of, period_start, fx=None, btc_pri
                      wallet=reconciliation["wallet"],
                      btc={"scope_account_id": scope_account, "quantity_btc": quantity, "quantity_status": reconciliation["quantity_status"],
                           "valuation_blocked": reconciliation["valuation_blocked"], "opening": opening,
+                          "acquisition_history_known": reconciliation["acquisition_history_known"],
+                          "history_start": reconciliation["history_start"],
                           "in_scope": bool(purchases or legacy["crypto_accounts"] or reconciliation["wallet"]["observations"] or reconciliation["wallet"]["events"]),
                           "purchases": purchases, "funding_records": funding, "legacy_cash_cad_by_account": cash,
                           "cash_valuation_blocked": any(value is not None and value < 0 for value in cash.values()),

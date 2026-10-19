@@ -127,7 +127,7 @@ def safe_record(row):
     allowed = {'record_id','kind','revision','quantity_btc','as_of','source','type','occurred_at',
                'reference','balance_id','void','reason','action','replaces','recorded_expected_btc',
                'recorded_residual_btc','status','record_type','opening_btc_equivalent_qty',
-               'reference_as_of','reported_total_btc_equivalent','reference_purchased_btc_equivalent',
+               'reference_as_of','reported_total_btc_equivalent','reference_purchased_btc_equivalent','reference_known_event_btc',
                'imported','id','cost_cad','historical_contribution_cad','declared_on','basis','confirmed_by','integrity_ok'}
     return {k:v for k,v in row.items() if k in allowed}
 

@@ -347,6 +347,18 @@ test("financial declarations preview, save, revise and remain isolated from froz
       exact: true,
     }),
   ).toBeVisible({ timeout: 30000 });
+  await expect(
+    page
+      .getByText("Expected BTC at observation", { exact: true })
+      .locator("..")
+      .getByText("Unknown", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByText("Unexplained difference (BTC)", { exact: true })
+      .locator("..")
+      .getByText("Unknown", { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Confirm and save declaration", exact: true })
     .click();

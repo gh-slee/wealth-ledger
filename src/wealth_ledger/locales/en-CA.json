@@ -1214,6 +1214,13 @@
     "cli.dda57644410f": "Conflicting document locale metadata",
     "cli.764028d3627d": "Oversized document language metadata",
     "cli.692ff10271e6": "Only named primitive message parameters are supported",
-    "cli.operation_retry.workspace": "Data saved; report not published. Operation {operation}; valuation {valuation}. Retry: {retry}. Cause: {cause}"
+    "cli.operation_retry.workspace": "Data saved; report not published. Operation {operation}; valuation {valuation}. Retry: {retry}. Cause: {cause}",
+    "cli.source_opening_help": "Record or inspect user-declared, unknown-cost pre-tracking BTC holdings.",
+    "cli.source_opening_ambiguous": "Multiple all-wallet opening declarations require explicit review",
+    "cli.source_opening_scope": "Revise the existing all-wallet opening instead of creating another scope",
+    "cli.source_opening_negative": "Reported total is below recorded net changes; record a balance instead of a negative opening",
+    "cli.source_opening_history": "Opening requires eligible acquisition history; otherwise record a balance",
+    "cli.source_opening_prehistory": "Pre-source events require reconciliation before deriving an opening",
+    "cli.source_opening_integrity": "Wallet evidence must be verified before deriving an opening"
   }
 }

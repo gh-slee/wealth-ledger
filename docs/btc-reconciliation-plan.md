@@ -368,3 +368,22 @@ records; it preserves original recorded gaps and recalculates current intervals.
 This is read-only. Production declaration previews/confirmations must use the
 compatible financial basis in C3 before the canonical daily workflow is enabled.
 No read-model result authorizes a real migration or creates a new observation.
+
+
+## Canonical source declaration integration (C3A)
+
+Balance/event/opening commands and Web Financial records now use a verified shared
+basis when canonical parser batches exist. Identity-bound native overlaps are
+counted once. A fresh canonical account has no implicit zero history: an unknown
+first expectation remains null. Later observations still work as anchors, with
+original and recalculated residuals retained separately.
+
+Pre-tracking opening declarations freeze total minus net acquisitions and applicable
+known manual events at the reference time, not just one provider's purchase subtotal.
+Original native opening keys/revisions remain; new canonical scopes are all-wallet.
+Source/event footprints expose later old-date backfill without rebasing opening.
+Unknown actual costs/contributions are not filled. See the detailed
+[C3A boundary](source-projections.md#source-aware-btc-declarations-src-004c3a).
+
+This is data-only. The canonical CSV/daily-report gate remains C3B/C3C; none of these
+commands regenerates a frozen report or enables a daily-use cutover.

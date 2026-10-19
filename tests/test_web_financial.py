@@ -197,3 +197,88 @@ class FinancialTests(unittest.TestCase):
         job=self.jobs.get(self.pid,response.json()['id']);self.assertEqual(job['status'],'ready',job)
         self.assertEqual(before,input_fingerprint(self.project))
         self.assertFalse((self.project/'reports/latest.json').exists())
+
+    def canonical_bull(self, *, native=False):
+        from dataclasses import replace
+        from wealth_ledger import source_ingestion as store
+        from wealth_ledger.source_builtin import BullBitcoinOrders, BULL_FORMAT
+        from wealth_ledger.crypto import import_bull_orders
+        from wealth_ledger.workspace import resolve_workspace
+        from test_source_builtin import CONTEXT, fixture
+        from test_source_legacy_projection import ASSUMPTIONS, ALIAS
+        raw=fixture("bull-orders.csv")
+        value=BullBitcoinOrders().normalize(raw,export_version=BULL_FORMAT,context=replace(CONTEXT,account_alias=ALIAS))
+        if native:
+            path=self.root.parent/"synthetic-bull-source.csv";path.write_bytes(raw)
+            import_bull_orders(self.project,path,opening_assumption=ASSUMPTIONS)
+        bindings=[]
+        for account in value.accounts:
+            if native and account.role=="crypto":
+                conn=store._open(self.project)
+                try: identity=conn.execute("SELECT account_id FROM crypto_accounts").fetchone()[0]
+                finally: conn.close()
+                bindings.append(store.Binding(account.key,identity,"legacy_crypto"))
+            else: bindings.append(store.new_binding(account.key))
+        plan=store.prepare_ingestion(self.project,(store.SourceInput(value,raw),),bindings=tuple(bindings))
+        store.commit_ingestion(resolve_workspace(explicit=self.project),plan)
+
+    def test_canonical_balance_preview_uses_deduplicated_native_source_basis(self):
+        self.now[0]=__import__("datetime").datetime.fromisoformat("2024-03-02T00:00:00+00:00").timestamp()
+        self.prepare();self.canonical_bull(native=True)
+        row=self.submit(self.balance('0.008','2024-03-01T00:00:00Z'),confirm=False)
+        preview=json.loads(row['result_json'])
+        self.assertEqual(preview['result']['recorded_expected_btc'],'0.00700000')
+        self.assertEqual(wallet.records(self.project,'balance'),[])
+        row=self.submit(self.balance('0.008','2024-03-01T00:00:00Z'))
+        record=wallet.records(self.project,'balance')[0]
+        self.assertEqual(record['recorded_residual_btc'],'0.00100000')
+        self.assertFalse((self.project/'reports/latest.json').exists())
+        self.jobs.state(row['id'],'running');reconcile(self.store)
+        self.assertEqual(self.jobs.get(self.pid,row['id'])['status'],'recorded')
+        self.assertEqual(len(wallet.records(self.project,'balance')),1)
+
+    def test_canonical_opening_balance_and_linked_event_share_cli_financial_basis(self):
+        self.now[0]=__import__("datetime").datetime.fromisoformat("2024-03-02T00:00:00+00:00").timestamp()
+        self.prepare();self.canonical_bull()
+        opening={'command':'opening','expected_revision':0,'reported_total_btc_equivalent':'0.008',
+            'reference_as_of':'2024-02-01T00:00:00Z','declared_on':'2024-03-01',
+            'balance_scope':'all_wallets_btc_plus_lbtc','basis':'Synthetic prior holdings','confirmed_by':'Synthetic user'}
+        self.submit({'command':'event','type':'fee','quantity_btc':'0.0001','occurred_at':'2024-01-31T23:00:00Z',
+                     'source':'Synthetic wallet','reference':'synthetic-opening-fee'})
+        preview=self.submit(opening,confirm=False)
+        opening_result=json.loads(preview['result_json'])['result']
+        self.assertEqual(opening_result['reference_known_event_btc'],'-0.00010000')
+        self.submit(opening)
+        self.submit(self.balance('0.0079','2024-03-01T00:00:00Z'))
+        record=wallet.records(self.project,'balance')[0]
+        self.assertEqual(record['recorded_expected_btc'],'0.00800000')
+        self.submit({'command':'event','type':'fee','quantity_btc':'0.0001','occurred_at':'2024-02-20T00:00:00Z',
+                     'source':'Synthetic wallet','reference':'synthetic-canonical-fee','balance_id':record['record_id']})
+        detail=self.client.get(self.prefix+'/financial/records/'+record['record_id'])
+        self.assertEqual(detail.status_code,200,detail.text)
+        self.assertEqual(detail.json()['reconciliation']['residual_btc'],'0.00000000')
+        self.assertEqual(detail.json()['reconciliation']['recorded_residual_btc'],'-0.00010000')
+        state=self.client.get(self.prefix+'/financial').json()
+        self.assertEqual(state['opening']['opening_btc_equivalent_qty'],'0.00110000')
+        self.assertEqual(state['opening']['reference_known_event_btc'],'-0.00010000')
+        self.assertIsNone(state['opening']['cost_cad'])
+        self.assertFalse((self.project/'reports/latest.json').exists())
+
+    def test_canonical_unknown_history_preview_preserves_null_expectation(self):
+        self.now[0]=__import__("datetime").datetime.fromisoformat("2024-03-02T00:00:00+00:00").timestamp()
+        self.prepare();self.canonical_bull()
+        row=self.submit(self.balance('0.008','2024-03-01T00:00:00Z'))
+        record=wallet.records(self.project,'balance')[0]
+        self.assertIsNone(record['recorded_expected_btc'])
+        detail=self.client.get(self.prefix+'/financial/records/'+record['record_id']).json()
+        self.assertEqual(detail['reconciliation']['status'],'expected_unknown')
+        self.assertIsNone(detail['reconciliation']['residual_btc'])
+
+    def test_canonical_financial_preview_stales_after_acquisition_state_change(self):
+        self.now[0]=__import__("datetime").datetime.fromisoformat("2024-03-02T00:00:00+00:00").timestamp()
+        self.prepare()
+        row=self.submit(self.balance('0.008','2024-03-01T00:00:00Z'),confirm=False)
+        self.canonical_bull()
+        response=self.mutate('POST',self.prefix+'/financial/jobs',body={'preview_id':row['id']},headers={'Idempotency-Key':uuid.uuid4().hex})
+        self.assertEqual(response.status_code,409,response.text)
+        self.assertEqual(wallet.records(self.project,'balance'),[])

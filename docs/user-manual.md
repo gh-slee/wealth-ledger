@@ -1266,3 +1266,21 @@ Keep an existing daily ledger on its normal workflow until C compatibility and a
 separately approved migration are complete. Do not interpret a `recorded` source job
 as a published report. Completed receipt recovery never needs an LLM, original CSV
 path, configuration file or parser; an unproven operation requires review.
+
+
+## Canonical-source BTC records (C3A)
+
+After an explicitly confirmed canonical source submission, the existing balance,
+event and opening commands in section 19 and Web Financial records use all verified
+compatible records. No extra CSV is needed to record a later observed BTC total.
+Use a balance for a new total, and an event with `--balance-id` to attribute a known
+fee or other difference. Unknown history stays unknown; a matching sum is not wallet
+verification. First-recorded and current residuals remain separate.
+
+An explicit opening declaration is for quantities that predate tracked sources;
+it freezes the reference acquisitions/events once. Later totals must not recreate
+that opening. See [fixed opening rules and examples](source-projections.md#source-aware-btc-declarations-src-004c3a).
+
+These declarations save data only. The canonical ordinary CSV/report workflow is
+still gated pending C3B/C3C; use original native daily workflows until full cutover
+is accepted. Existing source evidence and published reports are preserved.

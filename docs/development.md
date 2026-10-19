@@ -182,8 +182,10 @@ Web/operations changes also need full backup/empty restore and Docker acceptance
 SRC-004B1/B2 provide pure parsers and explicitly confirmed data-only submission;
 SRC-004C1 adds the [read-only source-neutral model](source-projections.md). Its
 `test_source_projection.py` suite also runs against the installed wheel. C2 adds `test_source_legacy_projection.py` (also installed acceptance) and the shared
-wallet kernel; retain all existing `test_wallet.py` regressions. Production
-declaration/import/report routing remains C3; source-plan
+wallet kernel; retain all existing `test_wallet.py` regressions. C3A adds
+`test_source_wallet_declarations.py` to installed acceptance and canonical declaration
+cases in `test_web_financial.py` and isolated Docker backup/restore. These commands
+remain data-only; daily import/report routing remains C3B/C3C. Source-plan
 success does not authorize financial booking or report publication.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).

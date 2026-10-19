@@ -399,11 +399,16 @@ Analysis refresh does not add financial history or flows.
 
 ## Pre-Bull opening and unknown actual costs
 
-`crypto_opening.import_opening(project, json_path, source_account='bullbitcoin-main')`
+`crypto_opening.import_opening(project, json_path, source_account=None)`
 reads explicit total-wallet BTC+LBTC, calculates completed buys at reference_as_of and
 fixes the difference as attributed pre-Bull quantity. Validate finite/nonnegative
 satoshi precision, timezone/scope and total >= buys. Same account/source SHA deduplicates;
 new buys never recompute opening. Require imported Bull ledger with intact evidence.
+
+This paragraph describes native-only workspaces. With canonical batches, C3A uses
+all compatible net acquisitions and applicable manual events instead of the native
+Bull-only view; one fixed all-wallet scope and source/event footprints retain
+backfill conflicts. See [source-aware declaration arithmetic](source-projections.md#source-aware-btc-declarations-src-004c3a).
 
 Archive read-only declaration JSON by date/hash. Append
 crypto_opening_revisions(id, source_account, revision, payload_json, source_path,
@@ -602,3 +607,10 @@ boundary: explicit native overlap proofs, preserved frozen IDs/history, shared w
 reconciliation and historical cash-flow values. It never reimports evidence or
 publishes a report. `wallet_reconciliation.reconcile_wallet` is the pure quantity
 kernel also used by the native wallet wrapper. See [C2 limits and date semantics](source-projections.md#legacy-and-wallet-compatibility-src-004c2).
+
+
+C3A routes `wallet.add_balance`, event/link/revision validation, balance-detail
+queries and `crypto_opening.import_opening` through `wallet_basis.py` when canonical
+sources exist. No parser/price/FX lookup is performed; original first-recorded
+expectations are immutable. Native-only behavior remains compatible. This data-only
+integration does not remove the canonical ordinary-update/report phase gate.

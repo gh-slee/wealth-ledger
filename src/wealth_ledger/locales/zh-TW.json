@@ -1214,6 +1214,13 @@
     "cli.dda57644410f": "文件語系中繼資料互相衝突",
     "cli.764028d3627d": "文件語系中繼資料超過大小限制",
     "cli.692ff10271e6": "訊息僅支援具名基本型別參數",
-    "cli.operation_retry.workspace": "資料已保存，報告未發布。Operation {operation}；估值時間 {valuation}。重試：{retry}。原因：{cause}"
+    "cli.operation_retry.workspace": "資料已保存，報告未發布。Operation {operation}；估值時間 {valuation}。重試：{retry}。原因：{cause}",
+    "cli.source_opening_help": "記錄或查詢使用者聲明的追蹤前 BTC 持倉；實際成本未知。",
+    "cli.source_opening_ambiguous": "多份全錢包期初聲明需要明確核對。",
+    "cli.source_opening_scope": "請修訂現有全錢包期初聲明，避免另建重疊範圍。",
+    "cli.source_opening_negative": "回報總量低於已登記淨異動；請登記餘額，不能建立負期初量。",
+    "cli.source_opening_history": "建立期初量需要適用的購入歷史；否則請登記餘額。",
+    "cli.source_opening_prehistory": "推算期初量前，請先核對追蹤開始前的異動。",
+    "cli.source_opening_integrity": "推算期初量前必須確認錢包紀錄的完整性。"
   }
 }

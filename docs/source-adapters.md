@@ -650,4 +650,4 @@ observed values with explicit FX and classifies recorded cash-flow/crypto effect
 without provider-name dispatch. It does not execute a parser or publish reports.
 C2 adds identity/signature-proven read-only legacy overlap, a shared pure wallet
 reconciliation kernel and frozen history/historical cash-flow preservation. Daily
-declaration/import/report routing and full acceptance remain SRC-004C3. The data-only receipt and existing report phase gates remain unchanged.
+C3A connects BTC declarations to that compatible basis. Daily import/report routing and full acceptance remain C3B/C3C. The data-only receipt and existing report phase gates remain unchanged.

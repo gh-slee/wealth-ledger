@@ -262,11 +262,11 @@ written or migrated by this read function.
 
 ### Remaining production acceptance
 
-C3 must route ordinary CSV and saved-data workflows plus opening/balance/event
-preview/confirmation through the compatible basis, preserve first-recorded
-expectations and fixed valuation/recovery contexts, and materialize reports through
-the shared pipeline. Native declaration writes still use their original basis;
-a C2 read result alone does not change those mutation routes.
+C3B/C3C must route ordinary CSV and saved-data workflows through the compatible
+basis, preserve first-recorded expectations and fixed valuation/recovery contexts,
+and materialize reports through the shared pipeline. C3A now connects BTC declaration writes to the compatible basis as described below.
+Ordinary import/report routes remain gated; a C2 read result alone never authorizes
+publication.
 
 Three-locale ODS/Markdown/PDF/chart parity, a third parser through actual reports,
 full backup/empty-target restore and original frozen-history preservation remain
@@ -278,3 +278,78 @@ Focused checks: `test_source_legacy_projection.py` (33 synthetic cases) and the
 existing `test_wallet.py` (47 cases), plus the full suite and installed-wheel
 acceptance. These verify the compatibility boundary, not a deployed private Web
 instance or complete production plugin workflow.
+
+## Source-aware BTC declarations (SRC-004C3A)
+
+`wallet_basis.py` now supplies the existing CLI and Web declaration paths with a
+shared source-aware financial basis. It does not parse an input, resolve prices/FX,
+render/publish a report, infer contribution coverage or enable ordinary canonical
+CSV updates. Native-only workspaces retain their historical declaration behavior.
+
+When canonical batches exist, balance expectations and balance-detail queries use
+C2's verified, identity-deduplicated acquisitions, fixed opening and active wallet
+records. New records retain first-recorded expected quantity/residual and a
+`calculation_basis` state/model hash. Later source backfills or linked fees can
+change the current reconciliation without rewriting those original values/hashes.
+Unknown expectations are null, never the native display fallback zero. A new user
+observation can anchor current quantity while older unknowns/residuals remain.
+
+Linked events use the first known acquisition boundary or preceding observation;
+the interval remains `(previous observation, target observation]`. Unlinked events
+and revisions also verify the canonical compatibility/evidence boundary. No fee,
+contribution or disposition is invented to explain a reported difference. The native
+report-shaped `wallet.make_crypto_view` rejects canonical workspaces; supported
+source-aware record queries use `wallet.balance_detail` instead.
+
+### Fixed pre-tracking opening
+
+`crypto_opening.import_opening(project, json_path, source_account=None)` retains
+native Bull derivation when no canonical batches exist. In a canonical workspace,
+its unchanged declaration JSON schema explicitly attributes:
+
+```text
+Opening BTC = reported total at reference time
+            - identity-deduplicated net acquisition quantity through that time
+            - signed known manual events through that time
+```
+
+The calculation uses integer satoshis, including separate recorded purchase fees,
+without changing Bull purchase-cost averages. It ignores balance observations as
+acquisitions. No eligible acquisition history, a negative result or pre-source
+manual events require a balance/reconciliation instead of an invented opening.
+Actual opening cost and historical contributions remain null.
+
+New openings use one all-wallet scope; a revision of an existing native opening
+keeps its original scope key/ID lineage. `source_account=None` selects the existing
+unique scope or `all-wallets-btc-plus-lbtc` for a fresh canonical opening. An explicit
+different key cannot create a second concurrent all-wallet opening. The existing
+storage schema and archived native declarations are unchanged.
+
+`reference_purchases` freezes account/source ID, timestamp and net quantity;
+`reference_events` freezes event ID, type, timestamp and quantity. Link/reason-only
+revisions do not alter this financial footprint. Later normal purchases do not
+rederive opening. New/changed/voided old-date purchases or events expose
+`opening_overlap` and block unanchored quantity valuation until reconciled. A new
+observation can anchor current quantity; it does not erase that warning. Earlier
+cutoffs compare only the applicable part of the frozen footprint, never future buys.
+Repeated identical declaration evidence returns the original revision even after
+new transactions. An intentional opening correction needs a new explicit declaration;
+Web preview requires the current opening revision. Never submit a fresh total as
+an opening merely to hide a residual; use a balance observation for later totals.
+
+### Entry points and remaining gates
+
+Use the existing [CLI examples](user-manual.md#19-btc-balances-events-and-reconciliation)
+and [Web Financial records](web-financial-records.md). No new endpoint, request
+schema, database migration or runtime dependency is required. Web preview simulates
+on a disposable copy, confirmation rechecks financial/engine state under the lock,
+and the worker commits declaration evidence with its durable completion marker.
+Recovery reads that result rather than rerunning the declaration. Source-state
+changes stale an earlier Web preview. Backups include these records/references.
+
+C3A tests cover native/canonical overlap, unknown/zero quantity, exact satoshis,
+fixed opening revisions/backfill, a synthetic third provider, actual CLI record
+commands, Web preview/confirmation/staleness/recovery and Docker empty-volume restore.
+They do not establish a third parser's complete report workflow. Source ingestion
+receipts remain data-only; normal canonical imports/new reports are still blocked
+until C3B/C3C acceptance. Existing frozen reports remain readable and unchanged.

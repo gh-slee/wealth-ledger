@@ -84,7 +84,8 @@ def run(project, kind):
             if kind == "balance" and result.get("record_id"):
                 result["reconciliation"] = wallet.balance_detail(project, result["record_id"])["reconciliation"]
             pointer = Path(project)/"reports/latest.json"
-            if pointer.exists():
+            from .wallet_basis import has_canonical_sources
+            if pointer.exists() and not has_canonical_sources(project):
                 target = json.loads(pointer.read_text(encoding="utf-8"))["path"]
                 saved = json.loads((Path(project)/target/"data.json").read_text(encoding="utf-8"))["meta"]["as_of"]
                 occurred = result.get("occurred_at") or result.get("as_of")

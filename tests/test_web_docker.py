@@ -336,6 +336,24 @@ print(json.dumps(result))
                     {"preview_id":canonical_preview["id"],"approval_sha256":canonical_preview["result"]["approval_sha256"],
                      "acknowledge_no_reports":True}),"recorded",canonical_id)
                 self.assertFalse(canonical_job["result"]["report_published"])
+                # Declaration preview/confirm uses the same source-aware core in
+                # the API and isolated worker. No new report is published.
+                def declare(value):
+                    prefix=f"/api/v1/portfolios/{canonical_id}/financial"
+                    review=completed(submit(prefix+"/previews",value),"ready",canonical_id)
+                    return completed(submit(prefix+"/jobs",{"preview_id":review["id"]}),"recorded",canonical_id)
+                declare({"command":"opening","expected_revision":0,"reported_total_btc_equivalent":"0.008",
+                    "reference_as_of":"2024-02-01T00:00:00Z","declared_on":"2024-03-01",
+                    "balance_scope":"all_wallets_btc_plus_lbtc","basis":"Synthetic pre-tracking quantity","confirmed_by":"Synthetic user"})
+                declare({"command":"balance","quantity_btc":"0.0079","as_of":"2024-03-01T12:00:00Z","source":"Synthetic wallet total"})
+                financial=request_json(client,origin,f"/api/v1/portfolios/{canonical_id}/financial")
+                balance_id=financial["balances"][0]["record_id"]
+                self.assertEqual(financial["balances"][0]["recorded_expected_btc"],"0.00800000")
+                declare({"command":"event","type":"fee","quantity_btc":"0.0001","occurred_at":"2024-02-20T00:00:00Z",
+                    "source":"Synthetic wallet","reference":"synthetic-docker-fee","balance_id":balance_id})
+                declaration_detail=request_json(client,origin,f"/api/v1/portfolios/{canonical_id}/financial/records/{balance_id}")
+                self.assertEqual(declaration_detail["reconciliation"]["recorded_residual_btc"],"-0.00010000")
+                self.assertEqual(declaration_detail["reconciliation"]["residual_btc"],"0.00000000")
                 canonical_seed="""
 from pathlib import Path
 import hashlib,json
@@ -426,6 +444,8 @@ print('synthetic-legacy-overlap-recorded')
                 restored_view=request_json(restored_client,new_origin,f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}")
                 self.assertEqual(restored_view["totals"],view["totals"])
                 self.assertEqual(restored_view["holdings"],view["holdings"])
+                restored_detail=request_json(restored_client,new_origin,f"/api/v1/portfolios/{canonical_id}/financial/records/{balance_id}")
+                self.assertEqual(restored_detail,declaration_detail)
                 restored_adopted=request_json(restored_client,new_origin,f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}")
                 self.assertEqual(restored_adopted["totals"],adopted_view["totals"])
                 self.assertEqual(restored_adopted["report"]["verification_basis"],"migration_capture")

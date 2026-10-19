@@ -1213,6 +1213,13 @@
     "Invalid translation catalog messages": "cli.c61acd0a4287",
     "Conflicting document locale metadata": "cli.dda57644410f",
     "Oversized document language metadata": "cli.764028d3627d",
-    "Only named primitive message parameters are supported": "cli.692ff10271e6"
+    "Only named primitive message parameters are supported": "cli.692ff10271e6",
+    "Record or inspect user-declared, unknown-cost pre-tracking BTC holdings.": "cli.source_opening_help",
+    "Multiple all-wallet opening declarations require explicit review": "cli.source_opening_ambiguous",
+    "Revise the existing all-wallet opening instead of creating another scope": "cli.source_opening_scope",
+    "Reported total is below recorded net changes; record a balance instead of a negative opening": "cli.source_opening_negative",
+    "Opening requires eligible acquisition history; otherwise record a balance": "cli.source_opening_history",
+    "Pre-source events require reconciliation before deriving an opening": "cli.source_opening_prehistory",
+    "Wallet evidence must be verified before deriving an opening": "cli.source_opening_integrity"
   }
 }

@@ -1214,6 +1214,13 @@
     "cli.dda57644410f": "文档语言区域元数据互相冲突",
     "cli.764028d3627d": "文档语言区域元数据超过大小限制",
     "cli.692ff10271e6": "消息仅支持具名基本类型参数",
-    "cli.operation_retry.workspace": "资料已保存，报告未发布。Operation {operation}；估值时间 {valuation}。重试：{retry}。原因：{cause}"
+    "cli.operation_retry.workspace": "资料已保存，报告未发布。Operation {operation}；估值时间 {valuation}。重试：{retry}。原因：{cause}",
+    "cli.source_opening_help": "记录或查询使用者声明的追踪前 BTC 持仓；实际成本未知。",
+    "cli.source_opening_ambiguous": "多份全钱包期初声明需要明确核对。",
+    "cli.source_opening_scope": "请修订现有全钱包期初声明，避免另建重叠范围。",
+    "cli.source_opening_negative": "回报总量低于已登记净异动；请登记余额，不能建立负期初量。",
+    "cli.source_opening_history": "建立期初量需要适用的购买历史；否则请登记余额。",
+    "cli.source_opening_prehistory": "推算期初量前，请先核对追踪开始前的异动。",
+    "cli.source_opening_integrity": "推算期初量前必须确认钱包记录的完整性。"
   }
 }
