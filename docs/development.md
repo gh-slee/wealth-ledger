@@ -179,7 +179,11 @@ SRC-003 packaging/author acceptance is documented in [the SDK guide](parser-sdk.
 [SRC-004A](source-ingestion.md) adds strict v2 archives, canonical state/effects and
 atomic receipt recovery. Run its three focused test files and installed SDK checks;
 Web/operations changes also need full backup/empty restore and Docker acceptance.
-SRC-004B/C remain pending; source-plan success does not authorize financial booking.
+SRC-004B1/B2 provide pure parsers and explicitly confirmed data-only submission;
+SRC-004C1 adds the [read-only source-neutral model](source-projections.md). Its
+`test_source_projection.py` suite also runs against the installed wheel. Production
+legacy/wallet/history integration and report cutover remain C2/C3; source-plan
+success does not authorize financial booking or report publication.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
 

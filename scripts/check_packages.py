@@ -189,15 +189,15 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
         for name in ("company-aliases.json", "bull-opening.example.json"):
             shutil.copyfile(ROOT / "config" / name, demo / "config" / name)
         canonical = base / "canonical"; (canonical / "tests").mkdir(parents=True)
-        for name in ("test_source_v2.py", "test_source_ingestion.py", "test_source_builtin.py", "test_source_context_pipeline.py", "test_source_submission.py"):
+        for name in ("test_source_v2.py", "test_source_ingestion.py", "test_source_builtin.py", "test_source_context_pipeline.py", "test_source_submission.py", "test_source_projection.py"):
             shutil.copyfile(ROOT / "tests" / name, canonical / "tests" / name)
         (canonical / "examples/data").mkdir(parents=True)
         for name in ("wealthsimple-holdings.csv", "bull-orders.csv", "fx.json"):
             shutil.copyfile(ROOT / "examples/data" / name, canonical / "examples/data" / name)
-        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=86)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=115)
         for locale in ("en-CA", "zh-TW", "zh-CN"):
             run([str(python), "-I", str(demo / "examples/demo.py"), "--output", str(base / locale), "--locale", locale], base, env)
-    return {"installed_outside_checkout": True, "plugin_tests": 7, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "plan_and_revalidation": True,
+    return {"installed_outside_checkout": True, "plugin_tests": 7, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "source_projection_tests": 29, "plan_and_revalidation": True,
             "report_locales": ["en-CA", "zh-TW", "zh-CN"], "financial_booking": False,
             "financial_booking_scope": "v1_nonbooking_source_plan",
             "synthetic_canonical_submission": True, "real_financial_data_used": False}

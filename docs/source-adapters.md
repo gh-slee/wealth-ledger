@@ -641,3 +641,12 @@ Original source-plan APIs remain nonbooking. Native daily-workflow/report cutove
 and the complete third-provider acceptance remain SRC-004C; this does not advertise
 support for arbitrary institution exports or complete source decoupling in reports.
 Migration-specific native policies are isolated rather than mixed into parser IO.
+
+## Internal source-neutral model (SRC-004C1)
+
+The [read-only projection model](source-projections.md) now selects verified
+per-account holdings observations, preserves native/source-CAD costs, converts
+observed values with explicit FX and classifies recorded cash-flow/crypto effects
+without provider-name dispatch. It does not execute a parser or publish reports.
+Legacy overlap, wallet/history integration and full daily-report acceptance remain
+SRC-004C2/C3. The data-only receipt and existing report phase gates remain unchanged.

@@ -585,3 +585,13 @@ host configuration before/after applying facts. The existing atomic completion
 marker proves committed recovery; a failed or unknown marker never proves success.
 Native CSV mutation/new-report paths reject canonical workspaces until C completes
 projection parity. Read-only frozen publications and full backup/restore remain supported.
+
+## Internal source-neutral projections
+
+`source_projection.project_sources(project, as_of=..., period_start=..., fx=None)`
+reads verified canonical facts without parser execution or financial writes. It
+selects per-account observations and exposes observed values, covered/unclassified
+cash flows and recorded BTC/LBTC movements. It is not the report payload: full
+portfolio totals, wallet balances, historical replay, performance and publication
+remain gated. See [the C1 model contract](source-projections.md) before consuming
+its internal fields. The production CLI/Web reporting paths are unchanged.

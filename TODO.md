@@ -91,6 +91,9 @@ built-in importers. Current support is format-specific, not universal CSV suppor
 - [x] **SRC-004B1 Pure built-ins/context previews**: one byte-only grammar per current format shared with legacy imports, explicit v2 built-in registrations, isolated context-aware CLI/API previews, strict frozen normalization and legacy ID/financial-field parity. Preview only; no production confirmation or daily workflow switch.
 - [x] **SRC-004B2 Opt-in canonical submission/recovery**: frozen raw/normalized evidence, explicit portfolio mapping review and exact approval, CLI/owner-only isolated API confirmation, atomic receipt-only recovery, completed native-order compatibility and restore invalidation. This is data-only with an explicit no-report acknowledgement; native daily-workflow cutover remains gated by SRC-004C.
 - [ ] **SRC-004C Source-neutral projections/extension acceptance**: replace provider dispatch across valuation/history/report projections, preserve unknown/completeness semantics and verify a synthetic third provider through real imports/reports without new provider branches. Real additional institutions need a specified/sanitized format.
+- [x] **SRC-004C1 Read-only source-neutral model**: internal verified position/coverage, native CAD/USD and explicit CAD/USD/TWD display conversion, classified recorded cash flows and BTC/LBTC movement/purchase projections; deterministic no-parser/no-write model. Legacy merge, full balances, performance and report publication remain gated. See [projection semantics](docs/source-projections.md).
+- [ ] **SRC-004C2 Legacy/wallet/history integration**: reconcile identity-bound legacy/canonical overlap without double counting, preserve opening/balance/event/cost-policy links and frozen FX/prices/history; establish covered contribution projections without inferring missing activity.
+- [ ] **SRC-004C3 Daily workflow/publication acceptance**: connect source-neutral projections to CLI/Web valuation/recovery and three-locale ODS/Markdown/PDF/charts, prove a synthetic third parser through actual reports, and verify backup/empty restore before removing the cutover gate.
 
 SRC-001 provides `wealth_ledger.source_protocol` dataclasses, pure adapter Protocol,
 structural validation, auditable detection resolution and lossless evidence JSON.
@@ -98,7 +101,7 @@ SRC-002A adds the independent `wealth_ledger.source_registry` library for explic
 enabled trusted loading/detection. It is not called by production import paths and
 does not book records. SRC-002B now connects the shared nonbooking plan runner to
 CLI and owner-only API jobs; financial import/confirmation still use existing
-importers. SRC-003 adds installable core/author tooling; SRC-004A adds the [canonical foundation](docs/source-ingestion.md). SRC-004B1 adds pure built-ins and explicit-context previews; B2 adds explicitly confirmed data-only submissions and receipt recovery; native cutover and projections (C) remain incomplete.
+importers. SRC-003 adds installable core/author tooling; SRC-004A adds the [canonical foundation](docs/source-ingestion.md). SRC-004B1 adds pure built-ins and explicit-context previews; B2 adds explicitly confirmed data-only submissions and receipt recovery; C1 adds an internal read-only source-neutral model; legacy/wallet/history integration and daily report cutover (C2/C3) remain incomplete.
 Existing financial workflows retain their behavior and storage/report paths.
 
 Current CSV support is Wealthsimple/Bull only. The official ETF registry is separate

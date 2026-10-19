@@ -8,8 +8,9 @@ existing reports retain their current paths.
 
 SRC-004B1 supplies pure built-in v2 parsers and nonbooking context previews.
 SRC-004B2 provides explicitly confirmed data-only submission/recovery.
-SRC-004C must implement source-neutral portfolio/report projections and native daily
-cutover; that acceptance is not complete. Do not advertise arbitrary bank/exchange imports. A structurally valid
+SRC-004C1 adds an [internal read-only projection model](source-projections.md).
+Legacy/wallet/history integration, source-neutral report publication and native daily
+cutover remain SRC-004C2/C3; that acceptance is not complete. Do not advertise arbitrary bank/exchange imports. A structurally valid
 parser batch does not establish complete costs, portfolio membership or investment
 performance. The [architecture blueprint](source-adapters.md#implementation-blueprint-planned-src-002-through-src-004)
 remains the integration acceptance contract.
