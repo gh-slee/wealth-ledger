@@ -595,3 +595,10 @@ cash flows and recorded BTC/LBTC movements. It is not the report payload: full
 portfolio totals, wallet balances, historical replay, performance and publication
 remain gated. See [the C1 model contract](source-projections.md) before consuming
 its internal fields. The production CLI/Web reporting paths are unchanged.
+
+`source_legacy_projection.project_compatible_sources(project, as_of=...,
+period_start=..., fx=None, btc_price=None, btc_cost_policy=None)` adds the C2 read
+boundary: explicit native overlap proofs, preserved frozen IDs/history, shared wallet
+reconciliation and historical cash-flow values. It never reimports evidence or
+publishes a report. `wallet_reconciliation.reconcile_wallet` is the pure quantity
+kernel also used by the native wallet wrapper. See [C2 limits and date semantics](source-projections.md#legacy-and-wallet-compatibility-src-004c2).

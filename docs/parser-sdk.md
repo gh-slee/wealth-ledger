@@ -199,7 +199,7 @@ Neither preview version has production financial confirmation. Do not claim gene
 bank/exchange support from the ability to register or normalize a parser.
 
 Installed acceptance copies only named public synthetic tests/fixtures outside the
-checkout. It exercises 35 canonical foundation tests, 29 built-in/context tests, 22 frozen-submission tests and 29 read-only projection tests,
+checkout. It exercises 35 canonical foundation tests, 29 built-in/context tests, 22 frozen-submission tests, 29 source-model tests and 33 legacy/wallet projection tests,
 the independent v1 plugin tests, real child/CLI/API paths and three report locales.
 Build artifacts remain subject to source/member audits before any publication.
 
@@ -210,5 +210,6 @@ not change the v1 example plugin's nonbooking contract. Installed acceptance inv
 the new console and verifies its actual child/CLI data-only flow outside checkout.
 
 The installed core includes [C1 internal projections](source-projections.md), tested
-without loading a parser. This does not enable full plugin-based reports, wallet
-balances, legacy merge or daily-workflow cutover.
+without loading a parser. The separate [C2 compatibility function](source-projections.md#legacy-and-wallet-compatibility-src-004c2)
+adds identity-bound legacy/wallet/frozen-history read projections. Neither function
+enables production declaration/import/report cutover.

@@ -357,3 +357,14 @@ and real acceptance evidence ignored.
   only post-anchor purchases to current estimates, not historical purchases twice.
 - Explicit wallet-scope changes, independent on-chain verification and historical
   cost allocation remain outside this version. Ordinary totals cannot alter scope silently.
+
+## Canonical read compatibility
+
+C2 extracts `wallet_reconciliation.reconcile_wallet` as the shared pure quantity
+kernel. The native wrapper retains its existing behavior. The separate
+[compatible source model](source-projections.md#legacy-and-wallet-compatibility-src-004c2)
+supplies identity-deduplicated acquisitions and the existing opening/balance/event
+records; it preserves original recorded gaps and recalculates current intervals.
+This is read-only. Production declaration previews/confirmations must use the
+compatible financial basis in C3 before the canonical daily workflow is enabled.
+No read-model result authorizes a real migration or creates a new observation.

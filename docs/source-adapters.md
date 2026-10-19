@@ -648,5 +648,6 @@ The [read-only projection model](source-projections.md) now selects verified
 per-account holdings observations, preserves native/source-CAD costs, converts
 observed values with explicit FX and classifies recorded cash-flow/crypto effects
 without provider-name dispatch. It does not execute a parser or publish reports.
-Legacy overlap, wallet/history integration and full daily-report acceptance remain
-SRC-004C2/C3. The data-only receipt and existing report phase gates remain unchanged.
+C2 adds identity/signature-proven read-only legacy overlap, a shared pure wallet
+reconciliation kernel and frozen history/historical cash-flow preservation. Daily
+declaration/import/report routing and full acceptance remain SRC-004C3. The data-only receipt and existing report phase gates remain unchanged.

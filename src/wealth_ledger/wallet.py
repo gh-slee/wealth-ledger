@@ -11,15 +11,7 @@ from pathlib import Path
 
 from .crypto import _time, _now, _json, _account_id, _readonly, _has_tables
 
-SCOPE = "all_wallets_btc_plus_lbtc"
-SIGNS = {"fee": -1, "sale": -1, "spend": -1, "external_out": -1,
-         "external_in": 1, "own_transfer": 0, "conversion": 0}
-STATUS_LABELS = {
-    "unexplained": "差額待釐清", "partially_explained": "部分說明，仍有差額",
-    "arithmetic_match": "目前已知資料算術相符", "expected_unknown": "帳本預期量未知",
-    "link_conflict": "關聯待重查", "ledger_conflict": "期初／來源重疊待核對",
-}
-
+from .wallet_reconciliation import SCOPE, SIGNS, STATUS_LABELS, sats, btc, reconcile_wallet
 
 def quantity(value, *, positive=False):
     try:
@@ -33,14 +25,6 @@ def quantity(value, *, positive=False):
             return format(number, ".8f")
     except (InvalidOperation, OverflowError) as exc:
         raise ValueError("Invalid BTC quantity") from exc
-
-
-def sats(value):
-    return int(Decimal(str(value)) * 100000000)
-
-
-def btc(value):
-    return format(Decimal(value) / 100000000, ".8f")
 
 
 def timestamp(value, now=None):
@@ -341,14 +325,9 @@ def make_crypto_view(project, as_of, *, strict=True):
     cutoff = _time(as_of)
     base = _base(project, cutoff)
     all_rows = records(project)
-    balances = sorted((r for r in all_rows if r["kind"] == "balance" and not r["void"] and r["as_of"] <= cutoff), key=lambda r: r["as_of"])
-    events = [r for r in all_rows if r["kind"] == "event" and not r["void"] and r["occurred_at"] <= cutoff]
+    changes = [{"occurred_at": row["completed_at"], "quantity_btc": btc(sats(row["buy_qty_btc"]) + sats(row["buy_qty_lbtc"]))}
+               for row in base["orders"] if row["order_type"] == "Buy Bitcoin" and row["included_in_totals"]]
     purchases = [r for r in base["orders"] if r["order_type"] == "Buy Bitcoin" and r["included_in_totals"]]
-    def net(start, end):
-        return (sum(sats(r["buy_qty_btc"])+sats(r["buy_qty_lbtc"]) for r in purchases
-                    if (start is None or r["completed_at"] > start) and r["completed_at"] <= end)
-                + sum(SIGNS[r["type"]]*sats(r["quantity_btc"]) for r in events
-                      if (start is None or r["occurred_at"] > start) and r["occurred_at"] <= end))
     opening = base.get("opening")
     overlap = False
     if opening:
@@ -366,52 +345,24 @@ def make_crypto_view(project, as_of, *, strict=True):
             conn.close()
     if not all_rows and not overlap:
         return base
-    history_start = base["source"].get("earliest_created_at")
-    prehistory = [e for e in events if history_start and e["occurred_at"] < history_start]
-    unknown_history = any(b.get('unknown_prior_history') for b in balances)
-    known_base = has_bull(project) and not overlap and not prehistory and not unknown_history
-    ledger_expected = sats(base["opening_btc_equivalent_qty"]) + net(None, cutoff) if known_base else None
-    reconciliations = []
-    previous = None
-    for balance in balances:
-        expected = (sats(previous["quantity_btc"]) + net(previous["as_of"], balance["as_of"])) if previous else (
-            sats(base["opening_btc_equivalent_qty"]) + net(None, balance["as_of"]) if known_base else None)
-        relevant = [e for e in events if (previous is None or e["occurred_at"] > previous["as_of"]) and e["occurred_at"] <= balance["as_of"]]
-        linked = [e for e in events if e.get("balance_id") == balance["record_id"]]
-        stale = any(e not in relevant or e.get("linked_previous_balance_id") != (previous["record_id"] if previous else None) for e in linked)
-        residual = sats(balance["quantity_btc"]) - expected if expected is not None else None
-        state = ("link_conflict" if stale else "ledger_conflict" if not previous and (overlap or prehistory) else
-                 "expected_unknown" if expected is None else "arithmetic_match" if residual == 0 else
-                 "partially_explained" if any(SIGNS[e["type"]] for e in relevant) else "unexplained")
-        reconciliations.append({"balance_id": balance["record_id"], "balance_revision": balance["revision"],
-                               "as_of": balance["as_of"], "reported_btc": balance["quantity_btc"],
-                               "expected_btc": btc(expected) if expected is not None else None,
-                               "residual_btc": btc(residual) if residual is not None else None,
-                               "recorded_expected_btc": balance["recorded_expected_btc"],
-                               "recorded_residual_btc": balance["recorded_residual_btc"],
-                               "previous_balance_id": previous["record_id"] if previous else None,
-                               "event_ids": [e["record_id"] for e in relevant], "linked_event_ids": [e["record_id"] for e in linked],
-                               "status": state, "status_label": STATUS_LABELS[state], "verification": "user_reported"})
-        previous = balance
-    anchor = balances[-1] if balances else None
-    current = sats(anchor["quantity_btc"]) + net(anchor["as_of"], cutoff) if anchor else ledger_expected
-    conflicts = [e["record_id"] for e in events if e.get("balance_id") and not any(b["record_id"] == e["balance_id"] for b in balances)]
-    corrupt = [r["record_id"] for r in all_rows if (r.get('as_of') or r.get('occurred_at')) <= cutoff and not r["integrity_ok"]]
+    result = reconcile_wallet(as_of=cutoff, changes=changes, rows=all_rows,
+                              opening_quantity=base["opening_btc_equivalent_qty"],
+                              acquisition_history_known=has_bull(project),
+                              history_start=base["source"].get("earliest_created_at"), opening_overlap=overlap)
+    wallet = result["wallet"]
+    events = wallet["events"]
+    current, anchor = result["current_sats"], wallet["anchor"]
+    corrupt, conflicts = wallet["integrity_errors"], wallet["link_conflicts"]
+    prehistory = wallet["prehistory_event_ids"]
     if strict and (current is None or current < 0 or corrupt):
         raise ValueError("BTC quantity cannot be valued: unknown pre-observation history, negative holdings, or corrupt wallet evidence")
     if strict and not anchor and (overlap or prehistory):
         raise ValueError("BTC opening/source overlap requires explicit reconciliation before valuation")
-    wallet = {"scope": SCOPE, "anchor": anchor, "observations": balances, "events": events,
-              "reconciliations": reconciliations, "ledger_expected_btc": btc(ledger_expected) if ledger_expected is not None else None,
-              "anchor_ledger_residual_btc": btc(sats(anchor["quantity_btc"])-(sats(base["opening_btc_equivalent_qty"])+net(None, anchor["as_of"]))) if anchor and known_base else None,
-              "unresolved_count": sum(r["status"] != "arithmetic_match" for r in reconciliations),
-              "link_conflicts": conflicts, "opening_overlap": overlap, "prehistory_event_ids": [e["record_id"] for e in prehistory],
-              "integrity_errors": corrupt, "verification": "user_reported_not_independently_verified"}
     base["wallet"] = wallet
     base["btc_equivalent_qty"] = btc(current) if current is not None else "0"
     base["totals"]["btc_equivalent_qty"] = base["btc_equivalent_qty"]
-    base["meta"]["quantity_status"] = "user_reported_balance" if anchor and anchor["as_of"] == cutoff else "balance_plus_known_changes_estimate" if anchor else "ledger_plus_events_estimate"
-    base["meta"]["estimation_method"] = "latest_observed_balance_plus_later_known_changes" if anchor else "opening_orders_and_known_events"
+    base["meta"]["quantity_status"] = result["quantity_status"]
+    base["meta"]["estimation_method"] = result["estimation_method"]
     base["meta"]["cost_unknown"] = bool(anchor or events or not has_bull(project) or overlap)
     base["issues"] = [r for r in base["issues"] if r["code"] != "order_derived_quantity"]
     base["issues"].append({"code": "wallet_reconciliation", "severity": "warning" if wallet["unresolved_count"] or conflicts or overlap else "info",

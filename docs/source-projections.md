@@ -109,14 +109,14 @@ canonical facts. `legacy_state_present`, `legacy_bindings` and
 `legacy_merge_ready: false` make the boundary explicit, including legacy wallet-only
 state. The original ledger/report bytes and daily native behavior are unchanged.
 
-The remainder of SRC-004C must complete:
+C2 supplies the read-only compatibility layer described below. The remainder of
+SRC-004C must complete:
 
-1. Identity-bound legacy/canonical overlap reconciliation; existing wallet opening,
-   full-balance anchors, linked events and explicit cost policies; frozen valuation
-   and history/contribution projections with compatible original IDs/dates.
-2. Shared CLI/Web valuation and publication, three-locale ODS/Markdown/PDF/chart
-   parity, retry/backup/empty-restore and a synthetic third parser through real
-   imports/reports without provider branches in the projection/report core.
+1. Production imports/declarations, frozen valuation/history publication and retry
+   through the compatible financial basis, with original IDs and operation context.
+2. Shared CLI/Web reports, three-locale ODS/Markdown/PDF/chart parity,
+   backup/empty-restore and a synthetic third parser through real imports/reports
+   without provider branches in the projection/report core.
 
 Keep the phase gate until those acceptance conditions pass. Formal private adoption
 and deployment require a separately approved migration plan.
@@ -136,3 +136,145 @@ third-provider financial/report workflow. Installed-wheel acceptance runs these
 same tests outside the checkout. See [ingestion](source-ingestion.md),
 [adapter acceptance](source-adapters.md#delivery-sequence-and-acceptance-gates) and
 [the roadmap](../TODO.md).
+
+## Legacy and wallet compatibility (SRC-004C2)
+
+`wealth_ledger.source_legacy_projection.project_compatible_sources` is a separate
+**read-only internal model**, composed over C1. It is not the production report
+payload or a new CLI/HTTP/browser route. C1 remains canonical-only; its flags and
+behavior are unchanged. C2 returns `legacy_merge_ready: true` only after its
+supported compatibility checks succeed, while `report_projection_ready` and
+`report_published` remain false. All normal canonical report gates remain.
+
+```python
+from pathlib import Path
+from wealth_ledger.source_legacy_projection import project_compatible_sources
+
+model = project_compatible_sources(
+    Path("/path/to/disposable/synthetic-workspace"),
+    period_start="2024-01-01T00:00:00Z",
+    as_of="2024-03-01T00:00:00Z",
+    # Optional explicit reference FX, exact-cutoff BTC quote and cost policy.
+    btc_cost_policy="actual_only",
+)
+assert model["review_only"] and not model["report_projection_ready"]
+```
+
+### Identity and old evidence
+
+C2 checks SQLite integrity/foreign keys and all archived legacy holdings/activity,
+order, wallet and opening source hashes. It rejects unsafe paths/symlinks, corrupted
+order payload hashes and unsupported native crypto schemas. This is an integrity
+check against retained host evidence, not an independent authentication of an
+unsigned historical database or source document.
+
+Explicit `legacy_holdings`/`legacy_crypto` bindings keep original account identities.
+A canonical observation at the same account/time must match the old financial
+signature, or have an archived original revision that proves the explicit correction
+lineage. Unproven changes fail closed. Original snapshot IDs and frozen rows remain
+unchanged. A known superseded whole snapshot cannot reset the latest legacy state
+without proof of an explicit correction from that state. Later partial observations
+retain other accounts and expose omitted prior assets as gaps; accounts missing an
+eligible observation remain present with unknown values, never a fabricated zero. Earlier applicable legacy observations remain usable when
+there is no eligible newer canonical observation; none are relabeled as fresh.
+
+Orders merge by bound source identity and stable order ID, never amount/date alone.
+Compatible duplicates produce one acquisition; distinct IDs with equal economics
+remain distinct. Completed native economics must agree with actual canonical legs
+and costs as well as lifecycle fields. A partial order export cannot discard old
+purchases or funding. Known native cash balances use the original explicit zero-CAD
+assumption and deduplicated funding/spend, including known separate cash fees.
+Negative cash remains visible and blocks its valuation; it is never clamped or
+explained by invented funding. New source accounts inherit no opening assumption.
+
+Funding associations require typed purchase cash legs or the same uniquely
+identified old funding event. If a funding-only subset shares an old account group
+but has neither proof, C2 rejects with `legacy_cash_binding_required`; provide an
+export containing the relevant purchase/funding identity before proceeding. C2
+does not infer a cash-account relationship from a similar alias or amount. An
+ambiguous relationship requires host review, not an automatic financial merge.
+
+### Shared BTC reconciliation and costs
+
+`wallet_reconciliation.reconcile_wallet` is pure code shared with the existing
+native wrapper. It receives signed acquisition changes, the applicable explicit
+opening and current append-only wallet records. Integer satoshi arithmetic is
+independent of the process decimal context. It retains:
+
+- Original balance/event IDs and revisions, fixed opening references, linked
+  balance intervals and first-recorded versus currently recalculated residuals.
+- Latest eligible user-reported balance plus subsequent known changes, with
+  same-time changes included in the observation rather than counted again.
+- Prior unresolved gaps, stale links and opening/backfill overlap warnings.
+  New observations never erase earlier unexplained differences.
+- Unknown pre-observation history as unknown, and negative holdings as a blocking
+  contradiction. New canonical accounts never acquire a zero opening implicitly.
+
+Original frozen combined history supplies the BTC scope account ID where present;
+otherwise an existing single native acquisition account or explicit global wallet
+scope is used. Platform acquisition accounts are not additional full wallet
+positions. BTC and LBTC networks remain in acquisition evidence while quantity is
+reconciled for the declared all-wallet BTC-equivalent scope.
+
+`btc_price` is optional and must be a positive decimal reference with provider,
+source and an eligible completed minute candle for the exact cutoff, as required
+by `prices.validate_quote`. It is caller-supplied evidence, not a price fetched or
+independently verified by C2. Missing FX/price values remain unknown. No quote or
+new FX is applied to old frozen history.
+
+`actual_full_cost_cad` stays unknown; retained purchase costs do not establish all
+opening/disposal costs. The default remains `actual_only`. Explicit
+`bull_average_proxy` uses only the identity-deduplicated **Bull purchase cohort**,
+not purchases from another platform. Its unchanged acquisition average can be
+applied to a changed user-reported total as an estimate. Actual historical costs,
+contributions and reconciliation gaps are never filled by that proxy.
+
+### Cash-flow dates and frozen history
+
+Legacy cash flows keep date-only precision and original sourced CAD values/FX.
+Their date bounds use the explicit report timestamps' offsets, not an invented
+midnight instant or an implicit UTC next day. Exact canonical overlaps retain the
+original historical CAD value and are not added twice. Unmatched new USD flows
+without historical conversion evidence remain unknown for contribution arithmetic;
+cutoff display FX cannot replace their historical acquisition/contribution FX.
+
+`covered_account_periods` reuses the original explicit flow coverage declarations
+and their account-over-global precedence. It exposes a dated **external** CAD net
+only where coverage and historical conversions allow it, with declaration IDs.
+Absent/incomplete coverage, unclassified source funding, missing historical FX and
+contradictory no-external declarations remain unavailable. This external subtotal
+is not total capital flow to an account: matched internal transfers require their
+own account-capital treatment before performance calculation.
+
+`known_recorded_external_cad` is a recorded subtotal with explicit date/instant
+precision, not a complete total of personal contributions. Full portfolio period
+contributions, investment gains, Dietz and XIRR remain gated. Unknown outside
+activity, wallet scope and fee/counterpart coverage are not inferred complete.
+
+`legacy_snapshot_history` preserves original IDs/revisions/dates/source IDs/frozen
+FX. `frozen_combined_observations` copies saved observation values and revisions;
+it never reprices or generates missing months. This is separate from a new
+historical report edition or replay of original published report bytes.
+
+The final model binds financial state, private settings, frozen history and input
+quotes. Concurrent changes invalidate the result. No database/evidence/report is
+written or migrated by this read function.
+
+### Remaining production acceptance
+
+C3 must route ordinary CSV and saved-data workflows plus opening/balance/event
+preview/confirmation through the compatible basis, preserve first-recorded
+expectations and fixed valuation/recovery contexts, and materialize reports through
+the shared pipeline. Native declaration writes still use their original basis;
+a C2 read result alone does not change those mutation routes.
+
+Three-locale ODS/Markdown/PDF/chart parity, a third parser through actual reports,
+full backup/empty-target restore and original frozen-history preservation remain
+required before removing the canonical report gate or switching a real daily
+ledger. Private deployment/adoption still needs a separately reviewed and approved
+plan. No existing user's data was migrated to implement C2.
+
+Focused checks: `test_source_legacy_projection.py` (33 synthetic cases) and the
+existing `test_wallet.py` (47 cases), plus the full suite and installed-wheel
+acceptance. These verify the compatibility boundary, not a deployed private Web
+instance or complete production plugin workflow.

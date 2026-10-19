@@ -51,7 +51,7 @@ Review supported inputs in an offline preview, confirm the import, and browse fr
 
 ## Sources and parser plugins
 
-The application is intended to keep portfolio history, validation, analysis, and reports independent of each institution's CSV layout. More banks, brokerages, Bitcoin brokers, and exchanges will be added through parser plugins, including user-authored parsers. Pure versioned parsers now exist for the two current formats and share their CSV grammars with the native importers. Production daily-workflow cutover and report projections still require migration. An opt-in data-only confirmation path preserves frozen parser evidence and explicit account mappings. An [internal read-only projection model](docs/source-projections.md) is implemented; legacy/wallet/history integration and plugin-based report publication remain gated.
+The application is intended to keep portfolio history, validation, analysis, and reports independent of each institution's CSV layout. More banks, brokerages, Bitcoin brokers, and exchanges will be added through parser plugins, including user-authored parsers. Pure versioned parsers now exist for the two current formats and share their CSV grammars with the native importers. Production daily-workflow cutover and report projections still require migration. An opt-in data-only confirmation path preserves frozen parser evidence and explicit account mappings. An [internal read-only projection model](docs/source-projections.md) and identity-bound legacy/wallet/history compatibility are implemented; plugin-based daily imports, declarations and report publication remain gated.
 
 | Source or input | Current support |
 |---|---|

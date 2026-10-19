@@ -7,8 +7,9 @@ source importers are Wealthsimple holdings and Bull Bitcoin orders; the shared
 parser contract, trusted registry and nonbooking CLI/API source plans exist. Plugin
 SDK and an independently installable synthetic example exist; pure v2 built-in parsers and explicit-context CLI/API previews are implemented.
 B2 supplies opt-in frozen CLI/API data-only confirmation and receipt recovery. C1
-adds an internal read-only source-neutral model; legacy/wallet/history integration
-and daily report cutover remain planned. SRC-004A adds explicit-context v2/canonical storage as a
+adds an internal read-only source-neutral model. C2 adds identity-bound legacy,
+wallet and frozen-history compatibility; daily declaration/import/report cutover
+remains C3. SRC-004A adds explicit-context v2/canonical storage as a
 trusted core API; see its phase gate below. V1/v2 source plans remain nonbooking;
 separate source-ingestion previews require exact approval and a no-report acknowledgement.
 Production downloads, calculations, charts and report prose are deterministic code;
@@ -104,7 +105,7 @@ portfolio updates. Report the checks actually run and any gaps.
 - Upgrade/rollback, capacity/crash tests, dependency inventory and platform evidence: [operations acceptance](docs/web-release-acceptance.md). Run `python scripts/dependency_inventory.py --require-declared` in the locked Web venv; no runtime AI or financial workspace access is needed.
 - Web security, host commands and experimental containers: [Web operations](docs/web-operations.md), [imports/jobs](docs/web-imports.md).
 - Canonical-v2 changes: [ingestion foundation](docs/source-ingestion.md). Use disposable synthetic workspaces; never bypass `report_projection_unavailable` until SRC-004B/C implement lossless importer/report parity. V1 contracts remain stable; explicit-context v2 previews are nonbooking too. Frozen source submissions use strict core-only decode, portfolio-scoped mappings, state/config/environment revalidation and atomic receipt recovery; never rerun plugins on confirmation or recover an unproven operation. Shared byte grammars must preserve legacy IDs, amounts, dates and messages; never infer wallet totals or opening assumptions in a parser.
-- Internal source projections: [C1 model](docs/source-projections.md). Observed subtotals and recorded movements are not complete wealth/wallet balances; keep the report phase gate until C2/C3 parity.
+- Internal source projections: [C1 model](docs/source-projections.md). Observed subtotals and recorded movements are not complete wealth/wallet balances; C2 adds read-only native compatibility and the shared wallet kernel; keep the report phase gate until C3 daily-workflow parity.
 - Parser author/build/install acceptance: [SDK guide](docs/parser-sdk.md); preserve nonbooking v1 limits and audit wheel/sdist contents.
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
   [self-hosted web app](docs/self-hosted-webapp.md).

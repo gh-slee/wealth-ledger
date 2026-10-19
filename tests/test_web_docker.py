@@ -349,6 +349,37 @@ print(hashlib.sha256(json.dumps(read_facts(project),sort_keys=True).encode()).he
                 canonical_result=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",canonical_seed,capture_output=True)
                 canonical_hash=canonical_result.stdout.decode().strip()
                 self.assertEqual(len(canonical_hash),64)
+                # Add canonical evidence only to the adopted synthetic copy. Its
+                # original CLI source and frozen report bytes stay unchanged.
+                legacy_seed = """
+from pathlib import Path
+from datetime import datetime
+import sqlite3
+from wealth_ledger.source_builtin import WealthsimpleHoldings, WS_FORMAT
+from wealth_ledger.source_v2 import ParseContext
+from wealth_ledger.source_ingestion import Binding, SourceInput, prepare_ingestion, commit_ingestion
+from wealth_ledger.workspace import resolve_workspace
+project=Path('/data/portfolios')/PORTFOLIO
+with sqlite3.connect(project/'data/db/portfolio.sqlite3') as conn:
+    name,stamp=conn.execute('SELECT o.path,s.as_of FROM snapshots s JOIN sources o ON o.id=s.source_id ORDER BY s.id LIMIT 1').fetchone()
+raw=(project/name).read_bytes()
+batch=WealthsimpleHoldings().normalize(raw,export_version=WS_FORMAT,
+    context=ParseContext(datetime.fromisoformat(stamp),'synthetic-container-compatibility'))
+plan=prepare_ingestion(project,(SourceInput(batch,raw),),bindings=tuple(Binding(a.key,a.key.account_id,'legacy_holdings') for a in batch.accounts))
+assert not commit_ingestion(resolve_workspace(explicit=project),plan)['report_published']
+print('synthetic-legacy-overlap-recorded')
+""".replace('PORTFOLIO',repr(adopted_id))
+                seeded=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",legacy_seed,capture_output=True)
+                self.assertEqual(seeded.stdout.decode().strip(),"synthetic-legacy-overlap-recorded")
+                projection_check=("import json; from pathlib import Path; "
+                    "from wealth_ledger.source_legacy_projection import project_compatible_sources; "
+                    "models={p:project_compatible_sources(Path('/data/portfolios')/p,as_of='2024-03-01T12:00:00Z',period_start='2023-12-31T00:00:00Z') for p in "
+                    +repr([canonical_id,adopted_id])+"}; "
+                    "assert all(not m['report_projection_ready'] for m in models.values()); "
+                    "assert models["+repr(adopted_id)+"]['legacy_overlap']['holdings']; "
+                    "print(json.dumps({p:m['projection_sha256'] for p,m in models.items()},sort_keys=True))")
+                projected=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",projection_check,capture_output=True)
+                projection_hashes=json.loads(projected.stdout)
                 # Full private archive roundtrip to a different empty volume; source stays intact.
                 bundle_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}/bundle.zip")
                 with client.open(bundle_request, timeout=15) as response:
@@ -374,6 +405,8 @@ print(hashlib.sha256(json.dumps(read_facts(project),sort_keys=True).encode()).he
                     "assert row['status']=='recorded'; result=completed_result(store,row); assert result['operation_id']=="+repr(canonical_job["core_operation_id"])+"; print('source-receipt-restored')")
                 receipt=subprocess.run([*isolated,"--entrypoint","python",image,"-c",receipt_check],check=True,capture_output=True,text=True)
                 self.assertEqual(receipt.stdout.strip(),"source-receipt-restored")
+                projected_restore=subprocess.run([*isolated,"--entrypoint","python",image,"-c",projection_check],check=True,capture_output=True,text=True)
+                self.assertEqual(json.loads(projected_restore.stdout),projection_hashes)
 
                 new_port=free_port();new_origin=f"http://localhost:{new_port}"
                 subprocess.run(["docker","run","--detach","--name",restore_container,"--read-only","--cap-drop=ALL",
