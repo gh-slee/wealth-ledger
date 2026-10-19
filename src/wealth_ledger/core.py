@@ -688,6 +688,8 @@ def _flow_views(conn, until):
 
 
 def make_payload(project: Path, snapshot_id: int | None = None) -> dict:
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     with _connection(project) as conn:
         snapshot = conn.execute("SELECT * FROM snapshots WHERE id=?", (snapshot_id,)).fetchone() if snapshot_id is not None else conn.execute("SELECT * FROM snapshots ORDER BY as_of_utc DESC,revision DESC LIMIT 1").fetchone()
         if not snapshot:

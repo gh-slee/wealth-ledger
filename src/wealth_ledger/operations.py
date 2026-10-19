@@ -74,7 +74,7 @@ def fingerprint(project):
         names = {"sources", "accounts", "snapshots", "positions", "cash_flows", "flow_periods", "flow_coverage", "coverage_declarations"}
         values = []
         for name in sorted(tables):
-            if name in names or name.startswith(("crypto_", "wallet_")):
+            if name in names or name.startswith(("crypto_", "wallet_", "src_")):
                 rows=sorted((tuple(r) for r in conn.execute(f'SELECT * FROM "{name}"')), key=repr)
                 if rows:
                     values.append((name,rows))
@@ -241,7 +241,12 @@ def record_data_operation(project, request, action, *, operation_id=None):
         result = atomic_data(project, action, finalize=complete)
         return {"operation_id": op, "report_published": False, **result}
     except Exception as exc:
-        set_state(project, op, "data_failed", error=str(exc))
+        # Cleanup/delivery can fail after the data and completion marker committed.
+        # A durable receipt must never be downgraded into a retryable failed write.
+        with closing(_connection(project)) as conn, conn:
+            conn.execute("""UPDATE update_operations SET status='data_failed',error=?,updated_at=?
+                WHERE operation_id=? AND status!='data_only_complete'""",
+                (str(exc),datetime.now(timezone.utc).isoformat(),op))
         raise
 
 

@@ -1242,4 +1242,6 @@ import positions, record contributions or generate reports. Host configuration,
 implemented commands and revalidation examples are in the
 [source-plan guide](source-adapters.md#nonbooking-source-plans-src-002b). The author
 SDK is available for nonbooking development ([guide](parser-sdk.md));
+the [v2 canonical foundation](source-ingestion.md) is a developer-only phase with
+new report generation blocked until projections are implemented;
 existing-parser migration remains planned. There is no runtime LLM.

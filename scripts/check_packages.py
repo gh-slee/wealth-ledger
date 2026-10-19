@@ -11,6 +11,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import shutil
 import stat
@@ -118,11 +119,13 @@ def audit_artifacts(directory):
     return counts
 
 
-def run(command, cwd, env):
+def run(command, cwd, env, *, test_count=None):
     result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, timeout=180)
     if result.returncode:
         # Test evidence is synthetic, but avoid dumping installation paths by default.
         raise RuntimeError("Package acceptance failed: " + result.stderr[-4000:])
+    if test_count is not None and (not re.search(r"Ran " + str(test_count) + r" tests?\b", result.stderr) or "skipped=" in result.stderr):
+        raise RuntimeError("Installed acceptance did not execute the expected test set")
     return result.stdout
 
 
@@ -159,7 +162,7 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
             raise ValueError("Acceptance imported the source checkout")
         tests = base / "plugin-tests"
         shutil.copytree(ROOT / "examples/parser-plugin/tests", tests, ignore=shutil.ignore_patterns("__pycache__"))
-        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(tests), "-v"], base, env)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(tests), "-v"], base, env, test_count=7)
         raw = run([str(python), "-I", "-c", f"import sys; sys.path.insert(0, {str(tests)!r}); from test_synthetic_parser import fixture; print(fixture().decode(), end='')"], base, env)
         source = base / "synthetic.csv"; source.write_text(raw, encoding="utf-8")
         config = base / "parsers.json"
@@ -183,9 +186,16 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
         (demo / "config").mkdir()
         for name in ("company-aliases.json", "bull-opening.example.json"):
             shutil.copyfile(ROOT / "config" / name, demo / "config" / name)
+        canonical = base / "canonical"; (canonical / "tests").mkdir(parents=True)
+        for name in ("test_source_v2.py", "test_source_ingestion.py"):
+            shutil.copyfile(ROOT / "tests" / name, canonical / "tests" / name)
+        (canonical / "examples/data").mkdir(parents=True)
+        for name in ("wealthsimple-holdings.csv", "fx.json"):
+            shutil.copyfile(ROOT / "examples/data" / name, canonical / "examples/data" / name)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=35)
         for locale in ("en-CA", "zh-TW", "zh-CN"):
             run([str(python), "-I", str(demo / "examples/demo.py"), "--output", str(base / locale), "--locale", locale], base, env)
-    return {"installed_outside_checkout": True, "plugin_tests": 7, "plan_and_revalidation": True,
+    return {"installed_outside_checkout": True, "plugin_tests": 7, "canonical_ingestion_tests": 35, "plan_and_revalidation": True,
             "report_locales": ["en-CA", "zh-TW", "zh-CN"], "financial_booking": False}
 
 

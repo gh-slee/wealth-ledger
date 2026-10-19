@@ -85,7 +85,10 @@ built-in importers. Current support is format-specific, not universal CSV suppor
 - [x] **SRC-002A Independent registry library**: explicit exact distribution/version/entry-point enablement, metadata-only discovery, same-provider multiple formats, adapter/provider collision checks, API compatibility, deterministic detection/explicit selection and redacted failures. Existing CLI/Web imports are unchanged.
 - [x] **SRC-002B Nonbooking source plans/configuration fingerprints**: shared CLI/API runner, strict trusted-host configuration, input/mapping/catalog/normalized digests, actual runtime/core/site-file hashes, fresh child/timeout, stale-plan rejection and API/worker environment checks. Owner-scoped source_csv/source_plan jobs cannot confirm/resume financially and expire on restore. Protocol-v1 records remain unbookable; browser forms and production parser migration remain later work; SRC-003 supplies the SDK.
 - [x] **SRC-003 Installable core/example plugin/contract toolkit**: audited core wheel/sdist with fonts/locales/aliases, installed nonbooking CLI, shared contract assertions and independent synthetic plugin; overlap/revision/transfer/scope/privacy fixtures, native/derived-image instructions and isolated install/CLI/API-worker/three-locale report acceptance. This does not implement stateful ingestion.
-- [ ] **SRC-004 Existing-adapter migration/new sources**: move Wealthsimple/Bull to the versioned registry, prove ledger/CLI compatibility, then add banks, brokers and exchanges.
+- [ ] **SRC-004 Existing-adapter migration/new sources**: complete the production pipeline, move Wealthsimple/Bull to the versioned registry and prove ledger/CLI/report compatibility before adding banks, brokers and exchanges.
+- [x] **SRC-004A Canonical ingestion foundation**: immutable host context and lossless v2 records, additive portfolio-scoped bindings/append-only facts/scopes/effects, strict archived replay, state/code revalidation, atomic operation receipts, backup/empty restore and explicit report-projection phase gate. Trusted developer API only; production import/report routes remain unchanged.
+- [ ] **SRC-004B Built-in/production pipeline migration**: pure Wealthsimple/Bull v2 parsers, isolated context-aware plans, compatible central submission with frozen evidence, portfolio mappings and CLI/Web confirmation/recovery parity; keep original IDs/history.
+- [ ] **SRC-004C Source-neutral projections/extension acceptance**: replace provider dispatch across valuation/history/report projections, preserve unknown/completeness semantics and verify a synthetic third provider through real imports/reports without new provider branches. Real additional institutions need a specified/sanitized format.
 
 SRC-001 provides `wealth_ledger.source_protocol` dataclasses, pure adapter Protocol,
 structural validation, auditable detection resolution and lossless evidence JSON.
@@ -93,7 +96,7 @@ SRC-002A adds the independent `wealth_ledger.source_registry` library for explic
 enabled trusted loading/detection. It is not called by production import paths and
 does not book records. SRC-002B now connects the shared nonbooking plan runner to
 CLI and owner-only API jobs; financial import/confirmation still use existing
-importers. SRC-003 adds installable core/author tooling; SRC-004 remains planned.
+importers. SRC-003 adds installable core/author tooling; SRC-004A adds the [canonical foundation](docs/source-ingestion.md). SRC-004B/C remain planned.
 Existing financial importers remain unchanged.
 
 Current CSV support is Wealthsimple/Bull only. The official ETF registry is separate

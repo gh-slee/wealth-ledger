@@ -6,7 +6,8 @@ source-parser plugins for banks, brokerages and Bitcoin platforms. Current nativ
 source importers are Wealthsimple holdings and Bull Bitcoin orders; the shared
 parser contract, trusted registry and nonbooking CLI/API source plans exist. Plugin
 SDK and an independently installable synthetic example exist; financial importer
-migration remains planned. Source plans cannot book data.
+migration remains planned. SRC-004A adds explicit-context v2/canonical storage as a
+trusted developer API; see its phase gate below. Source plans cannot book data.
 Production downloads, calculations, charts and report prose are deterministic code;
 no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
 supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.
@@ -99,6 +100,7 @@ portfolio updates. Report the checks actually run and any gaps.
 - Exports, consistent snapshots, maintenance and empty-target restore: [Web backups](docs/web-backups.md); use synthetic instances only and retain original evidence.
 - Upgrade/rollback, capacity/crash tests, dependency inventory and platform evidence: [operations acceptance](docs/web-release-acceptance.md). Run `python scripts/dependency_inventory.py --require-declared` in the locked Web venv; no runtime AI or financial workspace access is needed.
 - Web security, host commands and experimental containers: [Web operations](docs/web-operations.md), [imports/jobs](docs/web-imports.md).
+- Canonical-v2 changes: [ingestion foundation](docs/source-ingestion.md). Use disposable synthetic workspaces; never bypass `report_projection_unavailable` until SRC-004B/C implement lossless importer/report parity. V1 contracts remain stable; v2 detection does not authorize source-plan confirmation.
 - Parser author/build/install acceptance: [SDK guide](docs/parser-sdk.md); preserve nonbooking v1 limits and audit wheel/sdist contents.
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
   [self-hosted web app](docs/self-hosted-webapp.md).

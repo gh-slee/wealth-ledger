@@ -20,7 +20,7 @@ class ContractResult:
 def check_contract(adapter, raw: bytes) -> ContractResult:
     """Check detection, validation, byte-identical replay and declared metadata.
 
-    Do not include a clock-generated fetched_at in v1 output. V2 will carry host
+    Do not include a clock-generated fetched_at in v1 output. V2 uses explicit host
     parse context. Changing raw input changes its evidence hash, even on overlap.
     """
     validate_info(adapter.info)
@@ -65,3 +65,27 @@ def record_index(batch, raw: bytes):
     """
     validate_batch(batch, raw)
     return {(record.key.account, record.kind, record.key.source_id): record for record in batch.records}
+
+
+def check_contract_v2(adapter, raw: bytes, *, context) -> ContractResult:
+    """Version-2 replay with caller-provided context; does not authorize booking."""
+    from . import source_v2 as v2
+    v2.validate_info(adapter.info); v2.validate_context(context)
+    detected = adapter.detect(raw)
+    from .source_protocol import Detection
+    if (not isinstance(detected, Detection) or detected.matched is not True
+            or detected.export_version not in adapter.info.export_versions or not isinstance(detected.reason, str)
+            or not detected.reason.strip()):
+        raise ValueError("Expected an explicit supported v2 detection")
+    if adapter.detect(raw) != detected:
+        raise AssertionError("Detector is not deterministic")
+    batches = [adapter.normalize(raw,export_version=detected.export_version,context=context) for _ in range(2)]
+    for batch in batches:
+        v2.validate_batch(batch,raw,context=context)
+        if batch.adapter != adapter.info or batch.export_version != detected.export_version:
+            raise AssertionError("Normalized metadata differs from detection")
+    encoded = [v2.canonical_json(batch) for batch in batches]
+    if encoded[0] != encoded[1]:
+        raise AssertionError("Normalization is not deterministic")
+    return ContractResult(detected.export_version,hashlib.sha256(encoded[0].encode()).hexdigest(),
+                          len(batches[0].records),len(batches[0].coverage))

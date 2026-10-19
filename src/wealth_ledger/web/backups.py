@@ -93,6 +93,8 @@ def validate_instance(root):
             store.reporting_settings(pid)
             database = contained(project, "data/db/portfolio.sqlite3")
             if database.is_file():
+                from ..source_ingestion import verify_store
+                verify_store(project)
                 with closing(sqlite3.connect(database.as_uri()+"?mode=ro", uri=True)) as ledger:
                     tables = {r[0] for r in ledger.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                     for table, column in (("sources","path"),("crypto_sources","path"),("wallet_revisions","source_path")):

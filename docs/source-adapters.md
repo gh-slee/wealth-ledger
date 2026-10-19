@@ -11,7 +11,9 @@ Bull Bitcoin orders are the first built-in importers, not a limit on that scope.
 in `wealth_ledger.source_registry`. SRC-002B adds nonbooking CLI/API source plans
 and code/configuration fingerprints. SRC-003 adds an installable core/contract,
 [author SDK and independent synthetic parser](parser-sdk.md).** Migration of current
-importers and financial integration remain planned (SRC-004).
+importers and production financial integration remain planned (SRC-004B/C).
+[SRC-004A](source-ingestion.md) implements the explicit-context v2 contract and
+canonical storage foundation, with a report-projection phase gate.
 The current CLI and Web workflow use direct built-in Wealthsimple/Bull importers,
 not a source-plugin registry. They also support normalized cash-flow inputs and
 explicit BTC declarations; they cannot import arbitrary institution CSVs. Moving
@@ -372,7 +374,8 @@ normalized evidence is limited to 4 MiB/file and a receipt to 1 MiB. These limit
 not sandbox trusted Python or guarantee a memory ceiling for a malicious plugin.
 Parsing must remain offline and side-effect-free under the contract. Generic
 financial validation, lossless protocol-v2 context, transaction-time lineage checks,
-persisted canonical submission and provider-neutral report projections remain SRC-004.
+canonical persistence is a gated SRC-004A developer API; production submission and
+provider-neutral report projections remain SRC-004B/C.
 
 Synthetic acceptance covers actual entry-point metadata in a temporary isolated venv,
 identical CLI/Web receipts using that real child/adapter, same-version code/dependency
@@ -383,7 +386,8 @@ nonbooking rejection, crash interruption and empty-instance backup restore.
 
 This section plans financial integration. SRC-002A and SRC-002B are implemented
 as the independent registry and nonbooking plan paths above; SRC-003 adds the
-installable SDK. Ingestion and existing-parser migration remain unavailable. Keep the existing CLI/Web behavior until each
+installable SDK and SRC-004A the gated canonical foundation. Production financial
+ingestion, existing-parser migration and source-neutral reporting remain unavailable. Keep the existing CLI/Web behavior until each
 replacement passes its acceptance gate. The production parser pipeline remains
 Python code; external Python parsers are explicitly trusted extensions.
 
@@ -427,27 +431,29 @@ calculate contribution coverage, render reports or declare a transfer matched.
 The shared service remains responsible for these financial and operational decisions.
 ETF/FX/BTC reference retrieval remains separate from financial CSV parser loading.
 
-Module boundaries (the protocol, registry and nonbooking pipeline exist today):
+Module boundaries (v1/registry/nonbooking pipeline, SDK and v2 canonical foundation exist today):
 
 | Module | Responsibility |
 |---|---|
 | Existing `source_protocol.py` | Versioned immutable contracts, structural validation and deterministic evidence serialization |
 | Implemented `source_registry.py` (SRC-002A) | Catalog, explicit enablement, compatibility checks and deterministic candidate selection; not wired into imports |
-| Implemented `source_pipeline.py` / `source_environment.py` (SRC-002B) | Bounded nonbooking CLI/API parsing, selection, normalized digests and code/config revalidation; protocol-v2 context remains planned |
-| Proposed `source_ingestion.py` | Stateful validation, identity binding, revision/conflict policies and submission through existing operations |
+| Implemented `source_pipeline.py` / `source_environment.py` (SRC-002B) | Bounded nonbooking CLI/API parsing, selection, normalized digests and code/config revalidation; context-aware v2 production planning remains SRC-004B |
+| Implemented `source_v2.py` / `source_ingestion.py` (SRC-004A) | Explicit context/lossless fields, canonical state/identity/lineage/effects and atomic persistence; production routing and report projections remain gated |
 | Proposed `adapters/wealthsimple.py`, `adapters/bullbitcoin.py` | Built-in syntax/normalization implementations with no database/report access |
-| Proposed `source_testing.py` and synthetic example | Offline author contract checks; not a generic install/execute service |
+| Implemented `source_testing.py` and independent synthetic example | Offline author contract checks; not a generic install/execute service |
 
 ### Contract completeness gate before booking
 
 Version 1 is useful for structural parser development, but it cannot losslessly
-replace the current importers. Define a version-2 contract and migration rules before
-SRC-004 booking. Keep version-1 validation/serialization stable; never add required
+replace current importers. SRC-004A implements the [version-2 contract and canonical
+foundation](source-ingestion.md); SRC-004B/C must still implement production migration
+and projections before financial import support is advertised. Keep version-1 validation/serialization stable; never add required
 semantics under the same API version or silently coerce a version-1 batch.
 Registry discovery can recognize a contract for inspection without accepting its
 records for ingestion; compatibility must distinguish these capabilities.
 
-The version-2 design must resolve the following gaps:
+The implemented version-2 contract covers the following source fields; production
+parser parity and transactional report projections still need migration acceptance:
 
 - **Explicit parse context:** a trusted execution/evidence timestamp, configured
   source-account alias when absent from the export, declared timezone when source
@@ -590,7 +596,7 @@ arbitrary valuation currencies as part of source-plugin support.
 | SRC-002A (implemented) | Registry and explicit discovery/enablement, independent of ingestion | Synthetic catalog tests: IDs, multiple formats/provider, disabled plugins not imported, compatibility, deterministic ambiguity and load failures; current imports unchanged |
 | SRC-002B (implemented, nonbooking) | Source plans and configuration/code fingerprinting | Identical CLI/Web selection, stale plugin/config/environment rejection, bounded inputs and redacted errors; no financial submission through protocol v1 |
 | SRC-003 | Author toolkit and independently packaged synthetic parser | Installation into an isolated environment, entry-point discovery, contract tests and documented native/derived-image workflow; advertise only capabilities actually bookable |
-| SRC-004A | Version-2 contract, central ingestion, identity bindings and necessary schema upgrades | Lossless source-field parity, collision/lineage/coverage checks, atomic rollback/retry, backups/empty restore and no duplicated effects |
+| SRC-004A (implemented foundation) | Version-2 contract, canonical ingestion, identity bindings and additive sub-schema; no production/report switch | Lossless source-field parity, collision/lineage/coverage checks, atomic rollback/retry, backups/empty restore and no duplicated effects |
 | SRC-004B | Built-in Wealthsimple/Bull migration across CLI/Web/preview | Old-versus-new synthetic fixtures preserve IDs, rows, costs, quantities, warnings, source dates, duplicates/revisions and account/balance/event links; no direct provider dispatch in active core/report paths |
 | SRC-004C | Source-neutral projections and first additional source | New synthetic provider added solely through parser/registration, with no provider branches in core/reports; supported input scope and all report/export paths verified |
 

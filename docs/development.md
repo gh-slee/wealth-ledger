@@ -176,7 +176,10 @@ This does not establish production import integration or financial completeness.
 nonbooking receipts, actual same-version code/dependency edits, fresh isolated
 execution, limits, stale verification, owner scope and backup/restore expiration.
 SRC-003 packaging/author acceptance is documented in [the SDK guide](parser-sdk.md).
-SRC-004 remains pending; source-plan success does not authorize financial booking.
+[SRC-004A](source-ingestion.md) adds strict v2 archives, canonical state/effects and
+atomic receipt recovery. Run its three focused test files and installed SDK checks;
+Web/operations changes also need full backup/empty restore and Docker acceptance.
+SRC-004B/C remain pending; source-plan success does not authorize financial booking.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
 

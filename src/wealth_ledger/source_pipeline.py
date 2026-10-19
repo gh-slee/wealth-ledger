@@ -145,6 +145,8 @@ def _plan(inputs, config_raw, selections, *, registry, environment):
     for slot, raw in enumerate(inputs, 1):
         try:
             match = registry.detect(raw, adapter_id=selections.get(str(slot)))
+            if match.descriptor.info.api_version != 1:
+                raise SourcePlanError("protocol_v2_context_required")
             adapter = next(adapter for descriptor, adapter in registry._entries
                            if descriptor.info.adapter_id == match.descriptor.info.adapter_id)
             batch = adapter.normalize(raw, export_version=match.export_version)

@@ -213,3 +213,12 @@ Recognized older publications can be adopted explicitly with separate
 [migration-time evidence](web-legacy-reports.md). Legacy ZIPs add a verification
 attachment while preserving the original manifest/report bytes. Full backup/restore
 retains and checks the private receipt and its binding to report/artifact registrations.
+
+## Canonical source-v2 foundation
+
+[SRC-004A](source-ingestion.md) uses additional tables in each portfolio's existing
+SQLite database and hashed CSV/JSON/binding evidence in `data/raw/source-v2/`.
+Backup and CLI adoption validate decoded facts/scopes/effects against these archives.
+Restore retains them without loading/installing a parser. Current report projection
+gates remain in force; frozen historical publications still work. Synthetic native
+and Docker acceptance include a full backup to an empty instance/volume.

@@ -306,6 +306,40 @@ print(json.dumps(result))
                 with client.open(origin+f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}/bundle.zip") as response:
                     with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
                         self.assertIn("migration-verification.json",archive.namelist())
+                # Canonical-v2 facts use a separate synthetic portfolio: no report projection yet.
+                canonical_id=request_json(client,origin,"/api/v1/portfolios",
+                    {"name":"Synthetic canonical-v2 portfolio"},csrf)["id"]
+                canonical_seed="""
+from pathlib import Path
+from datetime import datetime,timezone
+from decimal import Decimal
+import hashlib,json
+from wealth_ledger import source_v2 as v
+from wealth_ledger.source_protocol import AccountKey,AdapterInfo,Money,RecordKey
+from wealth_ledger.source_ingestion import SourceInput,new_binding,prepare_ingestion,commit_ingestion,read_facts,require_report_projection,IngestionError
+from wealth_ledger.workspace import resolve_workspace
+project=Path('/data/portfolios')/PORTFOLIO
+raw=b'format,id,amount\\nsynthetic-v2,funding-001,100\\n'
+at=datetime(2024,1,31,12,tzinfo=timezone.utc)
+a=AccountKey('synthetic','canonical-001')
+info=AdapterInfo('synthetic','synthetic.v2','0.1.0',('synthetic-v2',),('cash_flows',),api_version=2)
+context=v.ParseContext(at,'synthetic-docker-fixture',format_selection='synthetic-v2')
+evidence=v.Evidence(hashlib.sha256(raw).hexdigest(),context,at,'Explicit source event ID')
+flow=v.CashFlow(RecordKey(a,'funding-001','r1'),at,'deposit','in',Money(Decimal('100.00'),'CAD'),'completed','unclassified')
+batch=v.NormalizedBatch(info,'synthetic-v2',evidence,(v.Account(a,'crypto','Synthetic canonical account','crypto'),),
+    v.Membership('exported-accounts','s1',(a,),'partial','Explicit synthetic scope'),(),
+    (v.Coverage('cash_flows',a,at,at,'partial','Explicit synthetic scope','events','s1'),),(flow,))
+plan=prepare_ingestion(project,(SourceInput(batch,raw),),bindings=(new_binding(a),))
+result=commit_ingestion(resolve_workspace(explicit=project),plan)
+assert result['new_records']==1 and not result['report_projection_ready']
+try:require_report_projection(project)
+except IngestionError as exc:assert exc.code=='report_projection_unavailable'
+else:raise AssertionError('Unprojected facts must block new reports')
+print(hashlib.sha256(json.dumps(read_facts(project),sort_keys=True).encode()).hexdigest())
+""".replace('PORTFOLIO',repr(canonical_id))
+                canonical_result=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",canonical_seed,capture_output=True)
+                canonical_hash=canonical_result.stdout.decode().strip()
+                self.assertEqual(len(canonical_hash),64)
                 # Full private archive roundtrip to a different empty volume; source stays intact.
                 bundle_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}/bundle.zip")
                 with client.open(bundle_request, timeout=15) as response:
@@ -320,6 +354,11 @@ print(json.dumps(result))
                 restored = subprocess.run([*isolated,"-i",image,"restore","--stdin"],input=archive,check=True,capture_output=True)
                 self.assertEqual(json.loads(restored.stdout)["status"],"restored")
                 subprocess.run([*isolated,image,"worker","--once"],check=True,capture_output=True)
+                canonical_check=("import hashlib,json; from pathlib import Path; "
+                    "from wealth_ledger.source_ingestion import read_facts; "
+                    "print(hashlib.sha256(json.dumps(read_facts(Path('/data/portfolios')/"+repr(canonical_id)+"),sort_keys=True).encode()).hexdigest())")
+                recovered=subprocess.run([*isolated,"--entrypoint","python",image,"-c",canonical_check],check=True,capture_output=True,text=True)
+                self.assertEqual(recovered.stdout.strip(),canonical_hash)
                 new_port=free_port();new_origin=f"http://localhost:{new_port}"
                 subprocess.run(["docker","run","--detach","--name",restore_container,"--read-only","--cap-drop=ALL",
                     "--security-opt=no-new-privileges","--pids-limit=256","--memory=1g",

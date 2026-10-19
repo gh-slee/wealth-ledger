@@ -11,7 +11,8 @@ from importlib import metadata
 import re
 from typing import Iterable
 
-from .source_protocol import AdapterInfo, Detection, SourceAdapter, resolve_detection, validate_info
+from .source_protocol import AdapterInfo, Detection, SourceAdapter, validate_info
+from .source_v2 import SourceAdapter as ContextSourceAdapter
 
 ENTRY_POINT_GROUP = "wealth_ledger.source_adapters"
 MAX_INPUT_BYTES = 10 * 1024 * 1024
@@ -73,7 +74,7 @@ class PluginCandidate:
 class AdapterRegistration:
     """External entry-point factories return this same shape as trusted built-ins."""
     provider: ProviderInfo
-    adapter: SourceAdapter
+    adapter: SourceAdapter | ContextSourceAdapter
 
 
 @dataclass(frozen=True)
@@ -162,13 +163,14 @@ def _describe(registration, plugin=None):
                 or not _text(provider.display_name)):
             raise RegistryError("invalid_adapter")
         info = adapter.info
-        # Keep protocol-v1 validation unchanged; a registry cannot enable a new API.
+        # Inspection compatibility is separate from financial booking capability.
         from .source_protocol import API_VERSION
+        from .source_v2 import API_VERSION as V2, validate_info as validate_v2_info
         if not isinstance(info, AdapterInfo):
             raise RegistryError("invalid_adapter")
-        if type(info.api_version) is not int or info.api_version != API_VERSION:
+        if type(info.api_version) is not int or info.api_version not in {API_VERSION, V2}:
             raise RegistryError("incompatible_adapter")
-        validate_info(info)
+        (validate_info if info.api_version == API_VERSION else validate_v2_info)(info)
         if not _namespace(info.adapter_id) or not _text(info.adapter_version):
             raise RegistryError("invalid_adapter")
         if (info.provider_id != provider.provider_id or not callable(adapter.detect)
@@ -184,7 +186,7 @@ def _describe(registration, plugin=None):
 @dataclass(frozen=True)
 class SourceRegistry:
     """An immutable registry snapshot; detection cannot book normalized records."""
-    _entries: tuple[tuple[AdapterDescriptor, SourceAdapter], ...] = field(repr=False)
+    _entries: tuple[tuple[AdapterDescriptor, SourceAdapter | ContextSourceAdapter], ...] = field(repr=False)
 
     @property
     def adapters(self) -> tuple[AdapterDescriptor, ...]:
@@ -221,7 +223,8 @@ class SourceRegistry:
             raise RegistryError("no_match")
         if len(matches) > 1:
             raise RegistryError("ambiguous_detection")
-        info, result = resolve_detection(tuple(results))
+        # Every result was checked against its versioned, validated descriptor.
+        info, result = matches[0]
         descriptor = next(item[0] for item in entries if item[0].info.adapter_id == info.adapter_id)
         return SourceMatch(descriptor, result.export_version, result.reason)
 

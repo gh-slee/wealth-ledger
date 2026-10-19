@@ -9,8 +9,9 @@ required. No package has been published to PyPI by this work.
 import financial data. All plans retain `ingestible: false` and
 `booking_blocker: protocol_v1_not_bookable`. Wealthsimple/Bull financial imports
 still use their existing implementation. Lossless protocol-v2 context, native/CAD
-costs, portfolio bindings, transactional revisions/duplicates/transfers and importer
-migration belong to SRC-004. Do not advertise support for arbitrary CSV exports.
+costs and canonical binding/revision/effect storage are implemented in the gated
+[SRC-004A foundation](source-ingestion.md). Production financial ingestion, importer
+migration and source-neutral reporting remain SRC-004B/C. Do not advertise support for arbitrary CSV exports.
 
 ## Build local artifacts
 
@@ -60,13 +61,14 @@ python scripts/check_packages.py --artifacts work/sdk-dist --python .venv-sdk/bi
 The wildcard above selects the two wheels just built; use their explicit filenames
 in shells without wildcard expansion. Do not mix unreviewed wheels into that folder.
 Runtime dependencies are installed from the existing lock first; `--no-deps` does
-not waive dependency requirements. The example requires core version 0.1.0 and API
-version 1. Both must be updated/retested together when the contract changes.
+not waive dependency requirements. The independent example requires core version 0.1.0 and API
+version 1. The same core also packages the separate v2 foundation; it does not
+silently upgrade a v1 parser. Both must be updated/retested together when the contract changes.
 
 Acceptance audits core wheel/sdist and example-wheel members and compares code/resources to reviewed
 public inputs. It imports installed modules outside the checkout, tests real entry
 points and shared class identity, runs synthetic author fixtures and installed
-API/isolated-worker acceptance, verifies CLI receipt revalidation, and renders
+API/isolated-worker acceptance, verifies CLI receipt revalidation, also runs v2 canonical foundation tests from the installed wheel, and renders
 ODS/Markdown/PDF offline in en-CA, zh-TW and zh-CN. Temporary test ledgers/reports
 are deleted. This verifies synthetic operation, not a user's portfolio or deployment.
 
@@ -101,8 +103,10 @@ pending/cancelled, fee/cash-counterpart and privacy cases. Smoke checks cannot p
 side-effect freedom; audit every plugin and dependency. Use synthetic fixtures only.
 
 The example's deterministic `fetched_at` equals source time and carries a warning.
-It does not assert a real retrieval time. V1 has no host parse context; real adapters
-requiring it must wait for SRC-004 rather than invent dates or financial values.
+It does not assert a real retrieval time. V1 has no host parse context; new adapters
+can develop against [v2](source-ingestion.md), whose context and canonical storage
+remain separate from production CSV import/report routes. Never invent dates or
+financial values to fit v1.
 
 ## Explicit native enablement
 

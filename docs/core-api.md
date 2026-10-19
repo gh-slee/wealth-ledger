@@ -540,3 +540,14 @@ editions.render_language_edition(source, output, locale) reads a saved bundle in
 new output, preserving data.json bytes without DB/network/latest access. Manifest
 records source checksum/fingerprint and new presentation version; missing legacy
 checksums disclose weaker metadata consistency. See [locale contract](i18n-plan.md).
+
+## Explicit-context canonical facts (SRC-004A)
+
+`source_v2` defines lossless facts and strict `decode_batch` replay without parser
+execution. `source_ingestion.prepare_ingestion` is read-only; `commit_ingestion`
+uses the existing service lock, backup, atomic data/receipt boundary and private
+immutable evidence. `read_facts` is not a report payload or contribution calculator.
+See [the complete API/phase contract](source-ingestion.md). Registry detection can
+inspect API2, while the v1 source-plan route rejects it without explicit context.
+Normal importers remain direct, and generating a new legacy financial report from
+a canonical-v2 workspace fails closed until SRC-004B/C implement projections.

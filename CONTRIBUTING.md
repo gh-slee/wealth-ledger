@@ -4,7 +4,8 @@ Wealth Ledger welcomes synthetic parser fixtures, financial regression fixes,
 translations, documentation and portability improvements. Discuss new financial
 models or source-adapter contracts before implementation. An independent trusted
 parser registry, nonbooking CLI/API source plans, installable core and author SDK
-are implemented; financial import integration and existing-importer migration remain planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
+are implemented. The [v2 canonical foundation](docs/source-ingestion.md) is a gated
+developer API; production financial integration and existing-importer migration remain planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
 
 ## Development setup
 

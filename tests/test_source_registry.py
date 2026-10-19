@@ -81,7 +81,7 @@ class SourceRegistryTests(unittest.TestCase):
         self.assert_code("invalid_adapter", lambda: build_registry(builtins=(registration(provider=ProviderInfo("other", "Other")),)))
 
     def test_contract_compatibility_and_invalid_adapter_shapes(self):
-        for info in (replace(INFO, api_version=2), replace(INFO, api_version=True)):
+        for info in (replace(INFO, api_version=3), replace(INFO, api_version=True)):
             self.assert_code("incompatible_adapter", lambda: build_registry(builtins=(registration(info),)))
         for item in ("not registration", registration(replace(INFO, kinds=("invalid",))),
                      registration(provider=ProviderInfo("demo", ""))):
@@ -152,7 +152,7 @@ class SourceRegistryTests(unittest.TestCase):
 
     def test_loaded_identity_and_protocol_must_match(self):
         for item, code in ((registration(replace(INFO, adapter_id="unexpected")), "invalid_adapter"),
-                           (registration(replace(INFO, api_version=2)), "incompatible_adapter"),
+                           (registration(replace(INFO, api_version=3)), "incompatible_adapter"),
                            (Adapter(), "invalid_adapter")):
             with patch.object(metadata.EntryPoint, "load", return_value=lambda: item):
                 self.assert_code(code, lambda: build_registry(enabled=(SELECTION,), catalog=(candidate(),)))
