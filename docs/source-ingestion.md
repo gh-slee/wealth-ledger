@@ -1,4 +1,4 @@
-# Canonical ingestion foundation (SRC-004A)
+# Canonical ingestion and parser previews
 
 SRC-004A implements an explicit-context parser-v2 contract and a stateful canonical
 store in the existing financial SQLite database. It is a **trusted developer API**,
@@ -6,7 +6,8 @@ not a new production CSV import command. No runtime LLM or new application depen
 is used. Wealthsimple/Bull financial imports, browser upload confirmation and the
 existing reports retain their current paths.
 
-SRC-004B must migrate those importers and their CLI/Web preview/confirmation paths;
+SRC-004B1 supplies pure built-in v2 parsers and nonbooking context previews.
+SRC-004B2 must migrate production financial submission/confirmation/recovery;
 SRC-004C must implement source-neutral portfolio/report projections. Neither is
 complete. Do not advertise arbitrary bank/exchange imports. A structurally valid
 parser batch does not establish complete costs, portfolio membership or investment
@@ -70,7 +71,7 @@ keys, JSON financial floats, unbounded nesting, module names or dynamic parser
 imports. Saved evidence can be verified/replayed without executing the source parser.
 
 The registry can inspect/detect v1 and v2 adapters. The existing **v1 source-plan
-CLI/API** still has no v2 host-context UI: it rejects a v2 match with
+CLI/API** still uses its original contract: it rejects a v2 match with
 `protocol_v2_context_required`, rather than calling a context-free normalizer or
 making it financially confirmable. Use `source_testing.check_contract_v2` for
 explicit-context author tests. The independent example package remains v1.
@@ -125,7 +126,9 @@ Legacy importers do not create these tables during ordinary updates.
 - Completed CAD/USD cash changes and long CAD/USD cash/security observations are
   supported by the foundation. Completed crypto effects initially support a
   CAD debit plus BTC or LBTC purchase, with explicit separate/included fees.
-  Completed sales/swaps/other unsupported effects block the whole batch; pending
+  A purchase may explicitly debit a separately declared funding account while
+  delivering crypto to its declared crypto account. Cross-account purchase fees
+  must belong to the matching cash or crypto leg. Completed sales/swaps/other unsupported effects block the whole batch; pending
   and cancelled evidence may remain without effects.
 - A completed purchase cash-leg reference must resolve to exactly the same account,
   currency and signed quantity in a completed crypto event. Its cash effect is
@@ -165,3 +168,117 @@ also verify the foundation. Docker acceptance includes canonical facts in a sepa
 synthetic portfolio, then a full backup and restore to an empty volume while existing
 legacy/frozen reports remain readable. These are synthetic tests, not a personal
 migration or a statement that all environments have passed remote CI.
+
+## Explicit-context previews (SRC-004B1)
+
+This increment supplies `WealthsimpleHoldings`, `BullBitcoinOrders` and explicit
+trusted `source_builtin.registrations()`. The default empty registry and v1 planner
+are unchanged. `source_formats` is the single byte-only grammar implementation
+shared with legacy financial import facades. Neither pure parser receives a path,
+clock, network, process, database or workspace. Existing legacy imports still write
+only their original tables/archives and use their original report paths.
+
+### Source mapping and identity
+
+- Wealthsimple uses the original hashed account IDs, source security keys, explicit
+  footer time/offset and source-native/CAD book values. One UTC observation and
+  semantic snapshot revision cover its rows. Row order, file name, retrieval time
+  and equivalent numeric spelling do not change financial identities. Hashes use
+  normalized financial numbers; serialized canonical values use the same spelling.
+  Source math inconsistencies produce coded findings and retain the source values.
+- Bull requires an explicit stable `account_alias`; it never assumes one from a
+  filename or guesses which person's export it is. Original provider/alias/order
+  keys and normalized order-content revisions are retained. CAD funding is a
+  separate funding account; purchases debit it and deliver BTC/bitcoin or LBTC/liquid
+  into a crypto account. The source creation/completion/sent times, statuses,
+  pay-in/pay-out methods, rates and acquisition amounts survive normalization.
+- Funding is `unclassified` at the portfolio boundary. Purchase spend does not
+  create another contribution. Fees remain unknown, including after wallet
+  delivery. Missing rate units remain unknown with their source fields retained;
+  no rate unit, opening quantity, wallet total or tax cost is invented.
+- Both formats declare unknown portfolio membership and partial exported-row
+  coverage. Their rows do not establish absence of outside activity, missing
+  accounts, earlier balances or wallet fees. Evidence time must not precede the
+  observed source time. Explicit source offsets/UTC take precedence; an optional
+  declared timezone is retained as context, not used to reinterpret those times.
+- Changed records/scopes require explicit host parent choices. The parser does not
+  query history or guess those parents; canonical preparation validates lineage.
+  Unsupported types/statuses/network combinations or unrepresentable zero pending
+  amounts reject rather than silently creating effects. Production migration is
+  still gated until the complete native compatibility surface is accepted.
+
+### CLI example and closed context schema
+
+These are developer previews. For two **synthetic example** exports create an empty
+trusted host configuration at `work/parsers.json`:
+
+```json
+{"schema_version": 1, "enabled": [], "bindings": []}
+```
+
+Save this private context file as `work/source-context.json`. Each context corresponds
+to the input at the same position. External enablement still follows the strict
+[source configuration](source-adapters.md#host-configuration) contract:
+
+```json
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "evidence_at": "2024-03-01T12:00:00+00:00",
+      "source_reference": "synthetic-holdings-export"
+    },
+    {
+      "evidence_at": "2024-03-01T12:00:00+00:00",
+      "source_reference": "synthetic-orders-export",
+      "account_alias": "synthetic-bull"
+    }
+  ]
+}
+```
+
+```bash
+python scripts/source_parsers.py examples/data/wealthsimple-holdings.csv examples/data/bull-orders.csv --config work/parsers.json --context work/source-context.json
+```
+
+An installed wheel uses `wealth-ledger-source-parsers` with the same arguments.
+Either single input is accepted with exactly one corresponding context; Bull still
+requires its alias. `--select 1=wealthsimple.holdings` resolves explicit selection.
+`--verify work/saved-plan.json` checks a saved summary and rejects any changed
+context/CSV/configuration/environment/normalized output. Output is JSON only; save
+private evidence deliberately. Preview creates no financial database or report.
+
+A context has required `evidence_at` (aware ISO timestamp), `source_reference`, and
+optional `account_alias`, `source_timezone` (IANA), `format_selection`, `revisions`
+and `scope_revisions`. A record-parent item has `account` (`provider`, `account_id`),
+`kind`, `source_id`, `observation_id` (empty for events), `supersedes_revision`.
+A scope-parent item has `kind`, `scope_id`, `supersedes_revision`; coverage also
+requires `account`, `record_kind`, and an observation ID for holdings. These are
+host-reviewed choices, not a parser-generated transaction history. No unknown keys,
+Python module/path, plugin enablement or workspace path can be supplied in context.
+Combined context is bounded to 64 KiB/200 parent choices per input.
+
+### API and result boundary
+
+`POST /api/v1/portfolios/{portfolio_id}/source-context-plans` uses a separate typed
+request: `upload_ids`, `contexts` (the `inputs` array above), optional `selections`
+and `previous_plan_id`. It retains owner auth/CSRF, per-portfolio uploads, idempotency,
+state/config/environment pinning, worker isolation and source-plan expiration.
+Use `source_csv` uploads; host configuration is still trusted-host only, never an
+API choice. There is no new browser form. See [Web imports](web-imports.md).
+
+V2 summaries use schema version 2, `status: plan_only`, `ingestible: false` and
+`booking_blocker: production_v2_pipeline_pending`. They contain hashes/counts and
+adapter metadata, not account aliases, source references, row values or canonical
+financial records. A valid empty normalized batch may report zero observed rows
+without establishing zero assets or complete activity coverage. Raw/canonical bytes
+stay in mode-restricted temporary files,
+strictly decoded/validated by the parent and removed after return. The trusted
+`parse_sources` API additionally returns private typed batches/raw bytes in memory;
+`plan_context_sources` returns only the summary. No automatic archive/booking occurs.
+
+A ready plan cannot be confirmed through financial jobs or financially resumed.
+Context-free v1 plans keep their original schema/blocker. The canonical developer
+API's report phase gate still applies. SRC-004B2 must provide compatible production
+submission/recovery and SRC-004C source-neutral report projections before any daily
+workflow switch; this preview is not a completed production migration.

@@ -221,3 +221,16 @@ hosts/platforms remain separate work. Actual private migration is an explicit op
 Implementation references: [Huey API](https://huey.readthedocs.io/en/stable/api.html)
 and [consumer guide](https://huey.readthedocs.io/en/stable/guide.html). Queue storage
 and consumer APIs come from Huey; ledger recovery follows the contracts above.
+
+## Explicit-context parser previews
+
+`POST /api/v1/portfolios/{portfolio_id}/source-context-plans` accepts owner-scoped
+`source_csv` upload IDs, one `contexts` object per input, optional `selections` and
+`previous_plan_id`. See [the closed context schema](source-ingestion.md#explicit-context-previews-src-004b1).
+It queues an ordinary `source_plan` job with no financial operation ID. The API pins
+portfolio state, upload hashes, engine, trusted host configuration and environment;
+the worker invokes the same fresh-child v2 runner as the CLI. Auth/CSRF, idempotency,
+portfolio isolation, expiration and restore invalidation match other source plans.
+There is no browser form or confirm/financial-resume route. A ready result always
+has `ingestible: false`, `booking_blocker: production_v2_pipeline_pending`.
+The ordinary holdings/order import routes retain their behavior.

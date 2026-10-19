@@ -233,7 +233,7 @@ def plan_sources(paths, *, config_path=None, selections=None, previous=None, exp
         try:
             value = _json(bounded_read(root / "result.json", PLAN_BYTES))
             if result.returncode or "error" in value:
-                known = {"invalid_configuration", "invalid_inputs", "normalization_identity", "normalization_limits", "normalization_failed", "stale_environment", "environment_unverifiable"}
+                known = {"invalid_configuration", "invalid_inputs", "protocol_v2_context_required", "normalization_identity", "normalization_limits", "normalization_failed", "stale_environment", "environment_unverifiable"}
                 known.update({"invalid_catalog", "unavailable_plugin", "ambiguous_plugin", "plugin_load_failed", "invalid_adapter", "incompatible_adapter", "duplicate_adapter", "conflicting_provider", "unknown_adapter", "invalid_input", "detection_failed", "invalid_detection", "no_match", "ambiguous_detection"})
                 code = value.get("error")
                 raise SourcePlanError(code if code in known else "parser_failed")

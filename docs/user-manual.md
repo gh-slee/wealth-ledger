@@ -1245,3 +1245,12 @@ SDK is available for nonbooking development ([guide](parser-sdk.md));
 the [v2 canonical foundation](source-ingestion.md) is a developer-only phase with
 new report generation blocked until projections are implemented;
 existing-parser migration remains planned. There is no runtime LLM.
+
+## Developer parser previews
+
+The optional [explicit-context v2 preview](source-ingestion.md#explicit-context-previews-src-004b1)
+can normalize either implemented CSV format or both in a fresh child using declared
+source retrieval times and a stable Bull account alias. It does not update your
+ledger or generate reports. Keep using the normal supported CLI/Web financial
+workflow until production migration and report compatibility are complete. Do not
+reimport a real historical portfolio into the developer canonical API as a shortcut.

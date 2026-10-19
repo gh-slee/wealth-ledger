@@ -227,6 +227,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolios/{portfolio_id}/source-context-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Context Plan */
+        post: operations["context_plan_api_v1_portfolios__portfolio_id__source_context_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolios/{portfolio_id}/uploads": {
         parameters: {
             query?: never;
@@ -615,6 +632,61 @@ export interface components {
         Confirmation: {
             /** Preview Id */
             preview_id: string;
+        };
+        /** ContextAccount */
+        ContextAccount: {
+            /** Provider */
+            provider: string;
+            /** Account Id */
+            account_id: string;
+        };
+        /** ContextPlanRequest */
+        ContextPlanRequest: {
+            /** Upload Ids */
+            upload_ids: string[];
+            /** Selections */
+            selections?: {
+                [key: string]: string;
+            };
+            /** Previous Plan Id */
+            previous_plan_id?: string | null;
+            /** Contexts */
+            contexts: components["schemas"]["SourceContext"][];
+        };
+        /** ContextRevision */
+        ContextRevision: {
+            account: components["schemas"]["ContextAccount"];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "holdings" | "cash_flows" | "crypto_transactions";
+            /** Source Id */
+            source_id: string;
+            /** Observation Id */
+            observation_id: string;
+            /** Supersedes Revision */
+            supersedes_revision: string;
+        };
+        /** ContextScopeRevision */
+        ContextScopeRevision: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "membership" | "snapshot" | "coverage";
+            /** Scope Id */
+            scope_id: string;
+            /** Supersedes Revision */
+            supersedes_revision: string;
+            account?: components["schemas"]["ContextAccount"] | null;
+            /** Record Kind */
+            record_kind?: ("holdings" | "cash_flows" | "crypto_transactions") | null;
+            /**
+             * Observation Id
+             * @default
+             */
+            observation_id: string;
         };
         /** CoverageDeclaration */
         CoverageDeclaration: {
@@ -1079,6 +1151,23 @@ export interface components {
             expires_at: number;
             /** Idle Timeout Seconds */
             idle_timeout_seconds: number;
+        };
+        /** SourceContext */
+        SourceContext: {
+            /** Evidence At */
+            evidence_at: string;
+            /** Source Reference */
+            source_reference: string;
+            /** Account Alias */
+            account_alias?: string | null;
+            /** Source Timezone */
+            source_timezone?: string | null;
+            /** Format Selection */
+            format_selection?: string | null;
+            /** Revisions */
+            revisions?: components["schemas"]["ContextRevision"][];
+            /** Scope Revisions */
+            scope_revisions?: components["schemas"]["ContextScopeRevision"][];
         };
         /** SourceDate */
         SourceDate: {
@@ -2733,6 +2822,124 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SourcePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    context_plan_api_v1_portfolios__portfolio_id__source_context_plans_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContextPlanRequest"];
             };
         };
         responses: {

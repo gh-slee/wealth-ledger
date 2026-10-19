@@ -10,6 +10,7 @@ def main():
     parser.add_argument("files", nargs="+", type=Path)
     parser.add_argument("--config", required=True, type=Path, help="Trusted host JSON, never an uploaded plugin")
     parser.add_argument("--select", action="append", default=[], help="Explicit 1-based input slot=enabled-adapter-id")
+    parser.add_argument("--context", type=Path, help="Explicit v2 host-context JSON; preview only, no financial submission")
     parser.add_argument("--verify", type=Path, help="Revalidate a saved JSON plan; reject any changed evidence/environment")
     parser.add_argument("--timeout", type=float, default=60, help="Child wall-clock limit in seconds, at most 60")
     args = parser.parse_args()
@@ -23,8 +24,14 @@ def main():
                 raise SourcePlanError("invalid_inputs")
             choices[slot] = adapter
         previous = _json(bounded_read(args.verify, PLAN_BYTES)) if args.verify else None
-        result = plan_sources(args.files, config_path=args.config, selections=choices,
-                              previous=previous, timeout=args.timeout)
+        if args.context:
+            from .source_context_pipeline import CONTEXT_BYTES, contexts_from_document, plan_context_sources
+            contexts = contexts_from_document(_json(bounded_read(args.context, CONTEXT_BYTES)), len(args.files))
+            result = plan_context_sources(args.files, contexts=contexts, config_path=args.config,
+                selections=choices, previous=previous, timeout=args.timeout)
+        else:
+            result = plan_sources(args.files, config_path=args.config, selections=choices,
+                                  previous=previous, timeout=args.timeout)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (SourcePlanError, ValueError, OSError, RecursionError) as exc:

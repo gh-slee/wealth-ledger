@@ -259,7 +259,7 @@ def _scope_entries(batch):
         yield provider, "snapshot:" + snapshot.source_id, snapshot.revision, snapshot.supersedes_revision, payload
 
 
-def _capabilities(record):
+def _capabilities(record, accounts):
     if isinstance(record, v2.Position):
         if record.asset.kind not in {"security", "cash"} or record.asset.currency not in {"CAD", "USD"} or record.quantity < 0 or record.market_value.amount < 0:
             raise IngestionError("unsupported_effect")
@@ -271,11 +271,14 @@ def _capabilities(record):
         cash = [leg for leg in legs if leg.asset == AssetKey("cash", "CAD", "CAD") and leg.quantity < 0]
         crypto = [leg for leg in legs if leg.asset.kind == "crypto" and (leg.asset.symbol, leg.asset.network) in {("BTC", "bitcoin"), ("LBTC", "liquid")} and leg.quantity > 0 and leg.asset.currency == "CAD"]
         if (record.type != "purchase" or record.counterpart is not None or len(legs) != 2 or len(cash) != 1 or len(crypto) != 1
-                or any(leg.account != record.key.account for leg in legs)
+                or crypto[0].account != record.key.account
+                or cash[0].account != record.key.account and (accounts[cash[0].account].role != "funding" or accounts[record.key.account].role != "crypto")
                 or any(cost is not None and (cost.currency != "CAD" or cost.amount < 0) for cost in (record.acquisition_cost, record.acquisition_cost_cad))):
             raise IngestionError("unsupported_effect")
         for fee in record.fees or ():
-            if fee.account != record.key.account or fee.asset not in {cash[0].asset, crypto[0].asset}:
+            if (fee.asset == cash[0].asset and fee.account != cash[0].account
+                    or fee.asset == crypto[0].asset and fee.account != crypto[0].account
+                    or fee.asset not in {cash[0].asset, crypto[0].asset}):
                 raise IngestionError("unsupported_effect")
 
 
@@ -399,6 +402,7 @@ def _proposal(conn, inputs, bindings):
         scope_heads[token] = row["revision"]
     facts, scopes, seen_facts, seen_scopes = [], [], {}, {}
     for source in inputs:
+        batch_accounts = {account.key: account for account in source.batch.accounts}
         if any(item.severity == "error" for item in source.batch.evidence.diagnostics):
             raise IngestionError("source_errors")
         for provider, key, revision, parent, payload in _scope_entries(source.batch):
@@ -417,7 +421,7 @@ def _proposal(conn, inputs, bindings):
             scope_versions[(token, revision)] = {"scope_sha256":sha}
             scope_heads[token] = revision
         for record in source.batch.records:
-            _capabilities(record)
+            _capabilities(record, batch_accounts)
             payload = v2.canonical_json(record); value = json.loads(payload)
             token, sha = _identity(value), _hash(payload.encode())
             revision, parent = record.key.revision, record.key.supersedes_revision

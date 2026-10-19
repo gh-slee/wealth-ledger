@@ -551,3 +551,16 @@ See [the complete API/phase contract](source-ingestion.md). Registry detection c
 inspect API2, while the v1 source-plan route rejects it without explicit context.
 Normal importers remain direct, and generating a new legacy financial report from
 a canonical-v2 workspace fails closed until SRC-004B/C implement projections.
+
+## Explicit-context parser preview
+
+`source_builtin.registrations()` supplies trusted Wealthsimple/Bull v2 parsers;
+`source_formats` owns their byte-only grammars shared by the legacy import facades.
+`source_context_pipeline.parse_sources(paths, contexts=..., config_path=...)` runs
+a fresh bounded child and returns `ParsedSources(receipt, batches, raw)`. The host
+strictly decodes and validates each canonical batch without importing plugin code
+again. Results are private evidence, not permission to book or publish reports.
+`plan_context_sources` returns only the nonbooking summary. Context, original bytes,
+normalized bytes, selections, configuration, catalog and actual environment participate
+in its fingerprint. Revalidation rejects changes; it does not update a saved receipt.
+See [schema and limitations](source-ingestion.md#explicit-context-previews-src-004b1).

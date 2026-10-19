@@ -16,16 +16,13 @@ from datetime import date, datetime, timezone
 from decimal import Decimal, getcontext
 from pathlib import Path
 
+from .source_formats import WS_REQUIRED as REQUIRED
+
 getcontext().prec = 60
 D = Decimal
 ZERO = D(0)
 TOLERANCE = D("0.01")
 ACCOUNT_ORDER = {"TFSA": 0, "RRSP": 1, "Non-registered": 2}
-REQUIRED = ("Account Type", "Account Number", "Symbol", "MIC", "Name",
-            "Security Type", "Quantity", "Market Price", "Market Price Currency",
-            "Book Value (CAD)", "Book Value (Market)", "Book Value Currency (Market)",
-            "Market Value", "Market Value Currency", "Market Unrealized Returns",
-            "Market Unrealized Returns Currency")
 
 
 def _decimal(value):
@@ -125,77 +122,17 @@ def _issue(code, message, severity="warning", **context):
 
 
 def _parse_holdings(path):
+    from .source_formats import parse_wealthsimple
     raw = Path(path).read_bytes()
-    reader = csv.reader(io.StringIO(raw.decode("utf-8-sig")))
-    rows = list(reader)
-    if not rows:
-        raise ValueError("Empty holdings CSV")
-    headers = [item.strip() for item in rows[0]]
-    if len(headers) != len(set(headers)) or any(item not in headers for item in REQUIRED):
-        raise ValueError("Missing or duplicate holdings CSV columns")
-    footer, records, accounts, issues, seen = None, [], {}, [], set()
-    for line, values in enumerate(rows[1:], 2):
-        if not values or not any(item.strip() for item in values):
-            continue
-        if len(values) == 1 and values[0].strip().startswith("As of "):
-            if footer is not None:
-                raise ValueError("Multiple as-of footers")
-            footer = values[0].strip()
-            continue
-        if footer is not None or len(values) != len(headers):
-            raise ValueError(f"Malformed holdings row {line}")
-        row = dict(zip(headers, (item.strip() for item in values)))
-        number = row["Account Number"]
-        if not number or not row["Symbol"]:
-            raise ValueError(f"Missing account or symbol at row {line}")
-        aid = "a_" + _hash(number.encode())[:16]
-        currency = row["Market Value Currency"].upper()
-        if currency not in ("CAD", "USD"):
-            raise ValueError(f"Unsupported market currency: {currency}")
-        for field in ("Market Price Currency", "Book Value Currency (Market)",
-                      "Market Unrealized Returns Currency"):
-            if row[field].upper() != currency:
-                raise ValueError(f"Currency mismatch at row {line}: {field}")
-        if row.get("Book Value Currency (CAD)", "CAD").upper() != "CAD":
-            raise ValueError(f"CAD book value currency mismatch at row {line}")
-        if row.get("Position Direction", "LONG") != "LONG":
-            raise ValueError("Only long positions are supported in this version")
-        security_type = row["Security Type"]
-        sid = ("cash:" + currency if security_type == "CURRENCY" else
-               ":".join((row["MIC"], row["Symbol"], currency)))
-        if (aid, sid) in seen:
-            raise ValueError(f"Duplicate account/security key at row {line}")
-        seen.add((aid, sid))
-        account = {"account_id": aid, "account_type": row["Account Type"],
-                   "label": row["Account Type"], "masked_number": "****" + number[-4:]}
-        if aid in accounts and accounts[aid] != account:
-            raise ValueError("Conflicting metadata for one account")
-        accounts[aid] = account
-        record = {"account_id": aid, "account_type": account["account_type"],
-                  "security_id": sid, "symbol": row["Symbol"], "currency": currency,
-                  "security_type": security_type, "mic": row["MIC"],
-                  "exchange": row.get("Exchange", ""), "name": row["Name"],
-                  "quantity": _decimal(row["Quantity"]), "price": _decimal(row["Market Price"]),
-                  "book_native": _decimal(row["Book Value (Market)"]),
-                  "book_cad": _decimal(row["Book Value (CAD)"]),
-                  "market_native": _decimal(row["Market Value"]),
-                  "unrealized_native": _decimal(row["Market Unrealized Returns"])}
-        context = {"account_id": aid, "symbol": record["symbol"]}
-        if abs(record["quantity"] * record["price"] - record["market_native"]) > TOLERANCE:
-            issues.append(_issue("market_math", "數量乘市價與來源市值不一致，保留來源值。", **context))
-        if abs(record["market_native"] - record["book_native"] - record["unrealized_native"]) > TOLERANCE:
-            issues.append(_issue("unrealized_math", "來源未實現損益與市值減成本不一致，保留來源值。", **context))
-        if record["quantity"] < 0 or record["market_native"] < 0:
-            raise ValueError("Negative long position quantity/value is unsupported")
-        if security_type != "CURRENCY" and (record["quantity"] <= 0 or record["book_native"] <= 0):
-            issues.append(_issue("nonpositive_cost_quantity", "成本或數量非正；以非正數為分母的比例／平均成本不計算。", **context))
-        records.append(record)
-    if not records or not footer:
-        raise ValueError("Holdings CSV needs holdings rows and an as-of footer")
-    match = re.fullmatch(r"As of (\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?) GMT([+-]\d{2}:\d{2})", footer)
-    if not match:
-        raise ValueError("Unrecognized holdings as-of footer")
-    as_of = datetime.fromisoformat(match[1] + match[2])
+    _, as_of, records, accounts, findings = parse_wealthsimple(raw)
+    messages = {
+        "market_math": "數量乘市價與來源市值不一致，保留來源值。",
+        "unrealized_math": "來源未實現損益與市值減成本不一致，保留來源值。",
+        "nonpositive_cost_quantity": "成本或數量非正；以非正數為分母的比例／平均成本不計算。",
+    }
+    issues = [_issue(item["code"], messages[item["code"]], item["severity"],
+                     **{key: value for key, value in item.items() if key not in {"code", "severity"}})
+              for item in findings]
     return raw, as_of, records, accounts, issues
 
 

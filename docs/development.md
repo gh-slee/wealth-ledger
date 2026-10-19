@@ -263,3 +263,14 @@ from a personal report. Run `test_web_legacy_adoption.py`, browser workflows and
 opt-in Docker suite for changes to receipt/download/restore behavior. Source format
 recognition does not establish historical authenticity. Never repair a source manifest
 to make migration pass.
+
+## Built-in parser compatibility
+
+The pure grammars in `source_formats` are shared by the existing native facades and
+`source_builtin` v2 adapters. Changing a grammar affects existing users: preserve
+account/security/order IDs, source lifecycle/cost fields and closed legacy messages.
+Use the existing core/crypto suite plus `test_source_builtin.py`,
+`test_source_context_pipeline.py` and `test_web_source_context.py`. V2 preview tests
+must cover actual isolated execution, stale context/environment rejection, private
+summary fields, explicit parents and inability to confirm or financially resume.
+The generated OpenAPI types must be regenerated when the API models/routes change.

@@ -1,6 +1,7 @@
 """Owner-only nonbooking source-plan jobs; no browser-selected code or host paths."""
 import hashlib
 import json
+from typing import Literal
 
 from fastapi import Depends, Header, Request
 from pydantic import Field
@@ -18,6 +19,42 @@ class SourcePlanRequest(Input):
     upload_ids: list[str] = Field(min_length=1, max_length=5)
     selections: dict[str, str] = Field(default_factory=dict, max_length=5)
     previous_plan_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+
+
+class ContextAccount(Input):
+    provider: str = Field(min_length=1, max_length=200)
+    account_id: str = Field(min_length=1, max_length=200)
+
+
+class ContextRevision(Input):
+    account: ContextAccount
+    kind: Literal["holdings", "cash_flows", "crypto_transactions"]
+    source_id: str = Field(min_length=1, max_length=200)
+    observation_id: str = Field(max_length=200)
+    supersedes_revision: str = Field(min_length=1, max_length=200)
+
+
+class ContextScopeRevision(Input):
+    kind: Literal["membership", "snapshot", "coverage"]
+    scope_id: str = Field(min_length=1, max_length=200)
+    supersedes_revision: str = Field(min_length=1, max_length=200)
+    account: ContextAccount | None = None
+    record_kind: Literal["holdings", "cash_flows", "crypto_transactions"] | None = None
+    observation_id: str = Field(default="", max_length=200)
+
+
+class SourceContext(Input):
+    evidence_at: str = Field(min_length=1, max_length=64)
+    source_reference: str = Field(min_length=1, max_length=200)
+    account_alias: str | None = Field(default=None, min_length=1, max_length=160)
+    source_timezone: str | None = Field(default=None, min_length=1, max_length=100)
+    format_selection: str | None = Field(default=None, min_length=1, max_length=200)
+    revisions: list[ContextRevision] = Field(default_factory=list, max_length=200)
+    scope_revisions: list[ContextScopeRevision] = Field(default_factory=list, max_length=200)
+
+
+class ContextPlanRequest(SourcePlanRequest):
+    contexts: list[SourceContext] = Field(min_length=1, max_length=5)
 
 
 def configuration_path(store):
@@ -45,6 +82,12 @@ def enqueue_plan(store, portfolio_id, request, key, owner_id=1):
             return existing
     rows = source_uploads(store, portfolio_id, request["upload_ids"], owner_id)
     choices = request["selections"]
+    if "contexts" in request:
+        from ..source_context_pipeline import contexts_from_document
+        try:
+            contexts_from_document({"schema_version": 1, "inputs": request["contexts"]}, len(rows))
+        except SourcePlanError:
+            raise WebError(422, "invalid_context", "Supply one valid explicit context per upload") from None
     try:
         validate_selections(len(rows), choices)
     except SourcePlanError:
@@ -84,8 +127,14 @@ def execute_plan(store, jobs, row):
         if {item["id"]: item["sha256"] for item in uploads} != request["upload_hashes"]:
             raise SourcePlanError("stale_plan")
         paths = [verified_upload(store, item) for item in uploads]
-        value = plan_sources(paths, config_path=config, selections=request["selections"],
-                             previous=request["previous"], expected_environment=request["environment_sha256"])
+        if "contexts" in request:
+            from ..source_context_pipeline import contexts_from_document, plan_context_sources
+            contexts = contexts_from_document({"schema_version": 1, "inputs": request["contexts"]}, len(paths))
+            value = plan_context_sources(paths, contexts=contexts, config_path=config, selections=request["selections"],
+                previous=request["previous"], expected_environment=request["environment_sha256"])
+        else:
+            value = plan_sources(paths, config_path=config, selections=request["selections"],
+                                 previous=request["previous"], expected_environment=request["environment_sha256"])
         if input_fingerprint(project) != row["input_fingerprint"]:
             raise SourcePlanError("stale_plan")
         jobs.state(row["id"], "ready", result=value)
@@ -101,6 +150,13 @@ def install_source_plan_routes(app, store, auth, require_owner):
     @app.post(prefix + "/source-plans", status_code=202, response_model=JobView)
     def source_plan(portfolio_id: str, body: SourcePlanRequest, request: Request,
                     idempotency_key: str | None = Header(default=None), owner=Depends(require_owner)):
+        row = enqueue_plan(store, portfolio_id, body.model_dump(), idempotency_key, owner["owner_id"])
+        auth.touch(request.cookies.get(store.settings.cookie_name))
+        return Jobs.view(row)
+
+    @app.post(prefix + "/source-context-plans", status_code=202, response_model=JobView)
+    def context_plan(portfolio_id: str, body: ContextPlanRequest, request: Request,
+                     idempotency_key: str | None = Header(default=None), owner=Depends(require_owner)):
         row = enqueue_plan(store, portfolio_id, body.model_dump(), idempotency_key, owner["owner_id"])
         auth.touch(request.cookies.get(store.settings.cookie_name))
         return Jobs.view(row)

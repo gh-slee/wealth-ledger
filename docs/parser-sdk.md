@@ -188,3 +188,17 @@ contracts. Restoring data never installs missing plugins; reading frozen reports
 can work without them, while new plans need compatible installed code. There is no
 marketplace, automatic download or plugin upload form. See
 [Web operations](web-operations.md) and [backup rules](web-backups.md).
+
+## Explicit-context built-in previews (SRC-004B1)
+
+The installed core also includes `source_builtin.registrations()` and
+`source_context_pipeline`. They support the current Wealthsimple/Bull grammars and
+explicitly enabled compatible v2 plugins. The v1 example package and its commands
+remain unchanged. See [context schema and CLI/API examples](source-ingestion.md#explicit-context-previews-src-004b1).
+Neither preview version has production financial confirmation. Do not claim generic
+bank/exchange support from the ability to register or normalize a parser.
+
+Installed acceptance copies only named public synthetic tests/fixtures outside the
+checkout. It exercises 35 canonical foundation tests plus 29 built-in/context tests,
+the independent v1 plugin tests, real child/CLI/API paths and three report locales.
+Build artifacts remain subject to source/member audits before any publication.

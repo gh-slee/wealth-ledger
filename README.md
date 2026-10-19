@@ -51,7 +51,7 @@ Review supported inputs in an offline preview, confirm the import, and browse fr
 
 ## Sources and parser plugins
 
-The application is intended to keep portfolio history, validation, analysis, and reports independent of each institution's CSV layout. More banks, brokerages, Bitcoin brokers, and exchanges will be added through parser plugins, including user-authored parsers. This is the expansion path; the current importers have not yet been migrated to that architecture.
+The application is intended to keep portfolio history, validation, analysis, and reports independent of each institution's CSV layout. More banks, brokerages, Bitcoin brokers, and exchanges will be added through parser plugins, including user-authored parsers. Pure versioned parsers now exist for the two current formats and share their CSV grammars with the native importers. Production financial submission and report projections still require migration.
 
 | Source or input | Current support |
 |---|---|
@@ -61,7 +61,7 @@ The application is intended to keep portfolio history, validation, analysis, and
 | Dated BTC quantity | Optional total-balance observation, independent of either source CSV. |
 | Other banks, brokers, Bitcoin platforms, and exchanges | Planned parser plugins; arbitrary source CSVs are not accepted today. |
 
-The versioned **parser contract** (`SRC-001`) and an independent **trusted registration/loading library** (`SRC-002A`) are implemented. Nonbooking **CLI/API source plans and configuration/code fingerprints** (`SRC-002B`) are also implemented. An **installable core, plugin author toolkit and independent synthetic example** (`SRC-003`) are implemented. **SRC-004A** adds the [explicit-context v2 contract and canonical ingestion foundation](docs/source-ingestion.md). Production importer migration and source-neutral reports remain SRC-004B/C; the foundation cannot generate a new financial report. The parser preview path can inspect/revalidate trusted plugins but cannot submit financial data. The existing importers are not yet loadable plugins.
+The versioned **parser contract** (`SRC-001`) and an independent **trusted registration/loading library** (`SRC-002A`) are implemented. Nonbooking **CLI/API source plans and configuration/code fingerprints** (`SRC-002B`) are also implemented. An **installable core, plugin author toolkit and independent synthetic example** (`SRC-003`) are implemented. **SRC-004A** adds the [explicit-context v2 contract and canonical ingestion foundation](docs/source-ingestion.md). Production importer migration and source-neutral reports remain SRC-004B/C; the foundation cannot generate a new financial report. The parser preview path can inspect/revalidate trusted plugins but cannot submit financial data. SRC-004B1 adds built-in v2 parser registrations and explicit-context CLI/API previews. Native financial submission remains on its compatibility path; preview success does not authorize a new source or switch the daily workflow.
 
 The planned boundary is: a trusted parser detects and normalizes an export; the shared core validates it, preserves original evidence, handles revisions, and produces the same reports. Source support must declare its export versions, record types, and completeness. A bank cash-flow export does not automatically add bank balances to investment assets. Parsing and financial processing run entirely in code, without runtime LLM calls.
 

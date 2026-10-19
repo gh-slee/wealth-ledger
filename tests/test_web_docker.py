@@ -222,6 +222,20 @@ class DockerRuntimeTests(unittest.TestCase):
                     {"upload_ids": [source_upload]}), "blocked")
                 self.assertEqual(source_plan["error_code"], "no_match")
                 self.assertIsNone(source_plan["core_operation_id"])
+                context_uploads = []
+                for name in ("wealthsimple-holdings.csv", "bull-orders.csv"):
+                    source_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/uploads?kind=source_csv&filename=" + name,
+                        data=(ROOT / "examples/data" / name).read_bytes(), headers={"Origin":origin, "X-CSRF-Token":csrf, "Content-Type":"text/csv"})
+                    with client.open(source_request, timeout=10) as response:
+                        context_uploads.append(json.load(response)["id"])
+                contexts = [{"evidence_at":"2024-03-01T12:00:00+00:00", "source_reference":"synthetic-docker-holdings"},
+                            {"evidence_at":"2024-03-01T12:00:00+00:00", "source_reference":"synthetic-docker-orders", "account_alias":"synthetic-docker-bull"}]
+                context_plan = completed(submit(f"/api/v1/portfolios/{portfolio}/source-context-plans",
+                    {"upload_ids":context_uploads, "contexts":contexts}), "ready")
+                self.assertFalse(context_plan["result"]["ingestible"])
+                self.assertEqual(context_plan["result"]["booking_blocker"], "production_v2_pipeline_pending")
+                self.assertEqual(len(context_plan["result"]["inputs"]), 2)
+                self.assertIsNone(context_plan["core_operation_id"])
                 reports = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/reports")["reports"]
                 self.assertEqual(reports[0]["id"], formal["id"])
                 view = request_json(client, origin, f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}")

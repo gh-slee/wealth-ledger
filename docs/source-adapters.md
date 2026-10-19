@@ -188,8 +188,9 @@ financial imports or support for additional institutions.
 `source_registry.py` is an optional Python library. The production CLI/Web upload,
 financial preview and import paths do not invoke it yet. The independent source-plan
 CLI/API does use this registry, while the registry itself does not normalize batches,
-write the ledger, install packages or generate reports. No built-in institution
-has been migrated to a `SourceAdapter` factory yet.
+write the ledger, install packages or generate reports. SRC-004B1 supplies explicit `source_builtin.registrations()` for the two implemented
+v2 formats. `source_context_pipeline` uses them for nonbooking previews only; native
+financial submission and report projections remain on their compatibility paths.
 
 - `ProviderInfo(provider_id, display_name)` gives consistent provider metadata.
   Multiple adapters/export formats may share a provider; conflicting metadata or
@@ -284,7 +285,8 @@ Version 1 does **not** rewrite account IDs or apply these mappings to ledger row
 stateful identity binding and source parse context are SRC-004 work. Real financial
 bindings must be portfolio-scoped and checked against that ledger; never apply this
 host-level planning declaration across portfolios as a global account assignment. An enabled
-entry-point factory still must return `AdapterRegistration` with API-v1 metadata.
+entry-point factory must return `AdapterRegistration`. The original context-free
+planner requires API-v1; the separate explicit-context planner requires API-v2.
 
 Normal dependency installation/packaging is an operator prerequisite, not a feature
 of this command. The [installable core/author SDK](parser-sdk.md) is SRC-003;
