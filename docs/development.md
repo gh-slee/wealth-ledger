@@ -185,7 +185,7 @@ SRC-004C1 adds the [read-only source-neutral model](source-projections.md). Its
 wallet kernel; retain all existing `test_wallet.py` regressions. C3A adds
 `test_source_wallet_declarations.py` to installed acceptance and canonical declaration
 cases in `test_web_financial.py` and isolated Docker backup/restore. These commands
-remain data-only; daily import/report routing remains C3B/C3C. Source-plan
+remain data-only; ordinary daily import/report routing remains C3C. Source-plan
 success does not authorize financial booking or report publication.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
@@ -293,3 +293,17 @@ unknown-state recovery. Include pending and completed full backup/empty-root res
 fields never drive financial decisions. Changing job kinds also requires mutual
 exclusion, recovery and restore invalidation review. A complete source receipt is
 not a published report or authorization to migrate a real portfolio.
+
+
+### Source report acceptance (SRC-004C3B)
+
+Run `PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_report.py' -v`
+in the locked environment. It validates derived source editions, original identities,
+unknown/zero scope, revisions, failure/recovery, observed currency subtotals and
+three-locale ODS/Markdown/PDF/chart parity, including explicit synthetic ETF analyses.
+Installed-wheel acceptance copies these synthetic tests outside the checkout.
+Shared renderer/ODF changes also require native workbook, locale, presentation and
+formula-cache regressions. Docker acceptance verifies C3B payload hashes after full
+backup/empty-volume restore alongside preserved native reports. None of these
+checks use real portfolios or establish a personal instance. C3C's ordinary daily
+publication/third-parser workflow remains gated.

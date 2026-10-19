@@ -215,3 +215,10 @@ adds identity-bound legacy/wallet/frozen-history read projections. C3A uses this
 opening/balance/event declarations; its 25-case suite also runs outside the checkout
 against installed wheels. These data-only edits do not enable daily import/report
 cutover. V1 parser plans remain nonbooking.
+
+
+C3B adds 35 installed source-report acceptance cases, covering explicit saved-data
+valuations, frozen histories and three-locale ODS/Markdown/PDF/charts outside the
+checkout. The source-report API consumes verified facts rather than calling an
+adapter. This does not turn the v1 example into a bookable plugin or enable ordinary
+CLI/Web publication; see [C3B semantics and remaining C3C gates](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b).

@@ -186,3 +186,29 @@ en-CA/zh-TW use Noto Sans TC; zh-CN uses Noto Sans SC with its separate license.
 PDF and ODS share locale resources. Security/company names/custom text stay verbatim.
 Use `scripts/render_report.py` for language-only editions without ledger changes;
 see [the locale contract](i18n-plan.md).
+
+
+## Source-neutral report editions
+
+C3B's trusted-core `source-neutral-1` payload uses the same ODF packager, embedded
+fonts, cached formulas and same-run PNG validation as native reports. The overview
+labels CAD/USD/TWD as valued observed subtotals. Missing values are explicit text
+without zero-valued formulas; source costs/prices/dates remain unchanged. Known cash
+can be an account's partial subtotal while its unpriced BTC quantity stays unknown
+in value. BTC proxy estimates never populate actual position costs/P&L.
+
+Source FX and known numeric position fields drive display conversions, account/
+security subtotal formulas and weights. Some aggregate averages, instrument/matrix
+summaries and optional ETF classification tables are frozen display values; they
+are not a fully recalculating scenario model. Top-company amount/weight cells are
+numeric frozen results. Images/order/coverage are always frozen. Regenerate a
+review bundle through the core API after changing inputs; manual workbook edits
+never save valuations or alter SQLite. Optional exposure analysis retains all
+country detail in its audit exports; the shared PDF/MD summary uses Top 15 countries.
+
+Source BTC charts show monthly acquisitions and purchase spending, not inferred
+contributions. Unknown cost charts show no comparable data instead of zero P&L.
+Two actual distinct-date editions enable historical values at their saved FX, with
+no invented month-end points. `source-valuation-audit.json` retains wallet links,
+quantity/cost scope and the verified projection hash. See [the C3B API and gates](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b).
+Ordinary CLI/Web import and publication remain gated until C3C acceptance.

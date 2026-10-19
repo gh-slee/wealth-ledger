@@ -70,3 +70,18 @@ class ApplicationService:
                 raise ValueError("Preview is stale; financial or configuration inputs changed")
             database_backup(self.root, label)
             return operations.record_data_operation(self.root, request, action, operation_id=operation_id)
+
+    def source_payload(self, **inputs):
+        """Read source-neutral report inputs; never publish or change a ledger."""
+        from .source_report import make_source_payload
+        return make_source_payload(self.root, **inputs)
+
+    def source_valuation(self, inputs, *, operation_id=None, expected_fingerprint=None):
+        """Freeze an explicit source valuation, with atomic receipt-only recovery."""
+        from copy import deepcopy
+        from .source_valuation import freeze_valuation
+        from .source_projection import _serialize
+        values = deepcopy(_serialize(inputs))
+        return self.record({"type": "source_report_valuation", "inputs": values},
+            lambda stage: freeze_valuation(stage, **values), label="before-source-valuation",
+            operation_id=operation_id, expected_fingerprint=expected_fingerprint, require_clear_operations=True)

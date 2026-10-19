@@ -1284,3 +1284,14 @@ that opening. See [fixed opening rules and examples](source-projections.md#sourc
 These declarations save data only. The canonical ordinary CSV/report workflow is
 still gated pending C3B/C3C; use original native daily workflows until full cutover
 is accepted. Existing source evidence and published reports are preserved.
+
+
+## Source-plugin report development status
+
+The C3B [trusted Python report API](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b)
+can render source-neutral review bundles and save derived valuation editions from
+already verified facts. It is a developer interface, not a new everyday import
+command. Continue using the documented supported native workflow; do not convert a
+daily ledger to canonical source storage merely to try it. Ordinary plugin-driven
+CLI/Web import/mapping/confirmation/publication/recovery remains C3C. Historical
+editions retain actual dates/quotes and explicit unknown costs/contributions.

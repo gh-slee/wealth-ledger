@@ -262,7 +262,7 @@ written or migrated by this read function.
 
 ### Remaining production acceptance
 
-C3B/C3C must route ordinary CSV and saved-data workflows through the compatible
+C3C must route ordinary CSV and saved-data daily workflows through the compatible
 basis, preserve first-recorded expectations and fixed valuation/recovery contexts,
 and materialize reports through the shared pipeline. C3A now connects BTC declaration writes to the compatible basis as described below.
 Ordinary import/report routes remain gated; a C2 read result alone never authorizes
@@ -352,4 +352,132 @@ fixed opening revisions/backfill, a synthetic third provider, actual CLI record
 commands, Web preview/confirmation/staleness/recovery and Docker empty-volume restore.
 They do not establish a third parser's complete report workflow. Source ingestion
 receipts remain data-only; normal canonical imports/new reports are still blocked
-until C3B/C3C acceptance. Existing frozen reports remain readable and unchanged.
+until C3C acceptance. Existing frozen reports remain readable and unchanged.
+
+
+## Source report payloads and frozen valuations (SRC-004C3B)
+
+C3B implements a trusted Python core interface over verified saved native/canonical
+facts. It renders reports without dispatching a provider parser. It does **not**
+add an ordinary import command, browser form, HTTP route, report registration or
+`latest` publication. Those remain C3C; `report_projection_unavailable` is retained.
+A rendered development bundle is not a published Web report or a daily-use switch.
+
+### Explicit inputs and entry points
+
+```python
+from pathlib import Path
+from wealth_ledger.application import ApplicationService
+from wealth_ledger.workspace import resolve_workspace
+from wealth_ledger.source_valuation import read_source_valuation
+from wealth_ledger.reporting import generate_reports
+from wealth_ledger.workbook import build_workbook
+
+# Use a disposable synthetic workspace while evaluating this developer interface.
+workspace = resolve_workspace(explicit=Path("work/synthetic-ledger"))
+service = ApplicationService(workspace)
+inputs = {
+    "as_of": "2024-03-01T00:00:00Z",
+    "period_start": "2024-01-01T00:00:00Z",
+    "generated_at": "2024-03-01T00:00:00Z",
+    "kind": "interim",
+    "fx": {
+        "usd_cad": "1.5", "usd_twd": "30",
+        "usd_cad_date": "2024-02-29", "usd_twd_date": "2024-02-29",
+        "usd_cad_source": "synthetic-fixed", "usd_twd_source": "synthetic-fixed",
+    },
+}
+payload = service.source_payload(**inputs)  # Read-only; no observation is saved.
+receipt = service.source_valuation(inputs)  # Lock, backup, atomic staged write.
+frozen = read_source_valuation(workspace.workspace_root, receipt["observation_id"])
+output = Path("work/synthetic-source-report")
+artifacts = generate_reports(frozen, output, locale="en-CA")
+build_workbook(frozen, output / "portfolio.ods",
+               chart_images=artifacts["charts"], locale="en-CA")
+```
+
+`workspace.workspace_root` is the resolved portfolio directory. Financial inputs use decimal
+strings or `Decimal`, never binary floats. Times must include offsets. FX effective
+dates cannot be later than the cutoff; generation cannot precede it. Optional
+`btc_price` follows the C2 explicit BTC-USD minute-candle contract, including provider,
+reference URL and candle boundaries. No automatic quote lookup, parser, LLM or local
+LibreOffice is invoked. An absent quote leaves BTC value unknown without discarding
+a known quantity. `btc_cost_policy` defaults to `actual_only`; the Bull-cohort proxy
+is explicitly opt-in. Existing source evidence must be imported through its approved
+ingestion path first; this API does not import a CSV.
+
+### Values, coverage and costs
+
+`meta.report_model` is `source-neutral-1`. CAD/USD/TWD totals are **valued observed
+subtotals**, and all weights use the stated observed denominator. Complete wealth
+and period returns remain unavailable. Carried securities retain original source
+prices/dates, native amounts, source CAD book cost and original account/security/
+observation IDs. Aggregates retain member provenance; unavailable or mixed-date
+unit prices are not replaced with an implied value/quantity quote. Current display FX never rewrites source CAD cost or prior editions.
+
+No observation means unknown. An explicit empty holdings observation means an
+observed zero for that scope. An unpriced wallet is excluded from the valued subtotal
+with quantity and missing quote disclosed. Known account cash can still contribute
+a partial subtotal in the same account. Canonical funding/buy movements do not prove
+a cash balance. Known negative reconstructed legacy cash is disclosed and excluded,
+never clamped to zero or counted as a positive asset.
+
+Actual BTC full cost/P&L remain unknown when historical acquisition/disposal costs
+are incomplete. An optional proxy is a separate estimate using the deduplicated
+Bull cohort. Fixed openings, anchors, immutable recorded residuals, recalculated
+residuals, linked events and backfill conflicts remain visible. A known native zero
+opening is distinguished from an unknown opening; obsolete assumptions are not
+promoted to current effective values. Monthly BTC tables include delivered quantity,
+net recorded change, CAD purchase spending and weighted purchase rate. They do not
+rename purchase spending or funding as complete contributions.
+
+### Frozen editions and history
+
+`source_valuation` stores derived editions in `source_report_observations` and
+content-addressed `data/raw/source-valuations/<sha256>.json`, separate from source
+facts. Repeating the same cutoff/projection/scope/kind returns the saved edition;
+changing only generation time does not create one. A changed financial/reference/
+settings projection at the same cutoff creates a new revision without rewriting
+old bytes. These are derived report revisions, not additional source transactions.
+Reading a saved ID verifies database/archive bytes, checksum, safe path and metadata;
+it does not load parsers, fetch prices, use current settings or mutate the ledger.
+Rendering that frozen payload in another locale also does not create a valuation.
+
+Read-only payloads explicitly mark the current prospective row as an unsaved
+preview, without a valuation ID. Saved editions show their stable ID/revision.
+History uses actual saved dates and latest revisions for the same scope, up to the
+cutoff. Missing months are not interpolated. Changed account/wallet scope starts a
+separate comparable series; old edition IDs remain readable. Native historical
+snapshots/combined observations retain their own IDs, dates and historical FX and
+are displayed separately rather than spliced into a newly calculated growth curve.
+Two distinct saved source dates enable the historical-value chart. Unknown values
+remain gaps, and complete-period growth, Dietz/XIRR and contributions remain disabled.
+
+An optional `operation_id` enables existing atomic receipt recovery; a repeated
+completed operation returns its proven result without recalculation. Optional
+`expected_fingerprint` rejects stale previews before writes. Failed staging cannot
+leave a live edition/archive. This core method uses the existing Web maintenance
+barrier through the operation service. Full instance backups include the database,
+raw valuation archives and receipts; empty-volume restore retains the same editions.
+There is no new restore command or automatic publication.
+
+### Report and acceptance boundary
+
+Shared sections drive en-CA/zh-TW/zh-CN Markdown, embedded-font PDF and self-contained
+ODS with matching amounts, source dates, coverage and unknowns. Eight standard
+charts remain; optional history, BTC acquisition/spending/reconciliation and existing
+company/sector/country/region analyses use explicit available inputs. Optional ETF
+analysis consumes separately attached/frozen official evidence with the existing
+fetch/replay policy; the report builder never performs an implicit refresh. Its
+weights describe the observed investment subset, not all personal wealth. ODS
+formulas cover source-linked values/FX/subtotals; analysis ordering, some summaries
+and images are frozen. See [ODS limitations](workbook.md#source-neutral-report-editions).
+
+`test_source_report.py` covers read-only inputs, scope/unknown/zero distinctions,
+original IDs/dates, history/revisions, integrity, concurrent changes, atomic failure/
+recovery, all three formats/locales and explicit synthetic exposure analysis. The
+installed-wheel suite runs the same tests outside the checkout. Docker acceptance
+freezes canonical-only and mixed native/canonical editions, then verifies their
+hashes after a full backup and restore into a new empty volume. All fixtures are
+invented. This evidence does not establish an actual personal deployment or C3C's
+third-parser/ordinary browser confirmation/publication workflow.

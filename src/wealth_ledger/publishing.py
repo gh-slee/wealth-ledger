@@ -76,6 +76,8 @@ def verify_ods(path, payload=None, chart_images=None, locale=None):
     if payload:
         for summary in [payload["totals"], *payload["accounts"]]:
             for key in ("total_cad", "total_usd", "total_twd"):
+                if summary[key] is None and payload.get("meta", {}).get("report_model") == "source-neutral-1":
+                    continue
                 expected = Decimal(summary[key])
                 if not any(abs(value - expected) < Decimal("0.005") for value in numeric_values):
                     raise ValueError(f"ODS is missing the verified {key} summary value")

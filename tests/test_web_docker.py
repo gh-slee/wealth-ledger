@@ -398,6 +398,29 @@ print('synthetic-legacy-overlap-recorded')
                     "print(json.dumps({p:m['projection_sha256'] for p,m in models.items()},sort_keys=True))")
                 projected=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",projection_check,capture_output=True)
                 projection_hashes=json.loads(projected.stdout)
+                # Derived C3B editions freeze explicit quotes without enabling daily publication.
+                valuation_seed = """
+import json
+from pathlib import Path
+from wealth_ledger.application import ApplicationService
+from wealth_ledger.workspace import resolve_workspace
+from wealth_ledger.source_valuation import read_source_valuation
+fx={'usd_cad':'1.5','usd_twd':'30','usd_cad_date':'2024-01-30','usd_twd_date':'2024-01-30','usd_cad_source':'synthetic-fixed','usd_twd_source':'synthetic-fixed'}
+inputs={'as_of':'2024-03-01T12:00:00Z','period_start':'2023-12-31T00:00:00Z','generated_at':'2024-03-01T12:00:00Z','fx':fx,
+ 'btc_price':{'provider':'synthetic-fixed','pair':'BTC-USD','close':'100000','as_of':'2024-03-01T12:00:00Z','candle_start':'2024-03-01T11:59:00Z','candle_end':'2024-03-01T12:00:00Z','source_url':'https://example.test/quote'}}
+for portfolio in PORTFOLIOS:
+    project=Path('/data/portfolios')/portfolio
+    result=ApplicationService(resolve_workspace(explicit=project)).source_valuation(inputs)
+    frozen=read_source_valuation(project,result['observation_id'])
+    assert frozen['meta']['report_model']=='source-neutral-1' and not result['report_published']
+print('synthetic-source-valuations-frozen')
+""".replace('PORTFOLIOS',repr([canonical_id,adopted_id]))
+                frozen=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",valuation_seed,capture_output=True)
+                self.assertEqual(frozen.stdout.decode().strip(),"synthetic-source-valuations-frozen")
+                valuation_check=("import hashlib,json; from pathlib import Path; from wealth_ledger.source_valuation import read_source_valuation; "
+                    "print(json.dumps({p:hashlib.sha256(json.dumps(read_source_valuation(Path('/data/portfolios')/p,1),sort_keys=True).encode()).hexdigest() for p in "
+                    +repr([canonical_id,adopted_id])+"},sort_keys=True))")
+                frozen_hashes=json.loads(compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",valuation_check,capture_output=True).stdout)
                 # Full private archive roundtrip to a different empty volume; source stays intact.
                 bundle_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}/bundle.zip")
                 with client.open(bundle_request, timeout=15) as response:
@@ -425,6 +448,8 @@ print('synthetic-legacy-overlap-recorded')
                 self.assertEqual(receipt.stdout.strip(),"source-receipt-restored")
                 projected_restore=subprocess.run([*isolated,"--entrypoint","python",image,"-c",projection_check],check=True,capture_output=True,text=True)
                 self.assertEqual(json.loads(projected_restore.stdout),projection_hashes)
+                valuation_restore=subprocess.run([*isolated,"--entrypoint","python",image,"-c",valuation_check],check=True,capture_output=True,text=True)
+                self.assertEqual(json.loads(valuation_restore.stdout),frozen_hashes)
 
                 new_port=free_port();new_origin=f"http://localhost:{new_port}"
                 subprocess.run(["docker","run","--detach","--name",restore_container,"--read-only","--cap-drop=ALL",

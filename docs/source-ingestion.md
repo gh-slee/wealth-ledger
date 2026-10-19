@@ -449,3 +449,12 @@ remain readable. Normal workspaces with no canonical batches retain their existi
 workflow. B2 does not switch a personal workspace, migrate historical reports or
 complete provider-neutral valuation/history/contribution/report projections. Those
 remain SRC-004C acceptance requirements before any daily-use cutover.
+
+
+### Source report core versus ordinary publication
+
+C3B now supplies [trusted-core source report payloads and frozen valuations](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b),
+with three-locale portable reports and synthetic empty-volume restore acceptance.
+Frozen canonical submission remains data-only: it does not automatically value or
+publish. The ordinary report gate is still enforced; C3C must connect fixed-context
+CLI/Web import/mapping/confirmation/publication/recovery and third-parser acceptance.

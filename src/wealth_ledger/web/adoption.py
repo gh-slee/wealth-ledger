@@ -65,6 +65,8 @@ def verify_portfolio(project, *, allow_legacy_reports=False):
     db=contained(project,'data/db/portfolio.sqlite3')
     from ..source_ingestion import verify_store
     verify_store(project)
+    from ..source_valuation import read_observations
+    read_observations(project)
     with closing(sqlite3.connect(db.as_uri()+'?mode=ro',uri=True)) as conn:
         tables={row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         for table,pathcol,hashcol in (('sources','path','sha256'),('crypto_sources','path','sha256'),

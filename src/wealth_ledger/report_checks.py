@@ -15,6 +15,9 @@ NS = {"t": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
 def validate_report_presentation(payload, output):
     """Check all three formats against active quantities and cost completeness."""
     from .i18n import display_payload
+    if payload.get("meta", {}).get("report_model") == "source-neutral-1":
+        from .source_report_checks import validate_source_presentation
+        return validate_source_presentation(payload, output)
     original_payload = payload
     payload = display_payload(payload)
     crypto = payload.get("crypto")

@@ -26,11 +26,20 @@ class CanonicalBackupTests(unittest.TestCase):
             plan=ingestion.prepare_ingestion(self.project,(ingestion.SourceInput(batch((funding(),purchase())),RAW),),bindings=(ingestion.new_binding(ACCOUNT),))
             ingestion.commit_ingestion(resolve_workspace(explicit=self.project),plan)
 
+    def freeze_valuation(self):
+        from wealth_ledger.application import ApplicationService
+        from wealth_ledger.source_valuation import read_source_valuation
+        inputs={"as_of":"2024-03-01T00:00:00Z","period_start":"2023-12-31T00:00:00Z","generated_at":"2024-03-01T00:00:00Z",
+            "fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-01-30","usd_twd_date":"2024-01-30","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}
+        result=ApplicationService(resolve_workspace(explicit=self.project)).source_valuation(inputs)
+        return read_source_valuation(self.project,result["observation_id"])
+
     def test_full_backup_and_fresh_instance_restore_preserve_canonical_facts(self):
         from wealth_ledger.web.backups import backup_instance,restore_instance,database_info
         from wealth_ledger.web.config import WebSettings
         from wealth_ledger.web.storage import Store
         self.seed()
+        valuation=self.freeze_valuation()
         facts=ingestion.read_facts(self.project)
         before=database_info(self.project/"data/db/portfolio.sqlite3")
         archive=self.root.parent/"canonical-backup.zip"
@@ -40,6 +49,8 @@ class CanonicalBackupTests(unittest.TestCase):
             restore_instance(target,archive)
         _,restored=Store(target).portfolio(self.pid)
         self.assertEqual(ingestion.read_facts(restored),facts)
+        from wealth_ledger.source_valuation import read_source_valuation
+        self.assertEqual(read_source_valuation(restored,1),valuation)
         self.assertEqual(database_info(restored/"data/db/portfolio.sqlite3"),before)
         self.assertFalse((restored/"reports").exists())
         self.assertEqual(ingestion.verify_store(restored)["schema_version"],1)
@@ -53,3 +64,14 @@ class CanonicalBackupTests(unittest.TestCase):
         path=self.project/relative;path.chmod(0o600);path.write_bytes(b'{"synthetic":"changed evidence"}')
         with self.assertRaises(ValueError):backup_instance(self.settings,self.root.parent/"rejected.zip")
         with self.assertRaises(ValueError):verify_portfolio(self.project)
+
+    def test_backup_and_adoption_reject_tampered_derived_valuation(self):
+        from wealth_ledger.web.backups import backup_instance
+        from wealth_ledger.web.adoption import verify_portfolio
+        self.seed();self.freeze_valuation()
+        path=next((self.project/"data/raw/source-valuations").glob("*.json"))
+        path.chmod(0o600);path.write_bytes(b'{"synthetic":"changed derived evidence"}')
+        with self.assertRaisesRegex(ValueError,"source_valuation_integrity"):
+            backup_instance(self.settings,self.root.parent/"rejected-valuation.zip")
+        with self.assertRaisesRegex(ValueError,"source_valuation_integrity"):
+            verify_portfolio(self.project)

@@ -614,3 +614,19 @@ queries and `crypto_opening.import_opening` through `wallet_basis.py` when canon
 sources exist. No parser/price/FX lookup is performed; original first-recorded
 expectations are immutable. Native-only behavior remains compatible. This data-only
 integration does not remove the canonical ordinary-update/report phase gate.
+
+
+## Source report core APIs (SRC-004C3B)
+
+`ApplicationService.source_payload(**inputs)` reads verified native/canonical facts
+with explicit cutoff, period start, FX and generation time; `btc_price` is optional.
+`source_valuation(inputs, operation_id=None, expected_fingerprint=None)` freezes an
+append-only derived edition using the shared lock/backup/atomic receipt service.
+`source_valuation.read_source_valuation(project, observation_id)` verifies and reads
+that edition without repricing. `reporting.generate_reports` and
+`workbook.build_workbook` recognize `meta.report_model == "source-neutral-1"`.
+
+See [the complete contract and synthetic Python example](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b).
+Totals are observed subtotals, unknown values stay unknown and full portfolio returns
+remain disabled. No ordinary CLI/HTTP route or Web publication is enabled by these
+methods; C3C still owns daily import/mapping/confirmation/publication/retry cutover.

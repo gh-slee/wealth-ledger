@@ -71,7 +71,7 @@ def fingerprint(project):
         return hashlib.sha256(b"empty").hexdigest()
     with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True) as conn:
         tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
-        names = {"sources", "accounts", "snapshots", "positions", "cash_flows", "flow_periods", "flow_coverage", "coverage_declarations"}
+        names = {"sources", "accounts", "snapshots", "positions", "cash_flows", "flow_periods", "flow_coverage", "coverage_declarations", "source_report_observations"}
         values = []
         for name in sorted(tables):
             if name in names or name.startswith(("crypto_", "wallet_", "src_")):

@@ -239,3 +239,15 @@ API confirmation followed by full backup and fresh empty-volume restore. See the
 CLI frozen-preview writes against a Web-managed portfolio also enter the instance
 activity barrier before parsing or saving metadata. Active backup/upgrade maintenance
 blocks them, preventing a partially saved bundle from entering a full snapshot.
+
+
+## Derived source valuation editions
+
+C3B adds portfolio-local `source_report_observations`, hashed JSON under
+`data/raw/source-valuations/` and ordinary operation receipts. Full backups preserve
+these with the same maintenance barrier. Backup/restore and copy-adoption validation
+also reject a database/archive mismatch before accepting the instance. Synthetic Docker acceptance freezes
+canonical-only and mixed legacy/canonical valuations and checks identical verified
+payload hashes after restoration to an empty volume. Reading restored IDs never
+reprices historical editions or runs a parser. This does not register development
+reports in the Web UI, remove the daily report gate or migrate a real workspace.
