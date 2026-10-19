@@ -115,7 +115,7 @@ def path_allowed(path: str) -> bool:
         return len(parts) == 4 and parts[1:3] == ('fixtures', 'fund_sources') and p.name in PUBLIC_FUND_FIXTURES
     if parts[0] == 'examples':
         if path in {'examples/parser-plugin/pyproject.toml', 'examples/parser-plugin/README.md', 'examples/parser-plugin/LICENSE',
-                    'examples/parser-plugin/src/synthetic_parser/__init__.py',
+                    'examples/parser-plugin/src/synthetic_parser/__init__.py', 'examples/parser-plugin/src/synthetic_parser/v2.py',
                     'examples/parser-plugin/tests/test_synthetic_parser.py', 'examples/parser-plugin/tests/test_installed_api.py'}:
             return True
         if len(parts) == 2:

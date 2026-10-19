@@ -75,3 +75,39 @@ class CanonicalBackupTests(unittest.TestCase):
             backup_instance(self.settings,self.root.parent/"rejected-valuation.zip")
         with self.assertRaisesRegex(ValueError,"source_valuation_integrity"):
             verify_portfolio(self.project)
+
+    def publish_source_report(self):
+        from wealth_ledger.source_publication import prepare_source_report,confirm_source_report
+        from wealth_ledger.wallet import add_balance
+        add_balance(self.project,"0.008","2024-03-01T00:00:00Z",now="2024-03-01T00:00:00Z")
+        value={"as_of":"2024-03-01T00:00:00Z","period_start":"2023-12-31T00:00:00Z","generated_at":"2024-03-01T00:00:00Z",
+            "fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-01-30","usd_twd_date":"2024-01-30","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}
+        directory=self.root.parent/"source-report-preview"
+        with patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="a"*64):
+            preview=prepare_source_report(self.project,valuation=value,directory=directory)
+            result=confirm_source_report(self.project,directory,preview["approval_sha256"])
+        return result
+
+    def test_full_backup_empty_restore_preserves_source_publication_and_readonly_retry(self):
+        import hashlib
+        from wealth_ledger.web.backups import backup_instance,restore_instance
+        from wealth_ledger.web.config import WebSettings
+        from wealth_ledger.web.storage import Store
+        from wealth_ledger.source_publication import resume_source_report,verify_source_publications
+        self.seed();publication=self.publish_source_report();output=Path(publication["output"])
+        before={p.relative_to(output).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in output.rglob("*") if p.is_file()}
+        archive=self.root.parent/"source-report-backup.zip";target=WebSettings(self.root.parent/"empty-source-report-instance")
+        backup_instance(self.settings,archive);restore_instance(target,archive)
+        _,project=Store(target).portfolio(self.pid)
+        with patch("wealth_ledger.source_publication.make_source_payload",side_effect=AssertionError("No repricing")),patch("wealth_ledger.lookthrough.attach_analysis",side_effect=AssertionError("No refresh")):
+            result=resume_source_report(project,publication["operation_id"])
+        restored=Path(result["output"])
+        self.assertEqual({p.relative_to(restored).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in restored.rglob("*") if p.is_file()},before)
+        verify_source_publications(project)
+
+    def test_backup_rejects_tampered_frozen_publication_payload(self):
+        from wealth_ledger.web.backups import backup_instance
+        self.seed();self.publish_source_report()
+        path=next((self.project/"data/raw/source-publications").glob("*.json"));path.chmod(0o600);path.write_bytes(b"{}")
+        with self.assertRaisesRegex(ValueError,"source_integrity"):
+            backup_instance(self.settings,self.root.parent/"rejected-source-report.zip")

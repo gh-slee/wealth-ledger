@@ -1295,3 +1295,17 @@ command. Continue using the documented supported native workflow; do not convert
 daily ledger to canonical source storage merely to try it. Ordinary plugin-driven
 CLI/Web import/mapping/confirmation/publication/recovery remains C3C. Historical
 editions retain actual dates/quotes and explicit unknown costs/contributions.
+
+
+## Advanced source-report CLI (opt-in)
+
+An installed core provides `wealth-ledger-source-reports`; a checkout provides
+`python scripts/source_reports.py`. The commands are `preview`, `inspect`, `confirm`
+and `resume`. They consume explicit v2 contexts/mappings and valuation JSON, or
+verified saved facts without a new CSV. Follow [the full synthetic examples and
+recovery rules](source-projections.md#frozen-source-report-publication-src-004c3c1).
+This is an advanced pre-release host workflow, not the normal Web import switch.
+Record contributions and BTC totals/events through the existing financial commands
+or forms first; this CLI does not infer missing contributions or add a total field.
+Regular automatic either-source/both-source/BTC-only routing and source-aware browser
+views remain C3C2. Preserve a working daily ledger while evaluating synthetic data.

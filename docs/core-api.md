@@ -630,3 +630,13 @@ See [the complete contract and synthetic Python example](source-projections.md#s
 Totals are observed subtotals, unknown values stay unknown and full portfolio returns
 remain disabled. No ordinary CLI/HTTP route or Web publication is enabled by these
 methods; C3C still owns daily import/mapping/confirmation/publication/retry cutover.
+
+
+## Opt-in source report confirmation/publication
+
+C3C1 adds `ApplicationService.source_report_preview`, `source_report_confirm` and
+`source_report_resume`. These use explicitly frozen v2 inputs/mappings/valuation
+references, one atomic commit marker and frozen report-only recovery. See [the
+complete contract and real CLI examples](source-projections.md#frozen-source-report-publication-src-004c3c1).
+No ordinary native CLI/Web routing or browser registration is enabled by these
+methods; preserve the phase gate until C3C2 acceptance.

@@ -43,13 +43,13 @@ with tempfile.TemporaryDirectory() as directory:
         pathlib.Path(directory, name).write_text(content)
     sys.path.insert(0, directory)
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.discover(directory))
-    assert result.testsRun == 7 and not result.skipped
+    assert result.testsRun == 12 and not result.skipped
     if not result.wasSuccessful():
         raise SystemExit(1)
 '''
         subprocess.run(["docker", "run", "--rm", "-i", "--read-only", "--network=none", "--cap-drop=ALL",
             "--security-opt=no-new-privileges", "--pids-limit=256", "--memory=1g",
-            "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=256m,uid=10001,gid=10001,mode=0700",
             "--entrypoint", "python", image, "-c", code], input=json.dumps(tests), text=True, check=True)
     finally:
         subprocess.run(["docker", "image", "rm", image], capture_output=True)
@@ -61,7 +61,7 @@ def main():
     parser.add_argument("--wheel", required=True, type=Path)
     args = parser.parse_args()
     verify(args.base_image, args.wheel)
-    print(json.dumps({"derived_image_tests":7, "financial_volume_attached":False, "network_enabled":False}))
+    print(json.dumps({"derived_image_tests":12, "financial_volume_attached":False, "network_enabled":False}))
 
 
 if __name__ == "__main__":

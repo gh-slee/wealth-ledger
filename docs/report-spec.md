@@ -350,3 +350,17 @@ rendering never refreshes sources. Source observations, derived valuation editio
 and published Web reports are different records. C3B adds no normal CLI/HTTP
 publication route and does not remove the report gate. See [source report semantics](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b)
 and [workbook limitations](workbook.md#source-neutral-report-editions).
+
+
+## Frozen source publication operations
+
+C3C1's opt-in source-report workflow atomically freezes verified source facts, the
+derived valuation and effective-date/coverage-aware ETF analysis before publishing
+ODS/Markdown/PDF and audit exports. Report-only retry reads that payload; it never
+refreshes prices, FX, constituents or original CSVs. Publication manifests carry
+`report_model` and `source_valuation_id` alongside the operation/approval binding.
+Old derived editions retain their bytes, and already published retries cannot move
+a newer latest pointer backwards. Source financial payloads omit developer-stage
+publication flags; actual state belongs to durable operation/manifest records.
+See [approval and recovery](source-projections.md#frozen-source-report-publication-src-004c3c1).
+This does not register a Web report or complete ordinary CLI/browser cutover.

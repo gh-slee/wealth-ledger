@@ -101,3 +101,47 @@ class InstalledApiTests(unittest.TestCase):
                     process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     process.kill(); process.wait(timeout=10)
+
+
+class InstalledV2ReportTests(unittest.TestCase):
+    def test_actual_installed_third_parser_cli_generates_and_recovers_reports(self):
+        from synthetic_parser.v2 import VERSION
+        from wealth_ledger.source_valuation import read_observations
+        from wealth_ledger.publishing import verify_bundle
+        from wealth_ledger.source_publication import verify_source_publications
+        with tempfile.TemporaryDirectory(prefix="synthetic-v2-reports-") as temporary:
+            root=Path(temporary).resolve();ledger=root/"ledger";ledger.mkdir()
+            source=root/"invented.csv";source.write_bytes(fixture(format=VERSION))
+            config=root/"parsers.json";config.write_text(json.dumps({"schema_version":1,"enabled":[{"distribution":"wealth-ledger-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
+            context=root/"context.json";context.write_text(json.dumps({"schema_version":1,"inputs":[{"evidence_at":"2024-02-01T12:00:00+00:00","source_reference":"synthetic-independent-export","format_selection":VERSION}]}))
+            valuation=root/"valuation.json";valuation.write_text(json.dumps({"as_of":"2024-03-01T00:00:00Z","period_start":"2024-01-01T00:00:00Z","generated_at":"2024-03-01T00:00:00Z","report_locale":"en-CA","fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-02-29","usd_twd_date":"2024-02-29","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}))
+            binding=root/"bindings.json";binding.write_text(json.dumps({"schema_version":1,"bindings":[{"provider":"synthetic","source_account_id":"demo-account","target_kind":"new"}]}))
+            plan=root/"plan"
+            console=Path(sys.executable).parent/("wealth-ledger-source-reports.exe" if sys.platform=="win32" else "wealth-ledger-source-reports")
+            from wealth_ledger.workspace import SOURCE_CHECKOUT
+            if not SOURCE_CHECKOUT:self.assertTrue(console.is_file())
+            command=[str(console)] if console.is_file() else [sys.executable,"-m","wealth_ledger.source_report_cli"]
+            def run(*args):
+                result=subprocess.run([*command,*map(str,args),"--workspace",str(ledger)],cwd=root,text=True,capture_output=True,timeout=180)
+                self.assertEqual(result.returncode,0,result.stdout[-1200:]+result.stderr[-1200:])
+                return json.loads(result.stdout)
+            review=run("preview",source,"--context",context,"--bindings",binding,"--valuation",valuation,"--config",config,"--plan-directory",plan)
+            self.assertEqual(review["observed_totals"]["total_cad"],"125.00")
+            self.assertFalse((ledger/"data/db/portfolio.sqlite3").exists())
+            source.unlink()
+            result=run("confirm","--plan-directory",plan,"--approval-sha256",review["approval_sha256"],"--config",config)
+            output=Path(result["output"])
+            manifest=verify_bundle(ledger,output,review["operation_id"])
+            data=json.loads((output/"data.json").read_text())
+            self.assertEqual(data["positions"][0]["source_provider"],"synthetic")
+            self.assertIsNone(data["positions"][0]["book_native"])
+            self.assertEqual(manifest["source_valuation_id"],1)
+            self.assertTrue(all((output/name).is_file() for name in ("portfolio.ods","report.md","report.pdf")))
+            before={p.relative_to(output).as_posix():p.read_bytes() for p in output.rglob("*") if p.is_file()}
+            import shutil
+            shutil.rmtree(plan);config.unlink();context.unlink();valuation.unlink()
+            resumed=run("resume","--operation-id",review["operation_id"])
+            self.assertEqual(resumed["status"],"already_published")
+            self.assertEqual({p.relative_to(output).as_posix():p.read_bytes() for p in output.rglob("*") if p.is_file()},before)
+            self.assertEqual(len(read_observations(ledger)),1)
+            verify_source_publications(ledger)

@@ -10,7 +10,8 @@ B2 supplies opt-in frozen CLI/API data-only confirmation and receipt recovery. C
 adds an internal read-only source-neutral model. C2 adds identity-bound legacy,
 wallet and frozen-history compatibility; C3A routes BTC declarations through that
 basis. C3B adds trusted-core source report payloads, frozen valuations and portable
-reports; ordinary CLI/Web publication cutover remains C3C. SRC-004A adds explicit-context v2/canonical storage as a
+reports. C3C1 adds opt-in frozen source report approval/publication and advanced CLI;
+ordinary CLI/Web cutover remains C3C2. SRC-004A adds explicit-context v2/canonical storage as a
 trusted core API; see its phase gate below. V1/v2 source plans remain nonbooking;
 separate source-ingestion previews require exact approval and a no-report acknowledgement.
 Production downloads, calculations, charts and report prose are deterministic code;
@@ -107,7 +108,8 @@ portfolio updates. Report the checks actually run and any gaps.
 - Web security, host commands and experimental containers: [Web operations](docs/web-operations.md), [imports/jobs](docs/web-imports.md).
 - Canonical-v2 changes: [ingestion foundation](docs/source-ingestion.md). Use disposable synthetic workspaces; never bypass `report_projection_unavailable` until SRC-004B/C implement lossless importer/report parity. V1 contracts remain stable; explicit-context v2 previews are nonbooking too. Frozen source submissions use strict core-only decode, portfolio-scoped mappings, state/config/environment revalidation and atomic receipt recovery; never rerun plugins on confirmation or recover an unproven operation. Shared byte grammars must preserve legacy IDs, amounts, dates and messages; never infer wallet totals or opening assumptions in a parser.
 - Internal source projections: [C1 model](docs/source-projections.md). Observed subtotals and recorded movements are not complete wealth/wallet balances; C2 adds read-only native compatibility and the shared wallet kernel; BTC declarations use its verified basis through wallet_basis.py. C3B source payloads/valuations and three-format rendering preserve that boundary;
-  keep the ordinary report phase gate until C3C daily-workflow parity.
+  C3C1 freezes approved report inputs/analysis with receipt-only publication retries;
+  keep the ordinary report phase gate until C3C2 daily-workflow parity.
 - Parser author/build/install acceptance: [SDK guide](docs/parser-sdk.md); preserve nonbooking v1 limits and audit wheel/sdist contents.
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
   [self-hosted web app](docs/self-hosted-webapp.md).

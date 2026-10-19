@@ -421,6 +421,36 @@ print('synthetic-source-valuations-frozen')
                     "print(json.dumps({p:hashlib.sha256(json.dumps(read_source_valuation(Path('/data/portfolios')/p,1),sort_keys=True).encode()).hexdigest() for p in "
                     +repr([canonical_id,adopted_id])+"},sort_keys=True))")
                 frozen_hashes=json.loads(compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",valuation_check,capture_output=True).stdout)
+                publication_seed = """
+import json
+from pathlib import Path
+from wealth_ledger.source_publication import prepare_source_report,confirm_source_report,verify_source_publications
+from wealth_ledger.lookthrough import attach_analysis
+from wealth_ledger.fund_sources import holding
+from unittest.mock import patch
+fx={'usd_cad':'1.5','usd_twd':'30','usd_cad_date':'2024-01-30','usd_twd_date':'2024-01-30','usd_cad_source':'synthetic-fixed','usd_twd_source':'synthetic-fixed'}
+inputs={'as_of':'2024-03-01T12:00:00Z','period_start':'2023-12-31T00:00:00Z','generated_at':'2024-03-01T12:00:00Z','fx':fx,
+ 'btc_price':{'provider':'synthetic-fixed','pair':'BTC-USD','close':'100000','as_of':'2024-03-01T12:00:00Z','candle_start':'2024-03-01T11:59:00Z','candle_end':'2024-03-01T12:00:00Z','source_url':'https://example.test/quote'}}
+def synthetic_fund(fund_id,directory):
+    return {'fund_id':fund_id,'status':'ok','as_of':'2024-01-31','retrieved_at':'2024-02-01T00:00:00Z','issuer':'SYNTHETIC','latest_checked':False,'evidence':[],
+      'official_url':'https://example.test/synthetic-holdings','rows':[holding('Synthetic Company',100,ticker='SYN',country='CA',gics_sector='Industrials')]}
+original=attach_analysis
+for portfolio in PORTFOLIOS:
+    project=Path('/data/portfolios')/portfolio
+    preview=prepare_source_report(project,valuation=inputs,directory=Path('/tmp')/('synthetic-source-report-'+portfolio))
+    with patch('wealth_ledger.lookthrough.attach_analysis',side_effect=lambda p,v:original(p,v,fetcher=synthetic_fund)):
+        result=confirm_source_report(project,Path('/tmp')/('synthetic-source-report-'+portfolio),preview['approval_sha256'])
+    assert result['status']=='published'
+    verify_source_publications(project)
+print('synthetic-source-publications-verified')
+""".replace('PORTFOLIOS',repr([canonical_id,adopted_id]))
+                published=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",publication_seed,capture_output=True)
+                self.assertEqual(published.stdout.decode().strip(),"synthetic-source-publications-verified")
+                publication_check=("import hashlib,json; from pathlib import Path; from wealth_ledger.source_publication import verify_source_publications; "
+                    "roots=[Path('/data/portfolios')/p for p in "+repr([canonical_id,adopted_id])+ "]; "
+                    "[verify_source_publications(p) for p in roots]; "
+                    "print(json.dumps({p.name:{str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest() for folder in ('data/raw/source-publications','reports') for f in (p/folder).rglob('*') if f.is_file() and not f.is_symlink()} for p in roots},sort_keys=True))")
+                publication_hashes=json.loads(compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",publication_check,capture_output=True).stdout)
                 # Full private archive roundtrip to a different empty volume; source stays intact.
                 bundle_request = urllib.request.Request(origin + f"/api/v1/portfolios/{portfolio}/reports/{formal['id']}/bundle.zip")
                 with client.open(bundle_request, timeout=15) as response:
@@ -450,6 +480,8 @@ print('synthetic-source-valuations-frozen')
                 self.assertEqual(json.loads(projected_restore.stdout),projection_hashes)
                 valuation_restore=subprocess.run([*isolated,"--entrypoint","python",image,"-c",valuation_check],check=True,capture_output=True,text=True)
                 self.assertEqual(json.loads(valuation_restore.stdout),frozen_hashes)
+                publication_restore=subprocess.run([*isolated,"--entrypoint","python",image,"-c",publication_check],check=True,capture_output=True,text=True)
+                self.assertEqual(json.loads(publication_restore.stdout),publication_hashes)
 
                 new_port=free_port();new_origin=f"http://localhost:{new_port}"
                 subprocess.run(["docker","run","--detach","--name",restore_container,"--read-only","--cap-drop=ALL",

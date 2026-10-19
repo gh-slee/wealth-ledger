@@ -70,5 +70,39 @@ class ExampleParserTests(unittest.TestCase):
             check_contract(self.adapter, fixture())
 
 
+class V2ExampleParserTests(unittest.TestCase):
+    def setUp(self):
+        from synthetic_parser.v2 import SyntheticHoldingsV2, VERSION
+        from wealth_ledger.source_v2 import ParseContext
+        self.adapter=SyntheticHoldingsV2()
+        self.raw=fixture(format=VERSION)
+        self.context=ParseContext(datetime.fromisoformat("2024-02-01T12:00:00+00:00"),"synthetic-v2-export",format_selection=VERSION)
+        self.version=VERSION
+
+    def test_v2_contract_has_original_ids_and_explicit_partial_scope(self):
+        from wealth_ledger.source_testing import check_contract_v2
+        check_contract_v2(self.adapter,self.raw,context=self.context)
+        batch=self.adapter.normalize(self.raw,export_version=self.version,context=self.context)
+        self.assertEqual(batch.records[0].key.source_id,"position-001")
+        self.assertEqual(batch.membership.status,"partial")
+        self.assertEqual(batch.coverage[0].status,"partial")
+        self.assertIsNone(batch.records[0].unit_price)
+
+    def test_v2_unknown_and_zero_cost_are_distinct(self):
+        values=[self.adapter.normalize(fixture(format=self.version,cost=cost),export_version=self.version,context=self.context).records[0] for cost in ("","0")]
+        self.assertIsNone(values[0].cost_native)
+        self.assertEqual(values[1].cost_native.amount,Decimal(0))
+        self.assertEqual(values[1].cost_cad.amount,Decimal(0))
+
+    def test_v2_malformed_source_values_fail_without_guessing(self):
+        for changes in ({"as_of":"2024-01-31"},{"quantity":"NaN"},{"currency":"cad"},{"id":""},{"scope_revision":""}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):
+                self.adapter.normalize(fixture(format=self.version,**changes),export_version=self.version,context=self.context)
+
+    def test_v2_normalization_requires_no_io_or_clock(self):
+        with patch("builtins.open",side_effect=AssertionError("No file IO")),patch("socket.socket",side_effect=AssertionError("No network")),patch("subprocess.Popen",side_effect=AssertionError("No subprocess")):
+            self.adapter.normalize(self.raw,export_version=self.version,context=self.context)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,6 +19,7 @@ web = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1", "pwdlib[arg
 [project.scripts]
 wealth-ledger-source-parsers = "wealth_ledger.source_cli:main"
 wealth-ledger-source-ingestion = "wealth_ledger.source_submission_cli:main"
+wealth-ledger-source-reports = "wealth_ledger.source_report_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

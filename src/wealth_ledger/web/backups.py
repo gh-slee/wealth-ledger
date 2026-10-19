@@ -97,6 +97,8 @@ def validate_instance(root):
                 verify_store(project)
                 from ..source_valuation import read_observations
                 read_observations(project)
+                from ..source_publication import verify_source_publications
+                verify_source_publications(project)
                 with closing(sqlite3.connect(database.as_uri()+"?mode=ro", uri=True)) as ledger:
                     tables = {r[0] for r in ledger.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                     for table, column in (("sources","path"),("crypto_sources","path"),("wallet_revisions","source_path")):

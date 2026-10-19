@@ -85,3 +85,16 @@ class ApplicationService:
         return self.record({"type": "source_report_valuation", "inputs": values},
             lambda stage: freeze_valuation(stage, **values), label="before-source-valuation",
             operation_id=operation_id, expected_fingerprint=expected_fingerprint, require_clear_operations=True)
+
+    def source_report_preview(self, paths=(), **options):
+        """Prepare a frozen source/report approval, without live financial writes."""
+        from .source_publication import prepare_source_report
+        return prepare_source_report(self.root, paths, **options)
+
+    def source_report_confirm(self, directory, approval_sha256, **options):
+        from .source_publication import confirm_source_report
+        return confirm_source_report(self.root, directory, approval_sha256, **options)
+
+    def source_report_resume(self, operation_id, **options):
+        from .source_publication import resume_source_report
+        return resume_source_report(self.root, operation_id, **options)

@@ -251,3 +251,15 @@ canonical-only and mixed legacy/canonical valuations and checks identical verifi
 payload hashes after restoration to an empty volume. Reading restored IDs never
 reprices historical editions or runs a parser. This does not register development
 reports in the Web UI, remove the daily report gate or migrate a real workspace.
+
+
+## Frozen source report publications
+
+C3C1 also retains `data/raw/source-publications/` and operation-bound checksummed
+report bundles. Backup and copy-adoption validation verifies the frozen payload
+against its original derived valuation and publication bytes. Native and Docker
+acceptance preserve these with original reports during full empty-target restore.
+Published-ID verification resolves the bundle under the restored root, never
+revalues it or trusts a former host's absolute output path. Opt-in CLI publications
+are not automatically browser report-library entries; ordinary integration remains
+C3C2. See [the workflow contract](source-projections.md#frozen-source-report-publication-src-004c3c1).

@@ -58,7 +58,7 @@ def audit_artifacts(directory):
             if name in seen:
                 raise ValueError("Duplicate example wheel member")
             seen.add(name)
-            if name == "synthetic_parser/__init__.py":
+            if name in {"synthetic_parser/__init__.py","synthetic_parser/v2.py"}:
                 source = "examples/parser-plugin/src/" + name
                 if raw != (ROOT / source).read_bytes() or guard.content_issues(raw, source):
                     raise ValueError("Example wheel differs from reviewed source")
@@ -162,7 +162,7 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
             raise ValueError("Acceptance imported the source checkout")
         tests = base / "plugin-tests"
         shutil.copytree(ROOT / "examples/parser-plugin/tests", tests, ignore=shutil.ignore_patterns("__pycache__"))
-        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(tests), "-v"], base, env, test_count=7)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(tests), "-v"], base, env, test_count=12)
         raw = run([str(python), "-I", "-c", f"import sys; sys.path.insert(0, {str(tests)!r}); from test_synthetic_parser import fixture; print(fixture().decode(), end='')"], base, env)
         source = base / "synthetic.csv"; source.write_text(raw, encoding="utf-8")
         config = base / "parsers.json"
@@ -189,15 +189,15 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
         for name in ("company-aliases.json", "bull-opening.example.json"):
             shutil.copyfile(ROOT / "config" / name, demo / "config" / name)
         canonical = base / "canonical"; (canonical / "tests").mkdir(parents=True)
-        for name in ("test_source_v2.py", "test_source_ingestion.py", "test_source_builtin.py", "test_source_context_pipeline.py", "test_source_submission.py", "test_source_projection.py", "test_source_legacy_projection.py", "test_source_wallet_declarations.py", "test_source_report.py"):
+        for name in ("test_source_v2.py", "test_source_ingestion.py", "test_source_builtin.py", "test_source_context_pipeline.py", "test_source_submission.py", "test_source_projection.py", "test_source_legacy_projection.py", "test_source_wallet_declarations.py", "test_source_report.py", "test_source_publication.py"):
             shutil.copyfile(ROOT / "tests" / name, canonical / "tests" / name)
         (canonical / "examples/data").mkdir(parents=True)
         for name in ("wealthsimple-holdings.csv", "bull-orders.csv", "fx.json"):
             shutil.copyfile(ROOT / "examples/data" / name, canonical / "examples/data" / name)
-        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=208)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=231)
         for locale in ("en-CA", "zh-TW", "zh-CN"):
             run([str(python), "-I", str(demo / "examples/demo.py"), "--output", str(base / locale), "--locale", locale], base, env)
-    return {"installed_outside_checkout": True, "plugin_tests": 7, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "source_projection_tests": 29, "source_legacy_projection_tests": 33, "source_wallet_declaration_tests": 25, "source_report_tests": 35, "plan_and_revalidation": True,
+    return {"installed_outside_checkout": True, "plugin_tests": 12, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "source_projection_tests": 29, "source_legacy_projection_tests": 33, "source_wallet_declaration_tests": 25, "source_report_tests": 35, "source_publication_tests": 23, "plan_and_revalidation": True,
             "report_locales": ["en-CA", "zh-TW", "zh-CN"], "financial_booking": False,
             "financial_booking_scope": "v1_nonbooking_source_plan",
             "synthetic_canonical_submission": True, "real_financial_data_used": False}

@@ -222,3 +222,22 @@ valuations, frozen histories and three-locale ODS/Markdown/PDF/charts outside th
 checkout. The source-report API consumes verified facts rather than calling an
 adapter. This does not turn the v1 example into a bookable plugin or enable ordinary
 CLI/Web publication; see [C3B semantics and remaining C3C gates](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b).
+
+
+## Independent v2 reporting example
+
+The example wheel additionally registers `synthetic_v2` /
+`synthetic.holdings-v2` from `synthetic_parser.v2`. Its separate
+`synthetic-holdings-v2` marker avoids ambiguity with the unchanged v1 example. It
+exports invented partial positions with original IDs and unknown/zero costs. This
+is not a real bank/broker format and does not establish complete cash/activity.
+Enable that exact entry point/version in trusted host configuration; no plugin is
+automatically enabled by an uploaded CSV. The v1 example remains nonbooking.
+
+The installed test runs real CLI preview, mapping approval, confirmation and ODS/MD/
+PDF publication, then verifies an unchanged published retry after removing the
+original CSV/plan/configuration. The opt-in source-report API has no provider
+branch for this adapter. See [C3C1 commands and limits](source-projections.md#frozen-source-report-publication-src-004c3c1).
+The container plugin test runs the same independent cases without a financial volume
+or external network; its temporary filesystem is 256 MiB for report artifacts.
+Ordinary CLI/Web browser cutover and more real providers remain separate work.

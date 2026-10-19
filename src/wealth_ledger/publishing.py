@@ -154,12 +154,15 @@ def recover_publication(project, operation_id):
     return {"output": str(target), "snapshot_id": manifest["snapshot_id"],
             "workbook": manifest["workbook_validation"]}
 
-def publish(project, payload, import_result, lookthrough_run_id=None):
+def publish(project, payload, import_result, lookthrough_run_id=None, *, frozen_analysis=False):
     project = Path(project)
     pointer = project / "reports/latest.json"
     previous_latest = json.loads(pointer.read_text()) if pointer.exists() else None
     from wealth_ledger.lookthrough import attach_analysis, portfolio_signature
-    attach_analysis(project,payload,run_id=lookthrough_run_id)
+    if not frozen_analysis:
+        attach_analysis(project,payload,run_id=lookthrough_run_id)
+    elif lookthrough_run_id is not None:
+        raise ValueError("Frozen source publication cannot select another analysis run")
     from wealth_ledger.reporting import generate_reports
     from wealth_ledger.i18n import LEGACY_LOCALE
     locale = payload.get("reporting", {}).get("locale", LEGACY_LOCALE)
@@ -178,7 +181,8 @@ def publish(project, payload, import_result, lookthrough_run_id=None):
         payload_path = output / "data.json"
         payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         from wealth_ledger.lookthrough_reports import write_exports
-        write_exports(payload, output)
+        if payload.get("lookthrough"):
+            write_exports(payload, output)
         from wealth_ledger.wallet_reports import write_exports as write_wallet_exports
         write_wallet_exports(payload, output)
         report_result = generate_reports(payload, output, locale=locale, cache_directory=project / "work/cache")
@@ -197,8 +201,8 @@ def publish(project, payload, import_result, lookthrough_run_id=None):
             "snapshot_as_of": payload["meta"]["as_of"],
             "combined_observation_id": payload["meta"].get("combined_observation_id"),
             "wealthsimple_as_of": payload["meta"].get("wealthsimple_as_of", payload["meta"]["as_of"]),
-            "lookthrough_run_id": payload["lookthrough"]["run_id"],
-            "lookthrough_mode": payload["lookthrough"]["mode"],
+            "lookthrough_run_id": payload.get("lookthrough",{}).get("run_id"),
+            "lookthrough_mode": payload.get("lookthrough",{}).get("mode"),
             "quantity_status": payload["meta"].get("quantity_status"),
             "data_status": payload["meta"].get("data_status"),
             "source_updates": payload["meta"].get("source_updates"),
@@ -212,7 +216,9 @@ def publish(project, payload, import_result, lookthrough_run_id=None):
             "reporting": {"markdown": "report.md", "pdf": "report.pdf", "supplements": report_result["supplements"], "charts": sorted(str(p.relative_to(output)) for p in (output / "charts").glob("*.png"))},
             "database_backup": backup,
         }
-        classification = payload["lookthrough"].get("classification")
+        if payload["meta"].get("report_model")=="source-neutral-1":
+            manifest.update(report_model="source-neutral-1",source_valuation_id=payload["meta"]["source_report_observation_id"])
+        classification = payload.get("lookthrough",{}).get("classification")
         if classification:
             manifest["classification"] = {
                 "version": classification["version"], "sector_scheme": classification["sector_scheme"],

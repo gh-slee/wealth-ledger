@@ -307,3 +307,15 @@ formula-cache regressions. Docker acceptance verifies C3B payload hashes after f
 backup/empty-volume restore alongside preserved native reports. None of these
 checks use real portfolios or establish a personal instance. C3C's ordinary daily
 publication/third-parser workflow remains gated.
+
+
+### Frozen source publication acceptance
+
+`test_source_publication.py` exercises the opt-in C3C1 core and actual three-locale
+report publishing. Its receipt doubles isolate failure/recovery cases; a separate
+test renders real ODS/MD/PDF with synthetic ETF evidence. Installed-wheel acceptance
+also runs the independent v2 example through the actual source-report console.
+`test_web_source_ingestion.py` and Docker acceptance cover frozen publication
+consistency and full backup/empty-target restore alongside old native history.
+No normal Web/CLI cutover is implied; C3C2 must add routing, source-aware UI/export
+models and complete browser acceptance before removing the ordinary gate.

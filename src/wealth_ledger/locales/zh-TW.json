@@ -1320,6 +1320,6 @@
     "source_report.actual_return": "實際未實現損益率",
     "source_report.estimated_return": "估算未實現損益率",
     "source_report.valuation_preview_note": "未保存預覽：目前截止時間的資料列為待保存估值，尚無估值 ID。先前已保存資料保留原值。",
-    "source_report.valuation_saved_note": "已保存的衍生估值版本；這不是已登記發布的 Web 報告。"
+    "source_report.valuation_saved_note": "已保存的衍生估值版本；發布狀態另行追蹤。"
   }
 }

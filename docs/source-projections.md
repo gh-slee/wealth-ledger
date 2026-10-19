@@ -481,3 +481,155 @@ freezes canonical-only and mixed native/canonical editions, then verifies their
 hashes after a full backup and restore into a new empty volume. All fixtures are
 invented. This evidence does not establish an actual personal deployment or C3C's
 third-parser/ordinary browser confirmation/publication workflow.
+
+
+## Frozen source report publication (SRC-004C3C1)
+
+C3C1 connects verified v2 input facts to actual reports through an opt-in trusted-host
+workflow. It is **not** the regular `update.py`/Web import cutover: those routes,
+optional total-entry integration and source-aware browser projections remain C3C2.
+The native canonical report gate is deliberately retained. B2 remains data-only;
+confirming a B2 source submission still does not generate a report automatically.
+
+### Core entry points
+
+- `ApplicationService.source_report_preview(paths=(), valuation=..., directory=...,
+  contexts=(), bindings=(), config_path=None, selections=None, timeout=60)` parses
+  CSVs once in an isolated child, uses the existing explicit mapping contract and
+  simulates compatible values offline in a disposable workspace.
+- `source_report_confirm(directory, approval_sha256, config_path=None,
+  on_data_committed=None)` validates the exact frozen approval under the workspace
+  lock and commits facts, a derived valuation, frozen analysis and an atomic report
+  operation marker together. It then publishes the approved frozen report inputs.
+- `source_report_resume(operation_id)` verifies the durable commit/archive and
+  resumes publication only. It never reads the old CSV paths, loads a parser,
+  fetches FX/BTC quotes, refreshes ETF holdings or recomputes portfolio values.
+
+CSV inputs require explicit v2 host contexts and reviewed account bindings as in
+[B2](source-ingestion.md#frozen-submission-and-recovery-src-004b2). Missing bindings
+return `mapping_required` without saving an approvable bundle. `paths=()` instead
+uses already verified facts; it neither infers missing activity nor imports inputs.
+This interface uses previously recorded BTC openings/balances/events; it does not
+add a BTC-total argument or replace financial declaration commands/forms.
+
+`valuation` requires offset-aware `as_of`, `period_start`, `generated_at` and explicit
+CAD/USD/TWD `fx`. Optional fields are `btc_price`, `kind`, `btc_cost_policy` and
+`report_locale`. Schema and quote rules are identical to C3B. Decimal strings are
+required in JSON. There is no implicit quote lookup or wall-clock cutoff selection.
+Known valued rows form an observed subtotal; unavailable wallet/cash scope stays
+unknown. The caller reviews those limits before approving the digest.
+
+### Approval and atomic recovery
+
+The private preview bundle has a closed manifest, configuration bytes and optional
+nested frozen ingestion evidence. Its SHA-256 binds the workspace, operation ID,
+financial/settings/reference fingerprint, actual code/dependency environment,
+locale/catalog metadata, mappings, original CSV/normalized bytes, explicit valuation
+and simulated compatible scope/totals. Confirmation rejects changed evidence,
+settings, source state, parser configuration or environment. No parser is called
+again during confirmation. Failed staging does not install financial facts or
+valuations; the failed operation audit remains. Create a new reviewed preview for
+a proven data failure rather than reusing its operation ID.
+
+On first confirmation, the existing official ETF fetch/replay implementation runs
+in staging once, preserving effective/fetch dates, hashes, coverage and unknowns.
+Fetch failures stay explicit rather than reusing stale sources. The approved cutoff
+and FX/BTC references are fixed; ETF freshness and report rendering are identified
+as pending at preview, not falsely described as completed offline checks. No assets
+at all means no analysis denominator; an entirely unknown report does not invent
+zero equity exposure. No parser/provider branch is added to valuation or publishing.
+
+The operation retains its exact report payload, localization and analysis under
+`data/raw/source-publications/<sha256>.json`, separately from the C3B valuation
+archive. Publication-specific status lives in the operation/manifest; the frozen
+report copy omits the C3B developer-stage status flags. Original derived valuation
+bytes remain unchanged. `data_committed` and `report_failed` always refer to the
+same fixed operation/payload. Later financial facts stale an unfinished operation;
+changed presentation catalogs require review, not silent reinterpretation.
+
+A completed checksummed bundle can finish a crash-interrupted pointer handoff
+without a second edition. Retrying an already published ID verifies its original
+artifacts and leaves a newer latest pointer untouched. Reading a copied/restored
+workspace finds the operation-bound relative bundle rather than trusting an old
+host's absolute path. Restored publication data/analysis/locale/source IDs and old
+report bytes remain frozen. Backup/copy-adoption validation verifies archived report
+payloads against their derived valuations and published bundles.
+
+This is core/advanced-CLI publication. It does not create a browser job/report-library
+registration for a Web-managed portfolio. Do not use it to bypass a Web import gate
+or switch a real daily workspace. Ordinary worker/UI integration and complete
+cutover acceptance remain C3C2.
+
+### Advanced CLI examples
+
+Use a disposable synthetic ledger while evaluating this pre-release interface.
+Create its directory first and keep it separate from installation code. The
+checkout command is `python scripts/source_reports.py`; an installed wheel supplies
+`wealth-ledger-source-reports` with the same subcommands. This example assumes
+private `context.json`, `bindings.json`, parser configuration and source CSVs have
+already been prepared using the SDK/B2 formats.
+
+A synthetic `valuation.json`:
+
+```json
+{
+  "as_of": "2024-03-01T00:00:00Z",
+  "period_start": "2024-01-01T00:00:00Z",
+  "generated_at": "2024-03-01T00:00:00Z",
+  "kind": "interim",
+  "report_locale": "en-CA",
+  "fx": {
+    "usd_cad": "1.5", "usd_twd": "30",
+    "usd_cad_date": "2024-02-29", "usd_twd_date": "2024-02-29",
+    "usd_cad_source": "synthetic-fixed", "usd_twd_source": "synthetic-fixed"
+  }
+}
+```
+
+```bash
+python scripts/source_reports.py preview work/synthetic.csv \
+  --workspace work/synthetic-ledger \
+  --context work/context.json --bindings work/bindings.json \
+  --valuation work/valuation.json --config work/parsers.json \
+  --plan-directory work/reviewed-source-report
+```
+
+Review `account_review`, observed CAD/USD/TWD totals, cutoff, locale and the stated
+unknown/pending scope. The returned `approval_sha256` must be copied exactly:
+
+```bash
+python scripts/source_reports.py inspect \
+  --workspace work/synthetic-ledger \
+  --plan-directory work/reviewed-source-report --approval-sha256 REVIEWED_SHA256
+python scripts/source_reports.py confirm \
+  --workspace work/synthetic-ledger \
+  --plan-directory work/reviewed-source-report --approval-sha256 REVIEWED_SHA256 \
+  --config work/parsers.json
+```
+
+For saved facts only, omit CSV/context/bindings but supply the explicit valuation
+and a new plan directory. No source CSV means no new-activity evidence. To render
+a failed committed publication, use the returned real operation ID:
+
+```bash
+python scripts/source_reports.py resume \
+  --workspace work/synthetic-ledger --operation-id SAVED_OPERATION_ID
+```
+
+An ordinary failure before commit produces no holdings/valuation effects. A report
+failure returns `data_committed: true` and the fixed operation ID; do not reimport
+or create another valuation to guess whether it committed. Completed retry does
+not need the old plan/configuration/CSV files or the original parser installation.
+Keep preview bundles, reports and JSON inputs private, outside public source.
+
+### Acceptance and remaining boundary
+
+`test_source_publication.py` covers actual three-locale ODS/MD/PDF publication,
+atomic staging, interrupted delivery, changed/corrupt evidence/settings, report-only
+retry, copied-root recovery, preserved unknowns and newer-pointer protection.
+The independently installed example now has a separate v2 adapter/entry point; its
+real CLI preview/confirmation publishes reports with no new provider branch and
+survives loss of original input/plan/configuration files. V1 remains nonbooking.
+Native and Docker full backups retain source publications and old reports and verify
+empty-target restoration without repricing. These are synthetic acceptance tests,
+not a migrated personal instance or completed ordinary browser workflow.

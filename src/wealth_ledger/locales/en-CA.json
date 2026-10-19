@@ -1320,6 +1320,6 @@
     "source_report.actual_return": "Actual unrealized return",
     "source_report.estimated_return": "Estimated unrealized return",
     "source_report.valuation_preview_note": "UNSAVED PREVIEW: the current cutoff row is prospective and has no saved valuation ID. Earlier saved rows retain their original values.",
-    "source_report.valuation_saved_note": "Saved derived valuation edition; this is not a registered Web publication."
+    "source_report.valuation_saved_note": "Saved derived valuation edition. Publication status is tracked separately."
   }
 }
