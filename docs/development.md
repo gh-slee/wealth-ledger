@@ -319,3 +319,16 @@ also runs the independent v2 example through the actual source-report console.
 consistency and full backup/empty-target restore alongside old native history.
 No normal Web/CLI cutover is implied; C3C2 must add routing, source-aware UI/export
 models and complete browser acceptance before removing the ordinary gate.
+
+### Source Web publication/read acceptance
+
+`test_web_source_reports.py` covers exact approval, mappings, authentication/scopes,
+settings/configuration/environment/expiry, stateful job exclusion, real isolated
+parser previews, actual three-format publication, three-language reads/exports,
+registry interruptions and both uncommitted/committed empty-target restore cases.
+The independent installed plugin additionally exercises actual source-report API
+and isolated workers without provider branches. Browser fixtures use a separate
+invented source portfolio; generic provider labels and scope text must survive.
+Run the existing frontend type/build/unit/browser checks after read DTO changes and
+regenerate `schema.d.ts` with the documented schema export command. This does not
+replace the remaining ordinary source-upload/context/default/mapping acceptance.

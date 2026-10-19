@@ -640,3 +640,15 @@ references, one atomic commit marker and frozen report-only recovery. See [the
 complete contract and real CLI examples](source-projections.md#frozen-source-report-publication-src-004c3c1).
 No ordinary native CLI/Web routing or browser registration is enabled by these
 methods; preserve the phase gate until C3C2 acceptance.
+
+## Source reports in Web jobs and selected-report reads
+
+`POST /source-report-previews` and exact-digest `POST /source-reports` connect the
+C3C1 core to existing isolated `preview`/`update` jobs and registered artifacts.
+Their [closed schemas and recovery rules](web-imports.md#opt-in-source-report-publication-src-004c3c2a)
+require explicit contexts/mappings/references; regular native imports remain intact.
+`ReportView.source_basis` is optional for compatibility; source reports include
+observed-subtotal scope, saved valuation/revision IDs and unknown complete returns.
+`Holding` adds optional source provenance; `Observation` adds original saved IDs and
+revisions. [Read/export semantics](web-frontend.md#frozen-source-report-views) preserve
+unknown values and dated evidence. No browser input can load or enable plugin code.

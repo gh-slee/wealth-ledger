@@ -57,7 +57,8 @@ def export_data(store, portfolio, report, dataset, *, start=None, end=None, owne
             return value[:length] if value else None
         rows = [row for row in rows if (day := observed_day(row)) is not None
                 and (lower is None or day >= lower) and (upper is None or day <= upper)]
-    return {"schema_version":1, "report_id":report, "valuation_as_of":data["as_of"],
+    return {**({"source_basis": data["source_basis"]} if data.get("source_basis") else {}),
+            "schema_version":1, "report_id":report, "valuation_as_of":data["as_of"],
             "dataset":dataset, "verification_basis":data["report"]["verification_basis"], "scope":"Selected frozen report; not all ledger revisions or a backup",
             "data_status":data["data_status"], "is_complete":data["is_complete"],
             "start":start.isoformat() if start else None, "end":end.isoformat() if end else None,

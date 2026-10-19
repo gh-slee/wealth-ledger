@@ -11,7 +11,7 @@ import {
   type Models,
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { date, quantity } from "../lib/format";
+import { amount, date, quantity } from "../lib/format";
 import { Button } from "./ui/button";
 const active = new Set(["queued", "running", "data_committed"]);
 const record = (value: unknown): Record<string, unknown> =>
@@ -119,8 +119,16 @@ export function Imports({ portfolio }: { portfolio: string }) {
       const value =
         kind === "confirm"
           ? await mutate<Job>(
-              scope(portfolio) + "/jobs",
-              { preview_id: current.id },
+              scope(portfolio) +
+                (typeof record(current.result).approval_sha256 === "string"
+                  ? "/source-reports"
+                  : "/jobs"),
+              {
+                preview_id: current.id,
+                ...(typeof record(current.result).approval_sha256 === "string"
+                  ? { approval_sha256: record(current.result).approval_sha256 }
+                  : {}),
+              },
               "POST",
               confirmKey.current,
             )
@@ -256,6 +264,63 @@ export function Imports({ portfolio }: { portfolio: string }) {
               {error(job.error_code)} <code>{job.error_code}</code>
             </p>
           )}
+          {items(preview.account_review).length > 0 && (
+            <section>
+              <h3>{t("accountMappingReview")}</h3>
+              <p className="muted">{t("sourceApprovalHint")}</p>
+              {items(preview.account_review).map((value, index) => {
+                const account = record(value),
+                  choice = record(account.suggested_choice);
+                return (
+                  <div className="preview-source" key={index}>
+                    <strong>{String(account.label ?? "")}</strong>
+                    <span>
+                      {String(account.provider ?? choice.provider ?? "")} ·{" "}
+                      {String(
+                        account.source_account_id ??
+                          choice.source_account_id ??
+                          "",
+                      )}
+                    </span>
+                    <span>
+                      {String(account.target_kind ?? choice.target_kind ?? "")}{" "}
+                      ·{" "}
+                      {String(
+                        account.ledger_account_id ??
+                          choice.ledger_account_id ??
+                          "",
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </section>
+          )}
+          {preview.status === "mapping_required" && (
+            <p className="muted">{t("sourceMappingRequired")}</p>
+          )}
+          {Object.keys(record(preview.observed_totals)).length > 0 && (
+            <p className="muted">
+              {t("observedSubtotalHint")}{" "}
+              {(["CAD", "USD", "TWD"] as const)
+                .map((unit) =>
+                  amount(
+                    typeof record(preview.observed_totals)[
+                      `total_${unit.toLowerCase()}`
+                    ] === "string"
+                      ? String(
+                          record(preview.observed_totals)[
+                            `total_${unit.toLowerCase()}`
+                          ],
+                        )
+                      : null,
+                    unit,
+                    locale,
+                  ),
+                )
+                .join(" · ")}
+            </p>
+          )}
           {Object.keys(record(preview.sources)).length > 0 && (
             <div>
               <h3>{t("sourceUsage")}</h3>
@@ -338,17 +403,19 @@ export function Imports({ portfolio }: { portfolio: string }) {
           )}
           <p className="muted">{t("previewHint")}</p>
           <div className="actions">
-            {job.kind === "preview" && job.status === "ready" && (
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  confirmKey.current = crypto.randomUUID();
-                  setConfirming(true);
-                }}
-              >
-                {t("confirm")}
-              </Button>
-            )}
+            {job.kind === "preview" &&
+              job.status === "ready" &&
+              preview.status !== "mapping_required" && (
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    confirmKey.current = crypto.randomUUID();
+                    setConfirming(true);
+                  }}
+                >
+                  {t("confirm")}
+                </Button>
+              )}
             {job.status === "queued" && (
               <Button
                 variant="secondary"

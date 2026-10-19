@@ -241,3 +241,9 @@ branch for this adapter. See [C3C1 commands and limits](source-projections.md#fr
 The container plugin test runs the same independent cases without a financial volume
 or external network; its temporary filesystem is 256 MiB for report artifacts.
 Ordinary CLI/Web browser cutover and more real providers remain separate work.
+
+The installed example acceptance now also drives `synthetic_v2` through the opt-in
+source-report API and real isolated workers, then selected-report JSON, holdings
+export and original three-format ZIP. The installed/derived-image plugin suite has
+13 cases. No financial volume or external network is needed. Ordinary automatic
+CSV upload/context/mapping forms are still a separate daily-cutover gate.

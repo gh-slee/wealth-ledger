@@ -143,3 +143,32 @@ report-generation time remains the published-time display; migration time is sep
 The notice does not claim original publication checksums or historical authenticity.
 Legacy ZIP downloads preserve all original bytes and add a separate verification
 attachment. See [legacy report adoption](web-legacy-reports.md).
+
+## Frozen source report views
+
+Source-report API jobs now publish into the same selected-report library and
+artifact/ZIP routes. The normal upload form still uses native imports; prepare
+explicit source inputs through [the opt-in API](web-imports.md#opt-in-source-report-publication-src-004c3c2a).
+Import & jobs displays their mappings/observed subtotals, hides confirmation for
+`mapping_required`, and sends the exact digest when confirming a prepared source
+report. Automatic contexts and editable source mapping inputs remain C3C2B.
+
+The read DTO adds optional `source_basis` (model, saved valuation ID/revision,
+comparable scope ID and unknown full contributions/returns). Holdings retain
+provider, original source/revision/observation IDs and observation dates. History
+contains actual same-scope dates/revisions only. Source dates distinguish holdings,
+latest recorded purchases and actual wallet observations; the report cutoff is
+not substituted for a source balance date. Generic provider IDs remain their own
+labels. The overview explicitly labels valued observed rows as partial scope.
+
+BTC views retain unknown quantities/costs/actual full gains and separate opt-in
+proxy estimates. Monthly purchase spend/rates are not contributions; complete
+contribution and cumulative wallet quantities are null when unproven. Canonical
+cash-flow records keep direction/classification and only original CAD or explicit
+historical CAD values; they are not converted using today's report FX.
+
+CSV/JSON exports include `source_basis` and preserve decimal strings/blank unknowns.
+ZIPs and ODS/Markdown/PDF downloads remain the original checksummed artifacts.
+Viewing/changing interface language/exporting never imports or reprices data.
+Browser acceptance uses a separate invented source portfolio, including generic
+provider labels, Traditional Chinese scope text and original ODS downloads.

@@ -263,3 +263,10 @@ Published-ID verification resolves the bundle under the restored root, never
 revalues it or trusts a former host's absolute output path. Opt-in CLI publications
 are not automatically browser report-library entries; ordinary integration remains
 C3C2. See [the workflow contract](source-projections.md#frozen-source-report-publication-src-004c3c1).
+
+Source-report Web jobs (C3C2A) also retain the normal library/artifact registration.
+A restored unstarted source-report update becomes `needs_review`; it cannot apply
+an approval bound to the former workspace. Proven committed report-only work stays
+recoverable even when its preview directory is absent. Native and B2 restore rules
+are unchanged. [The source-report protocol](web-imports.md#opt-in-source-report-publication-src-004c3c2a)
+distinguishes those cases and preserves original frozen reports.

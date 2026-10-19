@@ -379,6 +379,19 @@ def restore_instance(settings, archive_path, *, incoming=False):
                 conn.execute("DELETE FROM throttle")
                 conn.execute("UPDATE jobs SET status='interrupted',error_code='restore_preview_expired' WHERE kind IN ('preview','record_preview','source_plan','source_preview') AND status IN ('queued','running','ready')")
                 conn.execute("UPDATE jobs SET status='needs_review',error_code='restore_source_confirmation_expired' WHERE kind='source_commit' AND status IN ('queued','running')")
+                # A source-report approval is host/workspace bound. Retain only
+                # proven committed report-only work; never replay an unstarted
+                # confirmation in a restored workspace.
+                from ..operations import list_operations
+                for row in conn.execute("SELECT id,portfolio_id,request_json,core_operation_id FROM jobs WHERE kind='update' AND status IN ('queued','running')").fetchall():
+                    request = json.loads(row[2])
+                    if request.get("pipeline") != "source_report": continue
+                    project = contained(restored, "portfolios/" + row[1])
+                    saved = next((op for op in list_operations(project) if op["operation_id"] == row[3]), None)
+                    if not (saved and saved["status"] in {"data_committed","report_failed","published"}
+                            and saved["request"].get("type") == "source_report_update"
+                            and saved["request"].get("approval_sha256") == request["approval_sha256"]):
+                        conn.execute("UPDATE jobs SET status='needs_review',error_code='restore_source_confirmation_expired' WHERE id=?", (row[0],))
                 conn.execute("UPDATE jobs SET enqueued_at=NULL WHERE status='queued'")
             old_receipt = restored / "admin/restore.json"
             if old_receipt.exists() and old_receipt.stat().st_size > 65536:

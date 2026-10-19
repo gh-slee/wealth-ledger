@@ -74,6 +74,10 @@ def reconcile_one(store, jobs, row):
                 jobs.state(row["id"], "recorded", result={"operation_id":row["core_operation_id"],
                     "report_published":False, "result":safe_record(saved["result"])})
             elif saved and saved["status"] == "published":
+                if saved["request"].get("type") == "source_report_update":
+                    from ..source_publication import frozen_report, _verify_published, _published_target
+                    payload = frozen_report(project, saved)
+                    _verify_published(project, _published_target(project, row["core_operation_id"]), row["core_operation_id"], payload)
                 publish_registry(store, jobs, row, service, saved)
             elif saved and saved["status"] in {"data_committed", "report_failed"}:
                 # The financial transaction contains this commit marker. Requeue
@@ -132,6 +136,11 @@ def execute_job(settings, job_id):
                 return
             if row["kind"] == "record":
                 execute_record(store,jobs,row,service)
+                return
+            if json.loads(row["request_json"]).get("pipeline") == "source_report":
+                from .source_reports import execute_preview, execute_update
+                if row["kind"] == "preview": execute_preview(store, jobs, row)
+                else: execute_update(store, jobs, row, service)
                 return
             if row["kind"] == "preview":
                 core = jobs.core_request(row)

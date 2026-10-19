@@ -424,7 +424,13 @@ print('synthetic-source-valuations-frozen')
                 publication_seed = """
 import json
 from pathlib import Path
-from wealth_ledger.source_publication import prepare_source_report,confirm_source_report,verify_source_publications
+from wealth_ledger.source_publication import verify_source_publications
+from wealth_ledger.web.source_reports import enqueue_preview,confirm_preview
+from wealth_ledger.web.worker import execute_job
+from wealth_ledger.web.storage import Store
+from wealth_ledger.web.jobs import Jobs
+from wealth_ledger.web.config import WebSettings
+import uuid
 from wealth_ledger.lookthrough import attach_analysis
 from wealth_ledger.fund_sources import holding
 from unittest.mock import patch
@@ -435,17 +441,32 @@ def synthetic_fund(fund_id,directory):
     return {'fund_id':fund_id,'status':'ok','as_of':'2024-01-31','retrieved_at':'2024-02-01T00:00:00Z','issuer':'SYNTHETIC','latest_checked':False,'evidence':[],
       'official_url':'https://example.test/synthetic-holdings','rows':[holding('Synthetic Company',100,ticker='SYN',country='CA',gics_sector='Industrials')]}
 original=attach_analysis
+settings=WebSettings.from_environment();store=Store(settings);jobs=Jobs(store);publications={}
 for portfolio in PORTFOLIOS:
     project=Path('/data/portfolios')/portfolio
-    preview=prepare_source_report(project,valuation=inputs,directory=Path('/tmp')/('synthetic-source-report-'+portfolio))
+    preview=enqueue_preview(store,portfolio,{'upload_ids':[],'contexts':[],'bindings':[],'selections':{},'valuation':inputs},uuid.uuid4().hex)
+    execute_job(settings,preview['id'])
+    preview=jobs.get(portfolio,preview['id'])
+    assert preview['status']=='ready',preview['error_code']
+    approval=json.loads(preview['result_json'])['approval_sha256']
+    job=confirm_preview(store,portfolio,{'preview_id':preview['id'],'approval_sha256':approval},uuid.uuid4().hex)
     with patch('wealth_ledger.lookthrough.attach_analysis',side_effect=lambda p,v:original(p,v,fetcher=synthetic_fund)):
-        result=confirm_source_report(project,Path('/tmp')/('synthetic-source-report-'+portfolio),preview['approval_sha256'])
-    assert result['status']=='published'
+        execute_job(settings,job['id'])
+    assert jobs.get(portfolio,job['id'])['status']=='published'
+    publications[portfolio]=job['id']
     verify_source_publications(project)
-print('synthetic-source-publications-verified')
+print(json.dumps(publications))
 """.replace('PORTFOLIOS',repr([canonical_id,adopted_id]))
-                published=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",publication_seed,capture_output=True)
-                self.assertEqual(published.stdout.decode().strip(),"synthetic-source-publications-verified")
+                # Pause only this disposable worker while injecting synthetic issuer
+                # evidence into the trusted container-side execution fixture.
+                compose("stop", "worker")
+                try:
+                    published=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",publication_seed,capture_output=True)
+                finally:
+                    compose("start", "worker")
+                source_report_ids=json.loads(published.stdout)
+                source_views={pid:request_json(client,origin,f"/api/v1/portfolios/{pid}/reports/{rid}") for pid,rid in source_report_ids.items()}
+                self.assertTrue(all(v["source_basis"]["report_model"]=="source-neutral-1" for v in source_views.values()))
                 publication_check=("import hashlib,json; from pathlib import Path; from wealth_ledger.source_publication import verify_source_publications; "
                     "roots=[Path('/data/portfolios')/p for p in "+repr([canonical_id,adopted_id])+ "]; "
                     "[verify_source_publications(p) for p in roots]; "
@@ -508,6 +529,11 @@ print('synthetic-source-publications-verified')
                 self.assertEqual(restored_adopted["report"]["verification_basis"],"migration_capture")
                 with restored_client.open(new_origin+f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}/bundle.zip") as response:
                     self.assertEqual(response.read(2),b"PK")
+                for pid, rid in source_report_ids.items():
+                    source_restored=request_json(restored_client,new_origin,f"/api/v1/portfolios/{pid}/reports/{rid}")
+                    self.assertEqual(source_restored,source_views[pid])
+                    source_export=request_json(restored_client,new_origin,f"/api/v1/portfolios/{pid}/reports/{rid}/export?dataset=holdings&format=json")
+                    self.assertEqual(source_export["rows"],source_views[pid]["holdings"])
                 self.assertEqual(request_json(restored_client,new_origin,f"/api/v1/portfolios/{portfolio}/artifacts")["artifacts"],registered)
                 self.assertEqual(request_json(client,origin,f"/api/v1/portfolios/{portfolio}/settings"),expected)
             finally:

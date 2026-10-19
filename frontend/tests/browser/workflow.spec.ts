@@ -508,3 +508,140 @@ test("legacy migration basis is visible in three locales and retained downloads 
       .violations,
   ).toEqual([]);
 });
+
+test("frozen source publications preserve partial scope, generic providers and exports", async ({
+  page,
+}) => {
+  await login(page);
+  await page
+    .getByRole("combobox", { name: "Portfolio", exact: true })
+    .selectOption({ label: "Source synthetic portfolio" });
+  await expect(
+    page.getByText(
+      "These values cover valued observed holdings, not complete wealth. Missing contributions and full portfolio returns remain unknown.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Holdings observation", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".evidence-rail").getByText("Bull Bitcoin", { exact: true }),
+  ).toHaveCount(0);
+  await page.route(/\/reports\/[a-f0-9]{32}\?/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.source_dates = [
+      {
+        provider: "SYNTHETIC-THIRD",
+        as_of: body.as_of,
+        usage: "holdings_observation",
+      },
+    ];
+    await route.fulfill({ response, json: body });
+  });
+  await page
+    .getByRole("combobox", { name: "Interface language", exact: true })
+    .selectOption("zh-TW");
+  await expect(
+    page
+      .locator(".evidence-rail")
+      .getByText("SYNTHETIC-THIRD", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "這些金額僅涵蓋已觀測且可估值的持倉，不代表完整資產。缺少的供款及完整組合報酬仍屬未知。",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "介面語言", exact: true })
+    .selectOption("en-CA");
+  await page.getByRole("link", { name: "Holdings", exact: true }).click();
+  await expect(
+    page.getByRole("table", { name: "Holdings", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  for (const name of ["portfolio.ods", "report.md", "report.pdf"])
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "portfolio.ods", exact: true })
+    .click();
+  expect((await download).suggestedFilename()).toBe("portfolio.ods");
+  // Prepare the advanced explicit request; review/confirm through ordinary jobs UI.
+  const portfolio = await page
+    .getByRole("combobox", { name: "Portfolio", exact: true })
+    .inputValue();
+  const csrf = await (await page.request.get("/api/v1/auth/csrf")).json();
+  const headers = {
+    Origin: "http://localhost:8765",
+    "X-CSRF-Token": csrf.csrf_token,
+  };
+  const raw = readFileSync(
+    path.join(root, "examples/data/wealthsimple-holdings.csv"),
+    "utf8",
+  )
+    .replaceAll("VEQT", "DEMO-ETF")
+    .replaceAll("QQQ", "DEMO-ETF-US");
+  const uploaded = await page.request.post(
+    `/api/v1/portfolios/${portfolio}/uploads?kind=source_csv&filename=synthetic.csv`,
+    {
+      headers: { ...headers, "Content-Type": "text/csv" },
+      data: raw,
+    },
+  );
+  expect(uploaded.status()).toBe(201);
+  const evidence = await uploaded.json();
+  const prepared = await page.request.post(
+    `/api/v1/portfolios/${portfolio}/source-report-previews`,
+    {
+      headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      data: {
+        upload_ids: [evidence.id],
+        contexts: [
+          {
+            evidence_at: "2024-02-01T12:00:00-05:00",
+            source_reference: "synthetic-browser-source",
+            source_timezone: "America/Toronto",
+          },
+        ],
+        valuation: {
+          as_of: "2024-03-01T00:00:00Z",
+          period_start: "2023-12-31T00:00:00Z",
+          generated_at: "2024-03-01T00:00:00Z",
+          report_locale: "en-CA",
+          fx: {
+            usd_cad: "1.5",
+            usd_twd: "30",
+            usd_cad_date: "2024-01-30",
+            usd_twd_date: "2024-01-30",
+            usd_cad_source: "synthetic-fixed",
+            usd_twd_source: "synthetic-fixed",
+          },
+        },
+      },
+    },
+  );
+  expect(prepared.status()).toBe(202);
+  await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Source account mappings", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await page
+    .getByRole("button", {
+      name: "Confirm import & generate reports",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", {
+      name: "Confirm import & generate reports",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.locator(".job-list").getByText("Published", { exact: true }),
+  ).toHaveCount(2, { timeout: 60000 });
+});

@@ -1309,3 +1309,10 @@ Record contributions and BTC totals/events through the existing financial comman
 or forms first; this CLI does not infer missing contributions or add a total field.
 Regular automatic either-source/both-source/BTC-only routing and source-aware browser
 views remain C3C2. Preserve a working daily ledger while evaluating synthetic data.
+
+Prepared source reports can now be confirmed and viewed through Web jobs/library,
+using [the opt-in explicit API](web-imports.md#opt-in-source-report-publication-src-004c3c2a).
+The normal upload form still uses supported native inputs; automatic source-context
+and editable mapping forms remain unfinished. The [source read/export guide](web-frontend.md#frozen-source-report-views)
+explains partial observed values, dated evidence and unknown contribution/cost fields.
+Do not switch a working daily ledger merely to evaluate this advanced interface.

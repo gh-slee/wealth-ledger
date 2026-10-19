@@ -162,7 +162,7 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
             raise ValueError("Acceptance imported the source checkout")
         tests = base / "plugin-tests"
         shutil.copytree(ROOT / "examples/parser-plugin/tests", tests, ignore=shutil.ignore_patterns("__pycache__"))
-        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(tests), "-v"], base, env, test_count=12)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(tests), "-v"], base, env, test_count=13)
         raw = run([str(python), "-I", "-c", f"import sys; sys.path.insert(0, {str(tests)!r}); from test_synthetic_parser import fixture; print(fixture().decode(), end='')"], base, env)
         source = base / "synthetic.csv"; source.write_text(raw, encoding="utf-8")
         config = base / "parsers.json"
@@ -197,7 +197,7 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
         run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=231)
         for locale in ("en-CA", "zh-TW", "zh-CN"):
             run([str(python), "-I", str(demo / "examples/demo.py"), "--output", str(base / locale), "--locale", locale], base, env)
-    return {"installed_outside_checkout": True, "plugin_tests": 12, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "source_projection_tests": 29, "source_legacy_projection_tests": 33, "source_wallet_declaration_tests": 25, "source_report_tests": 35, "source_publication_tests": 23, "plan_and_revalidation": True,
+    return {"installed_outside_checkout": True, "plugin_tests": 13, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "source_projection_tests": 29, "source_legacy_projection_tests": 33, "source_wallet_declaration_tests": 25, "source_report_tests": 35, "source_publication_tests": 23, "plan_and_revalidation": True,
             "report_locales": ["en-CA", "zh-TW", "zh-CN"], "financial_booking": False,
             "financial_booking_scope": "v1_nonbooking_source_plan",
             "synthetic_canonical_submission": True, "real_financial_data_used": False}

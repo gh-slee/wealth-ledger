@@ -325,5 +325,12 @@
   "migrationVerification": "于迁移时核对；原始发布校验资料未提供，不能据此证明历史真实性。",
   "knownEventsAtReference": "参考时间的已知净异动（BTC）",
   "openingActualCost": "期初实际取得成本（CAD）",
-  "openingHistoricalContributions": "期初历史供款（CAD）"
+  "openingHistoricalContributions": "期初历史供款（CAD）",
+  "observedSubtotalHint": "这些金额仅涵盖已观测且可估值的持仓，不代表完整资产。缺少的供款及完整组合回报仍属未知。",
+  "sourcePurchases": "已记录购入量",
+  "status.holdings_observation": "持仓观测",
+  "status.recorded_purchase": "最新已记录购入",
+  "accountMappingReview": "来源账户对应",
+  "sourceApprovalHint": "请核对各来源账户与目标账户。确认会绑定这些对应、已观测小计及明确估值参考。",
+  "sourceMappingRequired": "账户对应尚未完整。请提供核对后的对应并创建新来源预览，再进行确认。"
 }

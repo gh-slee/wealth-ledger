@@ -84,6 +84,8 @@ def install_import_routes(app, store, auth, require_owner):
     install_source_plan_routes(app, store, auth, require_owner)
     from .source_submissions import install_routes
     install_routes(app, store, auth, require_owner)
+    from .source_reports import install_routes as install_source_report_routes
+    install_source_report_routes(app, store, auth, require_owner)
     jobs = Jobs(store)
     prefix = "/api/v1/portfolios/{portfolio_id}"
 

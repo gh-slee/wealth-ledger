@@ -250,3 +250,83 @@ abandons a never-started or matching proven-failed job, preserving its audit row
 Unknown starts cannot be discarded or automatically repeated. Full schemas,
 24-hour expiry, restore invalidation and CLI equivalents are in the [B2 guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
 There is no new browser form and no native daily-workflow cutover in B2.
+
+## Opt-in source report publication (SRC-004C3C2A)
+
+This API connects the frozen C3C1 core to the existing isolated Web jobs, report
+library, artifact downloads and exports. It does not switch ordinary `/previews`
+or automatically reinterpret old financial inputs. The regular upload form still
+uses the native route; automatic contexts and editable source mappings remain
+C3C2B. No plugin installation/enable endpoint or runtime LLM is involved.
+
+Upload bounded `source_csv` evidence first. `POST /source-report-previews` accepts:
+
+```json
+{
+  "upload_ids": ["SERVER_SOURCE_CSV_ID"],
+  "contexts": [{
+    "evidence_at": "2024-02-01T12:00:00+00:00",
+    "source_reference": "synthetic-reviewed-export"
+  }],
+  "bindings": [{
+    "provider": "synthetic",
+    "source_account_id": "demo-account",
+    "target_kind": "new"
+  }],
+  "valuation": {
+    "as_of": "2024-03-01T00:00:00Z",
+    "period_start": "2024-01-01T00:00:00Z",
+    "generated_at": "2024-03-01T00:00:00Z",
+    "report_locale": "en-CA",
+    "fx": {
+      "usd_cad": "1.5", "usd_twd": "30",
+      "usd_cad_date": "2024-02-29", "usd_twd_date": "2024-02-29",
+      "usd_cad_source": "synthetic-fixed", "usd_twd_source": "synthetic-fixed"
+    }
+  }
+}
+```
+
+The invented adapter above requires separate trusted-host installation/enablement;
+see [the SDK](parser-sdk.md). `contexts`, optional `selections` and `bindings` use
+[B2's closed schemas](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+Valuation uses [C3C1's exact reference contract](source-projections.md#frozen-source-report-publication-src-004c3c1).
+Money/reference quantities are strings. The usual 16 KiB JSON body limit applies.
+`btc_price`, `kind` and `btc_cost_policy` are optional valuation fields. Missing
+prices stay unknown; preview never fetches references. With no new CSV, omit
+`upload_ids`, `contexts`, `bindings` and `selections` and provide only `valuation`.
+This reads saved facts; it does not prove that no new transactions occurred.
+BTC totals/events/contribution evidence use the existing financial forms first.
+
+The queued job has `kind: preview`. A ready `result.status: mapping_required`
+contains suggestions but is **not confirmable**; submit a new reviewed preview
+with explicit bindings. A ready `awaiting_confirmation` result contains account
+review, observed CAD/USD/TWD totals, pending checks and `approval_sha256`.
+Review those limits and then send `POST /source-reports`:
+
+```json
+{"preview_id":"SERVER_PREVIEW_ID","approval_sha256":"EXACT_REVIEWED_SHA256"}
+```
+
+Both requests require a scoped owner session, Origin/CSRF and an idempotency key.
+The ordinary `/jobs` confirmation rejects a source preview without exact approval.
+One preview maps to one `update` job and fixed operation, including retries with a
+new request key. Existing financial work shares the mutual-exclusion/capacity rules.
+The existing Import & jobs screen shows prepared source mappings/subtotals and
+submits the exact digest; it cannot yet create/edit those explicit source requests.
+
+Before commit the worker rechecks expiration, original frozen evidence, financial
+state/settings, parser configuration, engine/environment and localization. After a
+proven commit it uses report-only recovery, without old CSV/preview/configuration
+or a parser. The normal job resume endpoint and startup reconciliation retain that
+boundary. An unproven start becomes `needs_review`; no automatic reimport is used.
+A published core bundle interrupted before registry delivery is verified and
+registered once, without another report or a rollback of a newer latest pointer.
+
+Source publications appear in the ordinary library and selected-report API with
+`source_basis`; see [the read/export contract](web-frontend.md#frozen-source-report-views).
+Full backups retain archives, jobs, artifacts and original report bytes. Restore
+expires unstarted source confirmations because their approval was workspace bound;
+proven committed/published operations may finish report-only recovery. No restore
+replays an old source parser or revalues history. This synthetic acceptance does
+not establish a migrated personal instance or complete daily cutover.

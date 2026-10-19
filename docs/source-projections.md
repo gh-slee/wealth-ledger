@@ -633,3 +633,23 @@ survives loss of original input/plan/configuration files. V1 remains nonbooking.
 Native and Docker full backups retain source publications and old reports and verify
 empty-target restoration without repricing. These are synthetic acceptance tests,
 not a migrated personal instance or completed ordinary browser workflow.
+
+## Web publication and read integration (SRC-004C3C2A)
+
+The opt-in source-report API now binds C3C1 previews to the existing isolated Web
+`preview`/`update` lifecycle, fixed approval IDs, publication registry and report
+library. Its [request/recovery protocol](web-imports.md#opt-in-source-report-publication-src-004c3c2a)
+is separate from data-only B2 and ordinary native imports. No provider branch is
+added to publication, valuation or recovery. The independent installed v2 example
+has actual API/child-worker/report/read/export acceptance too.
+
+[Source-aware read DTOs](web-frontend.md#frozen-source-report-views) project saved
+public presentation fields only. They preserve source dates/IDs/unknowns, observed
+subtotal scope, same-scope history and separate estimated/actual costs. They do not
+expose archive paths/raw parser fields or pretend a new provider is Wealthsimple
+or Bull Bitcoin. Exports carry the same explicit scope and original report bytes.
+
+Full empty-target restore invalidates unstarted source approvals. A proven committed
+operation can finish publication/registry delivery using frozen evidence, with no
+parser or repricing. Ordinary CLI/upload automatic contexts, mapping inputs and
+complete daily workflow acceptance remain C3C2B; existing native gates remain.

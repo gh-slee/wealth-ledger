@@ -78,7 +78,7 @@ class Jobs:
             raise WebError(429, "job_capacity", "Job capacity is reached")
         identifier = uuid.uuid4().hex
         now = self.store.clock()
-        operation = "OP-"+preview if kind=="source_commit" else ("OP-" + uuid.uuid4().hex if kind in {"update", "record"} else None)
+        operation = "OP-"+preview if (kind=="source_commit" or kind=="update" and request.get("pipeline")=="source_report") else ("OP-" + uuid.uuid4().hex if kind in {"update", "record"} else None)
         conn.execute("""INSERT INTO jobs(id,portfolio_id,kind,status,request_json,request_digest,input_fingerprint,
             execution_at,idempotency_key,preview_id,core_operation_id,created_at,updated_at)
             VALUES(?,?,?,'queued',?,?,?,?,?,?,?,?,?)""", (identifier, portfolio_id, kind,
@@ -148,6 +148,8 @@ class Jobs:
             preview = conn.execute("SELECT * FROM jobs WHERE id=? AND portfolio_id=? AND kind=?", (preview_id, portfolio_id, preview_kind)).fetchone()
             if not preview:
                 raise WebError(404, "not_found", "Preview not found")
+            if json.loads(preview["request_json"]).get("pipeline") == "source_report":
+                raise WebError(409, "approval_required", "Source reports require their exact approval digest")
             if preview["status"] != "ready" or self.store.clock() - preview["created_at"] > PREVIEW_SECONDS:
                 raise WebError(409, "preview_unavailable", "Run a new successful preview before confirmation")
             if conn.execute("SELECT 1 FROM jobs WHERE portfolio_id=? AND kind IN ('update','record','source_commit') AND status IN (?,?,?,?,?,?)",

@@ -312,6 +312,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolios/{portfolio_id}/source-report-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview */
+        post: operations["preview_api_v1_portfolios__portfolio_id__source_report_previews_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/source-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm */
+        post: operations["confirm_api_v1_portfolios__portfolio_id__source_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolios/{portfolio_id}/uploads": {
         parameters: {
             query?: never;
@@ -935,6 +969,16 @@ export interface components {
             currency: string;
             /** Quantity */
             quantity?: string | null;
+            /** Source Provider */
+            source_provider?: string | null;
+            /** Observed As Of */
+            observed_as_of?: string | null;
+            /** Source Id */
+            source_id?: string | null;
+            /** Source Revision */
+            source_revision?: string | null;
+            /** Observation Id */
+            observation_id?: string | null;
             /** Avg Cost */
             avg_cost?: string | null;
             /** Book Native */
@@ -1024,6 +1068,10 @@ export interface components {
         };
         /** Observation */
         Observation: {
+            /** Snapshot Id */
+            snapshot_id?: number | null;
+            /** Revision */
+            revision?: number | null;
             /** As Of */
             as_of: string;
             /** Kind */
@@ -1164,6 +1212,10 @@ export interface components {
             data_status: string | null;
             /** Source Dates */
             source_dates: components["schemas"]["SourceDate"][];
+            /** Source Basis */
+            source_basis?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
             /** Totals */
             totals: {
                 [key: string]: string | null;
@@ -1292,6 +1344,54 @@ export interface components {
             };
             /** Previous Plan Id */
             previous_plan_id?: string | null;
+        };
+        /** SourceReportConfirmation */
+        SourceReportConfirmation: {
+            /** Preview Id */
+            preview_id: string;
+            /** Approval Sha256 */
+            approval_sha256: string;
+        };
+        /** SourceReportRequest */
+        SourceReportRequest: {
+            /** Upload Ids */
+            upload_ids?: string[];
+            /** Contexts */
+            contexts?: components["schemas"]["SourceContext"][];
+            /** Bindings */
+            bindings?: components["schemas"]["BindingChoice"][];
+            /** Selections */
+            selections?: {
+                [key: string]: string;
+            };
+            valuation: components["schemas"]["SourceReportValuation"];
+        };
+        /** SourceReportValuation */
+        SourceReportValuation: {
+            /** As Of */
+            as_of: string;
+            /** Period Start */
+            period_start: string;
+            /** Generated At */
+            generated_at: string;
+            /** Fx */
+            fx: {
+                [key: string]: string;
+            };
+            /** Btc Price */
+            btc_price?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Kind
+             * @default interim
+             * @enum {string}
+             */
+            kind: "baseline" | "monthly" | "interim";
+            /** Btc Cost Policy */
+            btc_cost_policy?: ("actual_only" | "bull_average_proxy") | null;
+            /** Report Locale */
+            report_locale?: ("en-CA" | "zh-TW" | "zh-CN") | null;
         };
         /** UploadList */
         UploadList: {
@@ -3511,6 +3611,242 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    preview_api_v1_portfolios__portfolio_id__source_report_previews_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    confirm_api_v1_portfolios__portfolio_id__source_reports_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceReportConfirmation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -145,3 +145,75 @@ class InstalledV2ReportTests(unittest.TestCase):
             self.assertEqual({p.relative_to(output).as_posix():p.read_bytes() for p in output.rglob("*") if p.is_file()},before)
             self.assertEqual(len(read_observations(ledger)),1)
             verify_source_publications(ledger)
+
+    @unittest.skipUnless(WEB, "Optional Web dependencies are not installed")
+    def test_independent_v2_web_approval_publication_read_and_exports(self):
+        from synthetic_parser.v2 import VERSION
+        from wealth_ledger.web.auth import password_hash
+        from wealth_ledger.web.config import WebSettings
+        from wealth_ledger.web.storage import Store, prepare_instance
+        from wealth_ledger.web.jobs import Jobs
+        from wealth_ledger.web.worker import execute_isolated
+        with tempfile.TemporaryDirectory(prefix="synthetic-v2-web-report-") as temporary:
+            root = Path(temporary).resolve()
+            with socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0)); port = listener.getsockname()[1]
+            origin = f"http://localhost:{port}"
+            settings = WebSettings(root / "instance", origin); prepare_instance(settings)
+            store = Store(settings); supplied = secrets.token_urlsafe(32)
+            store.set_owner("owner", password_hash(supplied))
+            (settings.data_root / "admin/source-parsers.json").write_text(json.dumps({"schema_version":1,
+                "enabled":[{"distribution":"wealth-ledger-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
+            client = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+            def request(path, *, body=None, headers=None, binary=False):
+                encoded = body if isinstance(body, bytes) else json.dumps(body).encode() if body is not None else None
+                base = {"Origin":origin, **({"Content-Type":"application/json"} if body is not None and not isinstance(body, bytes) else {})}
+                req = urllib.request.Request(origin + path, data=encoded, headers={**base, **(headers or {})})
+                with client.open(req, timeout=60) as response:
+                    raw = response.read()
+                    return raw if binary else json.loads(raw)
+            program = ("import sys; from pathlib import Path; import uvicorn; "
+                "from wealth_ledger.web.api import create_app; from wealth_ledger.web.config import WebSettings; "
+                "uvicorn.run(create_app(WebSettings(Path(sys.argv[1]),sys.argv[2])),host='127.0.0.1',port=int(sys.argv[3]),log_level='error')")
+            process = subprocess.Popen([sys.executable,"-c",program,str(settings.data_root),origin,str(port)],
+                stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            try:
+                for _ in range(100):
+                    try: request("/healthz"); break
+                    except OSError:
+                        if process.poll() is not None: self.fail("Synthetic source report API exited")
+                        time.sleep(0.1)
+                else: self.fail("Synthetic source report API readiness timeout")
+                csrf = request("/api/v1/auth/csrf")["csrf_token"]
+                session = request("/api/v1/auth/login",body={"username":"owner","password":supplied},headers={"X-CSRF-Token":csrf})
+                headers = {"X-CSRF-Token":session["csrf_token"]}
+                pid = request("/api/v1/portfolios",body={"name":"Independent synthetic source report"},headers=headers)["id"]
+                prefix = "/api/v1/portfolios/" + pid
+                upload = request(prefix + "/uploads?kind=source_csv&filename=invented.csv",body=fixture(format=VERSION),headers={**headers,"Content-Type":"text/csv"})
+                body = {"upload_ids":[upload["id"]],"contexts":[{"evidence_at":"2024-02-01T12:00:00+00:00","source_reference":"synthetic-independent-web","format_selection":VERSION}],
+                    "bindings":[{"provider":"synthetic","source_account_id":"demo-account","target_kind":"new"}],
+                    "valuation":{"as_of":"2024-03-01T00:00:00Z","period_start":"2024-01-01T00:00:00Z","generated_at":"2024-03-01T00:00:00Z","report_locale":"en-CA",
+                        "fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-02-29","usd_twd_date":"2024-02-29","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}}
+                preview = request(prefix + "/source-report-previews",body=body,headers={**headers,"Idempotency-Key":"independent-web-source-preview"})
+                self.assertEqual(execute_isolated(settings,preview["id"]),0)
+                saved = Jobs(store).view(Jobs(store).get(pid,preview["id"]))
+                self.assertEqual(saved["status"],"ready",saved["error_code"])
+                job = request(prefix + "/source-reports",body={"preview_id":saved["id"],"approval_sha256":saved["result"]["approval_sha256"]},headers={**headers,"Idempotency-Key":"independent-web-source-confirm"})
+                self.assertEqual(execute_isolated(settings,job["id"]),0)
+                published = Jobs(store).view(Jobs(store).get(pid,job["id"]))
+                self.assertEqual(published["status"],"published",published["error_code"])
+                view = request(prefix + "/reports/" + job["id"])
+                self.assertEqual(view["totals"]["total_cad"],"125.00")
+                self.assertEqual([row["provider"] for row in view["source_dates"]],["synthetic"])
+                self.assertEqual(view["holdings"][0]["source_provider"],"synthetic")
+                self.assertIsNone(view["holdings"][0]["book_native"])
+                self.assertIsNone(view["source_basis"]["complete_portfolio_returns"])
+                exported = request(prefix + "/reports/" + job["id"] + "/export?dataset=holdings&format=json")
+                self.assertEqual(exported["rows"],view["holdings"])
+                import io, zipfile
+                with zipfile.ZipFile(io.BytesIO(request(prefix + "/reports/" + job["id"] + "/bundle.zip",binary=True))) as archive:
+                    self.assertTrue({"report.md","report.pdf","portfolio.ods"} <= set(archive.namelist()))
+            finally:
+                process.terminate()
+                try: process.wait(timeout=10)
+                except subprocess.TimeoutExpired: process.kill(); process.wait(timeout=10)

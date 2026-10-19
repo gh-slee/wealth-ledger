@@ -21,14 +21,19 @@ export function Evidence({ data }: { data: Report }) {
         <span className="eyebrow">{t("cutoff")}</span>
         <strong>{date(data.as_of, locale)}</strong>
       </div>
-      {data.source_dates.map((source) => (
-        <div className="source-date" key={source.provider}>
+      {data.source_dates.map((source, index) => (
+        <div
+          className="source-date"
+          key={`${source.provider}-${source.as_of}-${source.usage}-${index}`}
+        >
           <span>
             {source.provider === "wallet"
               ? t("btcQuantity")
               : source.provider === "wealthsimple"
                 ? "Wealthsimple"
-                : "Bull Bitcoin"}
+                : source.provider === "bullbitcoin"
+                  ? "Bull Bitcoin"
+                  : source.provider}
           </span>
           <strong>{date(source.as_of, locale)}</strong>
           <span
@@ -64,6 +69,9 @@ export function Overview({
             {amount(data.totals[field], currency, locale)}
           </h2>
           <p className="muted">{t("frozen")}</p>
+          {data.source_basis && (
+            <p className="muted">{t("observedSubtotalHint")}</p>
+          )}
         </div>
         <div className="summary-stats">
           <div>
@@ -486,7 +494,9 @@ export function Bitcoin({ data }: { data: Report }) {
                 <strong>{quantity(text(btc.quantity_btc))} BTC</strong>
               </div>
               <div>
-                <span>{t("bullPurchases")}</span>
+                <span>
+                  {t(data.source_basis ? "sourcePurchases" : "bullPurchases")}
+                </span>
                 <strong>{quantity(text(btc.purchased_btc))}</strong>
               </div>
               <div>
@@ -498,15 +508,25 @@ export function Bitcoin({ data }: { data: Report }) {
             </div>
             <p className="muted">{t("btcHint")}</p>
             <p>
-              {t("quantityBasis")}: {label(text(btc.quantity_status) ?? "")}
+              {t("quantityBasis")}:{" "}
+              {text(btc.quantity_status_label) ??
+                label(text(btc.quantity_status) ?? "")}
             </p>
             <p>
               {t("costPolicy")}: {label(text(btc.cost_policy) ?? "")}
             </p>
             <p>
-              {t("knownCost")}:{" "}
-              {amount(text(valuation.known_bull_cost_cad), "CAD", locale)} ·{" "}
-              {t("unrealized")}:{" "}
+              {t(data.source_basis ? "buySpend" : "knownCost")}:{" "}
+              {amount(
+                text(
+                  data.source_basis
+                    ? btc.known_purchase_spend_cad
+                    : valuation.known_bull_cost_cad,
+                ),
+                "CAD",
+                locale,
+              )}{" "}
+              · {t("unrealized")}:{" "}
               {amount(text(valuation.unrealized_cad), "CAD", locale)}
             </p>
             <DataTable

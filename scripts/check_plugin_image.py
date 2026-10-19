@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory() as directory:
         pathlib.Path(directory, name).write_text(content)
     sys.path.insert(0, directory)
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.discover(directory))
-    assert result.testsRun == 12 and not result.skipped
+    assert result.testsRun == 13 and not result.skipped
     if not result.wasSuccessful():
         raise SystemExit(1)
 '''
@@ -61,7 +61,7 @@ def main():
     parser.add_argument("--wheel", required=True, type=Path)
     args = parser.parse_args()
     verify(args.base_image, args.wheel)
-    print(json.dumps({"derived_image_tests":12, "financial_volume_attached":False, "network_enabled":False}))
+    print(json.dumps({"derived_image_tests":13, "financial_volume_attached":False, "network_enabled":False}))
 
 
 if __name__ == "__main__":

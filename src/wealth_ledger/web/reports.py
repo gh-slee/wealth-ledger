@@ -59,6 +59,11 @@ class Holding(ViewModel):
     security_type: str
     currency: str
     quantity: str | None = None
+    source_provider: str | None = None
+    observed_as_of: str | None = None
+    source_id: str | None = None
+    source_revision: str | None = None
+    observation_id: str | None = None
     avg_cost: str | None = None
     book_native: str | None = None
     unrealized_native: str | None = None
@@ -77,6 +82,8 @@ class SourceDate(ViewModel):
 
 
 class Observation(ViewModel):
+    snapshot_id: int | None = None
+    revision: int | None = None
     as_of: str
     kind: str
     is_complete: bool
@@ -121,6 +128,7 @@ class ReportView(ViewModel):
     is_complete: bool
     data_status: str | None
     source_dates: list[SourceDate]
+    source_basis: dict[str, JsonValue] | None = None
     totals: dict[str, str | None]
     fx: dict[str, str | None]
     accounts: list[Account]
@@ -195,6 +203,9 @@ class Publications:
             from ..i18n import display_payload, presentation_context, legacy_text
             with presentation_context(locale):
                 data = display_payload(data)
+                if data["meta"].get("report_model") == "source-neutral-1":
+                    from .source_report_views import source_view
+                    return ReportView.model_validate(source_view(data, summary, locale)).model_dump()
                 meta, crypto, analysis = data["meta"], data.get("crypto"), data.get("lookthrough", {})
                 updates = meta.get("source_updates") or {}
                 sources = []

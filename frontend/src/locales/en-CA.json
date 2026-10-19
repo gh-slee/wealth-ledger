@@ -154,7 +154,7 @@
   "status.not_available": "Not available",
   "status.snapshot": "Snapshot date",
   "status.order_history": "Latest completed order",
-  "status.observed_total": "Wallet observation",
+  "status.observed_total": "Observed wallet total",
   "status.sources_updated": "Sources updated",
   "status.mixed_dates": "Mixed source dates",
   "status.carried_source": "Carried source data",
@@ -325,5 +325,12 @@
   "migrationVerification": "Verified at migration. Original publication checksums were unavailable; historical authenticity is not established.",
   "knownEventsAtReference": "Known net events at reference time (BTC)",
   "openingActualCost": "Actual opening acquisition cost (CAD)",
-  "openingHistoricalContributions": "Historical opening contributions (CAD)"
+  "openingHistoricalContributions": "Historical opening contributions (CAD)",
+  "observedSubtotalHint": "These values cover valued observed holdings, not complete wealth. Missing contributions and full portfolio returns remain unknown.",
+  "sourcePurchases": "Recorded purchases",
+  "status.holdings_observation": "Holdings observation",
+  "status.recorded_purchase": "Latest recorded purchase",
+  "accountMappingReview": "Source account mappings",
+  "sourceApprovalHint": "Review each source account and destination. Confirmation binds these mappings, observed totals and explicit valuation references.",
+  "sourceMappingRequired": "Account choices are incomplete. Submit a new source preview with reviewed bindings before confirming."
 }
