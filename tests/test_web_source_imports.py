@@ -101,3 +101,43 @@ class SourceImportWebTests(unittest.TestCase):
         (self.project/'config/local.toml').write_text('[reporting]\nlocale="zh-TW"\n')
         self.confirm({**ready,'result':ready['result']['preview']},expected=409)
         self.assertEqual(operations.list_operations(self.project),[])
+
+    def test_saved_context_is_scoped_verified_and_reused_without_guessing(self):
+        self.prepare();body=self.base();first=self.preview(body)
+        choices=[r['suggested_choice'] for r in first['result']['preview']['account_review']]
+        ready=self.preview({**body,'bindings':choices,'upload_ids':[*self.uploads,self.reference(FX,'fx')]},key='profile-seed')
+        self.confirm({**ready,'result':ready['result']['preview']})
+        before=operations.input_fingerprint(self.project)
+        response=self.client.get(self.prefix+'/source-import-contexts');self.assertEqual(response.status_code,200,response.text)
+        profiles=response.json()['profiles'];self.assertEqual(len(profiles),2)
+        self.assertEqual(operations.input_fingerprint(self.project),before)
+        bull=next(row for row in profiles if row['adapter_id']=='bullbitcoin.orders')
+        reuse=self.preview({'upload_ids':[self.uploads[1],self.reference(FX,'fx')],'as_of':AT,
+            'context_options':[{'profile_id':bull['id']}]},key='explicit-profile-reuse')
+        self.assertEqual(reuse['result']['preview']['status'],'awaiting_confirmation')
+        other=self.portfolio('Another synthetic profile scope')
+        self.assertEqual(self.client.get('/api/v1/portfolios/'+other+'/source-import-contexts').json(),{'profiles':[]})
+        self.assertEqual(self.client.get('/api/v1/portfolios/'+'f'*32+'/source-import-contexts').status_code,404)
+        self.preview({**body,'context_options':[{'revisions':[{'unexpected':'field'}]},{}]},key='closed-correction-parents',expected=422)
+
+    def test_new_source_account_can_record_manual_contributions_before_new_report(self):
+        self.prepare();body=self.base();first=self.preview(body)
+        ready=self.preview({**body,'bindings':[r['suggested_choice'] for r in first['result']['preview']['account_review']],
+            'upload_ids':[*self.uploads,self.reference(FX,'fx')]},key='cash-seed')
+        published=self.confirm({**ready,'result':ready['result']['preview']})
+        response=self.client.get(self.prefix+'/financial');self.assertEqual(response.status_code,200,response.text)
+        accounts=response.json()['accounts'];self.assertEqual(len(accounts),3)
+        aid=accounts[0]['account_id'];self.assertTrue(aid.startswith('src_'))
+        import test_web_financial as declarations
+        declarations.FinancialTests.submit(self,{'command':'cash_flow','date':'2024-02-15','account_id':aid,
+            'flow_type':'deposit','currency':'CAD','amount':'125','flow_id':'synthetic-source-deposit'})
+        declarations.FinancialTests.submit(self,{'command':'coverage','start_date':'2024-01-01','end_date':'2024-03-01',
+            'account_id':aid,'status':'complete'})
+        state=self.client.get(self.prefix+'/financial').json()
+        self.assertEqual(state['cash_flows'][0]['amount_cad'],'125');self.assertEqual(state['cash_flows'][0]['account_id'],aid)
+        # Original publication is immutable; a new report is prepared separately.
+        self.assertIsNotNone(self.view(published))
+        saved=self.preview({'as_of':AT,'upload_ids':[self.reference(FX,'fx')]},key='after-cash-declaration')
+        self.assertEqual(saved['result']['preview']['status'],'awaiting_confirmation')
+        next_report=self.confirm({**saved,'result':saved['result']['preview']},key='publish-after-source-cash')
+        self.assertEqual(next_report['status'],'published')

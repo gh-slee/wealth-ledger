@@ -48,7 +48,9 @@ def prepare_import(project, paths=(), *, directory, context_options=(), bindings
         balance = balance_input({**balance, "source": balance.get("source", "user_reported_total"), "recorded_at": now})
     with project_lock(project):
         _pending(project)
-        contexts = default_contexts(paths, context_options, now)
+        from .source_profiles import resolve_profiles
+        resolved_options, selections = resolve_profiles(project, context_options, len(paths), selections)
+        contexts = default_contexts(paths, resolved_options, now)
         parsed = parse_sources(paths, contexts=contexts, config_path=config_path, selections=selections) if paths else None
         snapshots = [s.as_of for batch in parsed.batches for s in batch.snapshots] if parsed else []
         target = parse_time(as_of).isoformat() if as_of else (max(snapshots).isoformat() if snapshots and

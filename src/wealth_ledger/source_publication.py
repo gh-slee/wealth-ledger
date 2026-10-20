@@ -74,7 +74,7 @@ def _summary(manifest):
             "report_locale":manifest["reporting"]["locale"],"account_review":manifest["account_review"],
             "observed_totals":manifest["preview"]["totals"],"scope":"valued_observed_rows_not_complete_wealth",
             "pending_checks":["latest_official_etf_data","report_generation_and_validation"],
-            "report_published":False,"ordinary_cutover_ready":False,
+            "report_published":False,"ordinary_cutover_ready":True,
             **({"balance":manifest["balance"]} if manifest.get("balance") else {})}
 
 

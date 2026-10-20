@@ -1,9 +1,10 @@
 # Core API and data rules
 
-The opt-in [automatic parser import entry](source-projections.md#automatic-import-entry-src-004c3c2b)
-now supports regular CLI/browser preparation, explicit mapping review and exact
-approval, including optional BTC-only and saved-data inputs. Native commands remain
-available; review reference-cache behavior and the final cutover boundary there.
+The [default parser import workflow](source-projections.md#default-daily-workflow)
+prepares explicit approval through the regular CLI/browser, including optional
+BTC-only and saved-data inputs. The legacy CLI requires `--native-import`; its
+projection guard remains necessary on canonical workspaces. See the workflow guide
+for saved contexts, corrections, reference caches and migration boundaries.
 
 Use [project guidance](../AGENTS.md) and the task-relevant
 [development procedures](development.md). [TODO](../TODO.md) distinguishes future
@@ -604,7 +605,7 @@ selects per-account observations and exposes observed values, covered/unclassifi
 cash flows and recorded BTC/LBTC movements. It is not the report payload: full
 portfolio totals, wallet balances, historical replay, performance and publication
 remain gated. See [the C1 model contract](source-projections.md) before consuming
-its internal fields. The production CLI/Web reporting paths are unchanged.
+its internal fields. C1 is a read model; the separate default workflow now provides approved publication.
 
 `source_legacy_projection.project_compatible_sources(project, as_of=...,
 period_start=..., fx=None, btc_price=None, btc_cost_policy=None)` adds the C2 read
@@ -617,8 +618,9 @@ kernel also used by the native wallet wrapper. See [C2 limits and date semantics
 C3A routes `wallet.add_balance`, event/link/revision validation, balance-detail
 queries and `crypto_opening.import_opening` through `wallet_basis.py` when canonical
 sources exist. No parser/price/FX lookup is performed; original first-recorded
-expectations are immutable. Native-only behavior remains compatible. This data-only
-integration does not remove the canonical ordinary-update/report phase gate.
+expectations are immutable. Native-only behavior remains compatible. These declarations remain data-only; use the separate
+[default preparation and publication workflow](source-projections.md#default-daily-workflow)
+to produce a new report. Native renderers keep their canonical-data omission guard.
 
 
 ## Source report core APIs (SRC-004C3B)
@@ -657,3 +659,12 @@ observed-subtotal scope, saved valuation/revision IDs and unknown complete retur
 `Holding` adds optional source provenance; `Observation` adds original saved IDs and
 revisions. [Read/export semantics](web-frontend.md#frozen-source-report-views) preserve
 unknown values and dated evidence. No browser input can load or enable plugin code.
+
+
+Default user-facing preparation is `ApplicationService.source_import_preview`; exact
+confirmation uses `source_report_confirm`, with receipt-only `source_report_resume`.
+`preview/update` retain the legacy contract for explicit compatibility callers and
+saved jobs. Do not disable their native projection guard on canonical workspaces.
+Manual source cash declarations use `manual_cash_flows`, preserved in logical state
+fingerprints and verified against archived normalized declarations at precision60;
+`verify_store` rejects tampered rows/archives. Native table formats/IDs remain stable.

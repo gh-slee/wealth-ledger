@@ -37,7 +37,7 @@ def _legacy(project):
             conn.execute("BEGIN")
             if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok" or conn.execute("PRAGMA foreign_key_check").fetchone():
                 raise ProjectionError("legacy_database_integrity")
-        names = ("accounts", "sources", "snapshots", "positions", "cash_flows", "flow_periods", "crypto_accounts",
+        names = ("accounts", "sources", "snapshots", "positions", "cash_flows", "manual_cash_flows", "flow_periods", "crypto_accounts",
                  "crypto_sources", "crypto_order_revisions", "crypto_opening_revisions", "wallet_revisions", "combined_observations")
         result = {name: store._rows(conn, name) for name in names}
         if any(row["provider"] != "bullbitcoin" for row in result["crypto_accounts"]):
@@ -414,7 +414,10 @@ def _covered_periods(project, legacy, rows, canonical_rows, historical, start, c
     originals = {(row["account_id"], row["source_id"]): row["amount_cad"] for row in historical}
     conn = store._open(project)
     try:
-        for account in legacy["accounts"]:
+        from .source_profiles import investment_accounts
+        accounts = {row['account_id']: row for row in investment_accounts(project)}
+        accounts.update({row['account_id']: row for row in legacy['accounts']})
+        for account in accounts.values():
             aid = account["account_id"]
             status, segments = _flow_coverage(conn, first, last, aid)
             selected = [row for row in rows if row["account_id"] == aid and first.isoformat() < row["date"] <= last.isoformat()]
@@ -460,13 +463,13 @@ def _flows(project, model, legacy, start, cutoff, canonical):
     # Date-only legacy evidence retains original dated CAD conversions, never an
     # invented midnight timestamp or today's display FX.
     result, overlap = [], []
-    bindings = {row["ledger_account"]: row for row in canonical.get("bindings", []) if row["target_kind"] == "legacy_holdings"}
+    bindings = {row["ledger_account"]: row for row in canonical.get("bindings", []) if row["target_kind"] in {"legacy_holdings", "canonical"}}
     current = {(row["account_id"], row["source_id"]): row for row in model["cash_flows"]["records"]}
     lookup = {(row["provider"], row["source_account"]): row["ledger_account"] for row in canonical.get("bindings", [])}
     all_current = {(lookup[_key(row["key"]["account"])], row["key"]["source_id"]): row
                    for row in canonical["records"] if row["kind"] == "cash_flows" and _time(row["occurred_at"]) <= cutoff}
     historical = []
-    for stored in legacy["cash_flows"]:
+    for stored in [*legacy["cash_flows"], *legacy["manual_cash_flows"]]:
         row = json.loads(stored["payload_json"])
         if row["date"] > cutoff.date().isoformat():
             continue
@@ -515,7 +518,7 @@ def _working_precision(legacy, canonical, rates, price):
     keys = {"quantity", "price", "book_native", "book_cad", "market_native", "unrealized_native", "amount_cad",
             "payin_amount", "payout_amount", "quantity_btc", "opening_btc_equivalent_qty",
             "reference_purchased_btc_equivalent", "reported_total_btc_equivalent"}
-    for name in ("positions", "cash_flows", "crypto_order_revisions", "wallet_revisions", "crypto_opening_revisions"):
+    for name in ("positions", "cash_flows", "manual_cash_flows", "crypto_order_revisions", "wallet_revisions", "crypto_opening_revisions"):
         for stored in legacy[name]:
             row = json.loads(stored["payload_json"])
             values.extend({"payload_json": _json({"amount": str(value)})} for key, value in row.items()

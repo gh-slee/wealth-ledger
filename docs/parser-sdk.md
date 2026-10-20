@@ -1,9 +1,10 @@
 # Parser SDK: build, install and test
 
-The opt-in [automatic parser import entry](source-projections.md#automatic-import-entry-src-004c3c2b)
-now supports regular CLI/browser preparation, explicit mapping review and exact
-approval, including optional BTC-only and saved-data inputs. Native commands remain
-available; review reference-cache behavior and the final cutover boundary there.
+The [default parser import workflow](source-projections.md#default-daily-workflow)
+prepares explicit approval through the regular CLI/browser, including optional
+BTC-only and saved-data inputs. The legacy CLI requires `--native-import`; its
+projection guard remains necessary on canonical workspaces. See the workflow guide
+for saved contexts, corrections, reference caches and migration boundaries.
 
 SRC-003 provides an installable Python core, one shared version-1 contract,
 `wealth_ledger.source_testing`, and an independently packaged synthetic parser.
@@ -200,7 +201,8 @@ The installed core also includes `source_builtin.registrations()` and
 `source_context_pipeline`. They support the current Wealthsimple/Bull grammars and
 explicitly enabled compatible v2 plugins. The v1 example package and its commands
 remain unchanged. See [context schema and CLI/API examples](source-ingestion.md#explicit-context-previews-src-004b1).
-Neither preview version has production financial confirmation. Do not claim generic
+These developer preview commands do not confirm financially. The separate default
+source preparation/approval path supports compatible v2 financial publication. Do not claim generic
 bank/exchange support from the ability to register or normalize a parser.
 
 Installed acceptance copies only named public synthetic tests/fixtures outside the
@@ -245,10 +247,13 @@ original CSV/plan/configuration. The opt-in source-report API has no provider
 branch for this adapter. See [C3C1 commands and limits](source-projections.md#frozen-source-report-publication-src-004c3c1).
 The container plugin test runs the same independent cases without a financial volume
 or external network; its temporary filesystem is 256 MiB for report artifacts.
-Ordinary CLI/Web browser cutover and more real providers remain separate work.
+Default CLI/Web integration is implemented; additional real provider formats remain separate work.
 
 The installed example acceptance now also drives `synthetic_v2` through the opt-in
 source-report API and real isolated workers, then selected-report JSON, holdings
 export and original three-format ZIP. The installed/derived-image plugin suite has
 13 cases. No financial volume or external network is needed. Ordinary automatic
-CSV upload/context/mapping forms are still a separate daily-cutover gate.
+CSV upload/context/mapping forms now use the default shared preparation core.
+The installed acceptance includes 257 core/source cases, including default routing,
+reusable contexts, corrections and manual source-account flows; plugin13 remains
+a separate independently installed/immutable-image suite.

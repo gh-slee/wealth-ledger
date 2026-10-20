@@ -421,6 +421,7 @@ print('synthetic-source-valuations-frozen')
                     "print(json.dumps({p:hashlib.sha256(json.dumps(read_source_valuation(Path('/data/portfolios')/p,1),sort_keys=True).encode()).hexdigest() for p in "
                     +repr([canonical_id,adopted_id])+"},sort_keys=True))")
                 frozen_hashes=json.loads(compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",valuation_check,capture_output=True).stdout)
+                source_cash_id=request_json(client,origin,"/api/v1/portfolios", {"name":"Synthetic source investment declarations"},csrf)["id"]
                 publication_seed = """
 import json
 from pathlib import Path
@@ -444,6 +445,24 @@ original=attach_analysis
 settings=WebSettings.from_environment();store=Store(settings);jobs=Jobs(store);publications={}
 for portfolio in PORTFOLIOS:
     project=Path('/data/portfolios')/portfolio
+    if portfolio == SOURCE_CASH_PORTFOLIO:
+        from wealth_ledger.source_builtin import WealthsimpleHoldings, WS_FORMAT
+        from wealth_ledger.source_v2 import ParseContext
+        from wealth_ledger.source_ingestion import SourceInput, new_binding, prepare_ingestion, commit_ingestion
+        from wealth_ledger.application import ApplicationService
+        from wealth_ledger.workspace import resolve_workspace
+        from wealth_ledger.core import import_cash_flows, mark_flow_period
+        from datetime import datetime
+        raw=HOLDINGS_RAW
+        batch=WealthsimpleHoldings().normalize(raw,export_version=WS_FORMAT,
+            context=ParseContext(datetime.fromisoformat('2024-03-01T12:00:00+00:00'),'synthetic-source-cash'))
+        plan=prepare_ingestion(project,(SourceInput(batch,raw),),bindings=tuple(new_binding(a.key) for a in batch.accounts))
+        commit_ingestion(resolve_workspace(explicit=project),plan)
+        service=ApplicationService(resolve_workspace(explicit=project));aid=service.accounts()[0]['account_id']
+        path=Path('/tmp/synthetic-source-contribution.csv')
+        path.write_text(chr(10).join(['date,account_id,flow_type,currency,amount,flow_id','2024-02-15,'+aid+',deposit,CAD,125,synthetic-source-deposit'])+chr(10))
+        service.record({'type':'synthetic_source_cash'},lambda stage:import_cash_flows(stage,path),label='synthetic-cash')
+        service.record({'type':'synthetic_source_coverage'},lambda stage:mark_flow_period(stage,'2024-01-01','2024-03-01','complete',aid),label='synthetic-coverage')
     preview=enqueue_preview(store,portfolio,{'upload_ids':[],'contexts':[],'bindings':[],'selections':{},'valuation':inputs},uuid.uuid4().hex)
     execute_job(settings,preview['id'])
     preview=jobs.get(portfolio,preview['id'])
@@ -456,7 +475,7 @@ for portfolio in PORTFOLIOS:
     publications[portfolio]=job['id']
     verify_source_publications(project)
 print(json.dumps(publications))
-""".replace('PORTFOLIOS',repr([canonical_id,adopted_id]))
+""".replace('PORTFOLIOS',repr([canonical_id,adopted_id,source_cash_id])).replace('SOURCE_CASH_PORTFOLIO',repr(source_cash_id)).replace('HOLDINGS_RAW',repr((ROOT/'examples/data/wealthsimple-holdings.csv').read_bytes()))
                 # Pause only this disposable worker while injecting synthetic issuer
                 # evidence into the trusted container-side execution fixture.
                 compose("stop", "worker")
@@ -467,8 +486,12 @@ print(json.dumps(publications))
                 source_report_ids=json.loads(published.stdout)
                 source_views={pid:request_json(client,origin,f"/api/v1/portfolios/{pid}/reports/{rid}") for pid,rid in source_report_ids.items()}
                 self.assertTrue(all(v["source_basis"]["report_model"]=="source-neutral-1" for v in source_views.values()))
+                source_contexts={pid:request_json(client,origin,f"/api/v1/portfolios/{pid}/source-import-contexts") for pid in source_report_ids}
+                source_financial=request_json(client,origin,f"/api/v1/portfolios/{source_cash_id}/financial")
+                self.assertEqual(source_financial['cash_flows'][0]['amount_cad'],'125')
+                self.assertTrue(source_financial['cash_flows'][0]['account_id'].startswith('src_'))
                 publication_check=("import hashlib,json; from pathlib import Path; from wealth_ledger.source_publication import verify_source_publications; "
-                    "roots=[Path('/data/portfolios')/p for p in "+repr([canonical_id,adopted_id])+ "]; "
+                    "roots=[Path('/data/portfolios')/p for p in "+repr([canonical_id,adopted_id,source_cash_id])+ "]; "
                     "[verify_source_publications(p) for p in roots]; "
                     "print(json.dumps({p.name:{str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest() for folder in ('data/raw/source-publications','reports') for f in (p/folder).rglob('*') if f.is_file() and not f.is_symlink()} for p in roots},sort_keys=True))")
                 publication_hashes=json.loads(compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",publication_check,capture_output=True).stdout)
@@ -529,7 +552,9 @@ print(json.dumps(publications))
                 self.assertEqual(restored_adopted["report"]["verification_basis"],"migration_capture")
                 with restored_client.open(new_origin+f"/api/v1/portfolios/{adopted_id}/reports/{adopted_report}/bundle.zip") as response:
                     self.assertEqual(response.read(2),b"PK")
+                self.assertEqual(request_json(restored_client,new_origin,f"/api/v1/portfolios/{source_cash_id}/financial")['cash_flows'],source_financial['cash_flows'])
                 for pid, rid in source_report_ids.items():
+                    self.assertEqual(request_json(restored_client,new_origin,f"/api/v1/portfolios/{pid}/source-import-contexts"),source_contexts[pid])
                     source_restored=request_json(restored_client,new_origin,f"/api/v1/portfolios/{pid}/reports/{rid}")
                     self.assertEqual(source_restored,source_views[pid])
                     source_export=request_json(restored_client,new_origin,f"/api/v1/portfolios/{pid}/reports/{rid}/export?dataset=holdings&format=json")

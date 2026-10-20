@@ -20,6 +20,20 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 const items = (value: unknown): unknown[] =>
   Array.isArray(value) ? value : [];
+const correctionOptions = (value: FormDataEntryValue | null) => {
+  if (!value) return {};
+  const parsed: unknown = JSON.parse(String(value));
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).some(
+      (key) => !["revisions", "scope_revisions"].includes(key),
+    )
+  )
+    throw new ApiError(422, "invalid_context");
+  return parsed;
+};
 type Binding = {
   provider: string;
   source_account_id: string;
@@ -29,9 +43,21 @@ type Binding = {
 export function Imports({ portfolio }: { portfolio: string }) {
   const { t, label, error, locale } = useI18n();
   const client = useQueryClient();
-  const [parserMode, setParserMode] = useState(false);
+  const [parserMode, setParserMode] = useState(true);
   const [sourceFiles, setSourceFiles] = useState<File[]>([]);
   const [choices, setChoices] = useState<Binding[]>([]);
+  const [selectedProfiles, setSelectedProfiles] = useState<
+    Record<number, string>
+  >({});
+  const profiles = useQuery({
+    queryKey: [portfolio, "source-import-contexts"],
+    queryFn: ({ signal }) =>
+      read<Models["SourceProfileList"]>(
+        scope(portfolio) + "/source-import-contexts",
+        signal,
+      ),
+    enabled: parserMode,
+  });
   const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false),
     [failure, setFailure] = useState(""),
@@ -63,8 +89,12 @@ export function Imports({ portfolio }: { portfolio: string }) {
       .sort()
       .join(",") ?? "";
   useEffect(() => {
-    if (publishedIds)
+    if (publishedIds) {
       void client.invalidateQueries({ queryKey: [portfolio, "reports"] });
+      void client.invalidateQueries({
+        queryKey: [portfolio, "source-import-contexts"],
+      });
+    }
   }, [publishedIds, client, portfolio]);
   const job = importJobs.find((job) => job.id === selected) ?? importJobs[0];
   const result = record(job?.result),
@@ -145,12 +175,17 @@ export function Imports({ portfolio }: { portfolio: string }) {
             kind: form.get("kind"),
             bindings: choices,
             context_options: sourceFiles.map((_, index) => ({
-              ...(form.get(`alias-${index}`)
-                ? { account_alias: form.get(`alias-${index}`) }
-                : {}),
-              ...(form.get(`timezone-${index}`)
-                ? { source_timezone: form.get(`timezone-${index}`) }
-                : {}),
+              ...(selectedProfiles[index]
+                ? { profile_id: selectedProfiles[index] }
+                : {
+                    ...(form.get(`alias-${index}`)
+                      ? { account_alias: form.get(`alias-${index}`) }
+                      : {}),
+                    ...(form.get(`timezone-${index}`)
+                      ? { source_timezone: form.get(`timezone-${index}`) }
+                      : {}),
+                  }),
+              ...correctionOptions(form.get(`correction-${index}`)),
             })),
             selections: Object.fromEntries(
               sourceFiles
@@ -193,7 +228,13 @@ export function Imports({ portfolio }: { portfolio: string }) {
       );
     } catch (reason) {
       if (!(reason instanceof DOMException && reason.name === "AbortError"))
-        setFailure(reason instanceof ApiError ? reason.code : "request_failed");
+        setFailure(
+          reason instanceof ApiError
+            ? reason.code
+            : reason instanceof SyntaxError
+              ? "invalid_context"
+              : "request_failed",
+        );
     } finally {
       setBusy(false);
     }
@@ -247,11 +288,15 @@ export function Imports({ portfolio }: { portfolio: string }) {
               onChange={(event) => {
                 setParserMode(event.target.checked);
                 setChoices([]);
+                setSelectedProfiles({});
               }}
             />
             {t("parserMode")}
           </label>
           {parserMode && <p className="muted">{t("parserModeHint")}</p>}
+          {parserMode && profiles.isError && (
+            <p role="alert">{t("contextLoadFailed")}</p>
+          )}
           <label className="file-drop">
             {t("evidenceFiles")}
             <input
@@ -264,6 +309,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
               onChange={(event) => {
                 setSourceFiles(Array.from(event.target.files ?? []));
                 setChoices([]);
+                setSelectedProfiles({});
               }}
             />
             <small>
@@ -277,13 +323,39 @@ export function Imports({ portfolio }: { portfolio: string }) {
                 <legend>{file.name}</legend>
                 <div className="form-grid">
                   <label>
+                    {t("sourceProfile")}
+                    <select
+                      value={selectedProfiles[index] ?? ""}
+                      onChange={(event) => {
+                        setSelectedProfiles((old) => ({
+                          ...old,
+                          [index]: event.target.value,
+                        }));
+                      }}
+                    >
+                      <option value="">{t("manualContext")}</option>
+                      {profiles.data?.profiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.label} · {profile.adapter_id}{" "}
+                          {profile.options.source_timezone ?? ""}{" "}
+                          {profile.options.format_selection ?? ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
                     {t("sourceAlias")}
-                    <input name={`alias-${index}`} maxLength={160} />
+                    <input
+                      name={`alias-${index}`}
+                      maxLength={160}
+                      disabled={Boolean(selectedProfiles[index])}
+                    />
                   </label>
                   <label>
                     {t("sourceTimezone")}
                     <input
                       name={`timezone-${index}`}
+                      disabled={Boolean(selectedProfiles[index])}
                       placeholder="America/Toronto"
                     />
                   </label>
@@ -292,6 +364,19 @@ export function Imports({ portfolio }: { portfolio: string }) {
                     <input name={`adapter-${index}`} />
                   </label>
                 </div>
+                <details>
+                  <summary>{t("correctionContext")}</summary>
+                  <p className="muted">{t("correctionContextHint")}</p>
+                  <label>
+                    {t("revisionParents")}
+                    <textarea
+                      name={`correction-${index}`}
+                      rows={4}
+                      maxLength={65536}
+                      placeholder='{"revisions":[],"scope_revisions":[]}'
+                    />
+                  </label>
+                </details>
               </fieldset>
             ))}
           <div className="form-grid">

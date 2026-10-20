@@ -334,7 +334,7 @@
   "sourceApprovalHint": "请核对各来源账户与目标账户。确认会绑定这些对应、已观测小计及明确估值参考。",
   "sourceMappingRequired": "账户对应尚未完整。请提供核对后的对应并创建新来源预览，再进行确认。",
   "parserMode": "使用解析器插件",
-  "parserModeHint": "自动识别已启用格式；写入前请核对账户对应。未提供 CSV 只使用既存数据；购入历史不代表钱包余额。",
+  "parserModeHint": "默认导入流程：识别已启用的解析器、核对账户对应并确认精确输入。需要时明确选择已存来源设置。没有 CSV 只使用已存数据；购买记录不能证明钱包余额。",
   "enabledParsers": "已启用的可信任解析器",
   "sourceAlias": "固定来源账户别名（如需要）",
   "sourceTimezone": "来源时区（如需要）",
@@ -351,5 +351,11 @@
   "mapping.legacy_crypto": "既有加密资产账户",
   "status.incoming_holdings_time": "本次持仓观测时间",
   "status.execution_time": "固定的执行时间",
-  "status.explicit": "明确指定时间"
+  "status.explicit": "明确指定时间",
+  "sourceProfile": "已存来源设置",
+  "manualContext": "手动输入设置",
+  "correctionContext": "更正先前观察数据（高级）",
+  "correctionContextHint": "提供明确的记录与范围父修订版本；系统不会猜测，也不会从已存设置沿用。请重新预览核对后确认。",
+  "revisionParents": "父修订版本 JSON",
+  "contextLoadFailed": "无法验证已存来源设置，请重试或核对账本证据。"
 }

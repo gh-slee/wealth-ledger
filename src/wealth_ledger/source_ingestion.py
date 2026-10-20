@@ -89,7 +89,7 @@ def _open(project):
 def _schema(conn):
     names = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} if conn else set()
     if "src_schema" not in names:
-        if any(name.startswith("src_") for name in names):
+        if 'manual_cash_flows' in names or any(name.startswith("src_") for name in names):
             raise IngestionError("schema_invalid")
         return 0
     try:
@@ -114,7 +114,7 @@ def state_fingerprint(project):
         version = _schema(conn)
         values = []
         names = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} if conn else set()
-        financial = {"sources", "accounts", "snapshots", "positions", "cash_flows", "flow_periods", "flow_coverage", "coverage_declarations"}
+        financial = {"sources", "accounts", "snapshots", "positions", "cash_flows", "manual_cash_flows", "flow_periods", "flow_coverage", "coverage_declarations"}
         for name in sorted(names):
             if name in financial or name.startswith(("src_", "crypto_", "wallet_")):
                 rows = sorted(_rows(conn, name), key=_json)
@@ -227,6 +227,8 @@ def verify_store(project):
                 raise IngestionError("store_integrity")
             scope_heads[token] = row["revision"]
         _links(heads)
+        from .source_cash import verify_manual_flows
+        verify_manual_flows(project, conn)
         return {"schema_version":SCHEMA_VERSION, "batches":len(batches)}
     except (OSError, sqlite3.Error, UnicodeError, ValueError, TypeError, KeyError) as exc:
         if isinstance(exc,IngestionError):
@@ -653,10 +655,11 @@ def read_facts(project):
 
 
 def require_report_projection(project):
-    """Fail closed until canonical facts have an implemented reporting projection.
+    """Reject legacy-only projections of canonical workspaces.
 
-    Existing frozen publications remain readable. This does not initialize a DB.
-    Remove this phase gate only with SRC-004B/C parity and complete-scope acceptance.
+    Daily imports use source_imports and source_publication. This compatibility
+    guard remains necessary: native renderers cannot include canonical facts.
+    Existing frozen publications remain readable; no database is initialized.
     """
     conn = _open(project)
     try:

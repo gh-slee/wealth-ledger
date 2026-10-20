@@ -255,9 +255,8 @@ There is no new browser form and no native daily-workflow cutover in B2.
 
 This API connects the frozen C3C1 core to the existing isolated Web jobs, report
 library, artifact downloads and exports. It does not switch ordinary `/previews`
-or automatically reinterpret old financial inputs. The regular upload form defaults
-to the native route; its opt-in parser mode now uses the automatic entry documented
-below. No plugin installation/enable endpoint or runtime LLM is involved.
+or automatically reinterpret old financial inputs. The regular upload form defaults to the automatic parser entry documented below;
+the native `/previews` contract remains a separate compatibility API. No plugin installation/enable endpoint or runtime LLM is involved.
 
 Upload bounded `source_csv` evidence first. `POST /source-report-previews` accepts:
 
@@ -335,7 +334,7 @@ not establish a migrated personal instance or complete daily cutover.
 ## Automatic source import previews
 
 `POST /api/v1/portfolios/{id}/source-import-previews` prepares the regular browser's
-opt-in parser mode. It shares the upload/owner/CSRF/idempotency/worker limits above.
+default parser mode. It shares the upload/owner/CSRF/idempotency/worker limits above.
 Allowed uploads are `source_csv` plus at most one `fx` and one `price`; their combined
 count is at most five. Context options correspond to CSV order, excluding reference
 uploads. Missing mappings/references are ready review results, not confirmations.
@@ -348,3 +347,12 @@ reference caches before approval; it never books financial facts. A newly prepar
 preview records the resulting fingerprint. Existing explicit-context source-report
 API and native import API behavior are retained. Settings/config/environment changes
 invalidate approval; report-only recovery never reruns a parser or balance insertion.
+
+
+Saved contexts are read-only `GET /source-import-contexts` results from verified
+committed evidence, scoped by owner/portfolio. Per-file context options may select a
+`profile_id`, or manual host settings, plus explicit revision/scope parents. Invalid
+archives return `source_integrity`, never a guessed setting. See [default workflow](source-projections.md#default-daily-workflow).
+Canonical investment IDs are also valid in financial cash-flow/coverage declarations;
+the original native account ID contract remains accepted. They use the same staged
+preview/confirm/record protocol and require a separate report publication afterward.

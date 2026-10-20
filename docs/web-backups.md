@@ -249,8 +249,8 @@ these with the same maintenance barrier. Backup/restore and copy-adoption valida
 also reject a database/archive mismatch before accepting the instance. Synthetic Docker acceptance freezes
 canonical-only and mixed legacy/canonical valuations and checks identical verified
 payload hashes after restoration to an empty volume. Reading restored IDs never
-reprices historical editions or runs a parser. This does not register development
-reports in the Web UI, remove the daily report gate or migrate a real workspace.
+reprices historical editions or runs a parser. Derived development valuations alone
+do not register reports or migrate a real workspace; use the publication workflow.
 
 
 ## Frozen source report publications
@@ -261,8 +261,8 @@ against its original derived valuation and publication bytes. Native and Docker
 acceptance preserve these with original reports during full empty-target restore.
 Published-ID verification resolves the bundle under the restored root, never
 revalues it or trusts a former host's absolute output path. Opt-in CLI publications
-are not automatically browser report-library entries; ordinary integration remains
-C3C2. See [the workflow contract](source-projections.md#frozen-source-report-publication-src-004c3c1).
+are not automatically browser report-library entries; Web jobs register their own
+verified publications through the implemented default workflow. See [the workflow contract](source-projections.md#frozen-source-report-publication-src-004c3c1).
 
 Source-report Web jobs (C3C2A) also retain the normal library/artifact registration.
 A restored unstarted source-report update becomes `needs_review`; it cannot apply
@@ -270,3 +270,10 @@ an approval bound to the former workspace. Proven committed report-only work sta
 recoverable even when its preview directory is absent. Native and B2 restore rules
 are unchanged. [The source-report protocol](web-imports.md#opt-in-source-report-publication-src-004c3c2a)
 distinguishes those cases and preserves original frozen reports.
+
+
+Full empty-target acceptance also preserves confirmed reusable source contexts,
+canonical investment `manual_cash_flows`, their original CSV/foreign-key links and
+coverage declarations alongside native, adopted and source report editions. The
+restored API exposes the same contexts, dated amounts and frozen report data. This
+is synthetic acceptance, not evidence that an operator's private instance migrated.

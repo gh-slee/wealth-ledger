@@ -42,9 +42,11 @@ keep the backend on port 8000 but configure its public origin as
 2. Open **Import & jobs**. Supply either Wealthsimple holdings CSV, Bull orders CSV,
    both, or an optional BTC quantity with an explicit observation timestamp and UTC
    offset. The BTC field means BTC units, never CAD/USD market value.
-3. Optionally supply verified FX/BTC-price JSON and an explicit Bull opening JSON.
-   The first Bull import requires an opening declaration, even if the intended
-   quantity is zero. Formats and limits are in [imports/jobs](web-imports.md).
+3. Parser mode is enabled by default. Select a saved source context explicitly or
+   enter required alias/timezone values. Optionally supply verified FX/BTC-price JSON;
+   public reference fetching requires an explicit checkbox. Missing opening quantity
+   remains unknown; a first Bull CSV does not imply a zero opening. Native compatibility
+   mode retains its explicit opening JSON requirement.
 4. Upload and preview. Review identified sources, source dates, checks and blockers.
    The preview is offline: reference checks can remain pending. Nothing enters the
    financial ledger until **Confirm import & generate reports** and its dialog.
@@ -64,13 +66,14 @@ download those attachments too, or choose **Download report ZIP** to preserve re
 
 ## Parser-based upload mode
 
-In **Import & jobs**, enable **Use parser plugins** for the new source pipeline.
+In **Import & jobs**, **Use parser plugins** is enabled by default.
 The regular form accepts either/both CSVs, a dated BTC total, or saved facts. Fill
 stable per-file aliases when needed; review/edit every account destination and
 choose **Preview reviewed mappings** before exact confirmation. Missing references
 remain pending unless supplied or explicitly fetched. This mode does not require a
-native Bull opening JSON and never invents a zero opening. The earlier daily-use
-steps describe the retained native mode. See [the shared entry contract](source-projections.md#automatic-import-entry-src-004c3c2b)
+native Bull opening JSON and never invents a zero opening. Uncheck parser mode only for the retained native compatibility path; it cannot
+render canonical facts. Choose a saved context per CSV to reuse verified confirmed
+settings. The advanced correction field accepts explicit revision/scope parent JSON. See [the shared entry contract](source-projections.md#automatic-import-entry-src-004c3c2b)
 for dates, references, supported overrides and remaining cutover boundaries.
 
 ## Analysis semantics
@@ -158,11 +161,11 @@ attachment. See [legacy report adoption](web-legacy-reports.md).
 ## Frozen source report views
 
 Source-report API jobs now publish into the same selected-report library and
-artifact/ZIP routes. The normal upload form still uses native imports; prepare
-explicit source inputs through [the opt-in API](web-imports.md#opt-in-source-report-publication-src-004c3c2a).
+artifact/ZIP routes. The normal upload form uses the shared default parser preparation;
+advanced clients may also use [the explicit-context API](web-imports.md#opt-in-source-report-publication-src-004c3c2a).
 Import & jobs displays their mappings/observed subtotals, hides confirmation for
 `mapping_required`, and sends the exact digest when confirming a prepared source
-report. Automatic contexts and editable source mapping inputs remain C3C2B.
+report. Automatic contexts, editable mappings and explicit saved-context reuse are implemented.
 
 The read DTO adds optional `source_basis` (model, saved valuation ID/revision,
 comparable scope ID and unknown full contributions/returns). Holdings retain

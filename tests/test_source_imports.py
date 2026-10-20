@@ -156,7 +156,7 @@ class ImportEntryTests(unittest.TestCase):
         raw=self.paths[0].read_bytes().replace(b'VEQT',b'DEMO-ETF').replace(b'QQQ',b'DEMO-ETF-US');self.paths[0].write_bytes(raw)
         fx=self.root/'fx.json';fx.write_text(json.dumps(FX))
         command=[sys.executable,str(ROOT/'scripts/update.py'),'--workspace',str(self.project)]
-        args=['--source-parsers',str(self.paths[0]),'--plan-directory',str(self.directory),'--fx-file',str(fx),'--valuation-as-of',AT]
+        args=[str(self.paths[0]),'--plan-directory',str(self.directory),'--fx-file',str(fx),'--valuation-as-of',AT]
         result=subprocess.run(command+args,capture_output=True,text=True,timeout=60);self.assertEqual(result.returncode,0,result.stderr)
         reviewed=json.loads(result.stdout);bindings=self.root/'bindings.json'
         bindings.write_text(json.dumps({'schema_version':1,'bindings':[row['suggested_choice'] for row in reviewed['preview']['account_review']]}))

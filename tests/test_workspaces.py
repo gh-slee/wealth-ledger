@@ -204,7 +204,7 @@ class WorkspaceTests(unittest.TestCase):
                 with self.assertRaises(PermissionError):
                     (code / "forbidden-write").write_text("fail")
             command = [sys.executable, str(code / "scripts/update.py"), "--workspace", str(self.b),
-                       "--snapshot-id", "1", "--lookthrough-run-id", str(payload["lookthrough"]["run_id"]), "--locale", "en-CA"]
+                       "--native-import", "--snapshot-id", "1", "--lookthrough-run-id", str(payload["lookthrough"]["run_id"]), "--locale", "en-CA"]
             result = subprocess.run(command, capture_output=True, text=True, timeout=120,
                 env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "MPLCONFIGDIR": str(code / "forbidden-cache")})
             self.assertEqual(result.returncode, 0, result.stderr)

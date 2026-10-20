@@ -173,6 +173,7 @@ test("real CSV preview, explicit confirmation and worker report publication", as
     .getByRole("combobox", { name: "Portfolio", exact: true })
     .selectOption({ label: "Empty synthetic portfolio" });
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await page.getByLabel("Use parser plugins", { exact: true }).uncheck();
   // Invented unrecognized ETF/stock names avoid production issuer network calls.
   const csv = readFileSync(
     path.join(root, "examples/data/wealthsimple-holdings.csv"),
@@ -267,6 +268,7 @@ test("a dated BTC total can be submitted without either CSV", async ({
     page.getByRole("heading", { name: "Start with your first observation" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await page.getByLabel("Use parser plugins", { exact: true }).uncheck();
   await page.getByLabel("BTC total (optional)", { exact: true }).fill("0.01");
   await page
     .getByLabel("Balance observed at (with UTC offset)", { exact: true })
@@ -659,7 +661,9 @@ test("regular parser upload reviews mappings and publishes without hand-written 
     .getByRole("button", { name: "Create portfolio", exact: true })
     .click();
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
-  await page.getByLabel("Use parser plugins", { exact: true }).check();
+  await expect(
+    page.getByLabel("Use parser plugins", { exact: true }),
+  ).toBeChecked();
   const raw = readFileSync(
     path.join(root, "examples/data/wealthsimple-holdings.csv"),
     "utf8",
@@ -733,7 +737,22 @@ test("regular parser upload reviews mappings and publishes without hand-written 
     page.locator(".job-list").getByText("Published", { exact: true }),
   ).toBeVisible({ timeout: 60000 });
   // A second preparation in the same form gets its own exact approval key.
-  await page.getByLabel("CSV exports", { exact: true }).setInputFiles([]);
+  await page.getByLabel("CSV exports", { exact: true }).setInputFiles({
+    name: "synthetic-parser.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(raw),
+  });
+  const savedContext = page.getByRole("combobox", {
+    name: "Saved source context",
+    exact: true,
+  });
+  await expect(savedContext.locator("option")).toHaveCount(2);
+  await savedContext.selectOption({ index: 1 });
+  await expect(
+    page.getByLabel("Stable source account alias (if required)", {
+      exact: true,
+    }),
+  ).toBeDisabled();
   await page
     .getByLabel("Valuation time (optional, with UTC offset)", { exact: true })
     .fill("2024-02-01T15:00:00+00:00");

@@ -32,7 +32,7 @@ Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking 
 
 Review supported inputs in an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data. One owner or household can keep multiple independent portfolios in an instance, through a React/TypeScript interface or the supported **Python CLI**. Both use the same Python financial core.
 
-**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. An opt-in v2 parser workflow supports approved imports and reports from trusted enabled plugins. Additional real institutions require implemented format adapters; arbitrary CSVs are not accepted. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
+**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. The default v2 parser workflow supports approved imports and reports from trusted enabled plugins. Additional real institutions require implemented format adapters; arbitrary CSVs are not accepted. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
 
 **Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; financial declaration forms and trusted-host, copy-verified adoption of existing CLI data are implemented. See [project status](#project-status).
 
@@ -57,12 +57,11 @@ explicit registration, an installable SDK, isolated parsing and frozen confirmat
 are implemented. The built-ins cover the two formats below; an independent synthetic
 plugin verifies the extension path without pretending to support another institution.
 
-An opt-in [parser-based import entry](docs/source-projections.md#automatic-import-entry-src-004c3c2b)
+The default [parser-based import entry](docs/source-projections.md#automatic-import-entry-src-004c3c2b)
 now connects the regular CLI and browser upload form to account-mapping review,
 exact approval, source-aware analysis and ODS/Markdown/PDF exports. Either CSV, both,
-optional BTC totals and saved-data valuations share one preparation core. Native
-routes remain available; the final default switch and personal migration are
-separate acceptance steps.
+optional BTC totals and saved-data valuations share one preparation core. Explicit native compatibility routes remain available; personal migration and
+publication/deployment are separate operator steps.
 
 | Source or input | Current support |
 |---|---|
@@ -123,7 +122,7 @@ python examples/demo.py --output work/demo
 
 Open `work/demo/portfolio.ods`, `work/demo/report.md`, or `work/demo/report.pdf`. The demo creates its own temporary synthetic ledger and performs no market/reference downloads. Choose a new output directory for each run.
 
-On Windows, use `.venv\Scripts\python.exe` instead of Unix activation. Broader Windows acceptance remains pending. See the [example guide](examples/README.md) and [user manual](docs/user-manual.md) for supported inputs, private `--workspace` directories, first Bull opening declarations, contributions, BTC events, and recovery.
+On Windows, use `.venv\Scripts\python.exe` instead of Unix activation. Broader Windows acceptance remains pending. See the [example guide](examples/README.md) and [user manual](docs/user-manual.md) for supported inputs, private `--workspace` directories, opening declarations, contributions, BTC events, and recovery.
 
 </details>
 
@@ -131,7 +130,7 @@ On Windows, use `.venv\Scripts\python.exe` instead of Unix activation. Broader W
 
 1. Create or select an independent portfolio.
 2. Supply a Wealthsimple holdings CSV, a Bull Bitcoin order CSV, both, or an optional **BTC quantity with its observation time**. A BTC quantity is not its CAD/USD market value.
-3. Review the preview and any missing references. The first Bull import needs an explicit opening declaration; the [browser guide](docs/web-frontend.md) links the supported JSON format.
+3. Review the preview and any missing references. Choose a saved source context or enter the required host settings, then review account mappings. Unknown opening quantities remain unknown; see the [browser guide](docs/web-frontend.md).
 4. Confirm the import and leave the worker running. Once published, open the analysis pages or **Report library**.
 
 Use **Financial records** for cash-flow coverage, contributions and BTC openings/balances/events, including append-only corrections. The same operations remain available in the CLI. Holdings changes and purchase spending do not establish contributions. See [financial declarations](docs/web-financial-records.md).
@@ -241,7 +240,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | CLI/Web contributions/coverage, BTC balances/events/revisions, report recovery | Implemented: [financial declarations](docs/web-financial-records.md) |
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md) and opt-in [legacy report evidence](docs/web-legacy-reports.md); actual private migration is explicit |
-| Extensible financial CSV sources | Two real built-ins; installable SDK/trusted registry, v1 nonbooking previews and opt-in v2 CLI/browser approved reports implemented. Final daily-default migration and additional real formats remain: [SRC-004](TODO.md) |
+| Extensible financial CSV sources | Two real built-ins; installable SDK/trusted registry, v1 nonbooking previews and default v2 CLI/browser approved reports implemented. Personal adoption and additional real formats remain: [SRC-004](TODO.md) |
 | Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |

@@ -312,6 +312,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolios/{portfolio_id}/source-import-contexts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contexts */
+        get: operations["contexts_api_v1_portfolios__portfolio_id__source_import_contexts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolios/{portfolio_id}/source-import-previews": {
         parameters: {
             query?: never;
@@ -1334,6 +1351,12 @@ export interface components {
         };
         /** SourceContextOptions */
         SourceContextOptions: {
+            /** Profile Id */
+            profile_id?: string | null;
+            /** Revisions */
+            revisions?: components["schemas"]["ContextRevision"][];
+            /** Scope Revisions */
+            scope_revisions?: components["schemas"]["ContextScopeRevision"][];
             /** Account Alias */
             account_alias?: string | null;
             /** Source Timezone */
@@ -1412,6 +1435,26 @@ export interface components {
             };
             /** Previous Plan Id */
             previous_plan_id?: string | null;
+        };
+        /** SourceProfile */
+        SourceProfile: {
+            /** Id */
+            id: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Adapter Id */
+            adapter_id: string;
+            /** Label */
+            label: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+        };
+        /** SourceProfileList */
+        SourceProfileList: {
+            /** Profiles */
+            profiles: components["schemas"]["SourceProfile"][];
         };
         /** SourceReportConfirmation */
         SourceReportConfirmation: {
@@ -3684,6 +3727,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    contexts_api_v1_portfolios__portfolio_id__source_import_contexts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceProfileList"];
                 };
             };
             /** @description Bad Request */

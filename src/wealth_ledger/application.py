@@ -22,10 +22,15 @@ class ApplicationService:
         """Stable flow-import identities, without creating or modifying a ledger."""
         if not self.workspace.database.exists():
             return []
+        from .source_profiles import investment_accounts
+        canonical = investment_accounts(self.root)
         with closing(sqlite3.connect(self.workspace.database.as_uri() + "?mode=ro", uri=True)) as conn:
             conn.row_factory = sqlite3.Row
-            return [dict(row) for row in conn.execute(
+            native = [dict(row) for row in conn.execute(
                 "SELECT account_id,label,masked_number FROM accounts ORDER BY account_id")]
+        merged = {row['account_id']: row for row in canonical}
+        merged.update({row['account_id']: row for row in native})
+        return sorted(merged.values(), key=lambda row: row['account_id'])
 
     def preview(self, request, **kwargs):
         from .preflight import preview_update

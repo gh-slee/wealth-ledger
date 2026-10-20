@@ -82,7 +82,7 @@ class OpeningDeclaration(Input):
 class CashFlowDeclaration(Input):
     command: Literal['cash_flow']
     date: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
-    account_id: str = Field(pattern=r'^a_[a-f0-9]{16}$')
+    account_id: str = Field(pattern=r'^(?:a_[a-f0-9]{16}|src_[a-f0-9]{32})$')
     flow_type: Literal['deposit','withdrawal','transfer_in','transfer_out','income','fee','internal']
     currency: Literal['CAD','USD']
     amount: Money
@@ -104,7 +104,7 @@ class CoverageDeclaration(Input):
     start_date: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
     end_date: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
     status: Literal['partial','complete','no_external']
-    account_id: str = Field(default='portfolio',pattern=r'^(?:portfolio|a_[a-f0-9]{16})$')
+    account_id: str = Field(default='portfolio',pattern=r'^(?:portfolio|a_[a-f0-9]{16}|src_[a-f0-9]{32})$')
 
 
 Declaration = Annotated[BalanceDeclaration | EventDeclaration | WalletRevision | OpeningDeclaration |
@@ -148,6 +148,9 @@ def financial_state(project):
             tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if 'cash_flows' in tables:
                 flows = [json.loads(r[0]) for r in conn.execute('SELECT payload_json FROM cash_flows ORDER BY flow_date DESC,flow_id LIMIT 1001')]
+            if 'manual_cash_flows' in tables:
+                flows += [json.loads(r[0]) for r in conn.execute('SELECT payload_json FROM manual_cash_flows ORDER BY flow_date DESC,flow_id LIMIT 1001')]
+                flows.sort(key=lambda row: (row['date'], row['flow_id']), reverse=True)
             if 'flow_periods' in tables:
                 coverage = [dict(r) for r in conn.execute('SELECT id,start_date,end_date,account_id,status FROM flow_periods ORDER BY id DESC LIMIT 1001')]
     return {'accounts':ApplicationService(resolve_workspace(explicit=project)).accounts(),

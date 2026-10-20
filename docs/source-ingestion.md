@@ -456,5 +456,7 @@ remain SRC-004C acceptance requirements before any daily-use cutover.
 C3B now supplies [trusted-core source report payloads and frozen valuations](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b),
 with three-locale portable reports and synthetic empty-volume restore acceptance.
 Frozen canonical submission remains data-only: it does not automatically value or
-publish. The ordinary report gate is still enforced; C3C must connect fixed-context
-CLI/Web import/mapping/confirmation/publication/recovery and third-parser acceptance.
+publish. The separate [default daily workflow](source-projections.md#default-daily-workflow)
+now connects CLI/Web detection, explicit context/mapping review, exact approval and
+immutable publication. Native renderers keep their canonical-data omission guard;
+using low-level ingestion is not a shortcut around publication approval.

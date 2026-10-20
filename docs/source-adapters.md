@@ -650,7 +650,9 @@ observed values with explicit FX and classifies recorded cash-flow/crypto effect
 without provider-name dispatch. It does not execute a parser or publish reports.
 C2 adds identity/signature-proven read-only legacy overlap, a shared pure wallet
 reconciliation kernel and frozen history/historical cash-flow preservation. Daily
-C3A connects BTC declarations to that compatible basis. C3B adds trusted-core source report payloads, frozen derived valuations and three-locale portable reports. Ordinary daily import/report routing and full acceptance remain C3C. The data-only receipt and existing report phase gates remain unchanged.
+C3A connects BTC declarations to that compatible basis. C3B adds trusted-core source report payloads, frozen derived valuations and three-locale portable reports. C3C now supplies default CLI/browser preparation, exact confirmation, frozen reports
+and read/export/restore integration. B2 remains data-only. Legacy-only renderers
+retain their safety guard; the default source pipeline handles canonical facts.
 
 
 C3C1 adds an opt-in [frozen source-report workflow](source-projections.md#frozen-source-report-publication-src-004c3c1):

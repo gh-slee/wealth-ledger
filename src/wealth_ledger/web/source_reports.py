@@ -15,7 +15,7 @@ from ..source_publication import prepare_source_report, load_source_report, _sum
 from ..source_submission import SubmissionError, parse_bindings
 from .imports import Input, JobView
 from .jobs import Jobs, PREVIEW_SECONDS, UNRESOLVED, digest, engine_fingerprint
-from .source_plans import SourceContext, configuration_path, source_uploads
+from .source_plans import SourceContext, ContextRevision, ContextScopeRevision, configuration_path, source_uploads
 from .source_submissions import BindingChoice
 from .storage import WebError, contained
 from .uploads import verified_upload, get_upload, BATCH_BYTES
@@ -43,9 +43,24 @@ class SourceReportRequest(Input):
 
 
 class SourceContextOptions(Input):
+    profile_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    revisions: list[ContextRevision] = Field(default_factory=list, max_length=200)
+    scope_revisions: list[ContextScopeRevision] = Field(default_factory=list, max_length=200)
     account_alias: str | None = Field(default=None, min_length=1, max_length=160)
     source_timezone: str | None = Field(default=None, min_length=1, max_length=100)
     format_selection: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class SourceProfile(Input):
+    id: str
+    provider_id: str
+    adapter_id: str
+    label: str
+    options: dict[str, str]
+
+
+class SourceProfileList(Input):
+    profiles: list[SourceProfile]
 
 
 class SourceBalance(Input):
@@ -242,6 +257,13 @@ def execute_update(store, jobs, row, service):
 
 def install_routes(app, store, auth, require_owner):
     prefix = "/api/v1/portfolios/{portfolio_id}"
+
+    @app.get(prefix + "/source-import-contexts", response_model=SourceProfileList)
+    def contexts(portfolio_id: str, owner=Depends(require_owner)):
+        from ..source_profiles import source_profiles
+        _, project = store.portfolio(portfolio_id, owner['owner_id'])
+        try: return {'profiles': source_profiles(project)}
+        except (ValueError, OSError): raise WebError(409, 'source_integrity', 'Saved source contexts could not be verified') from None
 
     @app.post(prefix + "/source-import-previews", status_code=202, response_model=JobView)
     def import_preview(portfolio_id: str, body: SourceImportRequest, request: Request,

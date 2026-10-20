@@ -385,5 +385,6 @@ Source/event footprints expose later old-date backfill without rebasing opening.
 Unknown actual costs/contributions are not filled. See the detailed
 [C3A boundary](source-projections.md#source-aware-btc-declarations-src-004c3a).
 
-This is data-only. The canonical CSV/daily-report gate remains C3B/C3C; none of these
-commands regenerates a frozen report or enables a daily-use cutover.
+These declaration commands are data-only and never regenerate a frozen report.
+Use the separate default parser/report workflow to prepare and approve a new edition.
+Actual private deployment/adoption still requires an explicit operator decision.

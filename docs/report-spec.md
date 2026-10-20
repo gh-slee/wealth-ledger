@@ -363,4 +363,5 @@ Old derived editions retain their bytes, and already published retries cannot mo
 a newer latest pointer backwards. Source financial payloads omit developer-stage
 publication flags; actual state belongs to durable operation/manifest records.
 See [approval and recovery](source-projections.md#frozen-source-report-publication-src-004c3c1).
-This does not register a Web report or complete ordinary CLI/browser cutover.
+The advanced core alone does not register Web reports; the default CLI/browser
+workflow now connects it to approved publication and Web registration.

@@ -652,8 +652,8 @@ or Bull Bitcoin. Exports carry the same explicit scope and original report bytes
 Full empty-target restore invalidates unstarted source approvals. A proven committed
 operation can finish publication/registry delivery using frozen evidence, with no
 parser or repricing. Opt-in CLI/upload automatic contexts and mapping inputs are
-documented below. Final daily-default acceptance remains pending; existing native
-gates remain.
+documented below. The default daily workflow is now implemented; legacy-only
+projection guards remain to prevent omission of canonical facts.
 
 
 ## Automatic import entry (SRC-004C3C2B)
@@ -663,12 +663,13 @@ parser-based imports with the same frozen approval/publication/recovery core as
 C3C1. It supports either source CSV, both, optional dated BTC totals, and saved facts
 without new CSVs. It identifies trusted enabled adapters in a fresh child. Missing
 account mappings or references return reviewable blockers, never commit permission.
-The native import routes remain available; this entry is explicitly opt-in.
+The regular CLI/browser now use this entry by default; native compatibility routes remain explicit.
 
 ### CLI review and confirmation
 
-Use a dedicated existing private workspace. Keep the new preview directory outside
-that workspace when initializing a ledger. Every path/time below is an example.
+Use a dedicated existing private workspace. Explicit plan directories for a new
+uninitialized ledger must remain outside it; the default CLI initializes only its
+private locale configuration and chooses a private work directory automatically. Every path/time below is an example.
 The checkout command is `scripts/update.py`; the installed advanced source-report
 console remains documented above.
 
@@ -761,19 +762,113 @@ through the existing balance-ID/event workflow; do not guess a fee or deposit.
 
 ### Browser entry and scope
 
-In **Import & jobs**, enable **Use parser plugins**. Upload CSVs, optionally fill
+In **Import & jobs**, **Use parser plugins** is enabled by default. Upload CSVs, optionally fill
 per-file alias/timezone and enabled adapter choice, review/edit account
 mappings, then run **Preview reviewed mappings**. Optional reference files and the
 explicit public-reference checkbox follow the same core policy. A dated BTC total
 can be submitted independently. The API is `POST /source-import-previews`; it
 accepts `upload_ids`, per-CSV `context_options`, `bindings`, one-based `selections`,
 optional `as_of`, `period_start`, `balance`, `kind` and `reference_policy`. Web balance
-quantity is a string, never a floating-point JSON number. The short form does not
-edit correction-parent declarations; use the advanced explicit-context API for
-those. Approval uses the existing exact-digest `POST /source-reports` route.
+quantity is a string, never a floating-point JSON number. The per-file advanced JSON field accepts only `revisions` and `scope_revisions`;
+parents are explicit and never reused from a saved context. Approval uses the existing exact-digest `POST /source-reports` route.
 
 This entry is tested with synthetic data, including an independently installed
-example parser. It does not add arbitrary real institutions, silently replace all
-native routes or authorize personal migration. The remaining daily-default/gate
-change needs combined compatibility and deployment acceptance. Frozen source reports
+example parser. It does not add arbitrary real institutions or authorize personal
+migration. Native low-level renderers keep their canonical-data guard so they cannot
+silently omit source facts. Actual personal adoption and release acceptance remain
+operator actions with separate evidence. Frozen source reports
 continue to disclose observed-subtotal scope and unknown full wealth/returns.
+
+
+## Default daily workflow
+
+The regular browser upload form and `scripts/update.py` now default to the shared
+parser preparation core. `--source-parsers` remains a compatible alias; it is no
+longer necessary. The old native CLI is explicitly `--native-import`. Its low-level
+`ApplicationService.preview/update` contracts and old Web `/previews` jobs remain
+for compatibility; they reject canonical workspaces rather than dropping facts.
+Use `source_import_preview` and exact source confirmation for new integrations.
+
+```bash
+python scripts/update.py --workspace /path/to/private/ledger /path/to/holdings.csv
+# Review missing mappings, save the reviewed bindings JSON, and prepare again:
+python scripts/update.py --workspace /path/to/private/ledger /path/to/holdings.csv \
+  --source-bindings /path/to/reviewed-bindings.json --fetch-source-references
+# Copy plan_directory and approval_sha256 from the successful prepared response:
+python scripts/update.py --workspace /path/to/private/ledger \
+  --confirm-source-preview /path/to/private/ledger/work/source-previews/PLAN_ID \
+  --approval-sha256 REVIEWED_SHA256
+```
+
+Normal preparation creates no financial facts. On first use the automatic CLI plan
+location initializes only private `config/local.toml` locale metadata, preserving
+existing settings, and saves the frozen evidence under `work/source-previews/<id>`.
+`--plan-directory` remains available. Mapping/reference blockers do not create an
+approvable plan. A successful response reports its exact private `plan_directory`.
+Confirming is separate, never implicit in a successful preview exit code.
+
+`--dry-run` uses disposable evidence, supplied/saved references only, no persistent
+plan or locale initialization, and removes the approval digest. It returns
+`confirmation_available: false`; `ready_for_review` is not permission to confirm.
+Stable lock guards may exist afterward. No database, facts or report is created.
+It cannot include `--plan-directory` or reference fetching. Normal preview is also
+offline by default; `--fetch-source-references` is an explicit reference-cache choice.
+
+### Reuse confirmed source context
+
+Account mappings are already saved by portfolio. The new saved-context list derives
+only `account_alias`, `source_timezone` and `format_selection` from verified committed
+canonical evidence. It adds no mutable settings table and never loads a parser.
+Unconfirmed previews do not create reusable contexts. Invalid archives block reads.
+
+```bash
+python scripts/update.py --workspace /path/to/private/ledger --list-source-profiles
+python scripts/update.py --workspace /path/to/private/ledger /path/to/orders.csv \
+  --source-profile 1=REVIEWED_PROFILE_SHA256
+```
+
+In the browser choose **Saved source context** for that CSV. Selection is explicit,
+even when only one context exists: another account can share a format or filename.
+The profile pins its enabled adapter; incompatible files/selections are rejected.
+Do not combine a profile with manual alias/timezone/format overrides. Choose manual
+context instead when intentionally creating a different source identity. Contexts
+are portfolio-scoped, deduplicated and restored from original evidence after backup.
+No private account settings are stored in browser localStorage or public config.
+`GET /source-import-contexts` returns the authenticated portfolio's bounded list.
+
+### Corrections and backfill
+
+Saved contexts never copy evidence time, source reference, record parents or scope
+parents. Fresh evidence time/hash and the actual source observation dates remain.
+A changed same-time export requires explicit attribution; a new preview must list
+record `revisions` and any changed snapshot/membership/coverage `scope_revisions`.
+Use the CLI context JSON or the per-file browser **Revision parents JSON** field.
+Its shape is the existing [context contract](source-ingestion.md); Web API parents
+use the closed `ContextRevision`/`ContextScopeRevision` models. Arbitrary keys or
+profile overrides in that advanced field are rejected. Obtain IDs from verified
+normalized evidence; never invent a parent or apply a blanket latest-revision guess.
+New observations, corrections and backfilled transactions retain their real dates;
+existing frozen report bytes and valuation references are not regenerated.
+
+### Dated contributions for source accounts
+
+`scripts/cash_flows.py accounts` and the Web **Financial records** form include verified
+canonical investment accounts (`src_` IDs) alongside original native accounts (`a_`
+IDs). Funding/crypto accounts are not silently treated as investment contribution
+accounts. Use the returned ID verbatim; no ID rewriting or fake native account is
+needed. The existing cash-flow CSV/form and coverage commands share validation.
+
+Source-account rows use the additive `manual_cash_flows` table with source/binding
+foreign keys, archived original CSV and evidence replay. Native rows remain in their
+original table. IDs are checked across both stores; a repeated file/row does not add
+a second contribution, and conflicting IDs are rejected. Manual corrections do not
+overwrite a previously accepted ID. Every value affecting approval/recovery is in
+the financial fingerprints, and backups preserve the table and original evidence.
+
+Dates remain source calendar dates; no UTC-midnight transaction time is invented.
+CAD amounts and explicit historical USD conversions use the established precision
+contract, never report-time FX. Missing conversion evidence rejects the declaration.
+Coverage is explicit per account/period and does not establish full portfolio scope
+or full returns. Reports combine recorded dated declarations with canonical flows,
+deduplicating only proven overlaps; known subtotals remain qualified. Recording data
+alone does not change a frozen report: prepare and confirm a new edition separately.

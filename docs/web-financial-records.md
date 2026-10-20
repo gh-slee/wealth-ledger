@@ -5,9 +5,9 @@ use the same Python validators, locks, database backups and append-only records 
 the CLI. They do not require an LLM, wallet login, broker credentials or LibreOffice.
 
 With canonical source batches, BTC opening/balance/event declarations use the same
-verified, identity-deduplicated compatibility model as CLI queries. They do not yet
-enable ordinary canonical CSV updates or new reports; those routes remain gated by
-C3B/C3C. Existing frozen reports are still readable. See the
+verified, identity-deduplicated compatibility model as CLI queries. Declarations do
+not themselves publish reports. Use the separate default parser preview/confirmation
+workflow to generate a new frozen report. Existing frozen reports are still readable. See the
 [source-aware declaration contract](source-projections.md#source-aware-btc-declarations-src-004c3a).
 
 ## Save data, then prepare a report
@@ -153,3 +153,14 @@ reject extra fields and browser host paths. Mutations require the existing CSRF 
 same-origin controls. Reading records never publishes reports or extends idle login.
 The browser retains no persistent financial cache; changing portfolio/authentication
 cancels in-flight requests. Complete history remains in the ledger and private backups.
+
+
+## Canonical investment account declarations
+
+The account picker and `cash_flows.py accounts` include verified `src_` investment
+accounts, as well as original `a_` identities. The same date-only CAD/USD declaration
+and explicit coverage validation applies. Source funding/crypto roles are not exposed
+as ordinary contribution accounts. Original raw CSV, table foreign keys, cross-store
+ID conflicts and replay verification preserve attribution. See [source account flow rules](source-projections.md#dated-contributions-for-source-accounts).
+Declaring a flow does not reprice or rewrite an existing report; prepare a new report
+from saved facts. Complete account-period coverage is not proof of complete wealth.
