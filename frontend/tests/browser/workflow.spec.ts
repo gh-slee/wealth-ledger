@@ -651,7 +651,10 @@ test("frozen source publications preserve partial scope, generic providers and e
 test("regular parser upload reviews mappings and publishes without hand-written contexts", async ({
   page,
 }) => {
-  test.setTimeout(120000);
+  // This case executes several isolated Python jobs and two real report builds.
+  // Bound asynchronous work separately from ordinary browser interactions.
+  test.setTimeout(300000);
+  const jobTimeout = 90000;
   await login(page);
   await page.getByText("New portfolio", { exact: true }).click();
   await page
@@ -701,7 +704,7 @@ test("regular parser upload reviews mappings and publishes without hand-written 
   // The worker may finish and populate suggested mappings before the retry.
   await expect(
     page.getByRole("heading", { name: "Source account mappings", exact: true }),
-  ).toBeVisible({ timeout: 30000 });
+  ).toBeVisible({ timeout: jobTimeout });
   const retry = page.waitForRequest("**/source-import-previews");
   await page
     .getByRole("button", { name: "Upload & preview", exact: true })
@@ -712,7 +715,7 @@ test("regular parser upload reviews mappings and publishes without hand-written 
   await page.unroute("**/source-import-previews");
   await expect(
     page.getByRole("heading", { name: "Source account mappings", exact: true }),
-  ).toBeVisible({ timeout: 30000 });
+  ).toBeVisible({ timeout: jobTimeout });
   const confirmation = page.getByRole("button", {
     name: "Confirm import & generate reports",
     exact: true,
@@ -724,7 +727,7 @@ test("regular parser upload reviews mappings and publishes without hand-written 
   await page
     .getByRole("button", { name: "Preview reviewed mappings", exact: true })
     .click();
-  await expect(confirmation).toBeVisible({ timeout: 30000 });
+  await expect(confirmation).toBeVisible({ timeout: jobTimeout });
   await confirmation.click();
   await page
     .getByRole("dialog")
@@ -735,7 +738,7 @@ test("regular parser upload reviews mappings and publishes without hand-written 
     .click();
   await expect(
     page.locator(".job-list").getByText("Published", { exact: true }),
-  ).toBeVisible({ timeout: 60000 });
+  ).toBeVisible({ timeout: jobTimeout });
   // A second preparation in the same form gets its own exact approval key.
   await page.getByLabel("CSV exports", { exact: true }).setInputFiles({
     name: "synthetic-parser.csv",
@@ -759,7 +762,7 @@ test("regular parser upload reviews mappings and publishes without hand-written 
   await page
     .getByRole("button", { name: "Upload & preview", exact: true })
     .click();
-  await expect(confirmation).toBeVisible({ timeout: 30000 });
+  await expect(confirmation).toBeVisible({ timeout: jobTimeout });
   await confirmation.click();
   await page
     .getByRole("dialog")
@@ -770,7 +773,7 @@ test("regular parser upload reviews mappings and publishes without hand-written 
     .click();
   await expect(
     page.locator(".job-list").getByText("Published", { exact: true }),
-  ).toHaveCount(2, { timeout: 60000 });
+  ).toHaveCount(2, { timeout: jobTimeout });
   await page.getByRole("link", { name: "Overview", exact: true }).click();
   await expect(
     page.getByText(

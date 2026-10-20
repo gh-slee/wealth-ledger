@@ -102,6 +102,15 @@ jobs:
           cmp frontend/src/lib/schema.d.ts work/web-schema.d.ts
       - run: cd frontend && npx playwright install --with-deps chromium
       - run: npm --prefix frontend run test:e2e
+      - name: Show bounded synthetic browser failure context
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for path in sorted(Path("frontend/test-results").glob("*/error-context.md"))[:4]:
+              print(path.as_posix())
+              print(path.read_text(encoding="utf-8")[:16384])
+          PY
 
   parser-sdk-packages:
     runs-on: ubuntu-latest
