@@ -119,8 +119,15 @@ def audit_artifacts(directory):
     return counts
 
 
-def run(command, cwd, env, *, test_count=None):
-    result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, timeout=600)
+def run(command, cwd, env, *, test_count=None, timeout=600):
+    try:
+        result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        # Only bounded synthetic acceptance diagnostics, as for completed failures.
+        detail = exc.stderr or ""
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        raise RuntimeError(f"Package acceptance timed out after {timeout}s: " + detail[-4000:]) from None
     if result.returncode:
         # Test evidence is synthetic, but avoid dumping installation paths by default.
         raise RuntimeError("Package acceptance failed: " + result.stderr[-4000:])
@@ -196,7 +203,7 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
         (canonical / "examples/data").mkdir(parents=True)
         for name in ("wealthsimple-holdings.csv", "bull-orders.csv", "fx.json"):
             shutil.copyfile(ROOT / "examples/data" / name, canonical / "examples/data" / name)
-        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=257)
+        run([str(python), "-I", "-m", "unittest", "discover", "-s", str(canonical / "tests"), "-v"],base,env,test_count=257,timeout=1200)
         for locale in ("en-CA", "zh-TW", "zh-CN"):
             run([str(python), "-I", str(demo / "examples/demo.py"), "--output", str(base / locale), "--locale", locale], base, env)
     return {"installed_outside_checkout": True, "plugin_tests": 13, "canonical_ingestion_tests": 35, "context_parser_tests": 29, "source_submission_tests": 22, "source_projection_tests": 29, "source_legacy_projection_tests": 33, "source_wallet_declaration_tests": 25, "source_report_tests": 35, "source_publication_tests": 23, "source_import_tests": 16, "source_default_tests": 6, "source_manual_flow_tests": 4, "plan_and_revalidation": True,

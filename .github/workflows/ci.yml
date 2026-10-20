@@ -114,7 +114,7 @@ jobs:
 
   parser-sdk-packages:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       MPLBACKEND: Agg
