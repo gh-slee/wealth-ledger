@@ -244,11 +244,19 @@ class IsolatedPlanTests(unittest.TestCase):
         saved=self.root/"plan.json"; saved.write_text(result.stdout)
         result=subprocess.run([*command,"--verify",str(saved)],check=True,text=True,capture_output=True)
         self.assertEqual(json.loads(result.stdout),expected)
-        saved.write_text("["*2000+"0"+"]"*2000)
-        rejected=subprocess.run([*command,"--verify",str(saved)],text=True,capture_output=True)
-        self.assertEqual(rejected.returncode,2)
-        self.assertEqual(json.loads(rejected.stdout)["error"],"invalid_request")
-        self.assertNotIn("Traceback",rejected.stderr)
+        # Decoder recursion limits vary by Python build. Both decoding rejection
+        # and rejecting a decoded non-plan are valid fail-closed outcomes.
+        cases = [("{", {"invalid_request"}),
+                 ("["*2000+"0"+"]"*2000, {"invalid_request", "invalid_plan"})]
+        for raw, errors in cases:
+            with self.subTest(errors=errors):
+                saved.write_text(raw)
+                rejected=subprocess.run([*command,"--verify",str(saved)],text=True,capture_output=True)
+                self.assertEqual(rejected.returncode,2)
+                error=json.loads(rejected.stdout)
+                self.assertIn(error["error"],errors)
+                self.assertIs(error["ingestible"],False)
+                self.assertNotIn("Traceback",rejected.stderr)
 
 
 if __name__ == "__main__": unittest.main()

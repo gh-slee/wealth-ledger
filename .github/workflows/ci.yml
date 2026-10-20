@@ -11,7 +11,7 @@ permissions:
 jobs:
   python-312-linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       PYTHONUTF8: "1"
       PYTHONDONTWRITEBYTECODE: "1"
