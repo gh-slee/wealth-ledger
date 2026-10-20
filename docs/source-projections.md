@@ -651,5 +651,129 @@ or Bull Bitcoin. Exports carry the same explicit scope and original report bytes
 
 Full empty-target restore invalidates unstarted source approvals. A proven committed
 operation can finish publication/registry delivery using frozen evidence, with no
-parser or repricing. Ordinary CLI/upload automatic contexts, mapping inputs and
-complete daily workflow acceptance remain C3C2B; existing native gates remain.
+parser or repricing. Opt-in CLI/upload automatic contexts and mapping inputs are
+documented below. Final daily-default acceptance remains pending; existing native
+gates remain.
+
+
+## Automatic import entry (SRC-004C3C2B)
+
+`ApplicationService.source_import_preview(paths=(), directory=..., ...)` prepares
+parser-based imports with the same frozen approval/publication/recovery core as
+C3C1. It supports either source CSV, both, optional dated BTC totals, and saved facts
+without new CSVs. It identifies trusted enabled adapters in a fresh child. Missing
+account mappings or references return reviewable blockers, never commit permission.
+The native import routes remain available; this entry is explicitly opt-in.
+
+### CLI review and confirmation
+
+Use a dedicated existing private workspace. Keep the new preview directory outside
+that workspace when initializing a ledger. Every path/time below is an example.
+The checkout command is `scripts/update.py`; the installed advanced source-report
+console remains documented above.
+
+```bash
+python scripts/update.py --workspace /private/ledger --source-parsers \
+  /private/inputs/holdings.csv /private/inputs/orders.csv \
+  --source-context /private/context-options.json \
+  --plan-directory /private/previews/review-1
+```
+
+`context-options.json` contains one object per CSV in supplied order. Omit the file
+when the formats require no host context:
+
+```json
+{"schema_version":1,"inputs":[{}, {"account_alias":"personal-btc-orders"}]}
+```
+
+A format without a stable exported account ID requires an explicit, stable alias.
+Reuse it on later exports from that account; changing it creates a different source
+identity. A source timezone can be supplied as `source_timezone` when the format
+needs one. Evidence time is the frozen execution time and source reference is the
+raw-byte SHA-256, independent of the filename. CLI context options also support the
+explicit revision/scope-parent fields from the advanced context contract. Ambiguous
+adapter detection requires `--source-select SLOT=ADAPTER_ID`, using a one-based CSV
+slot and an enabled trusted adapter; no plugin is installed through an upload.
+
+For `mapping_required`, inspect every `preview.account_review` item. Save reviewed
+`suggested_choice` objects as `{"schema_version":1,"bindings":[...]}`, changing the
+supported target choice when needed. Suggestions are not approval. Repeat preparation
+with `--source-bindings /private/reviewed-bindings.json`. Saved mappings are reused
+for the same source account. Never remap an existing account to hide a conflict.
+
+The default `saved_only` reference policy uses supplied or verified exact-date FX
+and exact-cutoff BTC caches without network access. `reference_required` lists the
+missing reference types and has no approvable plan. Supply `--fx-file` and, when a
+known BTC quantity needs valuation, `--btc-price-file`; their formats are the C3C1
+valuation contract above. Alternatively, explicitly add `--fetch-source-references`.
+That policy may save public date-bound reference caches and raw evidence before
+approval. It does not book holdings, transactions or a wallet observation. It cannot
+be combined with offline `--dry-run`. Confirmation may separately retrieve official
+ETF analysis; failed or unsupported coverage stays unresolved.
+
+Once `preview.status` is `awaiting_confirmation`, review its entire scope, dates,
+mappings, known/unknown quantities, references and exact `approval_sha256`. Confirm
+with the same trusted host configuration:
+
+```bash
+python scripts/update.py --workspace /private/ledger \
+  --confirm-source-preview /private/previews/review-1 \
+  --approval-sha256 REVIEWED_SHA256
+```
+
+Confirmation accepts no replacement CSV, date, price or balance. It never reruns a
+parser. After a proven data commit, retry delivery with the saved operation rather
+than importing again:
+
+```bash
+python scripts/update.py --workspace /private/ledger --resume-operation OP-SAVED_ID
+```
+
+### Cutoffs and optional totals
+
+Incoming holdings-only imports default to their actual snapshot time. Orders-only,
+combined-source, balance-only and saved-data preparations use frozen execution time;
+later saved BTC purchase/wallet evidence advances an older holdings default to
+execution time. An explicit `--valuation-as-of` overrides the policy. The preview
+reports the chosen cutoff and reason. No missing month is created, and absence of
+a new CSV does not prove absence of new activity. Carried holdings keep their source
+dates. The default cash-flow period starts January 1 UTC of the cutoff year; use
+`--source-period-start` for an explicit offset-aware analysis start. This default
+never establishes complete cash-flow coverage or a return.
+
+Add an optional total to any preparation, including one with no CSVs:
+
+```bash
+python scripts/update.py --workspace /private/ledger --source-parsers \
+  --btc-balance 0.01234567 --btc-balance-as-of "2024-03-01T12:00:00+00:00" \
+  --btc-balance-source "wallet aggregate reference" \
+  --valuation-as-of "2024-03-01T12:00:00+00:00" \
+  --fx-file /private/fx.json --btc-price-file /private/btc-price.json \
+  --plan-directory /private/previews/balance-review
+```
+
+The total is BTC+LBTC equivalent units for the tracked wallet scope, not market
+value or a contribution. The balance must be no later than the valuation cutoff or
+frozen recording time. It is included in the same exact approval as the CSVs and
+committed once. New balance-bearing plans use manifest version 2; version 1 remains
+readable. Unknown opening acquisition costs stay unknown. Explain differences later
+through the existing balance-ID/event workflow; do not guess a fee or deposit.
+
+### Browser entry and scope
+
+In **Import & jobs**, enable **Use parser plugins**. Upload CSVs, optionally fill
+per-file alias/timezone and enabled adapter choice, review/edit account
+mappings, then run **Preview reviewed mappings**. Optional reference files and the
+explicit public-reference checkbox follow the same core policy. A dated BTC total
+can be submitted independently. The API is `POST /source-import-previews`; it
+accepts `upload_ids`, per-CSV `context_options`, `bindings`, one-based `selections`,
+optional `as_of`, `period_start`, `balance`, `kind` and `reference_policy`. Web balance
+quantity is a string, never a floating-point JSON number. The short form does not
+edit correction-parent declarations; use the advanced explicit-context API for
+those. Approval uses the existing exact-digest `POST /source-reports` route.
+
+This entry is tested with synthetic data, including an independently installed
+example parser. It does not add arbitrary real institutions, silently replace all
+native routes or authorize personal migration. The remaining daily-default/gate
+change needs combined compatibility and deployment acceptance. Frozen source reports
+continue to disclose observed-subtotal scope and unknown full wealth/returns.

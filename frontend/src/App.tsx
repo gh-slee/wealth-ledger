@@ -490,7 +490,7 @@ function PortfolioWorkspace({
         ) : (
           <>
             {navPage === "imports" ? (
-              <Imports portfolio={portfolio} />
+              <Imports key={portfolio} portfolio={portfolio} />
             ) : navPage === "records" ? (
               <Financial key={portfolio} portfolio={portfolio} />
             ) : navPage === "settings" ? (

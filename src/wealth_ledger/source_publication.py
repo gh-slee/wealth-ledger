@@ -74,11 +74,31 @@ def _summary(manifest):
             "report_locale":manifest["reporting"]["locale"],"account_review":manifest["account_review"],
             "observed_totals":manifest["preview"]["totals"],"scope":"valued_observed_rows_not_complete_wealth",
             "pending_checks":["latest_official_etf_data","report_generation_and_validation"],
-            "report_published":False,"ordinary_cutover_ready":False}
+            "report_published":False,"ordinary_cutover_ready":False,
+            **({"balance":manifest["balance"]} if manifest.get("balance") else {})}
+
+
+def balance_input(value):
+    if value is None: return None
+    from .wallet import quantity, timestamp
+    if not isinstance(value, dict) or set(value) != {"quantity_btc", "as_of", "source", "recorded_at"}:
+        raise SubmissionError("invalid_balance")
+    if any(not isinstance(v, str) for v in value.values()): raise SubmissionError("invalid_balance")
+    source = value["source"]
+    if not source.strip() or len(source) > 160 or any(ord(c) < 32 or ord(c) == 127 for c in source):
+        raise SubmissionError("invalid_balance")
+    return {"quantity_btc": quantity(value["quantity_btc"]), "as_of": timestamp(value["as_of"], value["recorded_at"]),
+            "source": source, "recorded_at": timestamp(value["recorded_at"], value["recorded_at"])}
+
+
+def _apply_balance(project, value):
+    if value is None: return
+    from .wallet import add_balance
+    add_balance(project, value["quantity_btc"], value["as_of"], source=value["source"], now=value["recorded_at"], recorded_at=value["recorded_at"])
 
 
 def prepare_source_report(project, paths=(), *, valuation, directory, contexts=(), bindings=(),
-                          config_path=None, selections=None, timeout=60, operation_id=None):
+                          config_path=None, selections=None, timeout=60, operation_id=None, balance=None, _parsed=None):
     """Freeze exact input/mapping/reference approval; simulation is offline."""
     from .web.maintenance import workspace_activity
     from .preflight import _snapshot
@@ -87,6 +107,7 @@ def prepare_source_report(project, paths=(), *, valuation, directory, contexts=(
         _pending(project)
         target=_target(project,directory)
         values,reporting=_inputs(project,valuation)
+        balance = balance_input(balance)
         before=operations.input_fingerprint(project)
         config=host_config(config_path)
         environment=ingestion.environment_fingerprint()
@@ -99,7 +120,7 @@ def prepare_source_report(project, paths=(), *, valuation, directory, contexts=(
             source=None;plan=None;review=[]
             if paths:
                 source=prepare_submission(project,paths,contexts=contexts,bindings=bindings,directory=stage/"ingestion",
-                    config_path=config_path,selections=selections,timeout=timeout,operation_id=operation)
+                    config_path=config_path,selections=selections,timeout=timeout,operation_id=operation,_parsed=_parsed)
                 if source["status"]=="mapping_required":return source
                 _,plan=load_submission(project,stage/"ingestion",source["approval_sha256"])
                 review=source["account_review"]
@@ -107,11 +128,13 @@ def prepare_source_report(project, paths=(), *, valuation, directory, contexts=(
                 simulation=Path(temporary)/"portfolio"
                 _snapshot(project,simulation)
                 if plan is not None:ingestion._apply(simulation,plan)
+                _apply_balance(simulation, balance)
                 payload=make_source_payload(simulation,**values)
             manifest={"format":FORMAT,"schema_version":1,"operation_id":operation,"workspace_sha256":_workspace_hash(project),
                 "input_fingerprint":before,"environment_sha256":environment,"configuration_sha256":sha(config),
                 "valuation":values,"reporting":reporting,"account_review":review,"preview":_projection(payload),
                 "ingestion":{key:source[key] for key in ("approval_sha256","plan_sha256")} if source else None}
+            if balance is not None: manifest.update(schema_version=2, balance=balance)
             manifest["approval_sha256"]=sha(_encode(manifest))
             raw=_encode(manifest)
             if len(raw)>MAX_MANIFEST:raise SubmissionError("source_preview_limit")
@@ -133,7 +156,10 @@ def load_source_report(project,directory,approval_sha256):
         raw=bounded_read(directory/"manifest.json",MAX_MANIFEST);value=_json(raw)
         required={"format","schema_version","operation_id","workspace_sha256","input_fingerprint","environment_sha256",
                   "configuration_sha256","valuation","reporting","account_review","preview","ingestion","approval_sha256"}
-        if set(value)!=required or _encode(value)!=raw or value["format"]!=FORMAT or type(value["schema_version"]) is not int or value["schema_version"]!=1:
+        if value.get("schema_version") == 2:
+            required.add("balance")
+            if balance_input(value.get("balance")) != value.get("balance") or value.get("balance") is None: raise SubmissionError("invalid_balance")
+        if set(value)!=required or _encode(value)!=raw or value["format"]!=FORMAT or type(value["schema_version"]) is not int or value["schema_version"] not in {1,2}:
             raise SubmissionError("invalid_submission")
         if not isinstance(value["operation_id"],str) or not OP.fullmatch(value["operation_id"]):raise SubmissionError("invalid_operation")
         for key in ("workspace_sha256","input_fingerprint","environment_sha256","configuration_sha256","approval_sha256"):
@@ -227,6 +253,7 @@ def confirm_source_report(project,directory,approval_sha256,*,config_path=None,o
                 if plan is not None:
                     validate_native_compatibility(stage,plan.inputs)
                     accepted=ingestion._apply(stage,plan)
+                _apply_balance(stage, manifest.get("balance"))
                 payload=make_source_payload(stage,**manifest["valuation"])
                 if _projection(payload)!=manifest["preview"]:raise SubmissionError("stale_projection")
                 receipt=freeze_valuation(stage,**manifest["valuation"])

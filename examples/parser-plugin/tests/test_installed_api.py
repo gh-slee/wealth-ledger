@@ -194,11 +194,13 @@ class InstalledV2ReportTests(unittest.TestCase):
                     "bindings":[{"provider":"synthetic","source_account_id":"demo-account","target_kind":"new"}],
                     "valuation":{"as_of":"2024-03-01T00:00:00Z","period_start":"2024-01-01T00:00:00Z","generated_at":"2024-03-01T00:00:00Z","report_locale":"en-CA",
                         "fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-02-29","usd_twd_date":"2024-02-29","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}}
-                preview = request(prefix + "/source-report-previews",body=body,headers={**headers,"Idempotency-Key":"independent-web-source-preview"})
+                reference = request(prefix + "/uploads?kind=fx&filename=fx.json",body=json.dumps(body["valuation"]["fx"]).encode(),headers={**headers,"Content-Type":"application/json"})
+                automatic = {"upload_ids":[upload["id"],reference["id"]],"bindings":body["bindings"],"as_of":body["valuation"]["as_of"]}
+                preview = request(prefix + "/source-import-previews",body=automatic,headers={**headers,"Idempotency-Key":"independent-web-source-preview"})
                 self.assertEqual(execute_isolated(settings,preview["id"]),0)
                 saved = Jobs(store).view(Jobs(store).get(pid,preview["id"]))
                 self.assertEqual(saved["status"],"ready",saved["error_code"])
-                job = request(prefix + "/source-reports",body={"preview_id":saved["id"],"approval_sha256":saved["result"]["approval_sha256"]},headers={**headers,"Idempotency-Key":"independent-web-source-confirm"})
+                job = request(prefix + "/source-reports",body={"preview_id":saved["id"],"approval_sha256":saved["result"]["preview"]["approval_sha256"]},headers={**headers,"Idempotency-Key":"independent-web-source-confirm"})
                 self.assertEqual(execute_isolated(settings,job["id"]),0)
                 published = Jobs(store).view(Jobs(store).get(pid,job["id"]))
                 self.assertEqual(published["status"],"published",published["error_code"])

@@ -20,9 +20,19 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 const items = (value: unknown): unknown[] =>
   Array.isArray(value) ? value : [];
+type Binding = {
+  provider: string;
+  source_account_id: string;
+  target_kind: "new" | "canonical" | "legacy_holdings" | "legacy_crypto";
+  ledger_account_id?: string;
+};
 export function Imports({ portfolio }: { portfolio: string }) {
   const { t, label, error, locale } = useI18n();
   const client = useQueryClient();
+  const [parserMode, setParserMode] = useState(false);
+  const [sourceFiles, setSourceFiles] = useState<File[]>([]);
+  const [choices, setChoices] = useState<Binding[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false),
     [failure, setFailure] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
@@ -30,6 +40,10 @@ export function Imports({ portfolio }: { portfolio: string }) {
   // Stable request keys survive uncertain network retries, but not edited input.
   const previewKey = useRef(crypto.randomUUID()),
     confirmKey = useRef(crypto.randomUUID());
+  const uploadedForPreview = useRef<{ key: string; ids: string[] } | null>(
+    null,
+  );
+  const submittedPreview = useRef<{ key: string; body: unknown } | null>(null);
   const jobs = useQuery({
     queryKey: [portfolio, "jobs"],
     queryFn: ({ signal }) =>
@@ -55,6 +69,18 @@ export function Imports({ portfolio }: { portfolio: string }) {
   const job = importJobs.find((job) => job.id === selected) ?? importJobs[0];
   const result = record(job?.result),
     preview = record(result.preview ?? result);
+  useEffect(() => {
+    confirmKey.current = crypto.randomUUID();
+  }, [job?.id]);
+  useEffect(() => {
+    if (preview.status === "mapping_required") {
+      setChoices(
+        items(preview.account_review).map(
+          (value) => record(record(value).suggested_choice) as Binding,
+        ),
+      );
+    }
+  }, [job?.id, preview.status]);
   const metrics = [
     ["row_count", "rowCount"],
     ["account_count", "accountCount"],
@@ -74,17 +100,33 @@ export function Imports({ portfolio }: { portfolio: string }) {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const requestKey = previewKey.current;
     setBusy(true);
     setFailure("");
     try {
-      const uploaded: string[] = [];
-      for (const kind of ["csv", "fx", "price", "opening"])
-        for (const value of form.getAll(kind)) {
-          if (value instanceof File && value.size)
-            uploaded.push((await upload(portfolio, value, kind)).id);
-        }
+      let uploaded =
+        uploadedForPreview.current?.key === requestKey
+          ? uploadedForPreview.current.ids
+          : null;
+      if (!uploaded) {
+        uploaded = [];
+        for (const kind of ["csv", "fx", "price", "opening"])
+          for (const value of form.getAll(kind)) {
+            if (value instanceof File && value.size)
+              uploaded.push(
+                (
+                  await upload(
+                    portfolio,
+                    value,
+                    parserMode && kind === "csv" ? "source_csv" : kind,
+                  )
+                ).id,
+              );
+          }
+        uploadedForPreview.current = { key: requestKey, ids: uploaded };
+      }
       const balance = String(form.get("balance") ?? "").trim();
-      const body = {
+      const nativeBody = {
         upload_ids: uploaded,
         kind: form.get("kind"),
         render_saved: form.get("render_saved") === "on",
@@ -97,12 +139,56 @@ export function Imports({ portfolio }: { portfolio: string }) {
           : {}),
         ...(form.get("as_of") ? { as_of: form.get("as_of") } : {}),
       };
+      const body = parserMode
+        ? {
+            upload_ids: uploaded,
+            kind: form.get("kind"),
+            bindings: choices,
+            context_options: sourceFiles.map((_, index) => ({
+              ...(form.get(`alias-${index}`)
+                ? { account_alias: form.get(`alias-${index}`) }
+                : {}),
+              ...(form.get(`timezone-${index}`)
+                ? { source_timezone: form.get(`timezone-${index}`) }
+                : {}),
+            })),
+            selections: Object.fromEntries(
+              sourceFiles
+                .map((_, index) => [
+                  String(index + 1),
+                  String(form.get(`adapter-${index}`) ?? "").trim(),
+                ])
+                .filter(([, value]) => value),
+            ),
+            reference_policy:
+              form.get("fetch_references") === "on"
+                ? "fetch_public"
+                : "saved_only",
+            ...(balance
+              ? {
+                  balance: {
+                    quantity_btc: balance,
+                    as_of: form.get("observed"),
+                    source: "Browser balance observation",
+                  },
+                }
+              : {}),
+            ...(form.get("as_of") ? { as_of: form.get("as_of") } : {}),
+          }
+        : nativeBody;
+      // Background review suggestions cannot change an uncertain request retry.
+      const requestBody =
+        submittedPreview.current?.key === requestKey
+          ? submittedPreview.current.body
+          : body;
+      submittedPreview.current = { key: requestKey, body: requestBody };
       await refresh(
         await mutate<Job>(
-          scope(portfolio) + "/previews",
-          body,
+          scope(portfolio) +
+            (parserMode ? "/source-import-previews" : "/previews"),
+          requestBody,
           "POST",
-          previewKey.current,
+          requestKey,
         ),
       );
     } catch (reason) {
@@ -116,17 +202,19 @@ export function Imports({ portfolio }: { portfolio: string }) {
     setBusy(true);
     setFailure("");
     try {
+      const currentResult = record(current.result);
+      const currentPreview = record(currentResult.preview ?? currentResult);
       const value =
         kind === "confirm"
           ? await mutate<Job>(
               scope(portfolio) +
-                (typeof record(current.result).approval_sha256 === "string"
+                (typeof currentPreview.approval_sha256 === "string"
                   ? "/source-reports"
                   : "/jobs"),
               {
                 preview_id: current.id,
-                ...(typeof record(current.result).approval_sha256 === "string"
-                  ? { approval_sha256: record(current.result).approval_sha256 }
+                ...(typeof currentPreview.approval_sha256 === "string"
+                  ? { approval_sha256: currentPreview.approval_sha256 }
                   : {}),
               },
               "POST",
@@ -146,7 +234,24 @@ export function Imports({ portfolio }: { portfolio: string }) {
       <section className="panel">
         <h2>{t("uploadTitle")}</h2>
         <p className="muted">{t("uploadHint")}</p>
-        <form className="import-form" onSubmit={submit} onChange={changed}>
+        <form
+          ref={formRef}
+          className="import-form"
+          onSubmit={submit}
+          onChange={changed}
+        >
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={parserMode}
+              onChange={(event) => {
+                setParserMode(event.target.checked);
+                setChoices([]);
+              }}
+            />
+            {t("parserMode")}
+          </label>
+          {parserMode && <p className="muted">{t("parserModeHint")}</p>}
           <label className="file-drop">
             {t("evidenceFiles")}
             <input
@@ -156,9 +261,39 @@ export function Imports({ portfolio }: { portfolio: string }) {
               accept=".csv,text/csv"
               multiple
               disabled={busy}
+              onChange={(event) => {
+                setSourceFiles(Array.from(event.target.files ?? []));
+                setChoices([]);
+              }}
             />
-            <small>Wealthsimple / Bull Bitcoin · CSV ≤ 10 MiB</small>
+            <small>
+              {parserMode ? t("enabledParsers") : "Wealthsimple / Bull Bitcoin"}{" "}
+              · CSV ≤ 10 MiB
+            </small>
           </label>
+          {parserMode &&
+            sourceFiles.map((file, index) => (
+              <fieldset key={`${file.name}-${index}`}>
+                <legend>{file.name}</legend>
+                <div className="form-grid">
+                  <label>
+                    {t("sourceAlias")}
+                    <input name={`alias-${index}`} maxLength={160} />
+                  </label>
+                  <label>
+                    {t("sourceTimezone")}
+                    <input
+                      name={`timezone-${index}`}
+                      placeholder="America/Toronto"
+                    />
+                  </label>
+                  <label>
+                    {t("sourceAdapter")}
+                    <input name={`adapter-${index}`} />
+                  </label>
+                </div>
+              </fieldset>
+            ))}
           <div className="form-grid">
             <label>
               {t("kind")}
@@ -188,14 +323,25 @@ export function Imports({ portfolio }: { portfolio: string }) {
               <input name="observed" placeholder="2026-10-17T18:00:00-04:00" />
             </label>
           </div>
-          <label className="check-label">
-            <input type="checkbox" name="render_saved" />
-            {t("renderSaved")}
-          </label>
+          {parserMode && (
+            <label className="check-label">
+              <input type="checkbox" name="fetch_references" />
+              {t("fetchPublicReferences")}
+            </label>
+          )}
+          {!parserMode && (
+            <label className="check-label">
+              <input type="checkbox" name="render_saved" />
+              {t("renderSaved")}
+            </label>
+          )}
           <details>
             <summary>{t("references")}</summary>
             <div className="form-grid">
-              {(["fx", "price", "opening"] as const).map((kind) => (
+              {(parserMode
+                ? (["fx", "price"] as const)
+                : (["fx", "price", "opening"] as const)
+              ).map((kind) => (
                 <label key={kind}>
                   {t(
                     kind === "fx"
@@ -213,7 +359,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
                 </label>
               ))}
             </div>
-            <p className="muted">{t("openingHint")}</p>
+            {!parserMode && <p className="muted">{t("openingHint")}</p>}
           </details>
           <Button type="submit" disabled={busy}>
             {busy ? t("loading") : t("preview")}
@@ -252,6 +398,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
                   String(
                     preview.valuation_as_of ??
                       result.valuation_as_of ??
+                      record(result.preparation).valuation_as_of ??
                       job.execution_at,
                   ),
                   locale,
@@ -298,6 +445,97 @@ export function Imports({ portfolio }: { portfolio: string }) {
           )}
           {preview.status === "mapping_required" && (
             <p className="muted">{t("sourceMappingRequired")}</p>
+          )}
+          {parserMode &&
+            preview.status === "mapping_required" &&
+            choices.map((choice, index) => (
+              <div
+                className="form-grid"
+                key={`${choice.provider}-${choice.source_account_id}`}
+              >
+                <label>
+                  {choice.provider} · {choice.source_account_id}
+                  <select
+                    aria-label={`${t("mappingDestination")} ${index + 1}`}
+                    value={choice.target_kind}
+                    onChange={(event) => {
+                      setChoices((old) =>
+                        old.map((value, row) =>
+                          row === index
+                            ? {
+                                ...value,
+                                target_kind: event.target
+                                  .value as Binding["target_kind"],
+                                ...(event.target.value === "new"
+                                  ? { ledger_account_id: undefined }
+                                  : {}),
+                              }
+                            : value,
+                        ),
+                      );
+                      changed();
+                    }}
+                  >
+                    {(
+                      [
+                        "new",
+                        "canonical",
+                        "legacy_holdings",
+                        "legacy_crypto",
+                      ] as const
+                    ).map((kind) => (
+                      <option key={kind} value={kind}>
+                        {t(`mapping.${kind}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {choice.target_kind !== "new" && (
+                  <label>
+                    {t("ledgerAccountId")}
+                    <input
+                      value={choice.ledger_account_id ?? ""}
+                      onChange={(event) => {
+                        setChoices((old) =>
+                          old.map((value, row) =>
+                            row === index
+                              ? {
+                                  ...value,
+                                  ledger_account_id: event.target.value,
+                                }
+                              : value,
+                          ),
+                        );
+                        changed();
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            ))}
+          {parserMode && preview.status === "mapping_required" && (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                changed();
+                formRef.current?.requestSubmit();
+              }}
+            >
+              {t("previewMappings")}
+            </Button>
+          )}
+          {preview.status === "reference_required" && (
+            <p className="muted">
+              {t("referencesRequired")}{" "}
+              {items(preview.missing_references).join(" · ")}
+            </p>
+          )}
+          {Object.keys(record(result.preparation)).length > 0 && (
+            <p className="muted">
+              {t("sourcePreparation")} ·{" "}
+              {date(String(record(result.preparation).valuation_as_of), locale)}{" "}
+              · {label(String(record(result.preparation).valuation_policy))}
+            </p>
           )}
           {Object.keys(record(preview.observed_totals)).length > 0 && (
             <p className="muted">
@@ -369,6 +607,13 @@ export function Imports({ portfolio }: { portfolio: string }) {
                 .join(" · ")}
             </p>
           )}
+          {record(preview.balance).quantity_btc != null && (
+            <p>
+              {t("btcQuantity")}:{" "}
+              {quantity(String(record(preview.balance).quantity_btc))} BTC ·{" "}
+              {date(String(record(preview.balance).as_of), locale)}
+            </p>
+          )}
           {record(preview.btc).quantity_btc != null && (
             <p>
               {t("btcQuantity")}:{" "}
@@ -405,7 +650,8 @@ export function Imports({ portfolio }: { portfolio: string }) {
           <div className="actions">
             {job.kind === "preview" &&
               job.status === "ready" &&
-              preview.status !== "mapping_required" && (
+              preview.status !== "mapping_required" &&
+              preview.status !== "reference_required" && (
                 <Button
                   disabled={busy}
                   onClick={() => {

@@ -152,23 +152,40 @@ def _pending(project, operation_id=None):
 
 
 def prepare_submission(project, paths, *, contexts, bindings, directory, config_path=None,
-                       selections=None, operation_id=None, timeout=60):
+                       selections=None, operation_id=None, timeout=60, _parsed=None):
     """Coordinate CLI plan writes with full Web-instance backup/maintenance."""
     from .web.maintenance import workspace_activity
     project=resolve_workspace(explicit=project).workspace_root
     with workspace_activity(project):
         return _prepare_submission(project,paths,contexts=contexts,bindings=bindings,directory=directory,
-            config_path=config_path,selections=selections,operation_id=operation_id,timeout=timeout)
+            config_path=config_path,selections=selections,operation_id=operation_id,timeout=timeout,_parsed=_parsed)
 
 
 def _prepare_submission(project, paths, *, contexts, bindings, directory, config_path=None,
-                        selections=None, operation_id=None, timeout=60):
+                        selections=None, operation_id=None, timeout=60, _parsed=None):
     """Parse once in a child, statefully validate, then atomically save private evidence."""
     project = resolve_workspace(explicit=project).workspace_root
     _pending(project)
     before = input_fingerprint(project)
     config = host_config(config_path)
-    parsed = parse_sources(paths, contexts=contexts, config_path=config_path, selections=selections, timeout=timeout)
+    parsed = _parsed if _parsed is not None else parse_sources(paths, contexts=contexts, config_path=config_path, selections=selections, timeout=timeout)
+    if _parsed is not None:
+        # Internal handoff from automatic preparation, never decoded from API JSON.
+        from .source_context_pipeline import validate_receipt, context_document
+        from .source_environment import digest
+        validate_receipt(parsed.receipt)
+        if not len(paths) == len(contexts) == len(parsed.batches) == len(parsed.raw) == len(parsed.receipt["inputs"]):
+            raise SubmissionError("source_integrity")
+        if (tuple(bounded_read(p, INPUT_BYTES) for p in paths) != parsed.raw
+                or parsed.receipt["configuration_sha256"] != _hash(config)
+                or parsed.receipt["contexts_sha256"] != digest(context_document(contexts))
+                or parsed.receipt["selections"] != (selections or {})
+                or parsed.receipt["environment_sha256"] != core.environment_fingerprint()):
+            raise SubmissionError("stale_submission")
+        for batch, raw, context, row in zip(parsed.batches, parsed.raw, contexts, parsed.receipt["inputs"]):
+            v2.validate_batch(batch, raw, context=context)
+            if _hash(v2.canonical_json(batch).encode()) != row["canonical_sha256"]:
+                raise SubmissionError("source_integrity")
     try:
         effective = _all_bindings(project, parsed.batches, bindings)
     except SubmissionError as exc:

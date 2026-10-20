@@ -50,7 +50,27 @@ def resolve_workspace(legacy_root=CODE_ROOT, explicit=None) -> Workspace:
                            ("data/db/portfolio.sqlite3", "reports/latest.json", "config/local.toml",
                             "config/bull-opening.json", "config/company-aliases.json",
                             "config/company-aliases.override.json"))
-        if root != Path(legacy_root).resolve() and any(root.iterdir()) and not recognizable:
+        # Preparation can leave only stable guards and date-bound reference
+        # caches before the first financial commit. Other non-ledger files still
+        # reject a mistyped/non-dedicated workspace.
+        import re
+        preparatory = []
+        eligible_preparation = (not recognizable and root != Path(legacy_root).resolve()
+            and root not in {Path(root.anchor), Path.home()} and {p.name for p in root.iterdir()} <= {"work", "data"})
+        for path in root.rglob("*") if eligible_preparation else ():
+            relative = path.relative_to(root).as_posix()
+            if len(preparatory) > 10000:
+                preparatory.append(False); break
+            if path.is_symlink(): preparatory.append(False)
+            elif path.is_dir():
+                preparatory.append(relative in {"work","data","data/fx","data/fx/evidence","data/prices","data/prices/evidence"}
+                    or bool(re.fullmatch(r"data/fx/evidence/\d{4}-\d{2}-\d{2}",relative)))
+            elif path.is_file():
+                preparatory.append(relative in {"work/update.guard", "work/update.lock"} or bool(re.fullmatch(
+                    r"data/(?:fx/\d{4}-\d{2}-\d{2}\.json|fx/evidence/\d{4}-\d{2}-\d{2}/(?:bank-of-canada\.json|cbc\.html)|prices/(?:btc-usd-|evidence/coinbase-)\d{4}-\d{2}-\d{2}T\d{6}[+-]\d{4}\.json)", relative)))
+            else: preparatory.append(False)
+        recognized_preparation = bool(preparatory) and all(preparatory)
+        if root != Path(legacy_root).resolve() and any(root.iterdir()) and not recognizable and not recognized_preparation:
             raise ValueError("Workspace is not empty and contains no recognized ledger state/configuration")
         if root == Path(root.anchor) or root == Path.home():
             raise ValueError("Choose a dedicated portfolio directory, not the filesystem root or home")

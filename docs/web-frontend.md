@@ -62,6 +62,17 @@ reports. Interface language is independent of the saved report language. Downloa
 remain in their original published language. Markdown refers to its chart files:
 download those attachments too, or choose **Download report ZIP** to preserve relative links. **Export report data** offers CSV/JSON holdings, accounts, history, cash flows and monthly BTC data, with supported inclusive date ranges. See [exports and private backups](web-backups.md).
 
+## Parser-based upload mode
+
+In **Import & jobs**, enable **Use parser plugins** for the new source pipeline.
+The regular form accepts either/both CSVs, a dated BTC total, or saved facts. Fill
+stable per-file aliases when needed; review/edit every account destination and
+choose **Preview reviewed mappings** before exact confirmation. Missing references
+remain pending unless supplied or explicitly fetched. This mode does not require a
+native Bull opening JSON and never invents a zero opening. The earlier daily-use
+steps describe the retained native mode. See [the shared entry contract](source-projections.md#automatic-import-entry-src-004c3c2b)
+for dates, references, supported overrides and remaining cutover boundaries.
+
 ## Analysis semantics
 
 - The evidence rail distinguishes valuation cutoff, holdings snapshot, latest

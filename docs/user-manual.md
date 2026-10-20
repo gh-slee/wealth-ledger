@@ -1,5 +1,10 @@
 # Wealth Ledger user manual
 
+The opt-in [automatic parser import entry](source-projections.md#automatic-import-entry-src-004c3c2b)
+now supports regular CLI/browser preparation, explicit mapping review and exact
+approval, including optional BTC-only and saved-data inputs. Native commands remain
+available; review reference-cache behavior and the final cutover boundary there.
+
 This describes supported operations. Reports support English, Traditional Chinese
 and Simplified Chinese (section 21); code/field names are English. Every sample
 quantity, amount, time and ID is synthetic and must be replaced for real use. Past

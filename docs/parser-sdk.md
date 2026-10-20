@@ -1,5 +1,10 @@
 # Parser SDK: build, install and test
 
+The opt-in [automatic parser import entry](source-projections.md#automatic-import-entry-src-004c3c2b)
+now supports regular CLI/browser preparation, explicit mapping review and exact
+approval, including optional BTC-only and saved-data inputs. Native commands remain
+available; review reference-cache behavior and the final cutover boundary there.
+
 SRC-003 provides an installable Python core, one shared version-1 contract,
 `wealth_ledger.source_testing`, and an independently packaged synthetic parser.
 Everything runs in code. No runtime LLM, local LibreOffice or institution login is

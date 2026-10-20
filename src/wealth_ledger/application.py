@@ -38,6 +38,8 @@ class ApplicationService:
         return operations.get(self.root, operation_id)
 
     def update(self, request, *, resume=None, operation_id=None, expected_fingerprint=None, on_data_committed=None):
+        if resume and self.operation(resume)["request"].get("type") == "source_report_update":
+            return self.source_report_resume(resume, on_data_committed=on_data_committed)
         from .workflow import identify_inputs, validate_update_request
         if not resume:
             from .source_ingestion import require_report_projection
@@ -98,3 +100,7 @@ class ApplicationService:
     def source_report_resume(self, operation_id, **options):
         from .source_publication import resume_source_report
         return resume_source_report(self.root, operation_id, **options)
+
+    def source_import_preview(self, paths=(), **options):
+        from .source_imports import prepare_import
+        return prepare_import(self.root, paths, **options)

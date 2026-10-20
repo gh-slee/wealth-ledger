@@ -1,5 +1,10 @@
 # Development and maintenance
 
+The opt-in [automatic parser import entry](source-projections.md#automatic-import-entry-src-004c3c2b)
+now supports regular CLI/browser preparation, explicit mapping review and exact
+approval, including optional BTC-only and saved-data inputs. Native commands remain
+available; review reference-cache behavior and the final cutover boundary there.
+
 This document covers implementation procedures. Shared agent guidance lives in
 [AGENTS.md](../AGENTS.md); installation and contribution expectations live in
 [CONTRIBUTING.md](../CONTRIBUTING.md). Read the topic contract needed by the task,

@@ -1,5 +1,10 @@
 # Core API and data rules
 
+The opt-in [automatic parser import entry](source-projections.md#automatic-import-entry-src-004c3c2b)
+now supports regular CLI/browser preparation, explicit mapping review and exact
+approval, including optional BTC-only and saved-data inputs. Native commands remain
+available; review reference-cache behavior and the final cutover boundary there.
+
 Use [project guidance](../AGENTS.md) and the task-relevant
 [development procedures](development.md). [TODO](../TODO.md) distinguishes future
 work. Interfaces below are implemented unless explicitly marked otherwise.

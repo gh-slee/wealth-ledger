@@ -645,3 +645,123 @@ test("frozen source publications preserve partial scope, generic providers and e
     page.locator(".job-list").getByText("Published", { exact: true }),
   ).toHaveCount(2, { timeout: 60000 });
 });
+
+test("regular parser upload reviews mappings and publishes without hand-written contexts", async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await login(page);
+  await page.getByText("New portfolio", { exact: true }).click();
+  await page
+    .getByLabel("Name", { exact: true })
+    .fill("Automatic parser synthetic portfolio");
+  await page
+    .getByRole("button", { name: "Create portfolio", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await page.getByLabel("Use parser plugins", { exact: true }).check();
+  const raw = readFileSync(
+    path.join(root, "examples/data/wealthsimple-holdings.csv"),
+    "utf8",
+  )
+    .replaceAll("VEQT", "DEMO-ETF")
+    .replaceAll("QQQ", "DEMO-ETF-US");
+  await page.getByLabel("CSV exports", { exact: true }).setInputFiles({
+    name: "synthetic-parser.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(raw),
+  });
+  await page.getByText("Optional reference JSON", { exact: true }).click();
+  await page
+    .getByLabel("Verified FX", { exact: true })
+    .setInputFiles(path.join(root, "examples/data/fx.json"));
+  let interrupted = false;
+  let firstRequest = "";
+  let firstKey = "";
+  await page.route("**/source-import-previews", async (route) => {
+    if (!interrupted) {
+      firstRequest = route.request().postData() ?? "";
+      firstKey = route.request().headers()["idempotency-key"];
+      const response = await route.fetch();
+      expect(response.status()).toBe(202);
+      interrupted = true;
+      await route.abort("failed");
+    } else {
+      await route.continue();
+    }
+  });
+  await page
+    .getByRole("button", { name: "Upload & preview", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("request_failed");
+  // The worker may finish and populate suggested mappings before the retry.
+  await expect(
+    page.getByRole("heading", { name: "Source account mappings", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  const retry = page.waitForRequest("**/source-import-previews");
+  await page
+    .getByRole("button", { name: "Upload & preview", exact: true })
+    .click();
+  const retried = await retry;
+  expect(retried.postData()).toBe(firstRequest);
+  expect(retried.headers()["idempotency-key"]).toBe(firstKey);
+  await page.unroute("**/source-import-previews");
+  await expect(
+    page.getByRole("heading", { name: "Source account mappings", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  const confirmation = page.getByRole("button", {
+    name: "Confirm import & generate reports",
+    exact: true,
+  });
+  await expect(confirmation).toHaveCount(0);
+  await expect(
+    page.getByRole("combobox", { name: "Mapping destination 1", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Preview reviewed mappings", exact: true })
+    .click();
+  await expect(confirmation).toBeVisible({ timeout: 30000 });
+  await confirmation.click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", {
+      name: "Confirm import & generate reports",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.locator(".job-list").getByText("Published", { exact: true }),
+  ).toBeVisible({ timeout: 60000 });
+  // A second preparation in the same form gets its own exact approval key.
+  await page.getByLabel("CSV exports", { exact: true }).setInputFiles([]);
+  await page
+    .getByLabel("Valuation time (optional, with UTC offset)", { exact: true })
+    .fill("2024-02-01T15:00:00+00:00");
+  await page
+    .getByRole("button", { name: "Upload & preview", exact: true })
+    .click();
+  await expect(confirmation).toBeVisible({ timeout: 30000 });
+  await confirmation.click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", {
+      name: "Confirm import & generate reports",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.locator(".job-list").getByText("Published", { exact: true }),
+  ).toHaveCount(2, { timeout: 60000 });
+  await page.getByRole("link", { name: "Overview", exact: true }).click();
+  await expect(
+    page.getByText(
+      "These values cover valued observed holdings, not complete wealth. Missing contributions and full portfolio returns remain unknown.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  for (const name of ["portfolio.ods", "report.md", "report.pdf"])
+    await expect(page.getByRole("button", { name, exact: true })).toHaveCount(
+      2,
+    );
+});

@@ -18,7 +18,7 @@ from .jobs import Jobs, PREVIEW_SECONDS, UNRESOLVED, digest, engine_fingerprint
 from .source_plans import SourceContext, configuration_path, source_uploads
 from .source_submissions import BindingChoice
 from .storage import WebError, contained
-from .uploads import verified_upload
+from .uploads import verified_upload, get_upload, BATCH_BYTES
 
 PIPELINE = "source_report"
 
@@ -40,6 +40,62 @@ class SourceReportRequest(Input):
     bindings: list[BindingChoice] = Field(default_factory=list, max_length=200)
     selections: dict[str, str] = Field(default_factory=dict, max_length=5)
     valuation: SourceReportValuation
+
+
+class SourceContextOptions(Input):
+    account_alias: str | None = Field(default=None, min_length=1, max_length=160)
+    source_timezone: str | None = Field(default=None, min_length=1, max_length=100)
+    format_selection: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class SourceBalance(Input):
+    quantity_btc: str = Field(max_length=40, pattern=r"^(?:0|[1-9][0-9]{0,8})(?:\.[0-9]{1,8})?$")
+    as_of: str = Field(min_length=1, max_length=64)
+    source: str = Field(default="user_reported_total", min_length=1, max_length=160)
+
+
+class SourceImportRequest(Input):
+    upload_ids: list[str] = Field(default_factory=list, max_length=5)
+    context_options: list[SourceContextOptions] = Field(default_factory=list, max_length=5)
+    bindings: list[BindingChoice] = Field(default_factory=list, max_length=200)
+    selections: dict[str, str] = Field(default_factory=dict, max_length=5)
+    as_of: str | None = Field(default=None, max_length=64)
+    period_start: str | None = Field(default=None, max_length=64)
+    kind: Literal["baseline", "monthly", "interim"] = "monthly"
+    balance: SourceBalance | None = None
+    reference_policy: Literal["saved_only", "fetch_public"] = "saved_only"
+
+
+def import_uploads(store, portfolio, identifiers, owner_id=1):
+    if len(identifiers) != len(set(identifiers)) or len(identifiers) > 5:
+        raise WebError(422, "invalid_request", "Supply distinct bounded uploads")
+    rows = [get_upload(store, portfolio, identifier, owner_id) for identifier in identifiers]
+    if (any(row["kind"] not in {"source_csv", "fx", "price"} for row in rows)
+            or sum(row["byte_size"] for row in rows) > BATCH_BYTES
+            or sum(row["kind"] == "fx" for row in rows) > 1 or sum(row["kind"] == "price" for row in rows) > 1):
+        raise WebError(422, "invalid_upload", "Select source CSVs and at most one FX/price reference")
+    for row in rows: verified_upload(store, row)
+    return rows
+
+
+def enqueue_import_preview(store, portfolio, request, key, owner_id=1):
+    _, project = store.portfolio(portfolio, owner_id)
+    jobs = Jobs(store); request_digest = digest({"kind": "source_import_preview", "request": request})
+    with store.transaction() as conn:
+        old = jobs._existing(conn, portfolio, key, request_digest)
+        if old: return old
+    rows = import_uploads(store, portfolio, request["upload_ids"], owner_id)
+    count = sum(row["kind"] == "source_csv" for row in rows)
+    if request["context_options"] and len(request["context_options"]) != count:
+        raise WebError(422, "invalid_context", "Supply one context option per CSV")
+    try: parse_bindings({"schema_version": 1, "bindings": request["bindings"]})
+    except ValueError: raise WebError(422, "invalid_bindings", "Review source account choices") from None
+    pinned = {**request, "pipeline": PIPELINE, "input_mode": "automatic", "upload_hashes": {r["id"]:r["sha256"] for r in rows},
+              "configuration_sha256": hashlib.sha256(host_config(configuration_path(store))).hexdigest(),
+              "environment_sha256": environment_fingerprint(), "engine_fingerprint": engine_fingerprint()}
+    with store.transaction() as conn:
+        return jobs._existing(conn, portfolio, key, request_digest) or jobs._insert(conn, portfolio, "preview", pinned,
+            key, request_digest, fingerprint=input_fingerprint(project))
 
 
 class SourceReportConfirmation(Input):
@@ -81,17 +137,17 @@ def enqueue_preview(store, portfolio, request, key, owner_id=1):
             key, request_digest, fingerprint=input_fingerprint(project))
 
 
-def evidence(store, row):
+def evidence(store, row, *, check_state=True):
     _, project = store.portfolio(row["portfolio_id"])
     request = json.loads(row["request_json"])
-    if request.get("pipeline") != PIPELINE or request["engine_fingerprint"] != engine_fingerprint() or input_fingerprint(project) != row["input_fingerprint"]:
+    if request.get("pipeline") != PIPELINE or request["engine_fingerprint"] != engine_fingerprint() or check_state and input_fingerprint(project) != row["input_fingerprint"]:
         raise SubmissionError("stale_submission")
     config = configuration_path(store)
     if hashlib.sha256(host_config(config)).hexdigest() != request["configuration_sha256"]:
         raise SubmissionError("stale_configuration")
     if environment_fingerprint() != request["environment_sha256"]:
         raise SubmissionError("stale_environment")
-    rows = source_uploads(store, row["portfolio_id"], request["upload_ids"]) if request["upload_ids"] else []
+    rows = import_uploads(store, row["portfolio_id"], request["upload_ids"]) if request.get("input_mode") == "automatic" else (source_uploads(store, row["portfolio_id"], request["upload_ids"]) if request["upload_ids"] else [])
     if {r["id"]: r["sha256"] for r in rows} != request["upload_hashes"]:
         raise SubmissionError("source_integrity")
     return project, request, [verified_upload(store, r) for r in rows], config
@@ -99,6 +155,20 @@ def evidence(store, row):
 
 def execute_preview(store, jobs, row):
     project, request, paths, config = evidence(store, row)
+    if request.get("input_mode") == "automatic":
+        from ..source_imports import prepare_import
+        from ..source_pipeline import _json, bounded_read
+        rows = import_uploads(store, row["portfolio_id"], request["upload_ids"])
+        sources = [path for path, upload in zip(paths, rows) if upload["kind"] == "source_csv"]
+        references = {upload["kind"]: _json(bounded_read(path, 65536)) for path, upload in zip(paths, rows) if upload["kind"] != "source_csv"}
+        result = prepare_import(project, sources, directory=plan_directory(store,row["portfolio_id"],row["id"]),
+            context_options=request["context_options"], bindings=parse_bindings({"schema_version":1,"bindings":request["bindings"]}),
+            config_path=config, selections=request["selections"], as_of=request["as_of"], period_start=request["period_start"], kind=request["kind"],
+            balance=request["balance"], reference_policy=request["reference_policy"], fx=references.get("fx"), btc_price=references.get("price"),
+            now=row["execution_at"], operation_id="OP-"+row["id"])
+        evidence(store,row,check_state=False)
+        jobs.state(row["id"],"ready",result=result,fingerprint=input_fingerprint(project))
+        return
     contexts = contexts_from_document({"schema_version": 1, "inputs": request["contexts"]}, len(paths)) if paths else ()
     result = prepare_source_report(project, paths, contexts=contexts,
         bindings=parse_bindings({"schema_version": 1, "bindings": request["bindings"]}),
@@ -121,6 +191,7 @@ def confirm_preview(store, portfolio, body, key, owner_id=1):
             or store.clock() - preview["created_at"] > PREVIEW_SECONDS):
         raise WebError(409, "preview_unavailable", "Run a fresh successful source report preview")
     result = json.loads(preview["result_json"])
+    result = result.get("preview", result)
     if result.get("status") != "awaiting_confirmation" or body["approval_sha256"] != result.get("approval_sha256"):
         raise WebError(409, "approval_mismatch", "Review exact source report inputs and approval fingerprint")
     with closing(store.connect()) as conn:
@@ -171,6 +242,16 @@ def execute_update(store, jobs, row, service):
 
 def install_routes(app, store, auth, require_owner):
     prefix = "/api/v1/portfolios/{portfolio_id}"
+
+    @app.post(prefix + "/source-import-previews", status_code=202, response_model=JobView)
+    def import_preview(portfolio_id: str, body: SourceImportRequest, request: Request,
+                       idempotency_key: str | None = Header(default=None), owner=Depends(require_owner)):
+        value = body.model_dump()
+        value["context_options"] = [item.model_dump(exclude_none=True) for item in body.context_options]
+        value["bindings"] = [{k:v for k,v in item.items() if v is not None} for item in value["bindings"]]
+        row = enqueue_import_preview(store, portfolio_id, value, idempotency_key, owner["owner_id"])
+        auth.touch(request.cookies.get(store.settings.cookie_name))
+        return Jobs.view(row)
 
     @app.post(prefix + "/source-report-previews", status_code=202, response_model=JobView)
     def preview(portfolio_id: str, body: SourceReportRequest, request: Request,

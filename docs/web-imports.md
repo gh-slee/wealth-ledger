@@ -255,9 +255,9 @@ There is no new browser form and no native daily-workflow cutover in B2.
 
 This API connects the frozen C3C1 core to the existing isolated Web jobs, report
 library, artifact downloads and exports. It does not switch ordinary `/previews`
-or automatically reinterpret old financial inputs. The regular upload form still
-uses the native route; automatic contexts and editable source mappings remain
-C3C2B. No plugin installation/enable endpoint or runtime LLM is involved.
+or automatically reinterpret old financial inputs. The regular upload form defaults
+to the native route; its opt-in parser mode now uses the automatic entry documented
+below. No plugin installation/enable endpoint or runtime LLM is involved.
 
 Upload bounded `source_csv` evidence first. `POST /source-report-previews` accepts:
 
@@ -330,3 +330,21 @@ expires unstarted source confirmations because their approval was workspace boun
 proven committed/published operations may finish report-only recovery. No restore
 replays an old source parser or revalues history. This synthetic acceptance does
 not establish a migrated personal instance or complete daily cutover.
+
+
+## Automatic source import previews
+
+`POST /api/v1/portfolios/{id}/source-import-previews` prepares the regular browser's
+opt-in parser mode. It shares the upload/owner/CSRF/idempotency/worker limits above.
+Allowed uploads are `source_csv` plus at most one `fx` and one `price`; their combined
+count is at most five. Context options correspond to CSV order, excluding reference
+uploads. Missing mappings/references are ready review results, not confirmations.
+Only `awaiting_confirmation` with its exact digest can use `/source-reports`.
+
+See the [automatic import contract and CLI examples](source-projections.md#automatic-import-entry-src-004c3c2b)
+for default dates, stable aliases, account choices, optional totals and reference
+policies. `saved_only` is offline. Explicit `fetch_public` may write date-bound private
+reference caches before approval; it never books financial facts. A newly prepared
+preview records the resulting fingerprint. Existing explicit-context source-report
+API and native import API behavior are retained. Settings/config/environment changes
+invalidate approval; report-only recovery never reruns a parser or balance insertion.

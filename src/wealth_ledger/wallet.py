@@ -128,7 +128,7 @@ def _base(project, cutoff):
     }
 
 
-def _write(conn, project, kind, value, *, record_id=None):
+def _write(conn, project, kind, value, *, record_id=None, recorded_at=None):
     if record_id is None:
         index = conn.execute("INSERT INTO wallet_records(kind,scope,source,reference) VALUES(?,?,?,?)",
                              (kind, SCOPE, value.get("source") if kind == "event" else None,
@@ -141,7 +141,7 @@ def _write(conn, project, kind, value, *, record_id=None):
         value.pop(key, None)
     raw = (_json(value) + "\n").encode()
     sha = hashlib.sha256(raw).hexdigest()
-    directory = Path(project) / "data/raw/crypto/wallet" / datetime.now(timezone.utc).strftime("%Y/%m")
+    directory = Path(project) / "data/raw/crypto/wallet" / (datetime.fromisoformat(recorded_at).astimezone(timezone.utc) if recorded_at else datetime.now(timezone.utc)).strftime("%Y/%m")
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{record_id}-r{revision}-{sha[:16]}.json"
     if path.exists() and path.read_bytes() != raw:
@@ -150,7 +150,7 @@ def _write(conn, project, kind, value, *, record_id=None):
         path.write_bytes(raw)
     path.chmod(0o400)
     conn.execute("INSERT INTO wallet_revisions VALUES(?,?,?,?,?,?)",
-                 (record_id, revision, _json(value), str(path.relative_to(project)), sha, _now()))
+                 (record_id, revision, _json(value), str(path.relative_to(project)), sha, recorded_at or _now()))
     if kind=='event' and value.get('balance_id'):
         conn.execute('INSERT INTO wallet_links VALUES(?,?,?,?)',
                      (record_id,revision,value['balance_id'],value.get('linked_previous_balance_id')))
@@ -171,7 +171,7 @@ def _replacement(project, kind, replaced):
 
 
 def add_balance(project, amount, as_of, *, source="user_reported_total", time_basis="explicit",
-                replaces=None, now=None):
+                replaces=None, now=None, recorded_at=None):
     value = quantity(amount)
     instant = timestamp(as_of, now)
     source = str(source).strip()
@@ -198,7 +198,7 @@ def add_balance(project, amount, as_of, *, source="user_reported_total", time_ba
     try:
         with conn:
             conn.execute("BEGIN IMMEDIATE")
-            return {**_write(conn, project, "balance", payload), "status": "recorded"}
+            return {**_write(conn, project, "balance", payload, recorded_at=recorded_at), "status": "recorded"}
     finally:
         conn.close()
 

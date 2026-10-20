@@ -32,7 +32,7 @@ Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking 
 
 Review supported inputs in an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data. One owner or household can keep multiple independent portfolios in an instance, through a React/TypeScript interface or the supported **Python CLI**. Both use the same Python financial core.
 
-**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. Arbitrary bank/broker/exchange exports and complete custom-parser financial/report workflows are not yet supported. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
+**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. An opt-in v2 parser workflow supports approved imports and reports from trusted enabled plugins. Additional real institutions require implemented format adapters; arbitrary CSVs are not accepted. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
 
 **Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; financial declaration forms and trusted-host, copy-verified adoption of existing CLI data are implemented. See [project status](#project-status).
 
@@ -51,7 +51,18 @@ Review supported inputs in an offline preview, confirm the import, and browse fr
 
 ## Sources and parser plugins
 
-The application is intended to keep portfolio history, validation, analysis, and reports independent of each institution's CSV layout. More banks, brokerages, Bitcoin brokers, and exchanges will be added through parser plugins, including user-authored parsers. Pure versioned parsers now exist for the two current formats and share their CSV grammars with the native importers. Production daily-workflow cutover and report projections still require migration. An opt-in data-only confirmation path preserves frozen parser evidence and explicit account mappings. An [internal read-only projection model](docs/source-projections.md) and identity-bound legacy/wallet/history compatibility are implemented; BTC declarations now use that compatible basis. Trusted-core source report payloads, frozen valuation editions and three-locale portable reports are implemented. An opt-in [advanced source-report CLI](docs/source-projections.md#frozen-source-report-publication-src-004c3c1) now connects approved v2 sources to frozen reports, including the independently installed synthetic example. Opt-in source-report API jobs now publish into the browser report library with source-aware reads/exports and exact approval. Ordinary automatic plugin-based daily imports remain gated until final CLI/Web integration.
+The shared application owns history, validation, valuation and reports; trusted
+parser plugins own institution-specific export formats. Versioned contracts,
+explicit registration, an installable SDK, isolated parsing and frozen confirmation
+are implemented. The built-ins cover the two formats below; an independent synthetic
+plugin verifies the extension path without pretending to support another institution.
+
+An opt-in [parser-based import entry](docs/source-projections.md#automatic-import-entry-src-004c3c2b)
+now connects the regular CLI and browser upload form to account-mapping review,
+exact approval, source-aware analysis and ODS/Markdown/PDF exports. Either CSV, both,
+optional BTC totals and saved-data valuations share one preparation core. Native
+routes remain available; the final default switch and personal migration are
+separate acceptance steps.
 
 | Source or input | Current support |
 |---|---|
@@ -61,11 +72,16 @@ The application is intended to keep portfolio history, validation, analysis, and
 | Dated BTC quantity | Optional total-balance observation, independent of either source CSV. |
 | Other banks, brokers, Bitcoin platforms, and exchanges | Planned parser plugins; arbitrary source CSVs are not accepted today. |
 
-The versioned **parser contract** (`SRC-001`) and an independent **trusted registration/loading library** (`SRC-002A`) are implemented. Nonbooking **CLI/API source plans and configuration/code fingerprints** (`SRC-002B`) are also implemented. An **installable core, plugin author toolkit and independent synthetic example** (`SRC-003`) are implemented. **SRC-004A** adds the [explicit-context v2 contract and canonical ingestion foundation](docs/source-ingestion.md). Production daily-workflow migration remains SRC-004B/C; the foundation alone cannot publish a report. C3B adds the [trusted-core valuation/report API](docs/source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b), while ordinary CLI/Web publication still awaits C3C. The parser preview path can inspect/revalidate trusted plugins but cannot submit financial data. SRC-004B1 adds built-in v2 parser registrations and explicit-context CLI/API previews. SRC-004B2 adds [opt-in frozen data-only confirmation and receipt recovery](docs/source-ingestion.md#frozen-submission-and-recovery-src-004b2) through CLI/owner-only API. It requires exact approval and acknowledgement that reports remain unavailable. Native daily-workflow cutover still depends on C; parser preview success alone cannot book data or add a new source.
+Plugins must declare export versions, record types and completeness. Arbitrary CSVs
+are not accepted automatically, and bank cash-flow records do not establish bank
+asset balances. Parsing, financial processing and official ETF downloads run entirely
+in code, with no runtime LLM calls.
 
-The planned boundary is: a trusted parser detects and normalizes an export; the shared core validates it, preserves original evidence, handles revisions, and produces the same reports. Source support must declare its export versions, record types, and completeness. A bank cash-flow export does not automatically add bank balances to investment assets. Parsing and financial processing run entirely in code, without runtime LLM calls.
-
-Want to contribute a source? Start with the [adapter contract and planned author workflow](docs/source-adapters.md), [implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004), [roadmap](TODO.md), and [contribution guide](CONTRIBUTING.md). The [SDK build/install guide](docs/parser-sdk.md) supports nonbooking parser development; financial import integration is not available yet; do not upload real financial exports to public issues.
+To contribute a source, read the [adapter contract](docs/source-adapters.md),
+[SDK build/install guide](docs/parser-sdk.md), [roadmap](TODO.md) and
+[contribution guide](CONTRIBUTING.md). Financial booking uses the v2 contract and
+explicit approval; v1 source plans remain nonbooking. Never upload real financial
+exports to public issues.
 
 ## Quick start
 
@@ -225,7 +241,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | CLI/Web contributions/coverage, BTC balances/events/revisions, report recovery | Implemented: [financial declarations](docs/web-financial-records.md) |
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md) and opt-in [legacy report evidence](docs/web-legacy-reports.md); actual private migration is explicit |
-| Extensible financial CSV sources | Two built-in source importers today; contract, trusted registry and nonbooking CLI/API parser previews implemented, with an installable core/SDK; financial import integration, importer migration and more sources remain planned: [SRC-002–004](docs/source-adapters.md) |
+| Extensible financial CSV sources | Two real built-ins; installable SDK/trusted registry, v1 nonbooking previews and opt-in v2 CLI/browser approved reports implemented. Final daily-default migration and additional real formats remain: [SRC-004](TODO.md) |
 | Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |

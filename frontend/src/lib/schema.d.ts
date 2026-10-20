@@ -312,6 +312,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolios/{portfolio_id}/source-import-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Preview */
+        post: operations["import_preview_api_v1_portfolios__portfolio_id__source_import_previews_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolios/{portfolio_id}/source-report-previews": {
         parameters: {
             query?: never;
@@ -1286,6 +1303,18 @@ export interface components {
             /** Idle Timeout Seconds */
             idle_timeout_seconds: number;
         };
+        /** SourceBalance */
+        SourceBalance: {
+            /** Quantity Btc */
+            quantity_btc: string;
+            /** As Of */
+            as_of: string;
+            /**
+             * Source
+             * @default user_reported_total
+             */
+            source: string;
+        };
         /** SourceContext */
         SourceContext: {
             /** Evidence At */
@@ -1303,6 +1332,15 @@ export interface components {
             /** Scope Revisions */
             scope_revisions?: components["schemas"]["ContextScopeRevision"][];
         };
+        /** SourceContextOptions */
+        SourceContextOptions: {
+            /** Account Alias */
+            account_alias?: string | null;
+            /** Source Timezone */
+            source_timezone?: string | null;
+            /** Format Selection */
+            format_selection?: string | null;
+        };
         /** SourceDate */
         SourceDate: {
             /** Provider */
@@ -1311,6 +1349,36 @@ export interface components {
             as_of: string | null;
             /** Usage */
             usage: string;
+        };
+        /** SourceImportRequest */
+        SourceImportRequest: {
+            /** Upload Ids */
+            upload_ids?: string[];
+            /** Context Options */
+            context_options?: components["schemas"]["SourceContextOptions"][];
+            /** Bindings */
+            bindings?: components["schemas"]["BindingChoice"][];
+            /** Selections */
+            selections?: {
+                [key: string]: string;
+            };
+            /** As Of */
+            as_of?: string | null;
+            /** Period Start */
+            period_start?: string | null;
+            /**
+             * Kind
+             * @default monthly
+             * @enum {string}
+             */
+            kind: "baseline" | "monthly" | "interim";
+            balance?: components["schemas"]["SourceBalance"] | null;
+            /**
+             * Reference Policy
+             * @default saved_only
+             * @enum {string}
+             */
+            reference_policy: "saved_only" | "fetch_public";
         };
         /** SourceIngestionConfirmation */
         SourceIngestionConfirmation: {
@@ -3611,6 +3679,124 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    import_preview_api_v1_portfolios__portfolio_id__source_import_previews_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
