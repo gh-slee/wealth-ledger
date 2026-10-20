@@ -42,9 +42,11 @@ keep the backend on port 8000 but configure its public origin as
 2. Open **Import & jobs**. Supply either Wealthsimple holdings CSV, Bull orders CSV,
    both, or an optional BTC quantity with an explicit observation timestamp and UTC
    offset. The BTC field means BTC units, never CAD/USD market value.
-3. Optionally supply verified FX/BTC-price JSON and an explicit Bull opening JSON.
-   The first Bull import requires an opening declaration, even if the intended
-   quantity is zero. Formats and limits are in [imports/jobs](web-imports.md).
+3. Parser mode is enabled by default. Select a saved source context explicitly or
+   enter required alias/timezone values. Optionally supply verified FX/BTC-price JSON;
+   public reference fetching requires an explicit checkbox. Missing opening quantity
+   remains unknown; a first Bull CSV does not imply a zero opening. Native compatibility
+   mode retains its explicit opening JSON requirement.
 4. Upload and preview. Review identified sources, source dates, checks and blockers.
    The preview is offline: reference checks can remain pending. Nothing enters the
    financial ledger until **Confirm import & generate reports** and its dialog.
@@ -61,6 +63,18 @@ Changing future report language/cost policy in **Settings** does not rewrite old
 reports. Interface language is independent of the saved report language. Downloads
 remain in their original published language. Markdown refers to its chart files:
 download those attachments too, or choose **Download report ZIP** to preserve relative links. **Export report data** offers CSV/JSON holdings, accounts, history, cash flows and monthly BTC data, with supported inclusive date ranges. See [exports and private backups](web-backups.md).
+
+## Parser-based upload mode
+
+In **Import & jobs**, **Use parser plugins** is enabled by default.
+The regular form accepts either/both CSVs, a dated BTC total, or saved facts. Fill
+stable per-file aliases when needed; review/edit every account destination and
+choose **Preview reviewed mappings** before exact confirmation. Missing references
+remain pending unless supplied or explicitly fetched. This mode does not require a
+native Bull opening JSON and never invents a zero opening. Uncheck parser mode only for the retained native compatibility path; it cannot
+render canonical facts. Choose a saved context per CSV to reuse verified confirmed
+settings. The advanced correction field accepts explicit revision/scope parent JSON. See [the shared entry contract](source-projections.md#automatic-import-entry-src-004c3c2b)
+for dates, references, supported overrides and remaining cutover boundaries.
 
 ## Analysis semantics
 
@@ -134,3 +148,41 @@ bounded evidence rather than a claim of universal deployment compatibility.
 The lockfile pins actual versions. Font and component licenses are retained in
 `frontend/public/licenses/` and the production image; see
 [third-party notices](../THIRD_PARTY_NOTICES.md).
+
+## Legacy publication evidence
+
+Explicitly adopted pre-checksum reports show a migration verification notice in
+analysis and the report library, localized in all three UI languages. Their historical
+report-generation time remains the published-time display; migration time is separate.
+The notice does not claim original publication checksums or historical authenticity.
+Legacy ZIP downloads preserve all original bytes and add a separate verification
+attachment. See [legacy report adoption](web-legacy-reports.md).
+
+## Frozen source report views
+
+Source-report API jobs now publish into the same selected-report library and
+artifact/ZIP routes. The normal upload form uses the shared default parser preparation;
+advanced clients may also use [the explicit-context API](web-imports.md#opt-in-source-report-publication-src-004c3c2a).
+Import & jobs displays their mappings/observed subtotals, hides confirmation for
+`mapping_required`, and sends the exact digest when confirming a prepared source
+report. Automatic contexts, editable mappings and explicit saved-context reuse are implemented.
+
+The read DTO adds optional `source_basis` (model, saved valuation ID/revision,
+comparable scope ID and unknown full contributions/returns). Holdings retain
+provider, original source/revision/observation IDs and observation dates. History
+contains actual same-scope dates/revisions only. Source dates distinguish holdings,
+latest recorded purchases and actual wallet observations; the report cutoff is
+not substituted for a source balance date. Generic provider IDs remain their own
+labels. The overview explicitly labels valued observed rows as partial scope.
+
+BTC views retain unknown quantities/costs/actual full gains and separate opt-in
+proxy estimates. Monthly purchase spend/rates are not contributions; complete
+contribution and cumulative wallet quantities are null when unproven. Canonical
+cash-flow records keep direction/classification and only original CAD or explicit
+historical CAD values; they are not converted using today's report FX.
+
+CSV/JSON exports include `source_basis` and preserve decimal strings/blank unknowns.
+ZIPs and ODS/Markdown/PDF downloads remain the original checksummed artifacts.
+Viewing/changing interface language/exporting never imports or reprices data.
+Browser acceptance uses a separate invented source portfolio, including generic
+provider labels, Traditional Chinese scope text and original ODS downloads.

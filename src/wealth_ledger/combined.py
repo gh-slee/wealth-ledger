@@ -188,6 +188,8 @@ def _record(project, payload):
 
 
 def make_combined_payload(project, snapshot_id=None, *, as_of=None, price_file=None, fx=None, source_updates=None, btc_cost_policy=None):
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     from .wallet import make_crypto_view
     with _connection(project) as conn:
         has_broker=bool(conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0])

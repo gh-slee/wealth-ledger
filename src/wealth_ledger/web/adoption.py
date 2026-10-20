@@ -60,9 +60,15 @@ def inventory(source):
     return {'files':files,'directories':sorted(directories),'links':links,'databases':databases}
 
 
-def verify_portfolio(project):
+def verify_portfolio(project, *, allow_legacy_reports=False):
     """All source revisions and published bundles must retain their original evidence."""
     db=contained(project,'data/db/portfolio.sqlite3')
+    from ..source_ingestion import verify_store
+    verify_store(project)
+    from ..source_valuation import read_observations
+    read_observations(project)
+    from ..source_publication import verify_source_publications
+    verify_source_publications(project)
     with closing(sqlite3.connect(db.as_uri()+'?mode=ro',uri=True)) as conn:
         tables={row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         for table,pathcol,hashcol in (('sources','path','sha256'),('crypto_sources','path','sha256'),
@@ -79,16 +85,12 @@ def verify_portfolio(project):
                     if not evidence['path'].startswith('data/raw/') or not path.is_file() or file_hash(path)!=evidence['sha256']:
                         raise ValueError('Official source evidence is missing or changed')
     bundles=[]
-    from ..publishing import verify_bundle
+    from .report_evidence import inspect_report, json_object
     for path in sorted((project/'reports').rglob('manifest.json')):
-        # rglob never intentionally follows the validated latest symlink.
-        manifest=json.loads(path.read_text())
-        operation=(manifest.get('import') or {}).get('operation_id')
-        checked=verify_bundle(project,path.parent,operation)
-        payload=json.loads((path.parent/'data.json').read_text())
-        bundles.append({'relative':path.parent.relative_to(project).as_posix(),'operation':operation,
-            'as_of':payload['meta']['as_of'],'snapshot_id':checked['snapshot_id'],
-            'files':sorted(checked['bundle_files'])+['manifest.json']})
+        manifest=json_object(path.read_bytes())
+        if not isinstance(manifest.get('import'),dict):raise ValueError('Invalid report operation declaration')
+        operation=manifest['import'].get('operation_id')
+        bundles.append(inspect_report(project,path.parent,operation,allow_legacy=allow_legacy_reports))
     pointer=project/'reports/latest.json'
     if pointer.is_file():
         relative=json.loads(pointer.read_text())['path'];contained(project,relative)
@@ -114,7 +116,7 @@ def validate_source(settings, workspace):
     return source
 
 
-def prepare_adoption(settings, workspace, name, output):
+def prepare_adoption(settings, workspace, name, output, *, allow_legacy_reports=False):
     store=Store(settings)
     if not store.owner():raise ValueError('Initialize the Web owner first')
     if not name.strip() or len(name)>80 or any(ord(c)<32 or ord(c)==127 for c in name):raise ValueError('Invalid portfolio name')
@@ -124,9 +126,9 @@ def prepare_adoption(settings, workspace, name, output):
         raise ValueError('Use a new private plan file outside both state directories')
     with source_guard(source):
         if (source/'work/update.lock').exists():raise ValueError('Stop source writes and review its update lock first')
-        snapshot=inventory(source);bundles=verify_portfolio(source)
+        snapshot=inventory(source);bundles=verify_portfolio(source,allow_legacy_reports=allow_legacy_reports)
         plan={'format':'wealth-ledger-private-adoption','version':1,'engine':engine_fingerprint(),'source_root':str(source),'target_root':str(store.root),
-              'portfolio_id':uuid.uuid4().hex,'name':name.strip(),'created_at':datetime.now(timezone.utc).isoformat(),
+              'allow_legacy_reports':allow_legacy_reports,'portfolio_id':uuid.uuid4().hex,'name':name.strip(),'created_at':datetime.now(timezone.utc).isoformat(),
               'snapshot':snapshot,'bundles':bundles,'excluded':['code and agent instructions','non-financial config including publication authorization',
                   'replaceable work cache/builds and runtime locks','active database WAL/SHM/journal (committed content is snapshotted)']}
         raw=(json.dumps(plan,sort_keys=True,indent=2)+'\n').encode()
@@ -134,6 +136,8 @@ def prepare_adoption(settings, workspace, name, output):
         with output.open('xb') as stream:output.chmod(0o600);stream.write(raw)
     return {'status':'adoption_preview','plan_sha256':digest(plan),'portfolio_id':plan['portfolio_id'],
             'financial_files':len(snapshot['files']),'reports':len(bundles),'source_preserved':True,
+            'legacy_reports':sum('evidence' in b for b in bundles),
+            'legacy_verification':'Migration-time capture; no original publication checksums or historical authenticity proof' if any('evidence' in b for b in bundles) else None,
             'next':'Review the private plan, stop all source writes, then adopt-confirm --plan FILE --plan-sha256 SHA'}
 
 
@@ -146,6 +150,8 @@ def confirm_adoption(settings, plan_path, expected_digest):
     store=Store(settings);pid=plan['portfolio_id']
     from .storage import ID
     if not ID.fullmatch(pid) or plan['target_root']!=str(store.root):raise ValueError('Adoption destination differs')
+    allow_legacy=plan.get('allow_legacy_reports',False)
+    if type(allow_legacy) is not bool:raise ValueError('Invalid legacy acceptance policy')
     source=validate_source(settings,plan['source_root'])
     target=contained(store.root,'portfolios/'+pid)
     receipts=contained(store.root,'admin/adoptions');receipts.mkdir(exist_ok=True,mode=0o700)
@@ -160,7 +166,7 @@ def confirm_adoption(settings, plan_path, expected_digest):
             private_write(receipt,json.dumps({**previous,'status':'complete'}).encode())
             return {'status':'already_adopted','portfolio_id':pid,'source_preserved':True}
         if (source/'work/update.lock').exists():raise ValueError('Stop source writes and review its update lock first')
-        if inventory(source)!=plan['snapshot'] or verify_portfolio(source)!=plan['bundles']:
+        if inventory(source)!=plan['snapshot'] or verify_portfolio(source,allow_legacy_reports=allow_legacy)!=plan['bundles']:
             raise ValueError('Source changed after preview; prepare a new adoption plan')
         if target.exists() and not previous:raise ValueError('Adoption destination is not empty')
         with tempfile.TemporaryDirectory(prefix='adopt-',dir=contained(store.root,'cache')) as directory:
@@ -186,10 +192,12 @@ def confirm_adoption(settings, plan_path, expected_digest):
                     if dst.stat().st_size!=metadata['bytes'] or file_hash(dst)!=metadata['sha256']:raise ValueError('Copied evidence differs')
             (stage/'work').mkdir(exist_ok=True,mode=0o700)
             for name,link in plan['snapshot']['links'].items():contained(stage,name).symlink_to(link,target_is_directory=True)
-            if verify_portfolio(stage)!=plan['bundles']:raise ValueError('Copied report relationships differ')
+            if verify_portfolio(stage,allow_legacy_reports=allow_legacy)!=plan['bundles']:raise ValueError('Copied report relationships differ')
             if inventory(source)!=plan['snapshot']:raise ValueError('Source changed during adoption')
             record={'version':1,'plan_sha256':expected_digest,'source_root':str(source),'portfolio_id':pid,
                     'status':'installing','financial_database':plan['snapshot']['databases'],
+                    'verification_captured_at':plan['created_at'],
+                    'legacy_reports':{b['relative']:b['evidence'] for b in plan['bundles'] if 'evidence' in b},
                     'created_at':datetime.now(timezone.utc).isoformat()}
             private_write(receipt,json.dumps(record,sort_keys=True).encode())
             installed=False
@@ -203,6 +211,9 @@ def confirm_adoption(settings, plan_path, expected_digest):
                         operation=bundle['operation']
                         if operation in operations and operations[operation]['status']!='published':raise ValueError('Report operation is not published')
                         result={'report_id':report,'valuation_as_of':bundle['as_of'],'snapshot_id':bundle['snapshot_id'],'adopted':True,'source_operation_id':operation}
+                        if 'evidence' in bundle:
+                            result['legacy_evidence_sha256']=digest(bundle['evidence'])
+                            result['legacy_capture_at']=plan['created_at']
                         conn.execute("""INSERT INTO jobs(id,portfolio_id,kind,status,request_json,request_digest,execution_at,
                             idempotency_key,core_operation_id,result_json,created_at,updated_at)
                             VALUES(?,?,'update','published',?,?,?,?,?,?,?,?)""",

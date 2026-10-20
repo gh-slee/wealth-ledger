@@ -93,6 +93,12 @@ def validate_instance(root):
             store.reporting_settings(pid)
             database = contained(project, "data/db/portfolio.sqlite3")
             if database.is_file():
+                from ..source_ingestion import verify_store
+                verify_store(project)
+                from ..source_valuation import read_observations
+                read_observations(project)
+                from ..source_publication import verify_source_publications
+                verify_source_publications(project)
                 with closing(sqlite3.connect(database.as_uri()+"?mode=ro", uri=True)) as ledger:
                     tables = {r[0] for r in ledger.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                     for table, column in (("sources","path"),("crypto_sources","path"),("wallet_revisions","source_path")):
@@ -124,6 +130,9 @@ def validate_instance(root):
             path = contained(project, row["relative_path"])
             if not path.is_file() or path.stat().st_size != row["byte_size"] or file_hash(path) != row["sha256"]:
                 raise ValueError("Registered artifact integrity failed")
+        from .report_evidence import legacy_evidence
+        for row in conn.execute("SELECT id,portfolio_id FROM jobs WHERE kind='update' AND status='published'"):
+            legacy_evidence(store,row["portfolio_id"],row["id"])
         from .uploads import verified_upload
         for row in conn.execute("SELECT * FROM uploads"):
             verified_upload(store, dict(row))
@@ -368,7 +377,21 @@ def restore_instance(settings, archive_path, *, incoming=False):
             with closing(sqlite3.connect(restored / "admin/app.sqlite3")) as conn, conn:
                 conn.execute("DELETE FROM sessions")
                 conn.execute("DELETE FROM throttle")
-                conn.execute("UPDATE jobs SET status='interrupted',error_code='restore_preview_expired' WHERE kind IN ('preview','record_preview') AND status IN ('queued','running','ready')")
+                conn.execute("UPDATE jobs SET status='interrupted',error_code='restore_preview_expired' WHERE kind IN ('preview','record_preview','source_plan','source_preview') AND status IN ('queued','running','ready')")
+                conn.execute("UPDATE jobs SET status='needs_review',error_code='restore_source_confirmation_expired' WHERE kind='source_commit' AND status IN ('queued','running')")
+                # A source-report approval is host/workspace bound. Retain only
+                # proven committed report-only work; never replay an unstarted
+                # confirmation in a restored workspace.
+                from ..operations import list_operations
+                for row in conn.execute("SELECT id,portfolio_id,request_json,core_operation_id FROM jobs WHERE kind='update' AND status IN ('queued','running')").fetchall():
+                    request = json.loads(row[2])
+                    if request.get("pipeline") != "source_report": continue
+                    project = contained(restored, "portfolios/" + row[1])
+                    saved = next((op for op in list_operations(project) if op["operation_id"] == row[3]), None)
+                    if not (saved and saved["status"] in {"data_committed","report_failed","published"}
+                            and saved["request"].get("type") == "source_report_update"
+                            and saved["request"].get("approval_sha256") == request["approval_sha256"]):
+                        conn.execute("UPDATE jobs SET status='needs_review',error_code='restore_source_confirmation_expired' WHERE id=?", (row[0],))
                 conn.execute("UPDATE jobs SET enqueued_at=NULL WHERE status='queued'")
             old_receipt = restored / "admin/restore.json"
             if old_receipt.exists() and old_receipt.stat().st_size > 65536:

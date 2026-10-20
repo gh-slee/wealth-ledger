@@ -17,14 +17,14 @@ import io
 PUBLIC_ROOT_FILES = {
     '.gitignore', '.gitattributes', 'AGENTS.md', 'README.md', 'TODO.md',
     'LICENSE', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',
-    'pyproject.toml', 'requirements.txt', 'requirements.lock', '.env.example',
+    'pyproject.toml', 'build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'requirements.txt', 'requirements.lock', '.env.example',
     'requirements-web.txt', 'requirements-web.lock', 'requirements-web-test.lock',
     'Dockerfile', '.dockerignore', 'compose.yaml',
 }
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
-    'source-adapters.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md',
+    'source-adapters.md', 'source-ingestion.md', 'source-projections.md', 'parser-sdk.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md', 'web-legacy-reports.md',
 }
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
@@ -114,6 +114,10 @@ def path_allowed(path: str) -> bool:
             return p.name.startswith('test_') and p.suffix == '.py'
         return len(parts) == 4 and parts[1:3] == ('fixtures', 'fund_sources') and p.name in PUBLIC_FUND_FIXTURES
     if parts[0] == 'examples':
+        if path in {'examples/parser-plugin/pyproject.toml', 'examples/parser-plugin/README.md', 'examples/parser-plugin/LICENSE',
+                    'examples/parser-plugin/src/synthetic_parser/__init__.py', 'examples/parser-plugin/src/synthetic_parser/v2.py',
+                    'examples/parser-plugin/tests/test_synthetic_parser.py', 'examples/parser-plugin/tests/test_installed_api.py'}:
+            return True
         if len(parts) == 2:
             return p.name in {'README.md', 'demo.py'}
         if len(parts) == 3 and parts[1] == 'data':
@@ -239,6 +243,8 @@ def scan_worktree(root: Path) -> dict:
         # The index/history scanners still reject it, even after force-add.
         if path.name.casefold() in PRIVATE_INSTRUCTION_NAMES:
             continue
+        if parts[:3] == ('examples', 'parser-plugin', 'build'):
+            continue  # Generated example build output; index/history still reject it.
         if parts[0] != 'examples' and not path_allowed(rel) and path.suffix.lower() in {'.csv', '.ods', '.pdf', '.xlsx'}:
             continue
         if path.name in {'.DS_Store', 'Thumbs.db', '.coverage'} or rel.lower().endswith(PRIVATE_SUFFIXES):

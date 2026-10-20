@@ -40,6 +40,7 @@ def main():
     adoption.add_argument("--workspace", type=Path, required=True)
     adoption.add_argument("--name", required=True)
     adoption.add_argument("--output", type=Path, required=True)
+    adoption.add_argument("--allow-legacy-reports", action="store_true", help="Explicitly accept recognized older reports using separate migration-time verification; preserve originals")
     adoption = commands.add_parser("adopt-confirm", help="Copy an exact reviewed plan into a new Web portfolio; retain source")
     adoption.add_argument("--plan", type=Path, required=True)
     adoption.add_argument("--plan-sha256", required=True)
@@ -59,7 +60,7 @@ def main():
         settings = WebSettings(Path(root), args.public_origin or os.environ.get("WEALTH_LEDGER_PUBLIC_ORIGIN", "http://localhost:8000"))
         if args.command == "adopt-preview":
             from wealth_ledger.web.adoption import prepare_adoption
-            print(json.dumps(prepare_adoption(settings,args.workspace,args.name,args.output)))
+            print(json.dumps(prepare_adoption(settings,args.workspace,args.name,args.output,allow_legacy_reports=args.allow_legacy_reports)))
         elif args.command == "adopt-confirm":
             from wealth_ledger.web.adoption import confirm_adoption
             print(json.dumps(confirm_adoption(settings,args.plan,args.plan_sha256)))

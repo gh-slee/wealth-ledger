@@ -11,7 +11,7 @@ import threading
 from ..application import ApplicationService
 from ..locking import file_lock, LockBusy
 from ..operations import input_fingerprint, project_lock
-from ..workspace import CODE_ROOT, resolve_workspace
+from ..workspace import PACKAGE_ROOT, resolve_workspace
 from .config import WebSettings
 from .jobs import Jobs
 from .storage import Store, WebError, contained
@@ -55,18 +55,29 @@ def publish_registry(store, jobs, row, service, saved):
 def reconcile_one(store, jobs, row):
     """Called only with the job guard; a running child cannot be reconciled."""
     _, project = store.portfolio(row["portfolio_id"])
-    if row["kind"] in {"preview", "record_preview"}:
+    if row["kind"] in {"preview", "record_preview", "source_plan", "source_preview"}:
         jobs.state(row["id"], "interrupted", error="preview_interrupted")
         return
     try:
         with project_lock(project):
             service = ApplicationService(resolve_workspace(explicit=project))
             saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)
-            if row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
+            if row["kind"] == "source_commit":
+                if saved and saved["status"]=="data_failed":
+                    jobs.state(row["id"],"failed",error="input_rejected");return
+                from .source_submissions import completed_result
+                result=completed_result(store,row)
+                jobs.state(row["id"],"recorded" if result is not None else "needs_review",result=result,
+                    error=None if result is not None else "commit_state_requires_review")
+            elif row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
                 from .financial import safe_record
                 jobs.state(row["id"], "recorded", result={"operation_id":row["core_operation_id"],
                     "report_published":False, "result":safe_record(saved["result"])})
             elif saved and saved["status"] == "published":
+                if saved["request"].get("type") == "source_report_update":
+                    from ..source_publication import frozen_report, _verify_published, _published_target
+                    payload = frozen_report(project, saved)
+                    _verify_published(project, _published_target(project, row["core_operation_id"]), row["core_operation_id"], payload)
                 publish_registry(store, jobs, row, service, saved)
             elif saved and saved["status"] in {"data_committed", "report_failed"}:
                 # The financial transaction contains this commit marker. Requeue
@@ -105,6 +116,14 @@ def execute_job(settings, job_id):
         _, project = store.portfolio(row["portfolio_id"])
         service = ApplicationService(resolve_workspace(explicit=project))
         try:
+            if row["kind"] in {"source_preview","source_commit"}:
+                from .source_submissions import execute_preview,execute_commit
+                (execute_preview if row["kind"]=="source_preview" else execute_commit)(store,jobs,row)
+                return
+            if row["kind"] == "source_plan":
+                from .source_plans import execute_plan
+                execute_plan(store, jobs, row)
+                return
             if row["kind"] == "record_preview":
                 from .financial import declaration_upload, preview_declaration
                 before = input_fingerprint(project)
@@ -117,6 +136,11 @@ def execute_job(settings, job_id):
                 return
             if row["kind"] == "record":
                 execute_record(store,jobs,row,service)
+                return
+            if json.loads(row["request_json"]).get("pipeline") == "source_report":
+                from .source_reports import execute_preview, execute_update
+                if row["kind"] == "preview": execute_preview(store, jobs, row)
+                else: execute_update(store, jobs, row, service)
                 return
             if row["kind"] == "preview":
                 core = jobs.core_request(row)
@@ -151,10 +175,18 @@ def execute_job(settings, job_id):
         except LockBusy:
             jobs.state(job_id, "queued", error="portfolio_busy")
         except Exception as exc:
-            if row["kind"] in {"preview", "record_preview"}:
-                jobs.state(job_id, "blocked", error=exc.code if isinstance(exc, WebError) else "preview_failed")
+            if row["kind"] in {"preview", "record_preview", "source_plan", "source_preview"}:
+                jobs.state(job_id, "blocked", error=getattr(exc,"code","preview_failed"))
                 return
             saved = next((op for op in service.operations() if op["operation_id"] == row["core_operation_id"]), None)
+            if row["kind"] == "source_commit":
+                from .source_submissions import completed_result
+                try: completed=completed_result(store,row)
+                except ValueError: completed=None
+                if completed is not None:jobs.state(job_id,"recorded",result=completed)
+                elif saved:jobs.state(job_id,"failed" if saved["status"]=="data_failed" else "needs_review",error="commit_state_requires_review")
+                else:jobs.state(job_id,"blocked",error=getattr(exc,"code","source_submission_rejected"))
+                return
             if row["kind"] == "record" and saved and saved["status"] == "data_only_complete":
                 from .financial import safe_record
                 jobs.state(job_id,"recorded",result={"operation_id":row["core_operation_id"],
@@ -191,7 +223,7 @@ def execute_record(store, jobs, row, service):
 def execute_isolated(settings, job_id):
     # Fixed module/arguments; no user-supplied program, task name, shell or pickle.
     env = {**os.environ, "WEALTH_LEDGER_DATA_ROOT": str(settings.data_root),
-           "WEALTH_LEDGER_PUBLIC_ORIGIN": settings.public_origin, "PYTHONPATH": str(CODE_ROOT / "src"),
+           "WEALTH_LEDGER_PUBLIC_ORIGIN": settings.public_origin, "PYTHONPATH": str(PACKAGE_ROOT.parent),
            "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run([sys.executable, "-m", "wealth_ledger.web.worker", job_id], env=env,
                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode

@@ -10,6 +10,15 @@ Follow [Web operations](web-operations.md) for installation, owner authenticatio
 CSRF, public origin, Docker context and private storage. Use synthetic files first.
 Existing CLI portfolios are never automatically adopted; use the explicit [copy/verify/switch host commands](web-adoption.md). No Web instance defaults to a maintainer's ledger.
 
+## Independent parser source plans
+
+An advanced, nonbooking API path accepts `source_csv` uploads and queues
+`POST /source-plans` jobs using trusted host parser configuration. It shares the
+CLI source-plan runner and environment/config/input digests. It is separate from
+financial `/previews`: source plans cannot confirm, resume financially or generate
+reports. See [source-plan configuration, API and revalidation](source-adapters.md#nonbooking-source-plans-src-002b).
+No browser source-plan form or plugin installation/enable endpoint exists yet.
+
 ## Start the two services
 
 Install `requirements-web.lock`, initialize the owner once, then run these in
@@ -212,3 +221,138 @@ hosts/platforms remain separate work. Actual private migration is an explicit op
 Implementation references: [Huey API](https://huey.readthedocs.io/en/stable/api.html)
 and [consumer guide](https://huey.readthedocs.io/en/stable/guide.html). Queue storage
 and consumer APIs come from Huey; ledger recovery follows the contracts above.
+
+## Explicit-context parser previews
+
+`POST /api/v1/portfolios/{portfolio_id}/source-context-plans` accepts owner-scoped
+`source_csv` upload IDs, one `contexts` object per input, optional `selections` and
+`previous_plan_id`. See [the closed context schema](source-ingestion.md#explicit-context-previews-src-004b1).
+It queues an ordinary `source_plan` job with no financial operation ID. The API pins
+portfolio state, upload hashes, engine, trusted host configuration and environment;
+the worker invokes the same fresh-child v2 runner as the CLI. Auth/CSRF, idempotency,
+portfolio isolation, expiration and restore invalidation match other source plans.
+There is no browser form or confirm/financial-resume route. A ready result always
+has `ingestible: false`, `booking_blocker: production_v2_pipeline_pending`.
+The ordinary holdings/order import routes retain their behavior.
+
+## Opt-in data-only source submission
+
+B2 adds `POST /source-ingestion-previews` and `POST /source-ingestions` beneath the
+same portfolio prefix. They are separate from nonbooking source plans and normal
+report-producing updates. A preview accepts source uploads, explicit contexts and
+reviewed bindings. Missing bindings return mapping suggestions, not permission to
+book. Exact `approval_sha256` and `acknowledge_no_reports: true` confirm a frozen
+source batch; no parser runs during confirmation. The isolated job becomes
+`recorded`, never `published`. Fixed operation IDs, input/configuration/environment
+checks, one-preview/one-operation and financial-job mutual exclusion prevent replay.
+Inactive `/source-ingestions/{job_id}/recover` is receipt-only; `/discard` only
+abandons a never-started or matching proven-failed job, preserving its audit rows.
+Unknown starts cannot be discarded or automatically repeated. Full schemas,
+24-hour expiry, restore invalidation and CLI equivalents are in the [B2 guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+There is no new browser form and no native daily-workflow cutover in B2.
+
+## Opt-in source report publication (SRC-004C3C2A)
+
+This API connects the frozen C3C1 core to the existing isolated Web jobs, report
+library, artifact downloads and exports. It does not switch ordinary `/previews`
+or automatically reinterpret old financial inputs. The regular upload form defaults to the automatic parser entry documented below;
+the native `/previews` contract remains a separate compatibility API. No plugin installation/enable endpoint or runtime LLM is involved.
+
+Upload bounded `source_csv` evidence first. `POST /source-report-previews` accepts:
+
+```json
+{
+  "upload_ids": ["SERVER_SOURCE_CSV_ID"],
+  "contexts": [{
+    "evidence_at": "2024-02-01T12:00:00+00:00",
+    "source_reference": "synthetic-reviewed-export"
+  }],
+  "bindings": [{
+    "provider": "synthetic",
+    "source_account_id": "demo-account",
+    "target_kind": "new"
+  }],
+  "valuation": {
+    "as_of": "2024-03-01T00:00:00Z",
+    "period_start": "2024-01-01T00:00:00Z",
+    "generated_at": "2024-03-01T00:00:00Z",
+    "report_locale": "en-CA",
+    "fx": {
+      "usd_cad": "1.5", "usd_twd": "30",
+      "usd_cad_date": "2024-02-29", "usd_twd_date": "2024-02-29",
+      "usd_cad_source": "synthetic-fixed", "usd_twd_source": "synthetic-fixed"
+    }
+  }
+}
+```
+
+The invented adapter above requires separate trusted-host installation/enablement;
+see [the SDK](parser-sdk.md). `contexts`, optional `selections` and `bindings` use
+[B2's closed schemas](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+Valuation uses [C3C1's exact reference contract](source-projections.md#frozen-source-report-publication-src-004c3c1).
+Money/reference quantities are strings. The usual 16 KiB JSON body limit applies.
+`btc_price`, `kind` and `btc_cost_policy` are optional valuation fields. Missing
+prices stay unknown; preview never fetches references. With no new CSV, omit
+`upload_ids`, `contexts`, `bindings` and `selections` and provide only `valuation`.
+This reads saved facts; it does not prove that no new transactions occurred.
+BTC totals/events/contribution evidence use the existing financial forms first.
+
+The queued job has `kind: preview`. A ready `result.status: mapping_required`
+contains suggestions but is **not confirmable**; submit a new reviewed preview
+with explicit bindings. A ready `awaiting_confirmation` result contains account
+review, observed CAD/USD/TWD totals, pending checks and `approval_sha256`.
+Review those limits and then send `POST /source-reports`:
+
+```json
+{"preview_id":"SERVER_PREVIEW_ID","approval_sha256":"EXACT_REVIEWED_SHA256"}
+```
+
+Both requests require a scoped owner session, Origin/CSRF and an idempotency key.
+The ordinary `/jobs` confirmation rejects a source preview without exact approval.
+One preview maps to one `update` job and fixed operation, including retries with a
+new request key. Existing financial work shares the mutual-exclusion/capacity rules.
+The existing Import & jobs screen shows prepared source mappings/subtotals and
+submits the exact digest; it cannot yet create/edit those explicit source requests.
+
+Before commit the worker rechecks expiration, original frozen evidence, financial
+state/settings, parser configuration, engine/environment and localization. After a
+proven commit it uses report-only recovery, without old CSV/preview/configuration
+or a parser. The normal job resume endpoint and startup reconciliation retain that
+boundary. An unproven start becomes `needs_review`; no automatic reimport is used.
+A published core bundle interrupted before registry delivery is verified and
+registered once, without another report or a rollback of a newer latest pointer.
+
+Source publications appear in the ordinary library and selected-report API with
+`source_basis`; see [the read/export contract](web-frontend.md#frozen-source-report-views).
+Full backups retain archives, jobs, artifacts and original report bytes. Restore
+expires unstarted source confirmations because their approval was workspace bound;
+proven committed/published operations may finish report-only recovery. No restore
+replays an old source parser or revalues history. This synthetic acceptance does
+not establish a migrated personal instance or complete daily cutover.
+
+
+## Automatic source import previews
+
+`POST /api/v1/portfolios/{id}/source-import-previews` prepares the regular browser's
+default parser mode. It shares the upload/owner/CSRF/idempotency/worker limits above.
+Allowed uploads are `source_csv` plus at most one `fx` and one `price`; their combined
+count is at most five. Context options correspond to CSV order, excluding reference
+uploads. Missing mappings/references are ready review results, not confirmations.
+Only `awaiting_confirmation` with its exact digest can use `/source-reports`.
+
+See the [automatic import contract and CLI examples](source-projections.md#automatic-import-entry-src-004c3c2b)
+for default dates, stable aliases, account choices, optional totals and reference
+policies. `saved_only` is offline. Explicit `fetch_public` may write date-bound private
+reference caches before approval; it never books financial facts. A newly prepared
+preview records the resulting fingerprint. Existing explicit-context source-report
+API and native import API behavior are retained. Settings/config/environment changes
+invalidate approval; report-only recovery never reruns a parser or balance insertion.
+
+
+Saved contexts are read-only `GET /source-import-contexts` results from verified
+committed evidence, scoped by owner/portfolio. Per-file context options may select a
+`profile_id`, or manual host settings, plus explicit revision/scope parents. Invalid
+archives return `source_integrity`, never a guessed setting. See [default workflow](source-projections.md#default-daily-workflow).
+Canonical investment IDs are also valid in financial cash-flow/coverage declarations;
+the original native account ID contract remains accepted. They use the same staged
+preview/confirm/record protocol and require a separate report publication afterward.

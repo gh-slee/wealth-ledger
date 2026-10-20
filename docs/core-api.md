@@ -1,5 +1,11 @@
 # Core API and data rules
 
+The [default parser import workflow](source-projections.md#default-daily-workflow)
+prepares explicit approval through the regular CLI/browser, including optional
+BTC-only and saved-data inputs. The legacy CLI requires `--native-import`; its
+projection guard remains necessary on canonical workspaces. See the workflow guide
+for saved contexts, corrections, reference caches and migration boundaries.
+
 Use [project guidance](../AGENTS.md) and the task-relevant
 [development procedures](development.md). [TODO](../TODO.md) distinguishes future
 work. Interfaces below are implemented unless explicitly marked otherwise.
@@ -399,11 +405,16 @@ Analysis refresh does not add financial history or flows.
 
 ## Pre-Bull opening and unknown actual costs
 
-`crypto_opening.import_opening(project, json_path, source_account='bullbitcoin-main')`
+`crypto_opening.import_opening(project, json_path, source_account=None)`
 reads explicit total-wallet BTC+LBTC, calculates completed buys at reference_as_of and
 fixes the difference as attributed pre-Bull quantity. Validate finite/nonnegative
 satoshi precision, timezone/scope and total >= buys. Same account/source SHA deduplicates;
 new buys never recompute opening. Require imported Bull ledger with intact evidence.
+
+This paragraph describes native-only workspaces. With canonical batches, C3A uses
+all compatible net acquisitions and applicable manual events instead of the native
+Bull-only view; one fixed all-wallet scope and source/event footprints retain
+backfill conflicts. See [source-aware declaration arithmetic](source-projections.md#source-aware-btc-declarations-src-004c3a).
 
 Archive read-only declaration JSON by date/hash. Append
 crypto_opening_revisions(id, source_account, revision, payload_json, source_path,
@@ -500,9 +511,24 @@ resolved policy for retry despite later config changes. See config/local.example
 
 Current CSV detection supports two known formats. fund_sources.REGISTRY is official
 ETF support, not a general arbitrary-source plugin SDK. Future kinds, conflict/
-submission remain planned; SRC-001 canonical contracts are available in
-[adapter design](source-adapters.md);
+submission remain planned. SRC-001 canonical contracts and the independent
+SRC-002A `source_registry` library are described in
+[adapter design](source-adapters.md#implemented-registry-library-src-002a). The registry
+loads/detects explicitly enabled trusted parsers. SRC-002B `source_pipeline.plan_sources`
+is shared by the source-parser CLI and owner-only `/source-plans` jobs, with host
+configuration/code fingerprints and bounded nonbooking execution. Normal financial
+imports retain their current implementations; source plans cannot submit batches;
 arbitrary bank/exchange CSVs cannot replace supported imports.
+
+SRC-003 ships that same contract in an audited installable core wheel, together
+with `source_testing.check_contract`, `check_rejected` and `record_index`.
+The installed console and checkout wrapper share `source_cli.main`.
+See [the SDK guide](parser-sdk.md) for the independent example, explicit enablement,
+artifact privacy, installation/derived-image acceptance and v1 limits. Installed
+resources use `workspace.CODE_ROOT` (the package resource bundle); `PACKAGE_ROOT`
+identifies executable modules. `resolve_workspace(explicit=...)` requires a private
+existing directory outside the package installation; no implicit site-packages
+ledger is created. Source checkouts retain their original workspace behavior.
 
 ## Locale presentation APIs
 
@@ -525,3 +551,120 @@ editions.render_language_edition(source, output, locale) reads a saved bundle in
 new output, preserving data.json bytes without DB/network/latest access. Manifest
 records source checksum/fingerprint and new presentation version; missing legacy
 checksums disclose weaker metadata consistency. See [locale contract](i18n-plan.md).
+
+## Explicit-context canonical facts (SRC-004A)
+
+`source_v2` defines lossless facts and strict `decode_batch` replay without parser
+execution. `source_ingestion.prepare_ingestion` is read-only; `commit_ingestion`
+uses the existing service lock, backup, atomic data/receipt boundary and private
+immutable evidence. `read_facts` is not a report payload or contribution calculator.
+See [the complete API/phase contract](source-ingestion.md). Registry detection can
+inspect API2, while the v1 source-plan route rejects it without explicit context.
+Normal importers remain direct, and generating a new legacy financial report from
+a canonical-v2 workspace fails closed until SRC-004B/C implement projections.
+
+## Explicit-context parser preview
+
+`source_builtin.registrations()` supplies trusted Wealthsimple/Bull v2 parsers;
+`source_formats` owns their byte-only grammars shared by the legacy import facades.
+`source_context_pipeline.parse_sources(paths, contexts=..., config_path=...)` runs
+a fresh bounded child and returns `ParsedSources(receipt, batches, raw)`. The host
+strictly decodes and validates each canonical batch without importing plugin code
+again. Results are private evidence, not permission to book or publish reports.
+`plan_context_sources` returns only the nonbooking summary. Context, original bytes,
+normalized bytes, selections, configuration, catalog and actual environment participate
+in its fingerprint. Revalidation rejects changes; it does not update a saved receipt.
+See [schema and limitations](source-ingestion.md#explicit-context-previews-src-004b1).
+
+## Frozen canonical submission
+
+`source_submission.prepare_submission` composes the isolated v2 parser runner,
+portfolio-scoped binding review, native migration policies and canonical planning,
+then saves immutable evidence outside protected financial directories. Missing
+mappings return `mapping_required` without a bundle or financial writes. Explicit
+mappings preserve detected legacy identities. `load_submission` only decodes closed
+core schemas; `confirm_submission` requires the exact approval plus no-report
+acknowledgement and never reparses inputs. `recover_submission` only returns a
+matching durable completed operation after archive verification; it needs no
+preview directory, plugin or original environment. See [full CLI/API examples](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+
+`commit_ingestion` now accepts trusted internal `expected_fingerprint`,
+`require_clear_operations` and `configuration_evidence`. The application service
+checks the financial/configuration input fingerprint and unfinished operations
+inside the project lock, before backup/start. Staging checks native policies and
+host configuration before/after applying facts. The existing atomic completion
+marker proves committed recovery; a failed or unknown marker never proves success.
+Native CSV mutation/new-report paths reject canonical workspaces until C completes
+projection parity. Read-only frozen publications and full backup/restore remain supported.
+
+## Internal source-neutral projections
+
+`source_projection.project_sources(project, as_of=..., period_start=..., fx=None)`
+reads verified canonical facts without parser execution or financial writes. It
+selects per-account observations and exposes observed values, covered/unclassified
+cash flows and recorded BTC/LBTC movements. It is not the report payload: full
+portfolio totals, wallet balances, historical replay, performance and publication
+remain gated. See [the C1 model contract](source-projections.md) before consuming
+its internal fields. C1 is a read model; the separate default workflow now provides approved publication.
+
+`source_legacy_projection.project_compatible_sources(project, as_of=...,
+period_start=..., fx=None, btc_price=None, btc_cost_policy=None)` adds the C2 read
+boundary: explicit native overlap proofs, preserved frozen IDs/history, shared wallet
+reconciliation and historical cash-flow values. It never reimports evidence or
+publishes a report. `wallet_reconciliation.reconcile_wallet` is the pure quantity
+kernel also used by the native wallet wrapper. See [C2 limits and date semantics](source-projections.md#legacy-and-wallet-compatibility-src-004c2).
+
+
+C3A routes `wallet.add_balance`, event/link/revision validation, balance-detail
+queries and `crypto_opening.import_opening` through `wallet_basis.py` when canonical
+sources exist. No parser/price/FX lookup is performed; original first-recorded
+expectations are immutable. Native-only behavior remains compatible. These declarations remain data-only; use the separate
+[default preparation and publication workflow](source-projections.md#default-daily-workflow)
+to produce a new report. Native renderers keep their canonical-data omission guard.
+
+
+## Source report core APIs (SRC-004C3B)
+
+`ApplicationService.source_payload(**inputs)` reads verified native/canonical facts
+with explicit cutoff, period start, FX and generation time; `btc_price` is optional.
+`source_valuation(inputs, operation_id=None, expected_fingerprint=None)` freezes an
+append-only derived edition using the shared lock/backup/atomic receipt service.
+`source_valuation.read_source_valuation(project, observation_id)` verifies and reads
+that edition without repricing. `reporting.generate_reports` and
+`workbook.build_workbook` recognize `meta.report_model == "source-neutral-1"`.
+
+See [the complete contract and synthetic Python example](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b).
+Totals are observed subtotals, unknown values stay unknown and full portfolio returns
+remain disabled. No ordinary CLI/HTTP route or Web publication is enabled by these
+methods; C3C still owns daily import/mapping/confirmation/publication/retry cutover.
+
+
+## Opt-in source report confirmation/publication
+
+C3C1 adds `ApplicationService.source_report_preview`, `source_report_confirm` and
+`source_report_resume`. These use explicitly frozen v2 inputs/mappings/valuation
+references, one atomic commit marker and frozen report-only recovery. See [the
+complete contract and real CLI examples](source-projections.md#frozen-source-report-publication-src-004c3c1).
+No ordinary native CLI/Web routing or browser registration is enabled by these
+methods; preserve the phase gate until C3C2 acceptance.
+
+## Source reports in Web jobs and selected-report reads
+
+`POST /source-report-previews` and exact-digest `POST /source-reports` connect the
+C3C1 core to existing isolated `preview`/`update` jobs and registered artifacts.
+Their [closed schemas and recovery rules](web-imports.md#opt-in-source-report-publication-src-004c3c2a)
+require explicit contexts/mappings/references; regular native imports remain intact.
+`ReportView.source_basis` is optional for compatibility; source reports include
+observed-subtotal scope, saved valuation/revision IDs and unknown complete returns.
+`Holding` adds optional source provenance; `Observation` adds original saved IDs and
+revisions. [Read/export semantics](web-frontend.md#frozen-source-report-views) preserve
+unknown values and dated evidence. No browser input can load or enable plugin code.
+
+
+Default user-facing preparation is `ApplicationService.source_import_preview`; exact
+confirmation uses `source_report_confirm`, with receipt-only `source_report_resume`.
+`preview/update` retain the legacy contract for explicit compatibility callers and
+saved jobs. Do not disable their native projection guard on canonical workspaces.
+Manual source cash declarations use `manual_cash_flows`, preserved in logical state
+fingerprints and verified against archived normalized declarations at precision60;
+`verify_store` rejects tampered rows/archives. Native table formats/IDs remain stable.

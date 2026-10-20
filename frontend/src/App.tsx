@@ -447,6 +447,10 @@ function PortfolioWorkspace({
           </div>
         </header>
         <p className="time-note">{t("timeZone")}</p>
+        {needsReport &&
+          report.data?.report.verification_basis === "migration_capture" && (
+            <p className="time-note">{t("migrationVerification")}</p>
+          )}
         {failure && (
           <p role="alert" className="error">
             {error(failure)}
@@ -486,7 +490,7 @@ function PortfolioWorkspace({
         ) : (
           <>
             {navPage === "imports" ? (
-              <Imports portfolio={portfolio} />
+              <Imports key={portfolio} portfolio={portfolio} />
             ) : navPage === "records" ? (
               <Financial key={portfolio} portfolio={portfolio} />
             ) : navPage === "settings" ? (
@@ -506,6 +510,11 @@ function PortfolioWorkspace({
                             locale,
                           )}
                         </small>
+                        {value.verification_basis === "migration_capture" && (
+                          <p className="time-note">
+                            {t("migrationVerification")}
+                          </p>
+                        )}
                       </div>
                       <ReportExports portfolio={portfolio} report={value.id} />
                       <div className="actions">

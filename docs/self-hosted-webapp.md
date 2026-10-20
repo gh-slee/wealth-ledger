@@ -34,7 +34,8 @@ frontend and background work in production. Runtime needs no LLM, Codex, Node se
 local LibreOffice or maintainer portfolio. Preserve en-CA/zh-TW/zh-CN.
 
 Retain current Wealthsimple/Bull formats, CAD/USD securities, CAD/USD/TWD equivalents
-and America/Toronto financial dates. The plugin SDK and additional currencies/regions
+and America/Toronto financial dates. The [parser SDK](parser-sdk.md) supports
+nonbooking development. Financial plugin integration and additional currencies/regions
 remain independent roadmap items; a Web UI does not implement them automatically.
 
 ## Shared services and private workspaces

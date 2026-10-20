@@ -357,3 +357,34 @@ and real acceptance evidence ignored.
   only post-anchor purchases to current estimates, not historical purchases twice.
 - Explicit wallet-scope changes, independent on-chain verification and historical
   cost allocation remain outside this version. Ordinary totals cannot alter scope silently.
+
+## Canonical read compatibility
+
+C2 extracts `wallet_reconciliation.reconcile_wallet` as the shared pure quantity
+kernel. The native wrapper retains its existing behavior. The separate
+[compatible source model](source-projections.md#legacy-and-wallet-compatibility-src-004c2)
+supplies identity-deduplicated acquisitions and the existing opening/balance/event
+records; it preserves original recorded gaps and recalculates current intervals.
+This is read-only. Production declaration previews/confirmations must use the
+compatible financial basis in C3 before the canonical daily workflow is enabled.
+No read-model result authorizes a real migration or creates a new observation.
+
+
+## Canonical source declaration integration (C3A)
+
+Balance/event/opening commands and Web Financial records now use a verified shared
+basis when canonical parser batches exist. Identity-bound native overlaps are
+counted once. A fresh canonical account has no implicit zero history: an unknown
+first expectation remains null. Later observations still work as anchors, with
+original and recalculated residuals retained separately.
+
+Pre-tracking opening declarations freeze total minus net acquisitions and applicable
+known manual events at the reference time, not just one provider's purchase subtotal.
+Original native opening keys/revisions remain; new canonical scopes are all-wallet.
+Source/event footprints expose later old-date backfill without rebasing opening.
+Unknown actual costs/contributions are not filled. See the detailed
+[C3A boundary](source-projections.md#source-aware-btc-declarations-src-004c3a).
+
+These declaration commands are data-only and never regenerate a frozen report.
+Use the separate default parser/report workflow to prepare and approve a new edition.
+Actual private deployment/adoption still requires an explicit operator decision.

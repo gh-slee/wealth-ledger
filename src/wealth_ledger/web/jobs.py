@@ -19,8 +19,8 @@ def digest(value):
 
 
 def engine_fingerprint():
-    from ..workspace import CODE_ROOT
-    base = CODE_ROOT / "src/wealth_ledger"
+    from ..workspace import PACKAGE_ROOT
+    base = PACKAGE_ROOT
     return digest([(path.relative_to(base).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
                    for path in sorted(base.rglob("*")) if path.suffix in {".py", ".json"} and path.is_file()])
 
@@ -78,7 +78,7 @@ class Jobs:
             raise WebError(429, "job_capacity", "Job capacity is reached")
         identifier = uuid.uuid4().hex
         now = self.store.clock()
-        operation = "OP-" + uuid.uuid4().hex if kind in {"update", "record"} else None
+        operation = "OP-"+preview if (kind=="source_commit" or kind=="update" and request.get("pipeline")=="source_report") else ("OP-" + uuid.uuid4().hex if kind in {"update", "record"} else None)
         conn.execute("""INSERT INTO jobs(id,portfolio_id,kind,status,request_json,request_digest,input_fingerprint,
             execution_at,idempotency_key,preview_id,core_operation_id,created_at,updated_at)
             VALUES(?,?,?,'queued',?,?,?,?,?,?,?,?,?)""", (identifier, portfolio_id, kind,
@@ -92,6 +92,8 @@ class Jobs:
             raise WebError(422, "invalid_request", "Duplicate or excessive uploads")
         if sum(row["byte_size"] for row in rows) > BATCH_BYTES:
             raise WebError(413, "batch_too_large", "Evidence batch is too large")
+        if any(row["kind"] == "source_csv" for row in rows):
+            raise WebError(422, "invalid_upload", "Use source parser or explicit ingestion previews for parser CSVs")
         if any(row["kind"] == "cash_flows" for row in rows):
             raise WebError(422, "invalid_upload", "Use financial declarations for cash-flow CSVs")
         slots = [row["provider"] if row["kind"] == "csv" else row["kind"] for row in rows]
@@ -146,9 +148,11 @@ class Jobs:
             preview = conn.execute("SELECT * FROM jobs WHERE id=? AND portfolio_id=? AND kind=?", (preview_id, portfolio_id, preview_kind)).fetchone()
             if not preview:
                 raise WebError(404, "not_found", "Preview not found")
+            if json.loads(preview["request_json"]).get("pipeline") == "source_report":
+                raise WebError(409, "approval_required", "Source reports require their exact approval digest")
             if preview["status"] != "ready" or self.store.clock() - preview["created_at"] > PREVIEW_SECONDS:
                 raise WebError(409, "preview_unavailable", "Run a new successful preview before confirmation")
-            if conn.execute("SELECT 1 FROM jobs WHERE portfolio_id=? AND kind IN ('update','record') AND status IN (?,?,?,?,?,?)",
+            if conn.execute("SELECT 1 FROM jobs WHERE portfolio_id=? AND kind IN ('update','record','source_commit') AND status IN (?,?,?,?,?,?)",
                             (portfolio_id, *UNRESOLVED)).fetchone():
                 raise WebError(409, "portfolio_busy", "Resolve the existing update before submitting another")
             from ..operations import input_fingerprint

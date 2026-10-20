@@ -129,6 +129,6 @@ editions do not fill missing actual costs, contributions or events or revalue hi
 6. Update CI/README/manual/public allowlist. Review new catalog/font paths explicitly;
    do not allow arbitrary JSON/font downloads or private documents.
 
-Future plugins may use provider message namespaces; the SDK is not implemented.
+Future plugins may use provider message namespaces; the parser SDK does not implement those presentation namespaces.
 Raw errors, system diagnostics and source-company names are not guaranteed translated.
 Developer Git tools and translated documentation editions are separate work.

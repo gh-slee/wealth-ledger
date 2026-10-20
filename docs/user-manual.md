@@ -1,5 +1,11 @@
 # Wealth Ledger user manual
 
+The [default parser import workflow](source-projections.md#default-daily-workflow)
+prepares explicit approval through the regular CLI/browser, including optional
+BTC-only and saved-data inputs. The legacy CLI requires `--native-import`; its
+projection guard remains necessary on canonical workspaces. See the workflow guide
+for saved contexts, corrections, reference caches and migration boundaries.
+
 This describes supported operations. Reports support English, Traditional Chinese
 and Simplified Chinese (section 21); code/field names are English. Every sample
 quantity, amount, time and ID is synthetic and must be replaced for real use. Past
@@ -65,11 +71,11 @@ Choose a dedicated existing empty directory for a new portfolio:
 
 ```bash
 mkdir -p "$HOME/.local/share/wealth-ledger/household"
-python scripts/update.py --workspace "$HOME/.local/share/wealth-ledger/household" \
+python scripts/update.py --native-import --workspace "$HOME/.local/share/wealth-ledger/household" \
   /path/to/holdings.csv --kind baseline
-python scripts/update.py --workspace "$HOME/.local/share/wealth-ledger/household" \
+python scripts/update.py --native-import --workspace "$HOME/.local/share/wealth-ledger/household" \
   /path/to/orders.csv --bull-opening-file /path/to/private-opening.json --dry-run
-python scripts/update.py --workspace "$HOME/.local/share/wealth-ledger/household" --list-operations
+python scripts/update.py --native-import --workspace "$HOME/.local/share/wealth-ledger/household" --list-operations
 python scripts/btc_balances.py list --workspace "$HOME/.local/share/wealth-ledger/household"
 python scripts/btc_events.py list --workspace "$HOME/.local/share/wealth-ledger/household"
 python scripts/cash_flows.py accounts --workspace "$HOME/.local/share/wealth-ledger/household"
@@ -111,6 +117,11 @@ Advanced financial records remain in this manual's CLI. See
 [Web operations](web-operations.md) and the [API import/job guide](web-imports.md).
 Existing CLI data is never adopted automatically. [Financial records](web-financial-records.md) provides Web forms for contributions/coverage and BTC declarations; saving data and publishing a report remain separate steps.
 
+The `scripts/update.py --native-import` examples below document the retained native
+compatibility path. For new daily imports use the default parser workflow linked
+above: it previews and requires a separate exact-digest confirmation. Existing data
+is preserved; choosing a new default does not migrate a personal workspace.
+
 ## 3. Monthly updates
 
 1. Export complete same-account holdings for one valuation date.
@@ -124,7 +135,7 @@ Formal monthly snapshot:
 
 ```bash
 cd wealth-ledger
-.venv-portable/bin/python scripts/update.py \
+.venv-portable/bin/python scripts/update.py --native-import \
   --input ~/Downloads/holdings-report-YYYY-MM-DD.csv --kind monthly
 ```
 
@@ -431,13 +442,13 @@ order is irrelevant, with at most one file per source:
 
 ```bash
 # Wealthsimple only
-.venv-portable/bin/python scripts/update.py /path/to/holdings.csv
+.venv-portable/bin/python scripts/update.py --native-import /path/to/holdings.csv
 
 # Bull Bitcoin only
-.venv-portable/bin/python scripts/update.py /path/to/orders.csv
+.venv-portable/bin/python scripts/update.py --native-import /path/to/orders.csv
 
 # Both, in either order
-.venv-portable/bin/python scripts/update.py /path/to/orders.csv /path/to/holdings.csv
+.venv-portable/bin/python scripts/update.py --native-import /path/to/orders.csv /path/to/holdings.csv
 ```
 
 | Inputs | Cutoff/data policy |
@@ -463,7 +474,7 @@ carried/mixed data; stock-account lines use original snapshots.
 Legacy --input/--bull-input remain supported. Advanced optional cutoff:
 
 ```bash
-.venv-portable/bin/python scripts/update.py /path/to/orders.csv \
+.venv-portable/bin/python scripts/update.py --native-import /path/to/orders.csv \
   --valuation-as-of 2024-12-10T22:00:00-05:00
 ```
 
@@ -474,7 +485,7 @@ still queries latest official ETFs. Full saved-analysis replay needs matching
 --lookthrough-run-id (section 15). Brokerage-only reporting:
 
 ```bash
-.venv-portable/bin/python scripts/update.py --wealthsimple-only
+.venv-portable/bin/python scripts/update.py --native-import --wealthsimple-only
 ```
 
 First Bull ledger import requires an explicit original zero BTC/LBTC/CAD opening
@@ -522,7 +533,7 @@ Default **actual_only** does not fill earlier unknown costs with later prices.
 Opt in through CLI or ignored config/local.toml copied from local.example.toml:
 
 ```bash
-.venv-portable/bin/python scripts/update.py --btc-cost-policy bull_average_proxy
+.venv-portable/bin/python scripts/update.py --native-import --btc-cost-policy bull_average_proxy
 ```
 
 ```toml
@@ -701,7 +712,7 @@ lookthrough_runs changes analysis history, not snapshots/combined_observations c
 Find lookthrough_run_id/lookthrough.run_id in manifest/data. Synthetic run 1 example:
 
 ```bash
-.venv-portable/bin/python scripts/update.py --lookthrough-run-id 1
+.venv-portable/bin/python scripts/update.py --native-import --lookthrough-run-id 1
 ```
 
 Only identical valuation time/holdings/totals can replay. New holdings/prices cannot
@@ -880,14 +891,14 @@ Input is BTC quantity, not CAD/USD value.
 
 ```bash
 # Optional total; time defaults to the start of this execution
-.venv-portable/bin/python scripts/update.py --btc-balance 0.07990000
+.venv-portable/bin/python scripts/update.py --native-import --btc-balance 0.07990000
 
 # Use the actual viewing timestamp when available
-.venv-portable/bin/python scripts/update.py --btc-balance 0.07990000 \
+.venv-portable/bin/python scripts/update.py --native-import --btc-balance 0.07990000 \
   --btc-balance-as-of "2024-11-10T18:10:00-05:00"
 
 # Either CSV, or both; balance remains optional
-.venv-portable/bin/python scripts/update.py /path/to/holdings.csv /path/to/orders.csv \
+.venv-portable/bin/python scripts/update.py --native-import /path/to/holdings.csv /path/to/orders.csv \
   --btc-balance 0.07990000 --btc-balance-as-of "2024-11-10T18:10:00-05:00"
 ```
 
@@ -978,7 +989,7 @@ Event add is data-only. Events later than the saved report need a newer valuatio
 bare update does not include them automatically. CLI advises the cutoff:
 
 ```bash
-.venv-portable/bin/python scripts/update.py \
+.venv-portable/bin/python scripts/update.py --native-import \
   --valuation-as-of "2024-11-12T09:00:00-05:00"
 ```
 
@@ -1045,9 +1056,9 @@ transcription with reverse fake trades.
 ### 19.7 Data committed, report failed: recovery
 
 ```bash
-.venv-portable/bin/python scripts/update.py --list-operations
-.venv-portable/bin/python scripts/update.py --show-operation OPERATION_ID
-.venv-portable/bin/python scripts/update.py --resume-operation OPERATION_ID
+.venv-portable/bin/python scripts/update.py --native-import --list-operations
+.venv-portable/bin/python scripts/update.py --native-import --show-operation OPERATION_ID
+.venv-portable/bin/python scripts/update.py --native-import --resume-operation OPERATION_ID
 ```
 
 First two are read-only. Inputs validate in isolated staging before atomic submission;
@@ -1100,20 +1111,20 @@ operation or latest report and generates no ODS/MD/PDF/PNG.
 cd wealth-ledger
 
 # Either CSV
-.venv-portable/bin/python scripts/update.py /path/to/holdings.csv --dry-run
-.venv-portable/bin/python scripts/update.py /path/to/orders.csv --dry-run
+.venv-portable/bin/python scripts/update.py --native-import /path/to/holdings.csv --dry-run
+.venv-portable/bin/python scripts/update.py --native-import /path/to/orders.csv --dry-run
 
 # Both sources
-.venv-portable/bin/python scripts/update.py /path/to/holdings.csv /path/to/orders.csv --dry-run
+.venv-portable/bin/python scripts/update.py --native-import /path/to/holdings.csv /path/to/orders.csv --dry-run
 
 # Optional balance only; replace the example quantity and viewing time
-.venv-portable/bin/python scripts/update.py --dry-run   --btc-balance 0.07990000 --btc-balance-as-of "2024-10-10T17:00:00-04:00"
+.venv-portable/bin/python scripts/update.py --native-import --dry-run   --btc-balance 0.07990000 --btc-balance-as-of "2024-10-10T17:00:00-04:00"
 
 # Preview regenerating the last successful valuation
-.venv-portable/bin/python scripts/update.py --dry-run
+.venv-portable/bin/python scripts/update.py --native-import --dry-run
 
 # Machine-readable output on stdout
-.venv-portable/bin/python scripts/update.py /path/to/orders.csv --dry-run --json
+.venv-portable/bin/python scripts/update.py --native-import /path/to/orders.csv --dry-run --json
 ```
 
 Replace sample quantities/times. Either/both CSVs may include a balance. Omitted
@@ -1178,9 +1189,9 @@ Locale changes no currencies/timezone/calculations/ETF dates/cost policy.
 
 ```bash
 # Normal update in Traditional Chinese
-.venv-portable/bin/python scripts/update.py /path/to/holdings.csv --locale zh-TW
+.venv-portable/bin/python scripts/update.py --native-import /path/to/holdings.csv --locale zh-TW
 # Offline preview in English
-.venv-portable/bin/python scripts/update.py /path/to/orders.csv --dry-run --locale en-CA
+.venv-portable/bin/python scripts/update.py --native-import /path/to/orders.csv --dry-run --locale en-CA
 # Simplified Chinese command help
 .venv-portable/bin/python scripts/btc_events.py --locale zh-CN --help
 ```
@@ -1231,3 +1242,88 @@ and empty-instance restore are trusted-host commands, with maintenance barriers,
 SQLite/evidence verification and restored-session revocation. See [the complete
 backup/export guide](web-backups.md). This does not adopt an existing CLI ledger;
 use the [copy-verified adoption commands](web-adoption.md). Keep the original CLI workspace intact.
+
+## Developer parser previews (nonbooking)
+
+The normal update/import workflow above still supports the documented built-in
+formats. Developers can inspect an explicitly installed trusted parser with
+`scripts/source_parsers.py` or the owner-only Web `/source-plans` API. Both produce
+a private receipt and can reject stale code/config/input evidence. They cannot
+import positions, record contributions or generate reports. Host configuration,
+implemented commands and revalidation examples are in the
+[source-plan guide](source-adapters.md#nonbooking-source-plans-src-002b). The author
+SDK is available for nonbooking development ([guide](parser-sdk.md));
+the [v2 canonical foundation](source-ingestion.md) is a developer-only phase with
+new report generation blocked until projections are implemented;
+existing-parser migration remains planned. There is no runtime LLM.
+
+## Developer parser previews
+
+The optional [explicit-context v2 preview](source-ingestion.md#explicit-context-previews-src-004b1)
+can normalize either implemented CSV format or both in a fresh child using declared
+source retrieval times and a stable Bull account alias. It does not update your
+ledger or generate reports. For financial use, follow the separate
+[default CLI/Web preparation and exact-confirmation workflow](source-projections.md#default-daily-workflow). Do not
+reimport a real historical portfolio into the developer canonical API as a shortcut.
+
+## Experimental canonical data-only confirmation
+
+The [B2 usage guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2)
+shows the complete `source_ingestion.py preview`, `inspect`, `confirm` and `recover`
+commands, binding files and owner-only API routes. It supports either implemented
+CSV format or both, with one explicit context per file and reviewed account mappings.
+This route does not yet generate ODS/Markdown/PDF reports or portfolio performance.
+Keep an existing daily ledger on its normal workflow until C compatibility and a
+separately approved migration are complete. Do not interpret a `recorded` source job
+as a published report. Completed receipt recovery never needs an LLM, original CSV
+path, configuration file or parser; an unproven operation requires review.
+
+
+## Canonical-source BTC records (C3A)
+
+After an explicitly confirmed canonical source submission, the existing balance,
+event and opening commands in section 19 and Web Financial records use all verified
+compatible records. No extra CSV is needed to record a later observed BTC total.
+Use a balance for a new total, and an event with `--balance-id` to attribute a known
+fee or other difference. Unknown history stays unknown; a matching sum is not wallet
+verification. First-recorded and current residuals remain separate.
+
+An explicit opening declaration is for quantities that predate tracked sources;
+it freezes the reference acquisitions/events once. Later totals must not recreate
+that opening. See [fixed opening rules and examples](source-projections.md#source-aware-btc-declarations-src-004c3a).
+
+These declarations save data only. The canonical ordinary CSV/report workflow is
+still gated pending C3B/C3C; use original native daily workflows until full cutover
+is accepted. Existing source evidence and published reports are preserved.
+
+
+## Source-plugin report development status
+
+The C3B [trusted Python report API](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b)
+can render source-neutral review bundles and save derived valuation editions from
+already verified facts. It is a developer interface, not a new everyday import
+command. Continue using the documented supported native workflow; do not convert a
+daily ledger to canonical source storage merely to try it. Ordinary plugin-driven
+CLI/Web import/mapping/confirmation/publication/recovery remains C3C. Historical
+editions retain actual dates/quotes and explicit unknown costs/contributions.
+
+
+## Advanced source-report CLI (opt-in)
+
+An installed core provides `wealth-ledger-source-reports`; a checkout provides
+`python scripts/source_reports.py`. The commands are `preview`, `inspect`, `confirm`
+and `resume`. They consume explicit v2 contexts/mappings and valuation JSON, or
+verified saved facts without a new CSV. Follow [the full synthetic examples and
+recovery rules](source-projections.md#frozen-source-report-publication-src-004c3c1).
+This is an advanced pre-release host workflow, not the normal Web import switch.
+Record contributions and BTC totals/events through the existing financial commands
+or forms first; this CLI does not infer missing contributions or add a total field.
+Regular automatic either-source/both-source/BTC-only routing and source-aware browser
+views remain C3C2. Preserve a working daily ledger while evaluating synthetic data.
+
+Prepared source reports can now be confirmed and viewed through Web jobs/library,
+using [the opt-in explicit API](web-imports.md#opt-in-source-report-publication-src-004c3c2a).
+The normal upload form still uses supported native inputs; automatic source-context
+and editable mapping forms remain unfinished. The [source read/export guide](web-frontend.md#frozen-source-report-views)
+explains partial observed values, dated evidence and unknown contribution/cost fields.
+Do not switch a working daily ledger merely to evaluate this advanced interface.

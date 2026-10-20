@@ -1,5 +1,11 @@
 # Development and maintenance
 
+The [default parser import workflow](source-projections.md#default-daily-workflow)
+prepares explicit approval through the regular CLI/browser, including optional
+BTC-only and saved-data inputs. The legacy CLI requires `--native-import`; its
+projection guard remains necessary on canonical workspaces. See the workflow guide
+for saved contexts, corrections, reference caches and migration boundaries.
+
 This document covers implementation procedures. Shared agent guidance lives in
 [AGENTS.md](../AGENTS.md); installation and contribution expectations live in
 [CONTRIBUTING.md](../CONTRIBUTING.md). Read the topic contract needed by the task,
@@ -10,7 +16,8 @@ not every document before each edit. Private instructions and session state use
 
 The implemented application is Python 3.12+, SQLite, Matplotlib, ReportLab and
 standard ODF generation. Source-checkout installation uses `requirements.lock`;
-there is no supported Python wheel yet. The optional FastAPI API and Python
+the [core wheel/SDK](parser-sdk.md) also supports independent installation without
+the frontend or checkout wrappers. The optional FastAPI API and Python
 worker have [operating guidance](web-operations.md). The React/TypeScript/Vite
 frontend builds from a pinned npm lock; see [browser development](web-frontend.md)
 for actual build, generated-type and synthetic browser-test commands.
@@ -115,7 +122,7 @@ Use [report spec](report-spec.md), [ODS implementation](workbook.md) and
 ## Public source and maintenance
 
 Source adapters require minimal synthetic format/error fixtures and documented
-support; the [plugin SDK](source-adapters.md) remains planned. Use English in all
+support; use the implemented [plugin SDK](parser-sdk.md) for nonbooking plans. Use English in all
 canonical documentation and generic examples; preserve product localization.
 Keep TODO and affected contracts aligned with actual behavior. Personal balances,
 source filenames, verification history and preferences are not public documentation.
@@ -167,7 +174,25 @@ run additionally asserts an attempted code write raises PermissionError.
 `tests/test_source_protocol.py` checks SRC-001 version/identity/coverage/revision,
 unknown values, Decimal/time/precision, cancellation and detection ambiguity.
 This is a structural contract, not an external plugin loader or stateful economic
-validator. Keep SRC-002-004 pending until registration/SDK/migration acceptance.
+validator. `tests/test_source_registry.py` checks the independent SRC-002A registry,
+metadata-only discovery, exact enablement, real temporary entry-point loading,
+identity/provider collisions, compatibility and redacted/deterministic detection.
+This does not establish production import integration or financial completeness.
+`tests/test_source_pipeline.py` and `tests/test_web_source_plans.py` verify shared
+nonbooking receipts, actual same-version code/dependency edits, fresh isolated
+execution, limits, stale verification, owner scope and backup/restore expiration.
+SRC-003 packaging/author acceptance is documented in [the SDK guide](parser-sdk.md).
+[SRC-004A](source-ingestion.md) adds strict v2 archives, canonical state/effects and
+atomic receipt recovery. Run its three focused test files and installed SDK checks;
+Web/operations changes also need full backup/empty restore and Docker acceptance.
+SRC-004B1/B2 provide pure parsers and explicitly confirmed data-only submission;
+SRC-004C1 adds the [read-only source-neutral model](source-projections.md). Its
+`test_source_projection.py` suite also runs against the installed wheel. C2 adds `test_source_legacy_projection.py` (also installed acceptance) and the shared
+wallet kernel; retain all existing `test_wallet.py` regressions. C3A adds
+`test_source_wallet_declarations.py` to installed acceptance and canonical declaration
+cases in `test_web_financial.py` and isolated Docker backup/restore. These commands
+remain data-only; the separate C3C2 default workflow prepares and publishes reports. Source-plan
+success does not authorize financial booking or report publication.
 Run these focused files with the same unittest discovery command and `-p` before
 the complete suite. See [core API](core-api.md) and [source adapters](source-adapters.md).
 
@@ -241,3 +266,108 @@ venv; CI also inventories the test lock. No network/financial workspace is consu
 Docker CI asserts Linux/x86_64; local acceptance records the actual guest architecture.
 A synthetic v1 schema fixture verifies migration mechanics, not an untested historical
 image upgrade or every host OS. Public prebuilt image distribution remains separate.
+
+## Legacy publication acceptance
+
+[Legacy report adoption](web-legacy-reports.md) is explicit and records separate
+migration-time evidence. Preserve strict modern manifest verification and all original
+bytes. Synthetic old-format fixtures must be authored independently, never copied
+from a personal report. Run `test_web_legacy_adoption.py`, browser workflows and the
+opt-in Docker suite for changes to receipt/download/restore behavior. Source format
+recognition does not establish historical authenticity. Never repair a source manifest
+to make migration pass.
+
+## Built-in parser compatibility
+
+The pure grammars in `source_formats` are shared by the existing native facades and
+`source_builtin` v2 adapters. Changing a grammar affects existing users: preserve
+account/security/order IDs, source lifecycle/cost fields and closed legacy messages.
+Use the existing core/crypto suite plus `test_source_builtin.py`,
+`test_source_context_pipeline.py` and `test_web_source_context.py`. V2 preview tests
+must cover actual isolated execution, stale context/environment rejection, private
+summary fields, explicit parents and inability to confirm or financially resume.
+The generated OpenAPI types must be regenerated when the API models/routes change.
+
+## Frozen-submission changes
+
+Run `test_source_submission.py` and `test_web_source_submission.py` for B2 changes,
+then the full suite and installed/Docker acceptance. They must preserve exact frozen
+scope, immutable source fields, legacy identities, strict mapping/approval, state
+and environment rejection, no-plugin confirmation, atomic receipts and conservative
+unknown-state recovery. Include pending and completed full backup/empty-root restore.
+`source_native_compatibility` carries migration-specific policies; arbitrary audit
+fields never drive financial decisions. Changing job kinds also requires mutual
+exclusion, recovery and restore invalidation review. A complete source receipt is
+not a published report or authorization to migrate a real portfolio.
+
+
+### Source report acceptance (SRC-004C3B)
+
+Run `PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_report.py' -v`
+in the locked environment. It validates derived source editions, original identities,
+unknown/zero scope, revisions, failure/recovery, observed currency subtotals and
+three-locale ODS/Markdown/PDF/chart parity, including explicit synthetic ETF analyses.
+Installed-wheel acceptance copies these synthetic tests outside the checkout.
+Shared renderer/ODF changes also require native workbook, locale, presentation and
+formula-cache regressions. Docker acceptance verifies C3B payload hashes after full
+backup/empty-volume restore alongside preserved native reports. None of these
+checks use real portfolios or establish a personal instance. The separate C3C2
+default preparation/publication workflow supplies daily routing and third-parser acceptance.
+
+
+### Frozen source publication acceptance
+
+`test_source_publication.py` exercises the opt-in C3C1 core and actual three-locale
+report publishing. Its receipt doubles isolate failure/recovery cases; a separate
+test renders real ODS/MD/PDF with synthetic ETF evidence. Installed-wheel acceptance
+also runs the independent v2 example through the actual source-report console.
+`test_web_source_ingestion.py` and Docker acceptance cover frozen publication
+consistency and full backup/empty-target restore alongside old native history.
+The default CLI/browser now use the separate C3C2 preparation, exact approval and
+publication path. Default/context/manual-flow tests, installed acceptance and browser
+checks cover this routing; native renderers retain their omission guard.
+
+### Source Web publication/read acceptance
+
+`test_web_source_reports.py` covers exact approval, mappings, authentication/scopes,
+settings/configuration/environment/expiry, stateful job exclusion, real isolated
+parser previews, actual three-format publication, three-language reads/exports,
+registry interruptions and both uncommitted/committed empty-target restore cases.
+The independent installed plugin additionally exercises actual source-report API
+and isolated workers without provider branches. Browser fixtures use a separate
+invented source portfolio; generic provider labels and scope text must survive.
+Run the existing frontend type/build/unit/browser checks after read DTO changes and
+regenerate `schema.d.ts` with the documented schema export command. This does not
+replace the default source-upload/context/mapping acceptance below.
+
+
+### Default parser workflow acceptance
+
+Run the focused default preparation, manual contribution and Web entry suites:
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_defaults.py' -v
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_source_manual_flows.py' -v
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_source_imports.py' -v
+```
+
+Keep the full suite's native CLI tests explicit with `--native-import` where they
+assert native-only behavior. The default path prepares JSON evidence; it never
+implicitly confirms. Test missing mappings/references, disposable dry runs, explicit
+saved-context choice, cross-portfolio/profile/adapter rejection, archive tampering,
+same-time correction parents and no inherited revision defaults.
+
+Canonical investment contribution cases must prove account selection without fake
+native rows, cross-store flow IDs/conflicts, sourced historical USD conversion,
+source calendar dates, explicit coverage and qualified subtotals. Original CSV replay
+and fingerprints must reject changed evidence/rows. Financial declaration confirmation
+does not mutate an older publication; prepare/confirm a new report separately.
+
+Installed acceptance includes the default/manual-flow cases outside the checkout.
+The independent synthetic plugin must still publish/recover real reports through
+CLI/API/worker with no provider branch. Browser acceptance checks default parser
+selection, explicit saved contexts, uncertain retry and repeated publications; native
+compatibility is explicitly selected. Full Docker backup/empty-volume restore checks
+preserve verified saved contexts and canonical manual contributions alongside native,
+wallet, adopted legacy and frozen source reports. Use disposable synthetic resources
+only. These checks establish implementation evidence, not a personal deployment.

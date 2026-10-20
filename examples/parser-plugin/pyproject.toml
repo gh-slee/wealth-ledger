@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wealth-ledger-synthetic-parser"
+version = "0.1.0"
+description = "Synthetic holdings parser example; not an institution integration"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["wealth-ledger==0.1.0"]
+
+[project.entry-points."wealth_ledger.source_adapters"]
+synthetic = "synthetic_parser:register"
+synthetic_v2 = "synthetic_parser.v2:register"
+
+[tool.setuptools.packages.find]
+where = ["src"]

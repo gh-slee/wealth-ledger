@@ -151,6 +151,8 @@ def _charts(payload: dict, directory: Path, font_path: Path) -> dict[str, Path]:
 
     def save(key, figure):
         path = directory/f"{key}.png"
+        if payload.get("meta", {}).get("report_model") == "source-neutral-1":
+            figure.suptitle(tr("source_report.chart_scope"), fontsize=9)
         figure.savefig(path,dpi=190,bbox_inches="tight",pad_inches=0.2)
         plt.close(figure)
         paths[key] = path
@@ -180,7 +182,7 @@ def _charts(payload: dict, directory: Path, font_path: Path) -> dict[str, Path]:
     native_usd_cad = float(native_totals["USD"] * _decimal(payload["fx"]["usd_cad"]))
     crypto_cad = sum(float(row["market_cad"]) for row in payload["positions"] if _is_crypto(row))
     currency_groups = [(tr('message.a9320bfa2d2c'), native_cad, TEAL), (tr('message.8f5af00dc2fc'), native_usd_cad, BLUE)]
-    if payload.get("crypto"):
+    if payload.get("crypto") or any(_is_crypto(row) for row in payload["positions"]):
         currency_groups.append((tr('message.54854a3bf817'), crypto_cad, GOLD))
     left = 0
     for label,value,color in currency_groups:
@@ -223,15 +225,18 @@ def _charts(payload: dict, directory: Path, font_path: Path) -> dict[str, Path]:
     axis.invert_yaxis()
     axis.xaxis.set_major_formatter(currency_formatter)
     tidy(axis,tr('message.523eceb9c229'),tr('message.49555a47504d'))
-    axis.legend(loc="upper center",bbox_to_anchor=(.5,-.18),ncol=3,frameon=False)
+    if axis.get_legend_handles_labels()[0]:
+        axis.legend(loc="upper center",bbox_to_anchor=(.5,-.18),ncol=3,frameon=False)
     save("04_holdings_by_account",figure)
 
     figure,axes = plt.subplots(1,2,figsize=(10.5,4.2),constrained_layout=True)
     for axis,currency in zip(axes,["CAD","USD"]):
-        rows = sorted([row for row in securities if row["currency"] == currency and not _is_crypto(row)],
+        rows = sorted([row for row in securities if row["currency"] == currency and not _is_crypto(row) and row["unrealized_native"] is not None],
                       key=lambda row:_decimal(row["unrealized_native"]),reverse=True)
         values = [float(row["unrealized_native"]) for row in rows]
         axis.barh([row["symbol"] for row in rows],values,color=[TEAL if v>=0 else RED for v in values],height=.6)
+        if not rows:
+            axis.text(.5,.5,tr('message.ca97ed36bb2a'),transform=axis.transAxes,ha="center",va="center")
         axis.axvline(0,color=INK,linewidth=.7)
         axis.invert_yaxis()
         axis.xaxis.set_major_formatter(currency_formatter)
@@ -272,7 +277,9 @@ def _charts(payload: dict, directory: Path, font_path: Path) -> dict[str, Path]:
     account_ids = [row["account_id"] for row in matrix["accounts"]]
     grid = np.array([[float(row["weights"].get(key,"0") or 0)*100 for key in account_ids] for row in matrix_rows])
     figure,axis = plt.subplots(figsize=(10.5,max(4.2,len(matrix_rows)*.37)),constrained_layout=True)
-    image = axis.imshow(grid,cmap="GnBu",aspect="auto",vmin=0,vmax=max(float(grid.max()) if grid.size else 0,1))
+    image = axis.imshow(grid,cmap="GnBu",aspect="auto",vmin=0,vmax=max(float(grid.max()),1)) if grid.size else None
+    if image is None:
+        axis.text(.5,.5,tr('message.ca97ed36bb2a'),transform=axis.transAxes,ha="center",va="center")
     axis.set_xticks(range(len(account_ids)),[_label(row["label"]) for row in matrix["accounts"]])
     crypto_keys = {(row["symbol"], row["currency"]) for row in securities if _is_crypto(row)}
     axis.set_yticks(range(len(matrix_rows)),[
@@ -287,7 +294,8 @@ def _charts(payload: dict, directory: Path, font_path: Path) -> dict[str, Path]:
                       color="white" if value>max(float(grid.max()),1)*.55 else INK)
     axis.set_title(tr('message.16f03c83124c'),loc="left",fontsize=15,pad=16)
     axis.set_xlabel(tr('message.c9e71a372f3c'))
-    figure.colorbar(image,ax=axis,label=tr('message.9a4946e883db'),shrink=.8)
+    if image is not None:
+        figure.colorbar(image,ax=axis,label=tr('message.9a4946e883db'),shrink=.8)
     save("08_account_weight_heatmap",figure)
     observations = payload["history"]
     complete_observations = [row for row in observations if row["is_complete"]]
@@ -857,10 +865,18 @@ def generate_reports(payload: dict, output_dir: Path, *, cache_directory: Path |
     font = _font_path()
     token = _CACHE.set(cache_directory)
     try:
-        chart_paths = _charts(display,output_dir/"charts",font)
+        if payload.get("meta", {}).get("report_model") == "source-neutral-1":
+            from .source_charts import source_charts
+            chart_paths = source_charts(display, output_dir/"charts", font)
+        else:
+            chart_paths = _charts(display,output_dir/"charts",font)
     finally:
         _CACHE.reset(token)
-    sections = _sections(display,chart_paths)
+    if payload.get("meta", {}).get("report_model") == "source-neutral-1":
+        from .source_presentation import sections as source_sections
+        sections = [section for _,section in source_sections(display, chart_paths)]
+    else:
+        sections = _sections(display,chart_paths)
     for section in sections:
         section.title = legacy_text(section.title)
         section.introduction = [legacy_text(p) for p in section.introduction]
@@ -873,6 +889,19 @@ def generate_reports(payload: dict, output_dir: Path, *, cache_directory: Path |
     _markdown(sections,payload,markdown)
     _pdf(sections,payload,pdf,font)
     supplements = []
+    if payload.get("meta", {}).get("report_model") == "source-neutral-1":
+        audit_path = output_dir/"source-valuation-audit.json"
+        audit_path.write_text(json.dumps({"schema_version":1, "as_of":payload["meta"]["as_of"],
+            "projection_sha256":payload["source_projection"]["projection_sha256"],
+            "quantity_cost_scope":payload["source_crypto"], "wallet":payload["source_projection"]["wallet"],
+            "scope":"valued_observed_rows_not_complete_wealth"},ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+        supplements.append(audit_path.name)
+        if payload.get("lookthrough"):
+            from .lookthrough_reports import write_exports
+            write_exports(payload, output_dir)
+            supplements.extend(("fund-sources.json", "company-exposure.csv", "unresolved-exposure.csv"))
+            if payload["lookthrough"].get("classification"):
+                supplements.extend(("allocation-exposure.csv", "classification-detail.csv"))
     crypto = payload.get("crypto")
     if crypto and crypto.get("opening"):
         audit_path = output_dir / "btc-opening-audit.json"

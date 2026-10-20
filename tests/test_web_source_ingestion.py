@@ -1,0 +1,113 @@
+"""Synthetic canonical-store backup/restore and strict source-evidence acceptance."""
+import json
+from pathlib import Path
+import sqlite3
+import unittest
+from unittest.mock import patch
+
+import test_web as foundation
+from test_source_v2 import RAW, ACCOUNT, batch, funding, purchase
+from wealth_ledger import source_ingestion as ingestion
+from wealth_ledger.workspace import resolve_workspace
+
+
+@unittest.skipUnless(foundation.AVAILABLE,"Optional Web dependencies are not installed")
+class CanonicalBackupTests(unittest.TestCase):
+    setUp=foundation.WebTests.setUp
+    bootstrap=foundation.WebTests.bootstrap
+    login=foundation.WebTests.login
+    mutate=foundation.WebTests.mutate
+    portfolio=foundation.WebTests.portfolio
+
+    def seed(self):
+        self.login(); self.pid=self.portfolio()
+        _,self.project=self.store.portfolio(self.pid)
+        with patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="a"*64):
+            plan=ingestion.prepare_ingestion(self.project,(ingestion.SourceInput(batch((funding(),purchase())),RAW),),bindings=(ingestion.new_binding(ACCOUNT),))
+            ingestion.commit_ingestion(resolve_workspace(explicit=self.project),plan)
+
+    def freeze_valuation(self):
+        from wealth_ledger.application import ApplicationService
+        from wealth_ledger.source_valuation import read_source_valuation
+        inputs={"as_of":"2024-03-01T00:00:00Z","period_start":"2023-12-31T00:00:00Z","generated_at":"2024-03-01T00:00:00Z",
+            "fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-01-30","usd_twd_date":"2024-01-30","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}
+        result=ApplicationService(resolve_workspace(explicit=self.project)).source_valuation(inputs)
+        return read_source_valuation(self.project,result["observation_id"])
+
+    def test_full_backup_and_fresh_instance_restore_preserve_canonical_facts(self):
+        from wealth_ledger.web.backups import backup_instance,restore_instance,database_info
+        from wealth_ledger.web.config import WebSettings
+        from wealth_ledger.web.storage import Store
+        self.seed()
+        valuation=self.freeze_valuation()
+        facts=ingestion.read_facts(self.project)
+        before=database_info(self.project/"data/db/portfolio.sqlite3")
+        archive=self.root.parent/"canonical-backup.zip"
+        target=WebSettings(self.root.parent/"empty-canonical-restore")
+        backup_instance(self.settings,archive)
+        with patch("wealth_ledger.source_registry.build_registry",side_effect=AssertionError("Restore must not execute a parser")):
+            restore_instance(target,archive)
+        _,restored=Store(target).portfolio(self.pid)
+        self.assertEqual(ingestion.read_facts(restored),facts)
+        from wealth_ledger.source_valuation import read_source_valuation
+        self.assertEqual(read_source_valuation(restored,1),valuation)
+        self.assertEqual(database_info(restored/"data/db/portfolio.sqlite3"),before)
+        self.assertFalse((restored/"reports").exists())
+        self.assertEqual(ingestion.verify_store(restored)["schema_version"],1)
+
+    def test_backup_and_adoption_reject_tampered_canonical_evidence(self):
+        from wealth_ledger.web.backups import backup_instance
+        from wealth_ledger.web.adoption import verify_portfolio
+        self.seed()
+        with sqlite3.connect(self.project/"data/db/portfolio.sqlite3") as conn:
+            relative=conn.execute("SELECT canonical_path FROM src_batches LIMIT 1").fetchone()[0]
+        path=self.project/relative;path.chmod(0o600);path.write_bytes(b'{"synthetic":"changed evidence"}')
+        with self.assertRaises(ValueError):backup_instance(self.settings,self.root.parent/"rejected.zip")
+        with self.assertRaises(ValueError):verify_portfolio(self.project)
+
+    def test_backup_and_adoption_reject_tampered_derived_valuation(self):
+        from wealth_ledger.web.backups import backup_instance
+        from wealth_ledger.web.adoption import verify_portfolio
+        self.seed();self.freeze_valuation()
+        path=next((self.project/"data/raw/source-valuations").glob("*.json"))
+        path.chmod(0o600);path.write_bytes(b'{"synthetic":"changed derived evidence"}')
+        with self.assertRaisesRegex(ValueError,"source_valuation_integrity"):
+            backup_instance(self.settings,self.root.parent/"rejected-valuation.zip")
+        with self.assertRaisesRegex(ValueError,"source_valuation_integrity"):
+            verify_portfolio(self.project)
+
+    def publish_source_report(self):
+        from wealth_ledger.source_publication import prepare_source_report,confirm_source_report
+        from wealth_ledger.wallet import add_balance
+        add_balance(self.project,"0.008","2024-03-01T00:00:00Z",now="2024-03-01T00:00:00Z")
+        value={"as_of":"2024-03-01T00:00:00Z","period_start":"2023-12-31T00:00:00Z","generated_at":"2024-03-01T00:00:00Z",
+            "fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-01-30","usd_twd_date":"2024-01-30","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}
+        directory=self.root.parent/"source-report-preview"
+        with patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="a"*64):
+            preview=prepare_source_report(self.project,valuation=value,directory=directory)
+            result=confirm_source_report(self.project,directory,preview["approval_sha256"])
+        return result
+
+    def test_full_backup_empty_restore_preserves_source_publication_and_readonly_retry(self):
+        import hashlib
+        from wealth_ledger.web.backups import backup_instance,restore_instance
+        from wealth_ledger.web.config import WebSettings
+        from wealth_ledger.web.storage import Store
+        from wealth_ledger.source_publication import resume_source_report,verify_source_publications
+        self.seed();publication=self.publish_source_report();output=Path(publication["output"])
+        before={p.relative_to(output).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in output.rglob("*") if p.is_file()}
+        archive=self.root.parent/"source-report-backup.zip";target=WebSettings(self.root.parent/"empty-source-report-instance")
+        backup_instance(self.settings,archive);restore_instance(target,archive)
+        _,project=Store(target).portfolio(self.pid)
+        with patch("wealth_ledger.source_publication.make_source_payload",side_effect=AssertionError("No repricing")),patch("wealth_ledger.lookthrough.attach_analysis",side_effect=AssertionError("No refresh")):
+            result=resume_source_report(project,publication["operation_id"])
+        restored=Path(result["output"])
+        self.assertEqual({p.relative_to(restored).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in restored.rglob("*") if p.is_file()},before)
+        verify_source_publications(project)
+
+    def test_backup_rejects_tampered_frozen_publication_payload(self):
+        from wealth_ledger.web.backups import backup_instance
+        self.seed();self.publish_source_report()
+        path=next((self.project/"data/raw/source-publications").glob("*.json"));path.chmod(0o600);path.write_bytes(b"{}")
+        with self.assertRaisesRegex(ValueError,"source_integrity"):
+            backup_instance(self.settings,self.root.parent/"rejected-source-report.zip")

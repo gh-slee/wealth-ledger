@@ -259,8 +259,14 @@ export function Financial({ portfolio }: { portfolio: string }) {
                 "record_type",
                 "kind",
               ].includes(name) &&
-              v != null &&
-              typeof v !== "object",
+              (v == null
+                ? [
+                    "recorded_expected_btc",
+                    "recorded_residual_btc",
+                    "cost_cad",
+                    "historical_contribution_cad",
+                  ].includes(name)
+                : typeof v !== "object"),
           )
           .map(([name, v]) => (
             <div key={name}>
@@ -282,17 +288,24 @@ export function Financial({ portfolio }: { portfolio: string }) {
                         opening_btc_equivalent_qty: t("openingQuantity"),
                         reference_purchased_btc_equivalent:
                           t("purchasedQuantity"),
+                        reference_known_event_btc: t("knownEventsAtReference"),
+                        cost_cad: t("openingActualCost"),
+                        historical_contribution_cad: t(
+                          "openingHistoricalContributions",
+                        ),
                         imported: t("importedFlows"),
                         integrity_ok: t("evidenceChecksum"),
                       } as Record<string, string>
                     )[name] ?? name)}
               </dt>
               <dd>
-                {typeof v === "boolean"
-                  ? t(v ? "yesValue" : "noValue")
-                  : ["status", "action", "type"].includes(name)
-                    ? label(String(v))
-                    : String(v)}
+                {v == null
+                  ? t("unknown")
+                  : typeof v === "boolean"
+                    ? t(v ? "yesValue" : "noValue")
+                    : ["status", "action", "type"].includes(name)
+                      ? label(String(v))
+                      : String(v)}
               </dd>
             </div>
           ))}

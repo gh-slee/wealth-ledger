@@ -293,17 +293,17 @@ class PreflightTests(unittest.TestCase):
         unknown = self.root / 'bad.csv'
         unknown.write_text('a,b\n1,2\n', encoding="utf-8")
         output = io.StringIO()
-        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', '--dry-run', '--json', str(unknown)]), redirect_stdout(output):
+        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', '--native-import', '--dry-run', '--json', str(unknown)]), redirect_stdout(output):
             self.assertEqual(cli.main(), 2)
         self.assertEqual(json.loads(output.getvalue())['status'], 'blocked')
-        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', '--dry-run', '--json', str(self.ws)]), redirect_stdout(io.StringIO()):
+        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', '--native-import', '--dry-run', '--json', str(self.ws)]), redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main(), 0)
 
-    def test_cli_default_still_uses_normal_commit_and_publisher(self):
+    def test_explicit_native_cli_uses_original_commit_and_publisher(self):
         spec = importlib.util.spec_from_file_location('default_update_cli', PROJECT / 'scripts/update.py')
         cli = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cli)
-        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', str(self.ws)]), patch.object(cli.ApplicationService, 'update', return_value={'status': 'published'}) as execute, redirect_stdout(io.StringIO()):
+        with patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', '--native-import', str(self.ws)]), patch.object(cli.ApplicationService, 'update', return_value={'status': 'published'}) as execute, redirect_stdout(io.StringIO()):
             cli.main()
         execute.assert_called_once()
         self.assertEqual(execute.call_args.args[0]['paths'], [str(self.ws.resolve())])
@@ -373,7 +373,7 @@ class PreflightTests(unittest.TestCase):
         spec.loader.exec_module(cli)
         before = files(self.project)
         for flags in (['--json'], ['--dry-run', '--list-operations'], ['--dry-run', '--resume-operation', 'id'], ['--dry-run', '--lookthrough-run-id', '6']):
-            with self.subTest(flags=flags), patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', *flags]), redirect_stdout(io.StringIO()), patch('sys.stderr', io.StringIO()):
+            with self.subTest(flags=flags), patch.object(cli, 'PROJECT', self.project), patch('sys.argv', ['update.py', '--native-import', *flags]), redirect_stdout(io.StringIO()), patch('sys.stderr', io.StringIO()):
                 with self.assertRaises(SystemExit) as caught:
                     cli.main()
                 self.assertEqual(caught.exception.code, 2)

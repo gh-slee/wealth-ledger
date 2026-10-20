@@ -2,12 +2,16 @@
 
 Wealth Ledger welcomes synthetic parser fixtures, financial regression fixes,
 translations, documentation and portability improvements. Discuss new financial
-models or source-adapter contracts before implementation; plugin loading remains planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
+models or source-adapter contracts before implementation. An independent trusted
+parser registry, nonbooking CLI/API source plans, installable core and author SDK
+are implemented. The [v2 canonical foundation](docs/source-ingestion.md) is a gated
+developer API; production financial integration and existing-importer migration remain planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
 
 ## Development setup
 
-Use a source checkout and Python 3.12+. A separately installable wheel/PyPI package
-is not supported yet. From the repository root:
+Use a source checkout and Python 3.12+. For the installable core/SDK and synthetic
+plugin use [the packaging guide](docs/parser-sdk.md); no PyPI publication is claimed.
+From the repository root:
 
 ```bash
 python3.12 -m venv .venv

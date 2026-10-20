@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache, wraps
+from .workspace import CODE_ROOT
+
 import hashlib
 import json
 from pathlib import Path
@@ -105,7 +107,7 @@ class PresentationContext:
         return {"locale": self.locale, "catalog_sha256": hashlib.sha256(data).hexdigest(),
                 "catalog_schema_version": 1, "formatting_version": "ledger-display-1",
                 "renderer_locale_version": 1, "font": registry()["locales"][self.locale]["font"],
-                "font_sha256": hashlib.sha256((Path(__file__).resolve().parents[2] / "assets/fonts" / registry()["locales"][self.locale]["font"]).read_bytes()).hexdigest()}
+                "font_sha256": hashlib.sha256((CODE_ROOT / "assets/fonts" / registry()["locales"][self.locale]["font"]).read_bytes()).hexdigest()}
 
 
 _CONTEXT = ContextVar("wealth_ledger_presentation", default=PresentationContext())
@@ -292,7 +294,7 @@ def display_payload(payload):
 
 
 def font_path():
-    return Path(__file__).resolve().parents[2] / "assets/fonts" / registry()["locales"][current_context().locale]["font"]
+    return CODE_ROOT / "assets/fonts" / registry()["locales"][current_context().locale]["font"]
 
 
 def font_family():
@@ -304,7 +306,7 @@ def font_package_path():
 
 
 def font_license_path():
-    return Path(__file__).resolve().parents[2] / "assets/fonts" / registry()["locales"][current_context().locale]["font_license"]
+    return CODE_ROOT / "assets/fonts" / registry()["locales"][current_context().locale]["font_license"]
 
 
 def document_locale(path):

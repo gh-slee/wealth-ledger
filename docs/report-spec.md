@@ -333,3 +333,35 @@ dated rows/months already present in the selected report. These are not all-ledg
 revision exports or full instance backups. Unknowns, source dates and precision
 remain explicit; CSV escapes spreadsheet formula text. See [exports and private
 backups](web-backups.md) for scope, limits, API routes and restoration.
+
+
+## Source-neutral core report model
+
+The C3B developer API produces `source-neutral-1` editions with a shared localized
+document for ODS/Markdown/PDF. It shows CAD/USD/TWD valued observed subtotals, native
+CAD/USD holdings, original account scopes, security ranks/matrices, effective BTC
+quantity and optional proxy, monthly purchase rates, reconciliation, frozen history,
+recorded flows and dated coverage/quote evidence. Eight base charts and applicable
+BTC/history/company/sector/country/region charts use deterministic code. Unknown
+values remain unknown, and partial scope cannot establish full wealth or returns.
+
+Existing official ETF fetching/replay remains a separate explicit analysis operation;
+rendering never refreshes sources. Source observations, derived valuation editions
+and published Web reports are different records. C3B adds no normal CLI/HTTP
+publication route and does not remove the report gate. See [source report semantics](source-projections.md#source-report-payloads-and-frozen-valuations-src-004c3b)
+and [workbook limitations](workbook.md#source-neutral-report-editions).
+
+
+## Frozen source publication operations
+
+C3C1's opt-in source-report workflow atomically freezes verified source facts, the
+derived valuation and effective-date/coverage-aware ETF analysis before publishing
+ODS/Markdown/PDF and audit exports. Report-only retry reads that payload; it never
+refreshes prices, FX, constituents or original CSVs. Publication manifests carry
+`report_model` and `source_valuation_id` alongside the operation/approval binding.
+Old derived editions retain their bytes, and already published retries cannot move
+a newer latest pointer backwards. Source financial payloads omit developer-stage
+publication flags; actual state belongs to durable operation/manifest records.
+See [approval and recovery](source-projections.md#frozen-source-report-publication-src-004c3c1).
+The advanced core alone does not register Web reports; the default CLI/browser
+workflow now connects it to approved publication and Web registration.

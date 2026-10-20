@@ -11,15 +11,7 @@ from pathlib import Path
 
 from .crypto import _time, _now, _json, _account_id, _readonly, _has_tables
 
-SCOPE = "all_wallets_btc_plus_lbtc"
-SIGNS = {"fee": -1, "sale": -1, "spend": -1, "external_out": -1,
-         "external_in": 1, "own_transfer": 0, "conversion": 0}
-STATUS_LABELS = {
-    "unexplained": "差額待釐清", "partially_explained": "部分說明，仍有差額",
-    "arithmetic_match": "目前已知資料算術相符", "expected_unknown": "帳本預期量未知",
-    "link_conflict": "關聯待重查", "ledger_conflict": "期初／來源重疊待核對",
-}
-
+from .wallet_reconciliation import SCOPE, SIGNS, STATUS_LABELS, sats, btc, reconcile_wallet
 
 def quantity(value, *, positive=False):
     try:
@@ -33,14 +25,6 @@ def quantity(value, *, positive=False):
             return format(number, ".8f")
     except (InvalidOperation, OverflowError) as exc:
         raise ValueError("Invalid BTC quantity") from exc
-
-
-def sats(value):
-    return int(Decimal(str(value)) * 100000000)
-
-
-def btc(value):
-    return format(Decimal(value) / 100000000, ".8f")
 
 
 def timestamp(value, now=None):
@@ -144,7 +128,7 @@ def _base(project, cutoff):
     }
 
 
-def _write(conn, project, kind, value, *, record_id=None):
+def _write(conn, project, kind, value, *, record_id=None, recorded_at=None):
     if record_id is None:
         index = conn.execute("INSERT INTO wallet_records(kind,scope,source,reference) VALUES(?,?,?,?)",
                              (kind, SCOPE, value.get("source") if kind == "event" else None,
@@ -157,7 +141,7 @@ def _write(conn, project, kind, value, *, record_id=None):
         value.pop(key, None)
     raw = (_json(value) + "\n").encode()
     sha = hashlib.sha256(raw).hexdigest()
-    directory = Path(project) / "data/raw/crypto/wallet" / datetime.now(timezone.utc).strftime("%Y/%m")
+    directory = Path(project) / "data/raw/crypto/wallet" / (datetime.fromisoformat(recorded_at).astimezone(timezone.utc) if recorded_at else datetime.now(timezone.utc)).strftime("%Y/%m")
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{record_id}-r{revision}-{sha[:16]}.json"
     if path.exists() and path.read_bytes() != raw:
@@ -166,7 +150,7 @@ def _write(conn, project, kind, value, *, record_id=None):
         path.write_bytes(raw)
     path.chmod(0o400)
     conn.execute("INSERT INTO wallet_revisions VALUES(?,?,?,?,?,?)",
-                 (record_id, revision, _json(value), str(path.relative_to(project)), sha, _now()))
+                 (record_id, revision, _json(value), str(path.relative_to(project)), sha, recorded_at or _now()))
     if kind=='event' and value.get('balance_id'):
         conn.execute('INSERT INTO wallet_links VALUES(?,?,?,?)',
                      (record_id,revision,value['balance_id'],value.get('linked_previous_balance_id')))
@@ -187,7 +171,7 @@ def _replacement(project, kind, replaced):
 
 
 def add_balance(project, amount, as_of, *, source="user_reported_total", time_basis="explicit",
-                replaces=None, now=None):
+                replaces=None, now=None, recorded_at=None):
     value = quantity(amount)
     instant = timestamp(as_of, now)
     source = str(source).strip()
@@ -199,21 +183,22 @@ def add_balance(project, amount, as_of, *, source="user_reported_total", time_ba
             if old["quantity_btc"] != value or old["source"] != source:
                 raise ValueError(f"Same-time balance conflict; explicitly revise {old['record_id']}")
             return {**old, "status": "duplicate"}
-    view = make_crypto_view(project, instant, strict=False)
-    prior = view.get("wallet", {}).get("anchor")
-    known = has_bull(project) or prior is not None
-    expected = view["btc_equivalent_qty"] if known else None
+    from .wallet_basis import declaration_basis
+    basis = declaration_basis(project, instant)
+    expected = basis["expected_btc"]
     payload = {"kind": "balance", "scope": SCOPE, "quantity_btc": value, "as_of": instant,
                "original_as_of": str(as_of), "source": source, "time_basis": time_basis,
                "verification": "user_reported", "void": False, "replaces": replaces,
-               "unknown_prior_history": not has_bull(project),
+               "unknown_prior_history": not basis["acquisition_history_known"],
                "recorded_expected_btc": expected,
                "recorded_residual_btc": btc(sats(value)-sats(expected)) if expected is not None else None}
+    if basis["calculation_basis"] is not None:
+        payload["calculation_basis"] = basis["calculation_basis"]
     conn = _connect(project)
     try:
         with conn:
             conn.execute("BEGIN IMMEDIATE")
-            return {**_write(conn, project, "balance", payload), "status": "recorded"}
+            return {**_write(conn, project, "balance", payload, recorded_at=recorded_at), "status": "recorded"}
     finally:
         conn.close()
 
@@ -225,7 +210,9 @@ def _validate_link(project, event, balance_id):
         raise ValueError(f"Unknown or void balance ID: {balance_id}")
     index = balances.index(target)
     previous = balances[index-1] if index else None
-    earliest = _base(project, target["as_of"])["source"].get("earliest_created_at")
+    from .wallet_basis import declaration_basis
+    earliest = declaration_basis(project, target["as_of"])["history_start"]
+    earliest = _time(earliest) if earliest else None
     lower = previous["as_of"] if previous else earliest
     time = event["occurred_at"]
     outside = time > target["as_of"] or (previous is not None and time <= lower) or (not previous and lower and time < lower)
@@ -258,6 +245,9 @@ def add_event(project, *, type, quantity_btc, occurred_at, source, reference, ba
             if any(old.get(k) != value.get(k) for k in ("type", "quantity_btc", "occurred_at", "balance_id")):
                 raise ValueError(f"Event reference conflict; explicitly revise or link {old['record_id']}")
             return {**old, "status": "duplicate"}
+    from .wallet_basis import has_canonical_sources, declaration_basis
+    if has_canonical_sources(project):
+        value["calculation_basis"] = declaration_basis(project, instant)["calculation_basis"]
     conn = _connect(project)
     try:
         with conn:
@@ -297,6 +287,9 @@ def revise(project, record_id, *, expected_revision, reason, action="revise", **
                 raise ValueError("Unsupported BTC event type")
             value["occurred_at"] = timestamp(value["occurred_at"])
             value["linked_previous_balance_id"] = _validate_link(project, value, value["balance_id"]) if value.get("balance_id") else None
+    from .wallet_basis import has_canonical_sources, declaration_basis
+    if has_canonical_sources(project):
+        declaration_basis(project, value.get("as_of") or value["occurred_at"])
     conn = _connect(project)
     try:
         with conn:
@@ -338,17 +331,14 @@ def import_events(project, path, *, now=None):
 
 def make_crypto_view(project, as_of, *, strict=True):
     """Value from the latest eligible observation; keep every earlier residual."""
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     cutoff = _time(as_of)
     base = _base(project, cutoff)
     all_rows = records(project)
-    balances = sorted((r for r in all_rows if r["kind"] == "balance" and not r["void"] and r["as_of"] <= cutoff), key=lambda r: r["as_of"])
-    events = [r for r in all_rows if r["kind"] == "event" and not r["void"] and r["occurred_at"] <= cutoff]
+    changes = [{"occurred_at": row["completed_at"], "quantity_btc": btc(sats(row["buy_qty_btc"]) + sats(row["buy_qty_lbtc"]))}
+               for row in base["orders"] if row["order_type"] == "Buy Bitcoin" and row["included_in_totals"]]
     purchases = [r for r in base["orders"] if r["order_type"] == "Buy Bitcoin" and r["included_in_totals"]]
-    def net(start, end):
-        return (sum(sats(r["buy_qty_btc"])+sats(r["buy_qty_lbtc"]) for r in purchases
-                    if (start is None or r["completed_at"] > start) and r["completed_at"] <= end)
-                + sum(SIGNS[r["type"]]*sats(r["quantity_btc"]) for r in events
-                      if (start is None or r["occurred_at"] > start) and r["occurred_at"] <= end))
     opening = base.get("opening")
     overlap = False
     if opening:
@@ -366,52 +356,24 @@ def make_crypto_view(project, as_of, *, strict=True):
             conn.close()
     if not all_rows and not overlap:
         return base
-    history_start = base["source"].get("earliest_created_at")
-    prehistory = [e for e in events if history_start and e["occurred_at"] < history_start]
-    unknown_history = any(b.get('unknown_prior_history') for b in balances)
-    known_base = has_bull(project) and not overlap and not prehistory and not unknown_history
-    ledger_expected = sats(base["opening_btc_equivalent_qty"]) + net(None, cutoff) if known_base else None
-    reconciliations = []
-    previous = None
-    for balance in balances:
-        expected = (sats(previous["quantity_btc"]) + net(previous["as_of"], balance["as_of"])) if previous else (
-            sats(base["opening_btc_equivalent_qty"]) + net(None, balance["as_of"]) if known_base else None)
-        relevant = [e for e in events if (previous is None or e["occurred_at"] > previous["as_of"]) and e["occurred_at"] <= balance["as_of"]]
-        linked = [e for e in events if e.get("balance_id") == balance["record_id"]]
-        stale = any(e not in relevant or e.get("linked_previous_balance_id") != (previous["record_id"] if previous else None) for e in linked)
-        residual = sats(balance["quantity_btc"]) - expected if expected is not None else None
-        state = ("link_conflict" if stale else "ledger_conflict" if not previous and (overlap or prehistory) else
-                 "expected_unknown" if expected is None else "arithmetic_match" if residual == 0 else
-                 "partially_explained" if any(SIGNS[e["type"]] for e in relevant) else "unexplained")
-        reconciliations.append({"balance_id": balance["record_id"], "balance_revision": balance["revision"],
-                               "as_of": balance["as_of"], "reported_btc": balance["quantity_btc"],
-                               "expected_btc": btc(expected) if expected is not None else None,
-                               "residual_btc": btc(residual) if residual is not None else None,
-                               "recorded_expected_btc": balance["recorded_expected_btc"],
-                               "recorded_residual_btc": balance["recorded_residual_btc"],
-                               "previous_balance_id": previous["record_id"] if previous else None,
-                               "event_ids": [e["record_id"] for e in relevant], "linked_event_ids": [e["record_id"] for e in linked],
-                               "status": state, "status_label": STATUS_LABELS[state], "verification": "user_reported"})
-        previous = balance
-    anchor = balances[-1] if balances else None
-    current = sats(anchor["quantity_btc"]) + net(anchor["as_of"], cutoff) if anchor else ledger_expected
-    conflicts = [e["record_id"] for e in events if e.get("balance_id") and not any(b["record_id"] == e["balance_id"] for b in balances)]
-    corrupt = [r["record_id"] for r in all_rows if (r.get('as_of') or r.get('occurred_at')) <= cutoff and not r["integrity_ok"]]
+    result = reconcile_wallet(as_of=cutoff, changes=changes, rows=all_rows,
+                              opening_quantity=base["opening_btc_equivalent_qty"],
+                              acquisition_history_known=has_bull(project),
+                              history_start=base["source"].get("earliest_created_at"), opening_overlap=overlap)
+    wallet = result["wallet"]
+    events = wallet["events"]
+    current, anchor = result["current_sats"], wallet["anchor"]
+    corrupt, conflicts = wallet["integrity_errors"], wallet["link_conflicts"]
+    prehistory = wallet["prehistory_event_ids"]
     if strict and (current is None or current < 0 or corrupt):
         raise ValueError("BTC quantity cannot be valued: unknown pre-observation history, negative holdings, or corrupt wallet evidence")
     if strict and not anchor and (overlap or prehistory):
         raise ValueError("BTC opening/source overlap requires explicit reconciliation before valuation")
-    wallet = {"scope": SCOPE, "anchor": anchor, "observations": balances, "events": events,
-              "reconciliations": reconciliations, "ledger_expected_btc": btc(ledger_expected) if ledger_expected is not None else None,
-              "anchor_ledger_residual_btc": btc(sats(anchor["quantity_btc"])-(sats(base["opening_btc_equivalent_qty"])+net(None, anchor["as_of"]))) if anchor and known_base else None,
-              "unresolved_count": sum(r["status"] != "arithmetic_match" for r in reconciliations),
-              "link_conflicts": conflicts, "opening_overlap": overlap, "prehistory_event_ids": [e["record_id"] for e in prehistory],
-              "integrity_errors": corrupt, "verification": "user_reported_not_independently_verified"}
     base["wallet"] = wallet
     base["btc_equivalent_qty"] = btc(current) if current is not None else "0"
     base["totals"]["btc_equivalent_qty"] = base["btc_equivalent_qty"]
-    base["meta"]["quantity_status"] = "user_reported_balance" if anchor and anchor["as_of"] == cutoff else "balance_plus_known_changes_estimate" if anchor else "ledger_plus_events_estimate"
-    base["meta"]["estimation_method"] = "latest_observed_balance_plus_later_known_changes" if anchor else "opening_orders_and_known_events"
+    base["meta"]["quantity_status"] = result["quantity_status"]
+    base["meta"]["estimation_method"] = result["estimation_method"]
     base["meta"]["cost_unknown"] = bool(anchor or events or not has_bull(project) or overlap)
     base["issues"] = [r for r in base["issues"] if r["code"] != "order_derived_quantity"]
     base["issues"].append({"code": "wallet_reconciliation", "severity": "warning" if wallet["unresolved_count"] or conflicts or overlap else "info",
@@ -429,8 +391,9 @@ def balance_detail(project, record_id):
     row = get_record(project, record_id)
     if row["kind"] != "balance":
         raise ValueError("Expected a balance ID")
-    view = make_crypto_view(project, row["as_of"], strict=False)
-    return {"record": row, "reconciliation": next((r for r in view.get("wallet", {}).get("reconciliations", []) if r["balance_id"] == record_id), None),
+    from .wallet_basis import declaration_basis
+    basis = declaration_basis(project, row["as_of"])
+    return {"record": row, "reconciliation": next((r for r in basis["wallet"].get("reconciliations", []) if r["balance_id"] == record_id), None),
             "revisions": revision_history(project, record_id)}
 
 

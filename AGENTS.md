@@ -1,7 +1,22 @@
 # Agent development guide
 
-Wealth Ledger is a local-first Python 3.12+ investment ledger. It imports supported
-Wealthsimple/Bull CSVs into SQLite and generates ODS, Markdown and PDF reports.
+Wealth Ledger is a local-first Python 3.12+ investment ledger for financial CSV
+exports, SQLite history and ODS, Markdown and PDF reports. Its expansion path is
+source-parser plugins for banks, brokerages and Bitcoin platforms. Current native
+source importers are Wealthsimple holdings and Bull Bitcoin orders; the shared
+parser contract, trusted registry and nonbooking CLI/API source plans exist. Plugin
+SDK and an independently installable synthetic example exist; pure v2 built-in parsers and explicit-context CLI/API previews are implemented.
+B2 supplies opt-in frozen CLI/API data-only confirmation and receipt recovery. C1
+adds an internal read-only source-neutral model. C2 adds identity-bound legacy,
+wallet and frozen-history compatibility; C3A routes BTC declarations through that
+basis. C3B adds trusted-core source report payloads, frozen valuations and portable
+reports. C3C1 adds opt-in frozen source report approval/publication and advanced CLI;
+C3C2A adds Web jobs/library/read/export integration; the regular CLI/browser now
+default to shared source preparation, exact approval and immutable publication, with
+explicit saved-context selection and correction parents. Native compatibility is
+explicit and must keep its guard against canonical-data omission. SRC-004A adds explicit-context v2/canonical storage as a trusted core API;
+see its phase gate below. V1/v2 source plans remain nonbooking;
+separate source-ingestion previews require exact approval and a no-report acknowledgement.
 Production downloads, calculations, charts and report prose are deterministic code;
 no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
 supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.
@@ -49,7 +64,8 @@ Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 `npm --prefix frontend run build`, `npm --prefix frontend test`,
 `npm --prefix frontend run check:source` and `npm --prefix frontend run test:e2e`.
 Use Node 24 LTS (or 22.12+) and see docs/web-frontend.md for browser prerequisites.
-There is no installable Python package build yet. CI runs Linux/Python 3.12 tests
+An installable core/contract wheel and SDK are available; see [packaging](docs/parser-sdk.md).
+Keep build tooling separate from runtime. CI runs Linux/Python 3.12 tests
 and offline synthetic report demos for default/proxy policies and three locales.
 Use focused tests while iterating; report changes also need affected formula/cache,
 ODS/PDF presentation and locale checks. Documentation edits do not require real
@@ -86,12 +102,23 @@ portfolio updates. Report the checks actually run and any gaps.
 - BTC quantities/costs/events: [reconciliation](docs/btc-reconciliation-plan.md).
 - Reports and ETF analysis: [report spec](docs/report-spec.md), [ODS](docs/workbook.md).
 - Financial declarations and copy-verified CLI adoption: [forms](docs/web-financial-records.md), [adoption](docs/web-adoption.md); preserve append-only data and the original workspace.
+- [Legacy report acceptance](docs/web-legacy-reports.md) requires explicit opt-in and separate migration-time evidence; never rewrite old manifests or weaken modern verification.
 - Browser UI: [frontend workflow](docs/web-frontend.md); keep queries scoped, clear
   caches on logout/switch, preserve decimal strings and use no persistent finance cache.
 - Locale changes: [i18n contract](docs/i18n-plan.md).
 - Exports, consistent snapshots, maintenance and empty-target restore: [Web backups](docs/web-backups.md); use synthetic instances only and retain original evidence.
 - Upgrade/rollback, capacity/crash tests, dependency inventory and platform evidence: [operations acceptance](docs/web-release-acceptance.md). Run `python scripts/dependency_inventory.py --require-declared` in the locked Web venv; no runtime AI or financial workspace access is needed.
 - Web security, host commands and experimental containers: [Web operations](docs/web-operations.md), [imports/jobs](docs/web-imports.md).
+- Canonical-v2 changes: [ingestion foundation](docs/source-ingestion.md). Use disposable synthetic workspaces; preserve `report_projection_unavailable` on native paths that would omit canonical facts; use the default source publication path for complete supported projections. V1 contracts remain stable; explicit-context v2 previews are nonbooking too. Frozen source submissions use strict core-only decode, portfolio-scoped mappings, state/config/environment revalidation and atomic receipt recovery; never rerun plugins on confirmation or recover an unproven operation. Shared byte grammars must preserve legacy IDs, amounts, dates and messages; never infer wallet totals or opening assumptions in a parser.
+- Internal source projections: [C1 model](docs/source-projections.md). Observed subtotals and recorded movements are not complete wealth/wallet balances; C2 adds read-only native compatibility and the shared wallet kernel; BTC declarations use its verified basis through wallet_basis.py. C3B source payloads/valuations and three-format rendering preserve that boundary;
+  C3C1 freezes approved report inputs/analysis with receipt-only publication retries;
+  C3C2A integrates exact-approved Web jobs/read/export; C3C2B adds
+  [automatic import entry](docs/source-projections.md#automatic-import-entry-src-004c3c2b).
+  Use [the default workflow](docs/source-projections.md#default-daily-workflow). Preserve
+  explicit native compatibility guards; never bypass them to drop source data. Source
+  manual cash declarations retain date-only precision, original CSV and cross-store
+  ID/evidence verification. Test with synthetic isolated workspaces only.
+- Parser author/build/install acceptance: [SDK guide](docs/parser-sdk.md); preserve nonbooking v1 limits and audit wheel/sdist contents.
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
   [self-hosted web app](docs/self-hosted-webapp.md).
 - Publication/privacy: [publishing](docs/publishing.md), [SECURITY.md](SECURITY.md).

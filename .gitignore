@@ -78,3 +78,6 @@ AGENTS.override.md
 /frontend/test-results/
 /frontend/playwright-report/
 *.tsbuildinfo
+
+# Independent parser example build output
+/examples/parser-plugin/build/

@@ -31,7 +31,7 @@ def _snapshot(project, stage):
         with closing(sqlite3.connect(db.as_uri() + "?mode=ro", uri=True)) as source, closing(sqlite3.connect(stage / "data/db/portfolio.sqlite3")) as target:
             source.backup(target)
     for name in ("config", "data/fx", "data/prices", "data/raw/holdings", "data/raw/activity",
-                 "data/raw/crypto", "data/raw/reference"):
+                 "data/raw/crypto", "data/raw/reference", "data/raw/source-v2", "data/raw/source-valuations", "data/raw/source-publications"):
         source = project / name
         if source.exists():
             shutil.copytree(source, stage / name, dirs_exist_ok=True)

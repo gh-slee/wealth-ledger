@@ -16,16 +16,13 @@ from datetime import date, datetime, timezone
 from decimal import Decimal, getcontext
 from pathlib import Path
 
+from .source_formats import WS_REQUIRED as REQUIRED
+
 getcontext().prec = 60
 D = Decimal
 ZERO = D(0)
 TOLERANCE = D("0.01")
 ACCOUNT_ORDER = {"TFSA": 0, "RRSP": 1, "Non-registered": 2}
-REQUIRED = ("Account Type", "Account Number", "Symbol", "MIC", "Name",
-            "Security Type", "Quantity", "Market Price", "Market Price Currency",
-            "Book Value (CAD)", "Book Value (Market)", "Book Value Currency (Market)",
-            "Market Value", "Market Value Currency", "Market Unrealized Returns",
-            "Market Unrealized Returns Currency")
 
 
 def _decimal(value):
@@ -125,77 +122,17 @@ def _issue(code, message, severity="warning", **context):
 
 
 def _parse_holdings(path):
+    from .source_formats import parse_wealthsimple
     raw = Path(path).read_bytes()
-    reader = csv.reader(io.StringIO(raw.decode("utf-8-sig")))
-    rows = list(reader)
-    if not rows:
-        raise ValueError("Empty holdings CSV")
-    headers = [item.strip() for item in rows[0]]
-    if len(headers) != len(set(headers)) or any(item not in headers for item in REQUIRED):
-        raise ValueError("Missing or duplicate holdings CSV columns")
-    footer, records, accounts, issues, seen = None, [], {}, [], set()
-    for line, values in enumerate(rows[1:], 2):
-        if not values or not any(item.strip() for item in values):
-            continue
-        if len(values) == 1 and values[0].strip().startswith("As of "):
-            if footer is not None:
-                raise ValueError("Multiple as-of footers")
-            footer = values[0].strip()
-            continue
-        if footer is not None or len(values) != len(headers):
-            raise ValueError(f"Malformed holdings row {line}")
-        row = dict(zip(headers, (item.strip() for item in values)))
-        number = row["Account Number"]
-        if not number or not row["Symbol"]:
-            raise ValueError(f"Missing account or symbol at row {line}")
-        aid = "a_" + _hash(number.encode())[:16]
-        currency = row["Market Value Currency"].upper()
-        if currency not in ("CAD", "USD"):
-            raise ValueError(f"Unsupported market currency: {currency}")
-        for field in ("Market Price Currency", "Book Value Currency (Market)",
-                      "Market Unrealized Returns Currency"):
-            if row[field].upper() != currency:
-                raise ValueError(f"Currency mismatch at row {line}: {field}")
-        if row.get("Book Value Currency (CAD)", "CAD").upper() != "CAD":
-            raise ValueError(f"CAD book value currency mismatch at row {line}")
-        if row.get("Position Direction", "LONG") != "LONG":
-            raise ValueError("Only long positions are supported in this version")
-        security_type = row["Security Type"]
-        sid = ("cash:" + currency if security_type == "CURRENCY" else
-               ":".join((row["MIC"], row["Symbol"], currency)))
-        if (aid, sid) in seen:
-            raise ValueError(f"Duplicate account/security key at row {line}")
-        seen.add((aid, sid))
-        account = {"account_id": aid, "account_type": row["Account Type"],
-                   "label": row["Account Type"], "masked_number": "****" + number[-4:]}
-        if aid in accounts and accounts[aid] != account:
-            raise ValueError("Conflicting metadata for one account")
-        accounts[aid] = account
-        record = {"account_id": aid, "account_type": account["account_type"],
-                  "security_id": sid, "symbol": row["Symbol"], "currency": currency,
-                  "security_type": security_type, "mic": row["MIC"],
-                  "exchange": row.get("Exchange", ""), "name": row["Name"],
-                  "quantity": _decimal(row["Quantity"]), "price": _decimal(row["Market Price"]),
-                  "book_native": _decimal(row["Book Value (Market)"]),
-                  "book_cad": _decimal(row["Book Value (CAD)"]),
-                  "market_native": _decimal(row["Market Value"]),
-                  "unrealized_native": _decimal(row["Market Unrealized Returns"])}
-        context = {"account_id": aid, "symbol": record["symbol"]}
-        if abs(record["quantity"] * record["price"] - record["market_native"]) > TOLERANCE:
-            issues.append(_issue("market_math", "數量乘市價與來源市值不一致，保留來源值。", **context))
-        if abs(record["market_native"] - record["book_native"] - record["unrealized_native"]) > TOLERANCE:
-            issues.append(_issue("unrealized_math", "來源未實現損益與市值減成本不一致，保留來源值。", **context))
-        if record["quantity"] < 0 or record["market_native"] < 0:
-            raise ValueError("Negative long position quantity/value is unsupported")
-        if security_type != "CURRENCY" and (record["quantity"] <= 0 or record["book_native"] <= 0):
-            issues.append(_issue("nonpositive_cost_quantity", "成本或數量非正；以非正數為分母的比例／平均成本不計算。", **context))
-        records.append(record)
-    if not records or not footer:
-        raise ValueError("Holdings CSV needs holdings rows and an as-of footer")
-    match = re.fullmatch(r"As of (\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?) GMT([+-]\d{2}:\d{2})", footer)
-    if not match:
-        raise ValueError("Unrecognized holdings as-of footer")
-    as_of = datetime.fromisoformat(match[1] + match[2])
+    _, as_of, records, accounts, findings = parse_wealthsimple(raw)
+    messages = {
+        "market_math": "數量乘市價與來源市值不一致，保留來源值。",
+        "unrealized_math": "來源未實現損益與市值減成本不一致，保留來源值。",
+        "nonpositive_cost_quantity": "成本或數量非正；以非正數為分母的比例／平均成本不計算。",
+    }
+    issues = [_issue(item["code"], messages[item["code"]], item["severity"],
+                     **{key: value for key, value in item.items() if key not in {"code", "severity"}})
+              for item in findings]
     return raw, as_of, records, accounts, issues
 
 
@@ -294,6 +231,8 @@ def inspect_holdings(project, csv_path, kind="monthly"):
 
 
 def import_holdings(project: Path, csv_path: Path, kind: str, fx: dict) -> dict:
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     if kind not in ("baseline", "monthly", "interim"):
         raise ValueError("Snapshot kind must be baseline, monthly, or interim")
     raw, as_of, records, accounts, issues = _parse_holdings(csv_path)
@@ -503,75 +442,103 @@ def mark_flow_period(project: Path, start_date: str, end_date: str, status: str,
     start, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
     if start >= end or status not in ("partial", "complete", "no_external"):
         raise ValueError("Need increasing dates and partial/complete/no_external status")
+    from .source_profiles import investment_accounts
+    canonical = {row['account_id'] for row in investment_accounts(project)}
     with _connection(project) as conn:
-        if account_id != "portfolio" and not conn.execute("SELECT 1 FROM accounts WHERE account_id=?", (account_id,)).fetchone():
+        if account_id != "portfolio" and account_id not in canonical and not conn.execute("SELECT 1 FROM accounts WHERE account_id=?", (account_id,)).fetchone():
             raise ValueError("Unknown account ID")
         record_id = conn.execute("INSERT INTO flow_periods(start_date,end_date,account_id,status,created_at) VALUES(?,?,?,?,?)", (start_date, end_date, account_id, status, _now())).lastrowid
     return {"id": record_id, "start_date": start_date, "end_date": end_date, "account_id": account_id, "status": status}
 
 
-def import_cash_flows(project: Path, csv_path: Path):
-    raw = Path(csv_path).read_bytes()
+def _cash_flow_rows(raw, known_accounts):
+    """Pure date-only declaration validation shared by import and evidence replay."""
     reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
     required = {"date", "account_id", "flow_type", "currency", "amount"}
     if not reader.fieldnames or not required.issubset(reader.fieldnames):
         raise ValueError("Cash-flow CSV requires date, account_id, flow_type, currency, amount")
     rows = []
     pending_by_id = {}
+    for source in reader:
+        row = {key: (value or "").strip() for key, value in source.items() if key is not None}
+        if not any(row.values()):
+            continue
+        day = date.fromisoformat(row["date"])
+        if row['account_id'] not in known_accounts:
+            raise ValueError("Cash flow references an unknown account")
+        if row["flow_type"] not in ("deposit", "withdrawal", "transfer_in", "transfer_out", "income", "fee", "internal"):
+            raise ValueError("Unsupported cash-flow type")
+        if row["currency"] not in ("CAD", "USD") or _decimal(row["amount"]) <= 0:
+            raise ValueError("Cash-flow amount must be positive CAD or USD")
+        amount = _decimal(row["amount"])
+        if row["currency"] == "CAD":
+            amount_cad = amount
+        elif row.get("usd_cad"):
+            rate = _decimal(row["usd_cad"])
+            if rate <= 0 or not row.get("fx_date") or not row.get("fx_source"):
+                raise ValueError("USD flow conversion requires positive rate, fx_date, fx_source")
+            if date.fromisoformat(row["fx_date"]) > day:
+                raise ValueError("Cash-flow FX date cannot be in the future")
+            amount_cad = amount * rate
+        elif row.get("amount_cad"):
+            amount_cad = _decimal(row["amount_cad"])
+            if amount_cad <= 0 or not row.get("fx_source"):
+                raise ValueError("Explicit USD flow CAD value requires positive amount and source")
+        else:
+            raise ValueError("USD flow needs date-specific FX or an explicit sourced CAD value")
+        if row.get("amount_cad") and abs(_decimal(row["amount_cad"]) - amount_cad) > TOLERANCE:
+            raise ValueError("Cash-flow CAD value disagrees with rate")
+        if row["flow_type"].startswith("transfer_") and not row.get("transfer_id"):
+            raise ValueError("Transfers require a pairing transfer_id")
+        row.update({"amount": _string(amount), "amount_cad": _string(amount_cad)})
+        semantic = _hash(_json({key: value for key, value in row.items() if key != "flow_id"}).encode())
+        row["flow_id"] = row.get("flow_id") or "f_" + semantic[:24]
+        pending = pending_by_id.get(row["flow_id"])
+        if pending is not None and pending != row:
+            raise ValueError("Conflicting duplicate flow ID within the same CSV")
+        pending_by_id[row["flow_id"]] = row
+        rows.append(row)
+    if not rows:
+        raise ValueError("Empty cash-flow CSV; confirm no flows through mark_flow_period")
+    return rows
+
+
+def import_cash_flows(project: Path, csv_path: Path):
+    raw = Path(csv_path).read_bytes()
+    from .source_profiles import investment_accounts
+    canonical = {row['account_id'] for row in investment_accounts(project)}
+    if canonical:
+        from .source_pipeline import INPUT_BYTES
+        if len(raw) > INPUT_BYTES: raise ValueError('Source-account cash-flow CSV exceeds the supported input limit')
     with _connection(project) as conn:
-        for source in reader:
-            row = {key: (value or "").strip() for key, value in source.items() if key is not None}
-            if not any(row.values()):
-                continue
-            day = date.fromisoformat(row["date"])
-            if not conn.execute("SELECT 1 FROM accounts WHERE account_id=?", (row["account_id"],)).fetchone():
-                raise ValueError("Cash flow references an unknown account")
-            if row["flow_type"] not in ("deposit", "withdrawal", "transfer_in", "transfer_out", "income", "fee", "internal"):
-                raise ValueError("Unsupported cash-flow type")
-            if row["currency"] not in ("CAD", "USD") or _decimal(row["amount"]) <= 0:
-                raise ValueError("Cash-flow amount must be positive CAD or USD")
-            amount = _decimal(row["amount"])
-            if row["currency"] == "CAD":
-                amount_cad = amount
-            elif row.get("usd_cad"):
-                rate = _decimal(row["usd_cad"])
-                if rate <= 0 or not row.get("fx_date") or not row.get("fx_source"):
-                    raise ValueError("USD flow conversion requires positive rate, fx_date, fx_source")
-                if date.fromisoformat(row["fx_date"]) > day:
-                    raise ValueError("Cash-flow FX date cannot be in the future")
-                amount_cad = amount * rate
-            elif row.get("amount_cad"):
-                amount_cad = _decimal(row["amount_cad"])
-                if amount_cad <= 0 or not row.get("fx_source"):
-                    raise ValueError("Explicit USD flow CAD value requires positive amount and source")
-            else:
-                raise ValueError("USD flow needs date-specific FX or an explicit sourced CAD value")
-            if row.get("amount_cad") and abs(_decimal(row["amount_cad"]) - amount_cad) > TOLERANCE:
-                raise ValueError("Cash-flow CAD value disagrees with rate")
-            if row["flow_type"].startswith("transfer_") and not row.get("transfer_id"):
-                raise ValueError("Transfers require a pairing transfer_id")
-            row.update({"amount": _string(amount), "amount_cad": _string(amount_cad)})
-            semantic = _hash(_json({key: value for key, value in row.items() if key != "flow_id"}).encode())
-            row["flow_id"] = row.get("flow_id") or "f_" + semantic[:24]
-            pending = pending_by_id.get(row["flow_id"])
-            if pending is not None and pending != row:
-                raise ValueError("Conflicting duplicate flow ID within the same CSV")
-            pending_by_id[row["flow_id"]] = row
-            existing = conn.execute("SELECT payload_json FROM cash_flows WHERE flow_id=?", (row["flow_id"],)).fetchone()
+        native = {r[0] for r in conn.execute('SELECT account_id FROM accounts')}
+        from decimal import Context, localcontext
+        with localcontext(Context(prec=60)):
+            rows = _cash_flow_rows(raw, native | canonical)
+        has_manual = bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='manual_cash_flows'").fetchone())
+        for row in rows:
+            existing = conn.execute("SELECT payload_json FROM cash_flows WHERE flow_id=?", (row['flow_id'],)).fetchone()
+            if has_manual:
+                manual = conn.execute("SELECT payload_json FROM manual_cash_flows WHERE flow_id=?", (row['flow_id'],)).fetchone()
+                if manual and existing: raise ValueError('Cash-flow ID exists in both account stores')
+                existing = existing or manual
             if existing and json.loads(existing[0]) != row:
                 raise ValueError("Conflicting existing flow ID; automatic cash-flow corrections are not supported")
-            rows.append(row)
-        if not rows:
-            raise ValueError("Empty cash-flow CSV; confirm no flows through mark_flow_period")
         sha, semantic = _hash(raw), _hash(_json(sorted(rows, key=lambda r: r["flow_id"])).encode())
         source = conn.execute("SELECT id FROM sources WHERE sha256=?", (sha,)).fetchone()
         if source:
             return {"status": "duplicate", "imported": 0, "sha256": sha}
         archive = _archive(project, csv_path, raw, "activity", date.fromisoformat(min(r["date"] for r in rows)))
         sid = conn.execute("INSERT INTO sources(sha256,semantic_hash,filename,path,row_count,imported_at) VALUES(?,?,?,?,?,?)", (sha, semantic, Path(csv_path).name, archive, len(rows), _now())).lastrowid
+        if any(row['account_id'] not in native for row in rows):
+            conn.execute("""CREATE TABLE IF NOT EXISTS manual_cash_flows(
+                flow_id TEXT PRIMARY KEY,source_id INTEGER NOT NULL REFERENCES sources(id),flow_date TEXT NOT NULL,
+                account_id TEXT NOT NULL REFERENCES src_bindings(ledger_account),flow_type TEXT NOT NULL,amount_cad TEXT NOT NULL,
+                transfer_id TEXT,payload_json TEXT NOT NULL,created_at TEXT NOT NULL)""")
         imported = 0
         for row in rows:
-            cursor = conn.execute("INSERT OR IGNORE INTO cash_flows VALUES(?,?,?,?,?,?,?,?,?)", (row["flow_id"], sid, row["date"], row["account_id"], row["flow_type"], row["amount_cad"], row.get("transfer_id") or None, _json(row), _now()))
+            table = 'cash_flows' if row['account_id'] in native else 'manual_cash_flows'
+            cursor = conn.execute("INSERT OR IGNORE INTO " + table + " VALUES(?,?,?,?,?,?,?,?,?)", (row["flow_id"], sid, row["date"], row["account_id"], row["flow_type"], row["amount_cad"], row.get("transfer_id") or None, _json(row), _now()))
             imported += cursor.rowcount
     return {"status": "imported", "imported": imported, "sha256": sha, "source_path": archive}
 
@@ -688,6 +655,8 @@ def _flow_views(conn, until):
 
 
 def make_payload(project: Path, snapshot_id: int | None = None) -> dict:
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     with _connection(project) as conn:
         snapshot = conn.execute("SELECT * FROM snapshots WHERE id=?", (snapshot_id,)).fetchone() if snapshot_id is not None else conn.execute("SELECT * FROM snapshots ORDER BY as_of_utc DESC,revision DESC LIMIT 1").fetchone()
         if not snapshot:

@@ -12,6 +12,8 @@ from datetime import date
 from decimal import Decimal, localcontext
 from pathlib import Path
 from collections.abc import Mapping
+from .workspace import CODE_ROOT
+
 import hashlib
 import json
 import math
@@ -40,7 +42,7 @@ for prefix, uri in NS.items():
 OF = "urn:oasis:names:tc:opendocument:xmlns:of:1.2"
 MIME = "application/vnd.oasis.opendocument.spreadsheet"
 INK = "#243B53"
-CHART_TITLES = LabelCatalog({'01_account_values': 'message.feca6f3d2124', '02_trading_currency': 'message.e00157582927', '03_holdings_ranking': 'message.4e21128e500b', '04_holdings_by_account': 'message.3adb37c830ef', '05_unrealized_native': 'message.d6e579a4c691', '06_unrealized_percent': 'message.8011c979537c', '07_instrument_mix': 'message.1daa0525a3c8', '08_account_weight_heatmap': 'message.386cb258cdbb', '09_historical_values': 'message.76d4f7bf5033', '10_btc_accumulation': 'message.c74b05ca3c98', '11_btc_monthly_contributions': 'message.f12bb15c412b', '12_company_exposure': 'message.21aed5578b03', '13_sector_exposure': 'message.b74d7ca4ec91', '14_country_exposure': 'message.e33341e79550', '15_region_exposure': 'message.2eb711c20acf', '16_btc_wallet_reconciliation': 'message.554a3964b9ca'})
+CHART_TITLES = LabelCatalog({'01_account_values': 'message.feca6f3d2124', '02_trading_currency': 'message.e00157582927', '03_holdings_ranking': 'message.4e21128e500b', '04_holdings_by_account': 'message.3adb37c830ef', '05_unrealized_native': 'message.d6e579a4c691', '06_unrealized_percent': 'message.8011c979537c', '07_instrument_mix': 'message.1daa0525a3c8', '08_account_weight_heatmap': 'message.386cb258cdbb', '09_historical_values': 'message.76d4f7bf5033', '10_btc_accumulation': 'message.c74b05ca3c98', '11_btc_monthly_contributions': 'message.f12bb15c412b', '12_company_exposure': 'message.21aed5578b03', '13_sector_exposure': 'message.b74d7ca4ec91', '14_country_exposure': 'message.e33341e79550', '15_region_exposure': 'message.2eb711c20acf', '16_btc_wallet_reconciliation': 'message.554a3964b9ca', '17_source_btc_acquisitions': 'source_report.acquisition_chart', '18_source_btc_spending': 'source_report.spending_chart'})
 BASELINE_CHART_KEYS = tuple(CHART_TITLES)[:8]
 CRYPTO_CHART_KEYS = ("10_btc_accumulation", "11_btc_monthly_contributions")
 BASE_SHEETS = ('overview', 'currency_holdings', 'account_holdings', 'portfolio_analysis', 'charts', 'history', 'cash_flows', 'positions', 'rates_notes')
@@ -49,8 +51,8 @@ ROW_HEIGHT_CM = Decimal("0.65")
 FONT_NAME = "Noto Sans TC"
 FONT_PACKAGE_PATH = "Fonts/NotoSansTC-Regular.ttf"
 FONT_MEDIA_TYPE = "application/x-font-ttf"
-FONT_PATH = Path(__file__).resolve().parents[2] / "assets/fonts/NotoSansTC-Regular.ttf"
-FONT_LICENSE_PATH = Path(__file__).resolve().parents[2] / "assets/fonts/OFL.txt"
+FONT_PATH = CODE_ROOT / "assets/fonts/NotoSansTC-Regular.ttf"
+FONT_LICENSE_PATH = CODE_ROOT / "assets/fonts/OFL.txt"
 
 
 def tag(name: str) -> str:
@@ -239,7 +241,11 @@ def resolve_chart_images(payload: dict, output_path: Path, chart_images=None) ->
     """Require complete current chart assets; lazily render when not supplied."""
     if chart_images is None:
         from .reporting import _charts, _font_path
-        chart_images = _charts(payload, output_path.parent / "charts", _font_path())
+        if payload.get("meta", {}).get("report_model") == "source-neutral-1":
+            from .source_charts import source_charts
+            chart_images = source_charts(payload, output_path.parent / "charts", _font_path())
+        else:
+            chart_images = _charts(payload, output_path.parent / "charts", _font_path())
     if not isinstance(chart_images, Mapping):
         raise ValueError("chart_images must map chart keys to PNG file paths")
     required = list(BASELINE_CHART_KEYS)
@@ -248,6 +254,10 @@ def resolve_chart_images(payload: dict, output_path: Path, chart_images=None) ->
     if payload.get("crypto") is not None:
         required.extend(CRYPTO_CHART_KEYS)
         if payload["crypto"].get("wallet",{}).get("observations"):
+            required.append("16_btc_wallet_reconciliation")
+    if payload.get("source_crypto", {}).get("in_scope"):
+        required.extend(("17_source_btc_acquisitions", "18_source_btc_spending"))
+        if payload["source_projection"]["wallet"]["observations"]:
             required.append("16_btc_wallet_reconciliation")
     if payload.get("lookthrough",{}).get("top20"):
         required.append("12_company_exposure")
@@ -447,6 +457,10 @@ def build_workbook(payload: dict, output_path: Path, chart_images=None) -> dict:
     """
     with localcontext() as context:
         context.prec = 80
+        if payload.get("meta", {}).get("report_model") == "source-neutral-1":
+            from .source_workbook import build_source_workbook
+            context.prec = max(128, payload["meta"]["decimal_precision"])
+            return build_source_workbook(payload, Path(output_path), chart_images)
         return _build_workbook(payload, Path(output_path), chart_images)
 
 
@@ -976,6 +990,15 @@ def _build_workbook(payload: dict, output_path: Path, chart_images=None) -> dict
     flows.put(max(16,len(flow_rows)+13),2,tr('message.2f5bee7c7103'),style="note")
     flows.frozen_rows=6
 
+    return write_package(sheets, images, output_path, total_cad, len(positions), font_data=font_data, font_license=font_license)
+
+
+def write_package(sheets, images, output_path, total_cad, position_count, *,
+                  font_data=None, font_license=None, heatmaps=2, report_model=None):
+    """Shared validated ODF container; financial tables are supplied by a builder."""
+    names = list(sheets)
+    if font_data is None or font_license is None:
+        font_data, font_license = load_document_font()
     root = ET.Element(tag("office:document-content"),{tag("office:version"):"1.2","xmlns:of":OF})
     font_declarations(root)
     auto=element(root,"office:automatic-styles")
@@ -1019,6 +1042,8 @@ def _build_workbook(payload: dict, output_path: Path, chart_images=None) -> dict
     metadata=element(meta_root,"office:meta")
     element(metadata,"meta:generator",text="Wealth Ledger portable ODS exporter")
     element(metadata,"meta:user-defined",{"meta:name":"report_locale","meta:value-type":"string"},current_context().locale)
+    if report_model:
+        element(metadata,"meta:user-defined",{"meta:name":"report_model","meta:value-type":"string"},report_model)
     manifest=ET.Element(tag("manifest:manifest"),{tag("manifest:version"):"1.2"})
     element(manifest,"manifest:file-entry",{"manifest:full-path":"/","manifest:media-type":MIME,"manifest:version":"1.2"})
     files={"content.xml":xml_bytes(root),"styles.xml":xml_bytes(styles),"settings.xml":xml_bytes(settings_root),"meta.xml":xml_bytes(meta_root)}
@@ -1040,7 +1065,7 @@ def _build_workbook(payload: dict, output_path: Path, chart_images=None) -> dict
         package.writestr("mimetype",MIME,compress_type=zipfile.ZIP_STORED)
         for name,data in files.items(): package.writestr(name,data)
     verify_workbook(output_path,total_cad)
-    return {"path":str(output_path),"sheets":len(sheets),"native_charts":0,"embedded_charts":len(images),"heatmaps":2,"position_count":len(positions),"total_cad":str(total_cad),"chart_hashes":{image.key:hashlib.sha256(image.data).hexdigest() for image in images},"embedded_font":document_font_family(),"font_sha256":hashlib.sha256(font_data).hexdigest(),"runtime_dependencies":"Python standard library for ODS packaging; project matplotlib for chart rendering"}
+    return {"path":str(output_path),"sheets":len(sheets),"native_charts":0,"embedded_charts":len(images),"heatmaps":heatmaps,"position_count":position_count,"total_cad":str(total_cad) if total_cad is not None else None,"chart_hashes":{image.key:hashlib.sha256(image.data).hexdigest() for image in images},"embedded_font":document_font_family(),"font_sha256":hashlib.sha256(font_data).hexdigest(),"runtime_dependencies":"Python standard library for ODS packaging; project matplotlib for chart rendering"}
 
 
 @localized
@@ -1051,6 +1076,7 @@ def verify_workbook(path: Path, expected_cad=None) -> dict:
             raise ValueError("Invalid ODS package mimetype")
         roots={name:ET.fromstring(package.read(name)) for name in package.namelist() if name.endswith(".xml")}
         content=roots["content.xml"]
+        source_model = any(node.get(tag("meta:name")) == "report_model" and node.text == "source-neutral-1" for node in roots["meta.xml"].iter())
         tables=content.findall(".//table:table",NS)
         table_names={table.attrib[tag("table:name")] for table in tables}
         expected_sheets={sheet_title(name) for name in BASE_SHEETS}
@@ -1118,22 +1144,26 @@ def verify_workbook(path: Path, expected_cad=None) -> dict:
             image_hashes[Path(image_path).stem]=hashlib.sha256(data).hexdigest()
         if len(image_paths)!=len(set(image_paths)) or not all(f"Pictures/{key}.png" in image_paths for key in BASELINE_CHART_KEYS):
             raise ValueError("Incomplete or duplicated image chart set")
-        if tr('message.b73b53a54517') in table_names and not all(f"Pictures/{key}.png" in image_paths for key in CRYPTO_CHART_KEYS):
+        if tr('message.b73b53a54517') in table_names and not all(f"Pictures/{key}.png" in image_paths for key in (("17_source_btc_acquisitions","18_source_btc_spending") if source_model else CRYPTO_CHART_KEYS)):
             raise ValueError("Missing embedded bitcoin tracking charts")
         packaged_images={name for name in package.namelist() if name.startswith("Pictures/")}
         if packaged_images!=set(image_paths):
             raise ValueError("Unreferenced embedded chart image")
         overview=next(table for table in tables if table.attrib[tag("table:name")]==tr('message.c7abf421eeb9'))
         total=None
-        for row in overview.findall("table:table-row",NS):
+        found_total=False
+        for row_index,row in enumerate(overview.findall("table:table-row",NS),1):
             cells=row.findall("table:table-cell",NS)
-            if len(cells)>4 and cells[1].attrib.get(tag("office:string-value"))==tr('message.c17b99db2744'):
-                total=Decimal(cells[4].attrib[tag("office:value")])
-        if total is None or expected_cad is not None and abs(total-decimal(expected_cad))>Decimal("0.01"): raise ValueError("Saved workbook total failed")
+            if (not source_model or row_index==7) and len(cells)>4 and cells[1].attrib.get(tag("office:string-value"))==(tr("source_report.observed_subtotal") if source_model else tr('message.c17b99db2744')):
+                found_total=True
+                value=cells[4].get(tag("office:value"))
+                total=Decimal(value) if value is not None else None
+        if not found_total or (total is None and (not source_model or expected_cad is not None)) or (expected_cad is not None and abs(total-decimal(expected_cad))>Decimal("0.01")):
+            raise ValueError("Saved workbook total failed")
         return {"sheets":len(tables),"charts":len(image_paths),"embedded_images":len(image_paths),
                 "native_charts":0,"chart_mode":"embedded_png","chart_hashes":image_hashes,
                 "embedded_font":document_font_family(),"font_sha256":hashlib.sha256(font_data).hexdigest(),
-                "formula_cells":formulas,"total_cad":str(total)}
+                "formula_cells":formulas,"total_cad":str(total) if total is not None else None}
 
 
 if __name__=="__main__":

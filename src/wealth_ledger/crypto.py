@@ -6,9 +6,7 @@ quantities; they are not wallet confirmations or month-end valuations.
 """
 from __future__ import annotations
 
-import csv
 import hashlib
-import io
 import json
 import sqlite3
 from collections import defaultdict
@@ -16,16 +14,11 @@ from datetime import datetime, timezone
 from decimal import Decimal, localcontext
 from pathlib import Path
 
+from .source_formats import (BULL_REQUIRED as REQUIRED, NETWORKS, METHODS,
+    _number, _time, _complete, _account_id, _order_key)
+
 PROVIDER = "bullbitcoin"
-REQUIRED = (
-    "ORDER_ID", "ORDER_TYPE", "PAYIN_AMOUNT", "PAYIN_CURRENCY",
-    "PAYOUT_AMOUNT", "PAYOUT_CURRENCY", "PAYIN_METHOD", "PAYOUT_METHOD",
-    "ORDER_STATUS", "PAYIN_STATUS", "PAYOUT_STATUS", "CREATED_AT (UTC)",
-    "COMPLETED_AT (UTC)", "SENT_AT (UTC)",
-)
 ZERO = Decimal("0")
-NETWORKS = {"BTC": "bitcoin", "LBTC": "liquid"}
-METHODS = {"BTC": "Bitcoin On-Chain", "LBTC": "Liquid Network"}
 IMMUTABLE = (
     "order_type", "payin_amount", "payin_currency", "payout_amount",
     "payout_currency", "payin_method", "payout_method", "network",
@@ -54,46 +47,8 @@ def _json(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
-def _number(value, *, optional=False):
-    if optional and not str(value).strip():
-        return None
-    try:
-        number = Decimal(str(value).strip())
-    except Exception as exc:
-        raise ValueError("Invalid numeric order amount") from exc
-    if not number.is_finite() or number < ZERO:
-        raise ValueError("Order amounts must be finite and nonnegative")
-    return _text(number)
-
-
-def _time(value, *, optional=False):
-    text = str(value).strip()
-    if optional and not text:
-        return None
-    try:
-        result = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ValueError("Invalid order timestamp") from exc
-    if result.tzinfo is None:
-        raise ValueError("Order and valuation timestamps require a time zone")
-    return result.astimezone(timezone.utc).isoformat(timespec="microseconds")
-
-
 def _now():
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
-
-
-def _complete(order):
-    return all(order[key].casefold() == "completed" for key in (
-        "order_status", "payin_status", "payout_status"))
-
-
-def _account_id(source_account):
-    return "crypto_" + _hash((PROVIDER + "\0" + source_account).encode())[:20]
-
-
-def _order_key(source_account, order_id):
-    return "co_" + _hash((PROVIDER + "\0" + source_account + "\0" + order_id).encode())
 
 
 def _assumptions(value):
@@ -110,81 +65,8 @@ def _assumptions(value):
 
 
 def _parse(path, source_account):
-    raw = Path(path).read_bytes()
-    reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
-    fields = reader.fieldnames or []
-    if len(fields) != len(set(fields)) or any(key not in fields for key in REQUIRED):
-        raise ValueError("Missing or duplicate Bull order CSV columns")
-    orders, row_count, duplicate_rows = {}, 0, 0
-    for line, original in enumerate(reader, 2):
-        if None in original or any(value is None for value in original.values()):
-            raise ValueError(f"Malformed Bull order row {line}")
-        row = {key: value.strip() for key, value in original.items()}
-        if not any(row.values()):
-            continue
-        row_count += 1
-        if not row["ORDER_ID"] or any(not row[key] for key in (
-                "ORDER_STATUS", "PAYIN_STATUS", "PAYOUT_STATUS")):
-            raise ValueError(f"Missing order ID or status at row {line}")
-        order_type = row["ORDER_TYPE"]
-        if order_type not in ("Funding", "Buy Bitcoin"):
-            raise ValueError(f"Unsupported Bull order type at row {line}: {order_type}")
-        order = {
-            "order_key": _order_key(source_account, row["ORDER_ID"]),
-            "order_id": row["ORDER_ID"], "order_type": order_type,
-            "order_subtype": row.get("ORDER_SUBTYPE", ""),
-            "payin_amount": _number(row["PAYIN_AMOUNT"]),
-            "payin_currency": row["PAYIN_CURRENCY"].upper(),
-            "payout_amount": _number(row["PAYOUT_AMOUNT"]),
-            "payout_currency": row["PAYOUT_CURRENCY"].upper(),
-            "payin_method": row["PAYIN_METHOD"], "payout_method": row["PAYOUT_METHOD"],
-            "order_status": row["ORDER_STATUS"], "payin_status": row["PAYIN_STATUS"],
-            "payout_status": row["PAYOUT_STATUS"],
-            "created_at": _time(row["CREATED_AT (UTC)"]),
-            "completed_at": _time(row["COMPLETED_AT (UTC)"], optional=True),
-            "sent_at": _time(row["SENT_AT (UTC)"], optional=True),
-            "exchange_rate_amount": _number(row.get("EXCHANGE_RATE_AMOUNT", ""), optional=True),
-            "exchange_rate_currency": row.get("EXCHANGE_RATE_CURRENCY", ""),
-            "index_rate_amount": _number(row.get("INDEX_RATE_AMOUNT", ""), optional=True),
-            "index_rate_currency": row.get("INDEX_RATE_CURRENCY", ""),
-        }
-        if order["payin_currency"] != "CAD":
-            raise ValueError("Only CAD-funded Bull orders are supported")
-        if order_type == "Funding":
-            if order["payout_currency"] != "CAD" or order["payout_method"] != "CAD Balance":
-                raise ValueError("Funding must credit the CAD balance")
-            if Decimal(order["payin_amount"]) != Decimal(order["payout_amount"]):
-                raise ValueError("Funding payin and payout differ; fee treatment requires explicit support")
-            order["network"] = None
-        else:
-            asset = order["payout_currency"]
-            if asset not in NETWORKS or order["payout_method"] != METHODS[asset]:
-                raise ValueError("Unsupported Bitcoin payout currency/network combination")
-            if order["payin_method"] != "CAD Balance":
-                raise ValueError("Buy Bitcoin must debit the CAD balance")
-            order["network"] = NETWORKS[asset]
-            with localcontext() as context:
-                context.prec = 80
-                quantity = Decimal(order["payout_amount"])
-                if quantity != quantity.quantize(Decimal("0.00000001")):
-                    raise ValueError("BTC/LBTC quantities cannot exceed eight decimal places")
-        if _complete(order):
-            if order["completed_at"] is None:
-                raise ValueError("Completed orders require a completion timestamp")
-            if order["completed_at"] < order["created_at"]:
-                raise ValueError("Order completion precedes creation")
-            if Decimal(order["payin_amount"]) <= ZERO or Decimal(order["payout_amount"]) <= ZERO:
-                raise ValueError("Completed order amounts must be positive")
-        key = order["order_key"]
-        if key in orders and orders[key] != order:
-            raise ValueError("Conflicting duplicate order ID within the same CSV")
-        if key in orders:
-            duplicate_rows += 1
-        orders[key] = order
-    if not orders:
-        raise ValueError("Bull order CSV contains no orders")
-    semantic = _hash(_json(sorted(orders.values(), key=lambda item: item["order_key"])).encode())
-    return raw, list(orders.values()), row_count, duplicate_rows, semantic
+    from .source_formats import parse_bull
+    return parse_bull(Path(path).read_bytes(), source_account)
 
 
 def _readonly(project):
@@ -287,6 +169,8 @@ def import_bull_orders(project: Path, csv_path: Path, source_account="bullbitcoi
     The first import requires explicit zero opening assumptions. Reimporting an
     already-seen export is harmless, even after its pending orders completed.
     """
+    from .source_ingestion import require_report_projection
+    require_report_projection(project)
     project, csv_path = Path(project).resolve(), Path(csv_path)
     source_account = str(source_account).strip()
     if not source_account or len(source_account) > 160:

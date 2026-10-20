@@ -11,7 +11,7 @@ import {
   type Models,
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { date, quantity } from "../lib/format";
+import { amount, date, quantity } from "../lib/format";
 import { Button } from "./ui/button";
 const active = new Set(["queued", "running", "data_committed"]);
 const record = (value: unknown): Record<string, unknown> =>
@@ -20,9 +20,45 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 const items = (value: unknown): unknown[] =>
   Array.isArray(value) ? value : [];
+const correctionOptions = (value: FormDataEntryValue | null) => {
+  if (!value) return {};
+  const parsed: unknown = JSON.parse(String(value));
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).some(
+      (key) => !["revisions", "scope_revisions"].includes(key),
+    )
+  )
+    throw new ApiError(422, "invalid_context");
+  return parsed;
+};
+type Binding = {
+  provider: string;
+  source_account_id: string;
+  target_kind: "new" | "canonical" | "legacy_holdings" | "legacy_crypto";
+  ledger_account_id?: string;
+};
 export function Imports({ portfolio }: { portfolio: string }) {
   const { t, label, error, locale } = useI18n();
   const client = useQueryClient();
+  const [parserMode, setParserMode] = useState(true);
+  const [sourceFiles, setSourceFiles] = useState<File[]>([]);
+  const [choices, setChoices] = useState<Binding[]>([]);
+  const [selectedProfiles, setSelectedProfiles] = useState<
+    Record<number, string>
+  >({});
+  const profiles = useQuery({
+    queryKey: [portfolio, "source-import-contexts"],
+    queryFn: ({ signal }) =>
+      read<Models["SourceProfileList"]>(
+        scope(portfolio) + "/source-import-contexts",
+        signal,
+      ),
+    enabled: parserMode,
+  });
+  const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false),
     [failure, setFailure] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
@@ -30,6 +66,10 @@ export function Imports({ portfolio }: { portfolio: string }) {
   // Stable request keys survive uncertain network retries, but not edited input.
   const previewKey = useRef(crypto.randomUUID()),
     confirmKey = useRef(crypto.randomUUID());
+  const uploadedForPreview = useRef<{ key: string; ids: string[] } | null>(
+    null,
+  );
+  const submittedPreview = useRef<{ key: string; body: unknown } | null>(null);
   const jobs = useQuery({
     queryKey: [portfolio, "jobs"],
     queryFn: ({ signal }) =>
@@ -49,12 +89,28 @@ export function Imports({ portfolio }: { portfolio: string }) {
       .sort()
       .join(",") ?? "";
   useEffect(() => {
-    if (publishedIds)
+    if (publishedIds) {
       void client.invalidateQueries({ queryKey: [portfolio, "reports"] });
+      void client.invalidateQueries({
+        queryKey: [portfolio, "source-import-contexts"],
+      });
+    }
   }, [publishedIds, client, portfolio]);
   const job = importJobs.find((job) => job.id === selected) ?? importJobs[0];
   const result = record(job?.result),
     preview = record(result.preview ?? result);
+  useEffect(() => {
+    confirmKey.current = crypto.randomUUID();
+  }, [job?.id]);
+  useEffect(() => {
+    if (preview.status === "mapping_required") {
+      setChoices(
+        items(preview.account_review).map(
+          (value) => record(record(value).suggested_choice) as Binding,
+        ),
+      );
+    }
+  }, [job?.id, preview.status]);
   const metrics = [
     ["row_count", "rowCount"],
     ["account_count", "accountCount"],
@@ -74,17 +130,33 @@ export function Imports({ portfolio }: { portfolio: string }) {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const requestKey = previewKey.current;
     setBusy(true);
     setFailure("");
     try {
-      const uploaded: string[] = [];
-      for (const kind of ["csv", "fx", "price", "opening"])
-        for (const value of form.getAll(kind)) {
-          if (value instanceof File && value.size)
-            uploaded.push((await upload(portfolio, value, kind)).id);
-        }
+      let uploaded =
+        uploadedForPreview.current?.key === requestKey
+          ? uploadedForPreview.current.ids
+          : null;
+      if (!uploaded) {
+        uploaded = [];
+        for (const kind of ["csv", "fx", "price", "opening"])
+          for (const value of form.getAll(kind)) {
+            if (value instanceof File && value.size)
+              uploaded.push(
+                (
+                  await upload(
+                    portfolio,
+                    value,
+                    parserMode && kind === "csv" ? "source_csv" : kind,
+                  )
+                ).id,
+              );
+          }
+        uploadedForPreview.current = { key: requestKey, ids: uploaded };
+      }
       const balance = String(form.get("balance") ?? "").trim();
-      const body = {
+      const nativeBody = {
         upload_ids: uploaded,
         kind: form.get("kind"),
         render_saved: form.get("render_saved") === "on",
@@ -97,17 +169,72 @@ export function Imports({ portfolio }: { portfolio: string }) {
           : {}),
         ...(form.get("as_of") ? { as_of: form.get("as_of") } : {}),
       };
+      const body = parserMode
+        ? {
+            upload_ids: uploaded,
+            kind: form.get("kind"),
+            bindings: choices,
+            context_options: sourceFiles.map((_, index) => ({
+              ...(selectedProfiles[index]
+                ? { profile_id: selectedProfiles[index] }
+                : {
+                    ...(form.get(`alias-${index}`)
+                      ? { account_alias: form.get(`alias-${index}`) }
+                      : {}),
+                    ...(form.get(`timezone-${index}`)
+                      ? { source_timezone: form.get(`timezone-${index}`) }
+                      : {}),
+                  }),
+              ...correctionOptions(form.get(`correction-${index}`)),
+            })),
+            selections: Object.fromEntries(
+              sourceFiles
+                .map((_, index) => [
+                  String(index + 1),
+                  String(form.get(`adapter-${index}`) ?? "").trim(),
+                ])
+                .filter(([, value]) => value),
+            ),
+            reference_policy:
+              form.get("fetch_references") === "on"
+                ? "fetch_public"
+                : "saved_only",
+            ...(balance
+              ? {
+                  balance: {
+                    quantity_btc: balance,
+                    as_of: form.get("observed"),
+                    source: "Browser balance observation",
+                  },
+                }
+              : {}),
+            ...(form.get("as_of") ? { as_of: form.get("as_of") } : {}),
+          }
+        : nativeBody;
+      // Background review suggestions cannot change an uncertain request retry.
+      const requestBody =
+        submittedPreview.current?.key === requestKey
+          ? submittedPreview.current.body
+          : body;
+      submittedPreview.current = { key: requestKey, body: requestBody };
       await refresh(
         await mutate<Job>(
-          scope(portfolio) + "/previews",
-          body,
+          scope(portfolio) +
+            (parserMode ? "/source-import-previews" : "/previews"),
+          requestBody,
           "POST",
-          previewKey.current,
+          requestKey,
         ),
       );
     } catch (reason) {
       if (!(reason instanceof DOMException && reason.name === "AbortError"))
-        setFailure(reason instanceof ApiError ? reason.code : "request_failed");
+        setFailure(
+          reason instanceof ApiError
+            ? reason.code
+            : reason instanceof SyntaxError
+              ? "invalid_context"
+              : "request_failed",
+        );
     } finally {
       setBusy(false);
     }
@@ -116,11 +243,21 @@ export function Imports({ portfolio }: { portfolio: string }) {
     setBusy(true);
     setFailure("");
     try {
+      const currentResult = record(current.result);
+      const currentPreview = record(currentResult.preview ?? currentResult);
       const value =
         kind === "confirm"
           ? await mutate<Job>(
-              scope(portfolio) + "/jobs",
-              { preview_id: current.id },
+              scope(portfolio) +
+                (typeof currentPreview.approval_sha256 === "string"
+                  ? "/source-reports"
+                  : "/jobs"),
+              {
+                preview_id: current.id,
+                ...(typeof currentPreview.approval_sha256 === "string"
+                  ? { approval_sha256: currentPreview.approval_sha256 }
+                  : {}),
+              },
               "POST",
               confirmKey.current,
             )
@@ -138,7 +275,28 @@ export function Imports({ portfolio }: { portfolio: string }) {
       <section className="panel">
         <h2>{t("uploadTitle")}</h2>
         <p className="muted">{t("uploadHint")}</p>
-        <form className="import-form" onSubmit={submit} onChange={changed}>
+        <form
+          ref={formRef}
+          className="import-form"
+          onSubmit={submit}
+          onChange={changed}
+        >
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={parserMode}
+              onChange={(event) => {
+                setParserMode(event.target.checked);
+                setChoices([]);
+                setSelectedProfiles({});
+              }}
+            />
+            {t("parserMode")}
+          </label>
+          {parserMode && <p className="muted">{t("parserModeHint")}</p>}
+          {parserMode && profiles.isError && (
+            <p role="alert">{t("contextLoadFailed")}</p>
+          )}
           <label className="file-drop">
             {t("evidenceFiles")}
             <input
@@ -148,9 +306,79 @@ export function Imports({ portfolio }: { portfolio: string }) {
               accept=".csv,text/csv"
               multiple
               disabled={busy}
+              onChange={(event) => {
+                setSourceFiles(Array.from(event.target.files ?? []));
+                setChoices([]);
+                setSelectedProfiles({});
+              }}
             />
-            <small>Wealthsimple / Bull Bitcoin · CSV ≤ 10 MiB</small>
+            <small>
+              {parserMode ? t("enabledParsers") : "Wealthsimple / Bull Bitcoin"}{" "}
+              · CSV ≤ 10 MiB
+            </small>
           </label>
+          {parserMode &&
+            sourceFiles.map((file, index) => (
+              <fieldset key={`${file.name}-${index}`}>
+                <legend>{file.name}</legend>
+                <div className="form-grid">
+                  <label>
+                    {t("sourceProfile")}
+                    <select
+                      value={selectedProfiles[index] ?? ""}
+                      onChange={(event) => {
+                        setSelectedProfiles((old) => ({
+                          ...old,
+                          [index]: event.target.value,
+                        }));
+                      }}
+                    >
+                      <option value="">{t("manualContext")}</option>
+                      {profiles.data?.profiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.label} · {profile.adapter_id}{" "}
+                          {profile.options.source_timezone ?? ""}{" "}
+                          {profile.options.format_selection ?? ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {t("sourceAlias")}
+                    <input
+                      name={`alias-${index}`}
+                      maxLength={160}
+                      disabled={Boolean(selectedProfiles[index])}
+                    />
+                  </label>
+                  <label>
+                    {t("sourceTimezone")}
+                    <input
+                      name={`timezone-${index}`}
+                      disabled={Boolean(selectedProfiles[index])}
+                      placeholder="America/Toronto"
+                    />
+                  </label>
+                  <label>
+                    {t("sourceAdapter")}
+                    <input name={`adapter-${index}`} />
+                  </label>
+                </div>
+                <details>
+                  <summary>{t("correctionContext")}</summary>
+                  <p className="muted">{t("correctionContextHint")}</p>
+                  <label>
+                    {t("revisionParents")}
+                    <textarea
+                      name={`correction-${index}`}
+                      rows={4}
+                      maxLength={65536}
+                      placeholder='{"revisions":[],"scope_revisions":[]}'
+                    />
+                  </label>
+                </details>
+              </fieldset>
+            ))}
           <div className="form-grid">
             <label>
               {t("kind")}
@@ -180,14 +408,25 @@ export function Imports({ portfolio }: { portfolio: string }) {
               <input name="observed" placeholder="2026-10-17T18:00:00-04:00" />
             </label>
           </div>
-          <label className="check-label">
-            <input type="checkbox" name="render_saved" />
-            {t("renderSaved")}
-          </label>
+          {parserMode && (
+            <label className="check-label">
+              <input type="checkbox" name="fetch_references" />
+              {t("fetchPublicReferences")}
+            </label>
+          )}
+          {!parserMode && (
+            <label className="check-label">
+              <input type="checkbox" name="render_saved" />
+              {t("renderSaved")}
+            </label>
+          )}
           <details>
             <summary>{t("references")}</summary>
             <div className="form-grid">
-              {(["fx", "price", "opening"] as const).map((kind) => (
+              {(parserMode
+                ? (["fx", "price"] as const)
+                : (["fx", "price", "opening"] as const)
+              ).map((kind) => (
                 <label key={kind}>
                   {t(
                     kind === "fx"
@@ -205,7 +444,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
                 </label>
               ))}
             </div>
-            <p className="muted">{t("openingHint")}</p>
+            {!parserMode && <p className="muted">{t("openingHint")}</p>}
           </details>
           <Button type="submit" disabled={busy}>
             {busy ? t("loading") : t("preview")}
@@ -244,6 +483,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
                   String(
                     preview.valuation_as_of ??
                       result.valuation_as_of ??
+                      record(result.preparation).valuation_as_of ??
                       job.execution_at,
                   ),
                   locale,
@@ -254,6 +494,154 @@ export function Imports({ portfolio }: { portfolio: string }) {
           {job.error_code && (
             <p role="alert" className="error">
               {error(job.error_code)} <code>{job.error_code}</code>
+            </p>
+          )}
+          {items(preview.account_review).length > 0 && (
+            <section>
+              <h3>{t("accountMappingReview")}</h3>
+              <p className="muted">{t("sourceApprovalHint")}</p>
+              {items(preview.account_review).map((value, index) => {
+                const account = record(value),
+                  choice = record(account.suggested_choice);
+                return (
+                  <div className="preview-source" key={index}>
+                    <strong>{String(account.label ?? "")}</strong>
+                    <span>
+                      {String(account.provider ?? choice.provider ?? "")} ·{" "}
+                      {String(
+                        account.source_account_id ??
+                          choice.source_account_id ??
+                          "",
+                      )}
+                    </span>
+                    <span>
+                      {String(account.target_kind ?? choice.target_kind ?? "")}{" "}
+                      ·{" "}
+                      {String(
+                        account.ledger_account_id ??
+                          choice.ledger_account_id ??
+                          "",
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </section>
+          )}
+          {preview.status === "mapping_required" && (
+            <p className="muted">{t("sourceMappingRequired")}</p>
+          )}
+          {parserMode &&
+            preview.status === "mapping_required" &&
+            choices.map((choice, index) => (
+              <div
+                className="form-grid"
+                key={`${choice.provider}-${choice.source_account_id}`}
+              >
+                <label>
+                  {choice.provider} · {choice.source_account_id}
+                  <select
+                    aria-label={`${t("mappingDestination")} ${index + 1}`}
+                    value={choice.target_kind}
+                    onChange={(event) => {
+                      setChoices((old) =>
+                        old.map((value, row) =>
+                          row === index
+                            ? {
+                                ...value,
+                                target_kind: event.target
+                                  .value as Binding["target_kind"],
+                                ...(event.target.value === "new"
+                                  ? { ledger_account_id: undefined }
+                                  : {}),
+                              }
+                            : value,
+                        ),
+                      );
+                      changed();
+                    }}
+                  >
+                    {(
+                      [
+                        "new",
+                        "canonical",
+                        "legacy_holdings",
+                        "legacy_crypto",
+                      ] as const
+                    ).map((kind) => (
+                      <option key={kind} value={kind}>
+                        {t(`mapping.${kind}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {choice.target_kind !== "new" && (
+                  <label>
+                    {t("ledgerAccountId")}
+                    <input
+                      value={choice.ledger_account_id ?? ""}
+                      onChange={(event) => {
+                        setChoices((old) =>
+                          old.map((value, row) =>
+                            row === index
+                              ? {
+                                  ...value,
+                                  ledger_account_id: event.target.value,
+                                }
+                              : value,
+                          ),
+                        );
+                        changed();
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            ))}
+          {parserMode && preview.status === "mapping_required" && (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                changed();
+                formRef.current?.requestSubmit();
+              }}
+            >
+              {t("previewMappings")}
+            </Button>
+          )}
+          {preview.status === "reference_required" && (
+            <p className="muted">
+              {t("referencesRequired")}{" "}
+              {items(preview.missing_references).join(" · ")}
+            </p>
+          )}
+          {Object.keys(record(result.preparation)).length > 0 && (
+            <p className="muted">
+              {t("sourcePreparation")} ·{" "}
+              {date(String(record(result.preparation).valuation_as_of), locale)}{" "}
+              · {label(String(record(result.preparation).valuation_policy))}
+            </p>
+          )}
+          {Object.keys(record(preview.observed_totals)).length > 0 && (
+            <p className="muted">
+              {t("observedSubtotalHint")}{" "}
+              {(["CAD", "USD", "TWD"] as const)
+                .map((unit) =>
+                  amount(
+                    typeof record(preview.observed_totals)[
+                      `total_${unit.toLowerCase()}`
+                    ] === "string"
+                      ? String(
+                          record(preview.observed_totals)[
+                            `total_${unit.toLowerCase()}`
+                          ],
+                        )
+                      : null,
+                    unit,
+                    locale,
+                  ),
+                )
+                .join(" · ")}
             </p>
           )}
           {Object.keys(record(preview.sources)).length > 0 && (
@@ -304,6 +692,13 @@ export function Imports({ portfolio }: { portfolio: string }) {
                 .join(" · ")}
             </p>
           )}
+          {record(preview.balance).quantity_btc != null && (
+            <p>
+              {t("btcQuantity")}:{" "}
+              {quantity(String(record(preview.balance).quantity_btc))} BTC ·{" "}
+              {date(String(record(preview.balance).as_of), locale)}
+            </p>
+          )}
           {record(preview.btc).quantity_btc != null && (
             <p>
               {t("btcQuantity")}:{" "}
@@ -338,17 +733,20 @@ export function Imports({ portfolio }: { portfolio: string }) {
           )}
           <p className="muted">{t("previewHint")}</p>
           <div className="actions">
-            {job.kind === "preview" && job.status === "ready" && (
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  confirmKey.current = crypto.randomUUID();
-                  setConfirming(true);
-                }}
-              >
-                {t("confirm")}
-              </Button>
-            )}
+            {job.kind === "preview" &&
+              job.status === "ready" &&
+              preview.status !== "mapping_required" &&
+              preview.status !== "reference_required" && (
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    confirmKey.current = crypto.randomUUID();
+                    setConfirming(true);
+                  }}
+                >
+                  {t("confirm")}
+                </Button>
+              )}
             {job.status === "queued" && (
               <Button
                 variant="secondary"

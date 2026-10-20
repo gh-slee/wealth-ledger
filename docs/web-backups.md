@@ -26,7 +26,7 @@ The data form exports CSV or JSON from the selected saved report:
 Ranges do not query later reports, reconstruct missing observations, infer
 contributions or select every ledger revision. Daily date boundaries use the
 recorded report date in the project's Toronto timezone; BTC monthly boundaries
-include the entire selected months. JSON contains scope, cutoff, completeness,
+include the entire selected months. JSON contains scope, cutoff, verification basis, completeness,
 range metadata and rows, preserving nulls and decimal strings. CSV repeats context
 columns, uses UTF-8 BOM and leaves unknown values empty. Numeric values retain
 precision; text beginning with spreadsheet formula syntax is prefixed with an
@@ -160,8 +160,10 @@ backup. The instance marker is installed last; a process crash before that point
 leaves an incomplete target that must not be served. Retry into another empty target.
 
 Restore revokes all saved sessions and clears login budgets. Existing username and
-password hash are retained: sign in again with the same owner password. Old previews
-expire; generate a new preview. Queued confirmed work retains its stable IDs, and
+password hash are retained: sign in again with the same owner password. Old financial and nonbooking source-plan previews
+expire; generate a new preview. Private `admin/source-parsers.json`, source uploads
+and plan receipts are preserved, but restore does not install/load plugin packages.
+Use a verified matching environment and create a fresh plan before parser work. Queued confirmed work retains its stable IDs, and
 interrupted jobs are reconciled from durable core markers on worker startup. A
 proven committed operation resumes reporting; uncertain work stays `needs_review`.
 There is no automatic CSV reimport or financial recalculation during restoration.
@@ -194,10 +196,10 @@ marker, not financial records, archives, reports or unknown legacy update locks.
 An initialization/upgrade/password-reset command also honors maintenance.
 
 Version-one bounds: 100,000 files/directories/links, 8 GiB total expanded file content, 2 GiB per file,
-16 MiB manifest and a 300-second maximum drain timeout. Disk quotas, broad crash/
-resource testing and wider platform acceptance remain WEB-007. Synthetic native and
-Docker acceptance are described in the tests; Windows-specific restore/symlink
-acceptance is pending. There is no automatic encryption, scheduling or remote storage.
+16 MiB manifest and a 300-second maximum drain timeout. Capacity/crash acceptance
+and the upgrade/rollback runbook are documented in [operations acceptance](web-release-acceptance.md).
+Broader host distribution and Windows-specific restore/symlink acceptance remain
+separate platform gates under WEB-008. There is no automatic encryption, scheduling or remote storage.
 
 Implementation references: [SQLite backup API](https://docs.python.org/3.12/library/sqlite3.html#sqlite3.Connection.backup)
 and [ZIP extraction warnings](https://docs.python.org/3.12/library/zipfile.html#zipfile.ZipFile.extractall).
@@ -206,3 +208,72 @@ Upgrade/rollback order, resource failures and current platform acceptance are in
 [the operations runbook](web-release-acceptance.md). Interrupted upgrade cleanup
 validates the instance identity without requiring the newer schema; it does not
 upgrade or rewrite financial data merely to clear the maintenance barrier.
+
+Recognized older publications can be adopted explicitly with separate
+[migration-time evidence](web-legacy-reports.md). Legacy ZIPs add a verification
+attachment while preserving the original manifest/report bytes. Full backup/restore
+retains and checks the private receipt and its binding to report/artifact registrations.
+
+## Canonical source-v2 foundation
+
+[SRC-004A](source-ingestion.md) uses additional tables in each portfolio's existing
+SQLite database and hashed CSV/JSON/binding evidence in `data/raw/source-v2/`.
+Backup and CLI adoption validate decoded facts/scopes/effects against these archives.
+Restore retains them without loading/installing a parser. Current report projection
+gates remain in force; frozen historical publications still work. Synthetic native
+and Docker acceptance include a full backup to an empty instance/volume.
+
+## Frozen source submissions
+
+Full backups also preserve `admin/source-submissions` bundles and canonical source
+facts/operation receipts. Restore expires source-ingestion previews and marks pending
+source confirmations `needs_review`, so an old workspace-bound approval never runs
+automatically at a new root. Already recorded source jobs retain their receipts;
+receipt recovery strictly verifies archived canonical evidence without plugins.
+Unstarted or matching failed jobs may be explicitly discarded in job metadata;
+financial audit rows and frozen evidence remain. Ambiguous/committed operations
+cannot be discarded as unstarted. Native and Docker acceptance cover real isolated
+API confirmation followed by full backup and fresh empty-volume restore. See the
+[submission recovery contract](source-ingestion.md#frozen-submission-and-recovery-src-004b2).
+
+CLI frozen-preview writes against a Web-managed portfolio also enter the instance
+activity barrier before parsing or saving metadata. Active backup/upgrade maintenance
+blocks them, preventing a partially saved bundle from entering a full snapshot.
+
+
+## Derived source valuation editions
+
+C3B adds portfolio-local `source_report_observations`, hashed JSON under
+`data/raw/source-valuations/` and ordinary operation receipts. Full backups preserve
+these with the same maintenance barrier. Backup/restore and copy-adoption validation
+also reject a database/archive mismatch before accepting the instance. Synthetic Docker acceptance freezes
+canonical-only and mixed legacy/canonical valuations and checks identical verified
+payload hashes after restoration to an empty volume. Reading restored IDs never
+reprices historical editions or runs a parser. Derived development valuations alone
+do not register reports or migrate a real workspace; use the publication workflow.
+
+
+## Frozen source report publications
+
+C3C1 also retains `data/raw/source-publications/` and operation-bound checksummed
+report bundles. Backup and copy-adoption validation verifies the frozen payload
+against its original derived valuation and publication bytes. Native and Docker
+acceptance preserve these with original reports during full empty-target restore.
+Published-ID verification resolves the bundle under the restored root, never
+revalues it or trusts a former host's absolute output path. Opt-in CLI publications
+are not automatically browser report-library entries; Web jobs register their own
+verified publications through the implemented default workflow. See [the workflow contract](source-projections.md#frozen-source-report-publication-src-004c3c1).
+
+Source-report Web jobs (C3C2A) also retain the normal library/artifact registration.
+A restored unstarted source-report update becomes `needs_review`; it cannot apply
+an approval bound to the former workspace. Proven committed report-only work stays
+recoverable even when its preview directory is absent. Native and B2 restore rules
+are unchanged. [The source-report protocol](web-imports.md#opt-in-source-report-publication-src-004c3c2a)
+distinguishes those cases and preserves original frozen reports.
+
+
+Full empty-target acceptance also preserves confirmed reusable source contexts,
+canonical investment `manual_cash_flows`, their original CSV/foreign-key links and
+coverage declarations alongside native, adopted and source report editions. The
+restored API exposes the same contexts, dated amounts and frozen report data. This
+is synthetic acceptance, not evidence that an operator's private instance migrated.

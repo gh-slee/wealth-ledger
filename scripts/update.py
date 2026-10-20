@@ -12,8 +12,8 @@ from wealth_ledger.application import ApplicationService
 
 def main():
     parser = make_parser(PROJECT, description=__doc__)
-    parser.add_argument("files", nargs="*", type=Path, help="One Wealthsimple or Bull CSV, or one of each; formats are detected automatically")
-    parser.add_argument("--input", type=Path, help="CSV input alias; Wealthsimple or Bull format is detected automatically")
+    parser.add_argument("files", nargs="*", type=Path, help="Financial CSV exports; enabled trusted parsers are the default; --native-import selects the legacy compatibility path")
+    parser.add_argument("--input", type=Path, help="Alias for one financial CSV input; detection follows the selected import mode")
     parser.add_argument("--kind", choices=["baseline", "monthly", "interim"], default="monthly")
     parser.add_argument("--fx-file", type=Path, help="Verified six-field exchange-rate JSON override")
     parser.add_argument("--snapshot-id", type=int)
@@ -32,11 +32,23 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Offline input preview in a disposable project; never commit or publish")
     parser.add_argument("--json", action="store_true", help="Print machine-readable dry-run JSON instead of the Traditional Chinese summary")
     parser.add_argument("--btc-cost-policy", choices=("actual_only", "bull_average_proxy"), help="Explicit BTC report cost policy; defaults to private local setting or actual_only")
+    from wealth_ledger.source_import_cli import add_arguments
+    add_arguments(parser)
     args = parser.parse_args()
     service = ApplicationService(parser.workspace)
     selected_locale = parser.locale
     paths=[*args.files,*([args.input] if args.input else []),*([args.bull_input] if args.bull_input else [])]
     modes = sum(bool(x) for x in (args.resume_operation, args.list_operations, args.show_operation))
+    if args.source_parsers and modes:
+        parser.error("Parser preparation cannot be combined with operation query/resume")
+    if args.native_import and (args.source_parsers or args.confirm_source_preview):
+        parser.error("Choose the default parser workflow or --native-import, not both")
+    if args.confirm_source_preview or not modes and not args.native_import:
+        from wealth_ledger.source_import_cli import run
+        return run(args, service, paths, selected_locale, parser)
+    if any((args.plan_directory,args.source_bindings,args.source_context,args.source_config,args.source_select,
+            args.source_period_start,args.fetch_source_references,args.approval_sha256,args.source_profile,args.list_source_profiles)):
+        parser.error("Source options cannot be combined with native/query/resume modes")
     new_input = bool(paths or args.btc_balance is not None or args.btc_balance_as_of or args.btc_balance_source)
     special = bool(args.snapshot_id is not None or args.fx_file or args.bull_opening_file or args.btc_price_file
                    or args.valuation_as_of or args.wealthsimple_only or args.lookthrough_run_id is not None

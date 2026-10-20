@@ -1,5 +1,6 @@
 """Read selected registered publications; viewing never imports, values or renders."""
 from contextlib import closing
+from datetime import datetime
 import json
 from typing import Literal
 
@@ -27,6 +28,7 @@ class ReportSummary(ViewModel):
     id: str
     valuation_as_of: str
     published_at: float
+    verification_basis: Literal["publication_manifest", "migration_capture"] = "publication_manifest"
     artifacts: list[Artifact]
 
 
@@ -57,6 +59,11 @@ class Holding(ViewModel):
     security_type: str
     currency: str
     quantity: str | None = None
+    source_provider: str | None = None
+    observed_as_of: str | None = None
+    source_id: str | None = None
+    source_revision: str | None = None
+    observation_id: str | None = None
     avg_cost: str | None = None
     book_native: str | None = None
     unrealized_native: str | None = None
@@ -75,6 +82,8 @@ class SourceDate(ViewModel):
 
 
 class Observation(ViewModel):
+    snapshot_id: int | None = None
+    revision: int | None = None
     as_of: str
     kind: str
     is_complete: bool
@@ -119,6 +128,7 @@ class ReportView(ViewModel):
     is_complete: bool
     data_status: str | None
     source_dates: list[SourceDate]
+    source_basis: dict[str, JsonValue] | None = None
     totals: dict[str, str | None]
     fx: dict[str, str | None]
     accounts: list[Account]
@@ -149,7 +159,10 @@ class Publications:
             files = conn.execute("SELECT * FROM artifacts WHERE portfolio_id=? AND report_id=? ORDER BY relative_path",
                                  (row["portfolio_id"], row["id"])).fetchall()
         result = json.loads(row["result_json"])
-        return {"id": row["id"], "valuation_as_of": result["valuation_as_of"], "published_at": row["updated_at"],
+        from .report_evidence import legacy_evidence
+        verification = legacy_evidence(self.store,row["portfolio_id"],row["id"]) if result.get("adopted") is True else None
+        return {"id": row["id"], "valuation_as_of": result["valuation_as_of"], "published_at": datetime.fromisoformat(verification["evidence"]["published_at"]).timestamp() if verification else row["updated_at"],
+                "verification_basis": "migration_capture" if verification is not None else "publication_manifest",
                 "artifacts": [{"id": file["id"], "filename": PurePosixPath(file["relative_path"]).name,
                                **{key: file[key] for key in ("media_type", "byte_size", "sha256")}} for file in files]}
 
@@ -190,6 +203,9 @@ class Publications:
             from ..i18n import display_payload, presentation_context, legacy_text
             with presentation_context(locale):
                 data = display_payload(data)
+                if data["meta"].get("report_model") == "source-neutral-1":
+                    from .source_report_views import source_view
+                    return ReportView.model_validate(source_view(data, summary, locale)).model_dump()
                 meta, crypto, analysis = data["meta"], data.get("crypto"), data.get("lookthrough", {})
                 updates = meta.get("source_updates") or {}
                 sources = []

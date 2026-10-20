@@ -4,6 +4,12 @@ Open **Financial records** after signing in and selecting a portfolio. These for
 use the same Python validators, locks, database backups and append-only records as
 the CLI. They do not require an LLM, wallet login, broker credentials or LibreOffice.
 
+With canonical source batches, BTC opening/balance/event declarations use the same
+verified, identity-deduplicated compatibility model as CLI queries. Declarations do
+not themselves publish reports. Use the separate default parser preview/confirmation
+workflow to generate a new frozen report. Existing frozen reports are still readable. See the
+[source-aware declaration contract](source-projections.md#source-aware-btc-declarations-src-004c3a).
+
 ## Save data, then prepare a report
 
 1. Choose a task and enter evidence with its actual dates. BTC fields mean units of
@@ -15,7 +21,8 @@ the CLI. They do not require an LLM, wallet login, broker credentials or LibreOf
 4. Select **Confirm and save declaration**, then confirm the dialog. The worker
    backs up the database and commits the data and completion marker atomically.
    **Saved; report unchanged** means the declaration is recorded, not published.
-5. Refresh records to inspect the current value and revision history. Follow
+5. Refresh records to inspect the current value and revision history. For a native
+   workspace, follow
    **Prepare report** to **Import & jobs**, select **Prepare a report from saved
    data (no new CSV required)**, then preview and confirm a new report. Supply
    reference JSON if needed, or new CSVs when available.
@@ -42,7 +49,7 @@ states require trusted host review and are never automatically repeated.
 | All-wallet BTC total | Nonnegative total, explicit observation time with UTC offset, source | Adds a stable balance ID (`B000001`, etc.); establishes a user-reported anchor |
 | BTC event | Positive quantity, type, explicit event time/offset, source, unique reference | Adds an event ID (`E000002`, etc.); applies the core event sign |
 | Correct, void or link a BTC record | Active record, displayed expected revision, reason and action | Appends a revision; never overwrites or deletes the original |
-| Pre-Bull opening quantity | Imported Bull orders, total at a reference time, declaration date, basis, confirming person | Explicitly freezes total minus included purchases as pre-Bull quantity |
+| Pre-tracking BTC opening quantity | Imported acquisition records, total at a reference time, declaration date, basis, confirming person | Freezes total minus net acquisitions and applicable known events; actual historical cost remains unknown |
 
 A total alone is sufficient for a balance declaration. CSVs and an explanation are
 optional. If the total differs from the ledger, the observed total is retained and
@@ -64,11 +71,14 @@ links and conflicting references fail validation. Details show original/current
 revisions, expected and unexplained quantities; an evidence checksum match is not
 independent verification of a wallet balance.
 
-A pre-Bull opening declaration is distinct from the zero/other opening assumption
-required by the first Bull import. It freezes a user-attributed quantity once and
+A pre-tracking opening declaration is distinct from the explicit zero opening
+assumption required by the native first Bull import. It freezes a user-attributed quantity once and
 retains unknown actual cost/contributions. Later balances or CSVs do not recalculate
 it. Correcting it requires the current opening revision (zero for the first declaration),
 a new declared total and an explicit basis. This does not create historical purchases.
+Canonical opening previews also show signed known events at the reference time,
+so the total, acquisitions, events and opening quantity can be reconciled. Unknown
+expected quantities, actual costs and historical contributions display as Unknown.
 The optional cost proxy remains a separate, explicitly selected reporting policy.
 
 ## Contributions and other brokerage cash flows
@@ -143,3 +153,14 @@ reject extra fields and browser host paths. Mutations require the existing CSRF 
 same-origin controls. Reading records never publishes reports or extends idle login.
 The browser retains no persistent financial cache; changing portfolio/authentication
 cancels in-flight requests. Complete history remains in the ledger and private backups.
+
+
+## Canonical investment account declarations
+
+The account picker and `cash_flows.py accounts` include verified `src_` investment
+accounts, as well as original `a_` identities. The same date-only CAD/USD declaration
+and explicit coverage validation applies. Source funding/crypto roles are not exposed
+as ordinary contribution accounts. Original raw CSV, table foreign keys, cross-store
+ID conflicts and replay verification preserve attribution. See [source account flow rules](source-projections.md#dated-contributions-for-source-accounts).
+Declaring a flow does not reprice or rewrite an existing report; prepare a new report
+from saved facts. Complete account-period coverage is not proof of complete wealth.

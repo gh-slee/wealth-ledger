@@ -11,7 +11,7 @@ permissions:
 jobs:
   python-312-linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       PYTHONUTF8: "1"
       PYTHONDONTWRITEBYTECODE: "1"
@@ -102,3 +102,43 @@ jobs:
           cmp frontend/src/lib/schema.d.ts work/web-schema.d.ts
       - run: cd frontend && npx playwright install --with-deps chromium
       - run: npm --prefix frontend run test:e2e
+      - name: Show bounded synthetic browser failure context
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for path in sorted(Path("frontend/test-results").glob("*/error-context.md"))[:4]:
+              print(path.as_posix())
+              print(path.read_text(encoding="utf-8")[:16384])
+          PY
+
+  parser-sdk-packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Build audited source distribution, core wheel and independent example
+        run: |
+          python -m venv .venv-build
+          .venv-build/bin/python -m pip install -r requirements-build.lock
+          .venv-build/bin/python -m build --no-isolation --outdir work/sdk-dist
+          .venv-build/bin/python -m build --wheel --no-isolation examples/parser-plugin --outdir work/sdk-dist
+      - name: Install and verify outside the source checkout
+        run: |
+          python -m venv .venv-sdk
+          .venv-sdk/bin/python -m pip install -r requirements-web-test.lock
+          .venv-sdk/bin/python -m pip install --no-index --no-deps work/sdk-dist/*.whl
+          python scripts/check_packages.py --artifacts work/sdk-dist --python .venv-sdk/bin/python
+      - name: Verify the plugin in an immutable source image
+        run: |
+          python scripts/docker_context.py --output work/sdk-image-context
+          docker build --tag wealth-ledger-sdk-base:test work/sdk-image-context
+          python scripts/check_plugin_image.py --base-image wealth-ledger-sdk-base:test --wheel work/sdk-dist/wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl

@@ -339,6 +339,8 @@ class Store:
             raise WebError(404, "not_found", "Artifact not found")
         if not row["relative_path"].startswith(("reports/", "data/raw/")):
             raise WebError(409, "artifact_integrity", "Artifact integrity check failed")
+        from .report_evidence import legacy_evidence
+        legacy_evidence(self, portfolio_id, row["report_id"])
         path = contained(project, row["relative_path"])
         if not path.is_file() or path.stat().st_size > MAX_ARTIFACT_BYTES:
             raise WebError(409, "artifact_integrity", "Artifact integrity check failed")

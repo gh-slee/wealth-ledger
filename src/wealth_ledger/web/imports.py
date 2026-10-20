@@ -80,6 +80,12 @@ def upload_view(row):
 
 
 def install_import_routes(app, store, auth, require_owner):
+    from .source_plans import install_source_plan_routes
+    install_source_plan_routes(app, store, auth, require_owner)
+    from .source_submissions import install_routes
+    install_routes(app, store, auth, require_owner)
+    from .source_reports import install_routes as install_source_report_routes
+    install_source_report_routes(app, store, auth, require_owner)
     jobs = Jobs(store)
     prefix = "/api/v1/portfolios/{portfolio_id}"
 
@@ -88,7 +94,7 @@ def install_import_routes(app, store, auth, require_owner):
 
     @app.post(prefix + "/uploads", status_code=201, response_model=UploadView)
     async def upload(portfolio_id: str, request: Request,
-                     kind: Literal["csv", "fx", "price", "opening", "cash_flows"] = Query(default="csv"),
+                     kind: Literal["csv", "fx", "price", "opening", "cash_flows", "source_csv"] = Query(default="csv"),
                      filename: str = Query(default="source.csv", min_length=1, max_length=160),
                      owner=Depends(require_owner)):
         row = await receive_upload(store, portfolio_id, request, kind, filename, owner["owner_id"])
