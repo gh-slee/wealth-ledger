@@ -110,6 +110,12 @@ private migration is **not automatic**; use the explicit [copy-verified adoption
 
 ### Optional browser application
 
+Open **Analysis reports** for the complete saved report and same-page PDF, ODS,
+Markdown, ZIP and dataset downloads. Use its contents and grouped history to read
+an earlier edition. **Appearance** supports system, light and dark themes. See the
+[report reading guide](web-analysis-reports.md) for exact language, date and scope
+semantics; an output edition is not another financial snapshot.
+
 The optional Web API supports independent portfolios, bounded source uploads,
 offline preview, explicit confirmation and durable report jobs. The React interface
 adds analysis, charts and a report library; see [the browser guide](web-frontend.md).

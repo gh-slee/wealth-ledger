@@ -535,6 +535,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portfolios/{portfolio_id}/reports/{report_id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Document */
+        get: operations["document_api_v1_portfolios__portfolio_id__reports__report_id__document_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolios/{portfolio_id}/reports/{report_id}/bundle.zip": {
         parameters: {
             query?: never;
@@ -891,6 +908,36 @@ export interface components {
             /** Equity Weight */
             equity_weight: string | null;
         };
+        /** DocumentBlock */
+        DocumentBlock: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paragraph" | "subheading" | "table" | "chart";
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /** Headers */
+            headers?: string[];
+            /** Rows */
+            rows?: string[][];
+            /** Artifact Id */
+            artifact_id?: string | null;
+            /** Filename */
+            filename?: string | null;
+        };
+        /** DocumentSection */
+        DocumentSection: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Blocks */
+            blocks: components["schemas"]["DocumentBlock"][];
+        };
         /** ErrorDetail */
         ErrorDetail: {
             /** Code */
@@ -1202,6 +1249,29 @@ export interface components {
              */
             render_saved: boolean;
         };
+        /** ReportDocument */
+        ReportDocument: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            report: components["schemas"]["ReportSummary"];
+            /**
+             * Basis
+             * @default saved_markdown
+             * @constant
+             */
+            basis: "saved_markdown";
+            /** Locale */
+            locale: ("en-CA" | "zh-TW" | "zh-CN") | null;
+            source: components["schemas"]["Artifact"];
+            /** Title */
+            title: string;
+            /** Sections */
+            sections: components["schemas"]["DocumentSection"][];
+        };
         /** ReportList */
         ReportList: {
             /** Reports */
@@ -1225,6 +1295,14 @@ export interface components {
             verification_basis: "publication_manifest" | "migration_capture";
             /** Artifacts */
             artifacts: components["schemas"]["Artifact"][];
+            /** Scope Key */
+            scope_key?: string | null;
+            /** Scope Labels */
+            scope_labels?: string[];
+            /** Report Locale */
+            report_locale?: ("en-CA" | "zh-TW" | "zh-CN") | null;
+            /** Edition Label */
+            edition_label?: string | null;
         };
         /** ReportView */
         ReportView: {
@@ -5448,6 +5526,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorView"];
+                };
+            };
+        };
+    };
+    document_api_v1_portfolios__portfolio_id__reports__report_id__document_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: string;
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDocument"];
                 };
             };
             /** @description Bad Request */

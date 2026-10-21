@@ -11,6 +11,7 @@ import {
   Routes,
   useNavigate,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -28,7 +29,6 @@ import {
 import {
   ApiError,
   clearTransport,
-  download,
   mutate,
   read,
   scope,
@@ -38,6 +38,7 @@ import {
   type Report,
 } from "./lib/api";
 import { useI18n } from "./lib/i18n";
+import { useTheme, type Theme } from "./lib/theme";
 import { date } from "./lib/format";
 import { Button } from "./components/ui/button";
 import {
@@ -50,7 +51,8 @@ import {
 } from "./components/analysis";
 import { Imports } from "./components/imports";
 import { Financial } from "./components/financial";
-import { ReportExports } from "./components/report-exports";
+import { ReportReader } from "./components/report-reader";
+import { groupEditions } from "./lib/report-library";
 const navigation = [
   ["overview", ChartNoAxesCombined],
   ["holdings", Landmark],
@@ -74,6 +76,23 @@ function Language() {
         <option value="en-CA">English</option>
         <option value="zh-TW">繁體中文</option>
         <option value="zh-CN">简体中文</option>
+      </select>
+    </label>
+  );
+}
+function ThemeSwitch() {
+  const { t } = useI18n();
+  const { theme, setTheme } = useTheme();
+  return (
+    <label>
+      {t("appearance")}
+      <select
+        value={theme}
+        onChange={(event) => setTheme(event.target.value as Theme)}
+      >
+        <option value="system">{t("themeSystem")}</option>
+        <option value="light">{t("themeLight")}</option>
+        <option value="dark">{t("themeDark")}</option>
       </select>
     </label>
   );
@@ -180,7 +199,10 @@ export default function App() {
           <Link to="/login" className="brand">
             <BookOpen aria-hidden="true" /> Wealth Ledger
           </Link>
-          <Language />
+          <div className="appearance-controls">
+            <Language />
+            <ThemeSwitch />
+          </div>
         </header>
         <main className="login-layout">
           <div className="login-intro">
@@ -272,7 +294,6 @@ function PortfolioWorkspace({
   const client = useQueryClient(),
     navigate = useNavigate();
   const [currency, setCurrency] = useState<Currency>("CAD"),
-    [selected, setSelected] = useState(""),
     [failure, setFailure] = useState(""),
     [creating, setCreating] = useState(false);
   const portfolios = useQuery({
@@ -294,6 +315,8 @@ function PortfolioWorkspace({
     getNextPageParam: (last) => last.next_cursor ?? undefined,
     refetchInterval: 15000,
   });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selected = searchParams.get("report") ?? "";
   const editions = reports.data?.pages.flatMap((value) => value.reports) ?? [];
   const edition = selected || editions[0]?.id;
   const report = useQuery({
@@ -335,9 +358,7 @@ function PortfolioWorkspace({
     }
   }
   const navPage = navigation.find(([key]) => key === page)?.[0] ?? "overview";
-  const needsReport = !["imports", "records", "reports", "settings"].includes(
-    navPage,
-  );
+  const needsReport = !["imports", "records", "settings"].includes(navPage);
   const data = report.data;
   return (
     <div className="app-shell">
@@ -392,7 +413,10 @@ function PortfolioWorkspace({
               </Button>
             </form>
           </details>
-          <Language />
+          <div className="appearance-controls">
+            <Language />
+            <ThemeSwitch />
+          </div>
           <Button variant="ghost" onClick={logout}>
             <LogOut size={16} aria-hidden="true" />
             {t("logout")}
@@ -425,21 +449,30 @@ function PortfolioWorkspace({
                 </select>
               </label>
             )}
-            {needsReport && editions.length > 0 && (
+            {needsReport && navPage !== "reports" && editions.length > 0 && (
               <label>
                 {t("edition")}
                 <select
                   value={edition}
-                  onChange={(event) => setSelected(event.target.value)}
+                  onChange={(event) =>
+                    setSearchParams({ report: event.target.value })
+                  }
                 >
-                  {editions.map((value) => (
-                    <option key={value.id} value={value.id}>
-                      {date(value.valuation_as_of, locale)} ·{" "}
-                      {date(
-                        new Date(value.published_at * 1000).toISOString(),
-                        locale,
-                      )}
-                    </option>
+                  {groupEditions(editions).map((group) => (
+                    <optgroup
+                      key={group.key}
+                      label={`${date(group.latest.valuation_as_of, locale)} · ${(group.latest.scope_labels ?? []).join(" / ")}`}
+                    >
+                      {[group.latest, ...group.older].map((value) => (
+                        <option key={value.id} value={value.id}>
+                          {value.edition_label ?? value.id.slice(0, 8)} ·{" "}
+                          {date(
+                            new Date(value.published_at * 1000).toISOString(),
+                            locale,
+                          )}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
@@ -495,76 +528,33 @@ function PortfolioWorkspace({
               <Financial key={portfolio} portfolio={portfolio} />
             ) : navPage === "settings" ? (
               <Settings portfolio={portfolio} />
-            ) : navPage === "reports" ? (
-              <section className="panel">
-                <h2>{t("reports")}</h2>
-                {editions.length ? (
-                  editions.map((value) => (
-                    <article className="report-row" key={value.id}>
-                      <div>
-                        <h3>{date(value.valuation_as_of, locale)}</h3>
-                        <small>
-                          {t("published")}:{" "}
-                          {date(
-                            new Date(value.published_at * 1000).toISOString(),
-                            locale,
-                          )}
-                        </small>
-                        {value.verification_basis === "migration_capture" && (
-                          <p className="time-note">
-                            {t("migrationVerification")}
-                          </p>
-                        )}
-                      </div>
-                      <ReportExports portfolio={portfolio} report={value.id} />
-                      <div className="actions">
-                        {value.artifacts.map((artifact) => (
-                          <Button
-                            key={artifact.id}
-                            variant="secondary"
-                            onClick={() =>
-                              download(portfolio, artifact).catch((reason) =>
-                                setFailure(
-                                  reason instanceof ApiError
-                                    ? reason.code
-                                    : "request_failed",
-                                ),
-                              )
-                            }
-                          >
-                            <FileDown size={16} aria-hidden="true" />
-                            {artifact.filename}
-                          </Button>
-                        ))}
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <p>{t("noReportHint")}</p>
-                )}
-                {reports.hasNextPage && (
-                  <Button
-                    variant="secondary"
-                    disabled={reports.isFetchingNextPage}
-                    onClick={() => reports.fetchNextPage()}
-                  >
-                    {t("loadMore")}
-                  </Button>
-                )}
-              </section>
             ) : data ? (
               <>
-                <Evidence data={data} />
-                {navPage === "overview" ? (
-                  <Overview data={data} currency={currency} />
-                ) : navPage === "holdings" ? (
-                  <Holdings data={data} currency={currency} />
-                ) : navPage === "exposure" ? (
-                  <Exposure data={data} />
-                ) : navPage === "history" ? (
-                  <History data={data} currency={currency} />
+                {navPage === "reports" ? (
+                  <ReportReader
+                    key={data.report.id}
+                    portfolio={portfolio}
+                    data={data}
+                    editions={editions}
+                    hasMore={!!reports.hasNextPage}
+                    loadingMore={reports.isFetchingNextPage}
+                    loadMore={() => void reports.fetchNextPage()}
+                  />
                 ) : (
-                  <Bitcoin data={data} />
+                  <>
+                    <Evidence data={data} />
+                    {navPage === "overview" ? (
+                      <Overview data={data} currency={currency} />
+                    ) : navPage === "holdings" ? (
+                      <Holdings data={data} currency={currency} />
+                    ) : navPage === "exposure" ? (
+                      <Exposure data={data} />
+                    ) : navPage === "history" ? (
+                      <History data={data} currency={currency} />
+                    ) : (
+                      <Bitcoin data={data} />
+                    )}
+                  </>
                 )}
               </>
             ) : reports.isPending || reports.isFetching || report.isFetching ? (

@@ -68,6 +68,21 @@ async function transport<T>(
 export async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
   return transport(path, (response) => response.json(), {}, signal);
 }
+export async function readChart(
+  path: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return transport(
+    path,
+    (response) => {
+      if (response.headers.get("content-type")?.split(";")[0] !== "image/png")
+        throw new ApiError(409, "artifact_integrity");
+      return response.blob();
+    },
+    {},
+    signal,
+  );
+}
 async function csrfToken() {
   if (!csrf) csrf = (await read<Models["CsrfView"]>("/auth/csrf")).csrf_token;
   return csrf;

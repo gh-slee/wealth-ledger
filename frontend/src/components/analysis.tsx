@@ -5,6 +5,7 @@ import { amount, date, percent, quantity } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { DataTable } from "./data-table";
 import { Chart } from "./chart";
+import { ReportNotices } from "./report-notices";
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -165,16 +166,7 @@ export function Overview({
           </ul>
         </section>
       )}
-      {!!data.issues.length && (
-        <section className="notices" aria-label={t("findings")}>
-          {data.issues.map((issue, index) => (
-            <p key={index}>
-              <span className="status">{t("findings")}</span>{" "}
-              {String(issue.message ?? "")}
-            </p>
-          ))}
-        </section>
-      )}
+      <ReportNotices data={data} />
     </>
   );
 }

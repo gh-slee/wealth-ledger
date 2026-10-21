@@ -55,9 +55,9 @@ keep the backend on port 8000 but configure its public origin as
    A failed report can resume its saved operation; uncertain states require trusted
    local review. Never reimport to guess whether a previous commit happened.
 6. For contributions, coverage, BTC openings/events or corrections, use [Financial records](web-financial-records.md). Preview, confirm and save data first; prepare a separate report when ready.
-7. Select a published observation for analysis. Change CAD/USD/TWD presentation or
+7. Select a report edition for analysis. Change CAD/USD/TWD presentation or
    interface language without changing the saved observation. Download original
-   ODS, Markdown, PDF and evidence attachments from **Report library**.
+   ODS, Markdown, PDF and evidence attachments from **Analysis reports**.
 
 Changing future report language/cost policy in **Settings** does not rewrite old
 reports. Interface language is independent of the saved report language. Downloads
@@ -96,7 +96,9 @@ for dates, references, supported overrides and remaining cutover boundaries.
 
 ## Sessions and privacy
 
-The browser keeps financial queries and CSRF tokens only in memory. Logout,
+The browser keeps financial queries and CSRF tokens only in memory. The only persisted
+browser preference is the nonfinancial appearance enum; see [report reading and
+themes](web-analysis-reports.md). Logout,
 password changes, authentication expiry and portfolio switches clear/cancel queries;
 query keys include portfolio, report and locale. There is no persisted query cache,
 service worker or localStorage finance data. Session cookies are HTTP-only; HTTPS
@@ -186,3 +188,11 @@ ZIPs and ODS/Markdown/PDF downloads remain the original checksummed artifacts.
 Viewing/changing interface language/exporting never imports or reprices data.
 Browser acceptance uses a separate invented source portfolio, including generic
 provider labels, Traditional Chinese scope text and original ODS downloads.
+
+## Full report reading and themes
+
+[Analysis reports](web-analysis-reports.md) reads verified saved Markdown sections and
+registered charts alongside same-edition PDF/ODS/Markdown/ZIP downloads. Its history
+groups editions by valuation instant and scope, with earlier editions expandable.
+Controls support three locales and system/light/dark appearance; original documents
+and files retain their publication language and styling.

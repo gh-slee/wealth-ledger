@@ -172,6 +172,12 @@ class SourceReportWebTests(unittest.TestCase):
             self.assertEqual(view["source_basis"]["source_valuation_id"], 1)
             self.assertFalse(view["is_complete"])
             self.assertIsNone(view["btc"]["monthly"][0]["contribution_cad"])
+        document_response = self.client.get(self.prefix + "/reports/" + job["id"] + "/document")
+        self.assertEqual(document_response.status_code, 200, document_response.text)
+        document = document_response.json()
+        self.assertEqual(document["locale"], "en-CA")
+        self.assertGreaterEqual(len(document["sections"]), 10)
+        self.assertTrue(any(block["kind"] == "chart" and block["artifact_id"] for section in document["sections"] for block in section["blocks"]))
         for dataset in ("holdings", "accounts", "history", "cash_flows", "btc_monthly"):
             response = self.client.get(self.prefix + "/reports/" + job["id"] + "/export", params={"dataset": dataset, "format": "json"})
             self.assertEqual(response.status_code, 200, response.text)

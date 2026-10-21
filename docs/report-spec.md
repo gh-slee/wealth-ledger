@@ -365,3 +365,11 @@ publication flags; actual state belongs to durable operation/manifest records.
 See [approval and recovery](source-projections.md#frozen-source-report-publication-src-004c3c1).
 The advanced core alone does not register Web reports; the default CLI/browser
 workflow now connects it to approved publication and Web registration.
+
+## Web document reading
+
+The [Web report reader](web-analysis-reports.md) presents the saved Markdown document
+from the same Python model as PDF, alongside original ODS/PDF/Markdown downloads.
+It preserves old edition wording and chart bytes, scope, dates and unknowns without
+new valuation or financial mutation. Interface theme/locale controls do not rewrite
+original reports. Library edition counts are distinct from financial observations.

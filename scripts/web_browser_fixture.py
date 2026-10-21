@@ -44,6 +44,15 @@ def main():
             if path.is_file() and path.suffix in (".md", ".pdf", ".ods", ".json", ".csv", ".png"):
                 store.register_artifact(portfolio["id"], row["id"], path.relative_to(project).as_posix())
         jobs.state(row["id"], "published", result={"valuation_as_of":payload["meta"]["as_of"]})
+        # Two report editions at one cutoff are not two financial observations.
+        with store.transaction() as conn:
+            old = jobs._insert(conn, portfolio["id"], "update", {}, uuid.uuid4().hex, "synthetic-earlier-edition")
+        for artifact in output.rglob("*"):
+            if artifact.is_file() and artifact.suffix in (".md", ".pdf", ".ods", ".json", ".csv", ".png"):
+                store.register_artifact(portfolio["id"], old["id"], artifact.relative_to(project).as_posix())
+        jobs.state(old["id"], "published", result={"valuation_as_of":payload["meta"]["as_of"]})
+        with store.transaction() as conn:
+            conn.execute("UPDATE jobs SET updated_at=updated_at-60 WHERE id=?", (old["id"],))
         # Independent old-format declaration; all bytes originate in the synthetic demo.
         import shutil
         from wealth_ledger.core import import_holdings

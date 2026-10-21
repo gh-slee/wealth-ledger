@@ -67,6 +67,23 @@ class LegacyAdoptionTests(unittest.TestCase):
     def confirm(self):
         return confirm_adoption(self.settings, self.plan, self.sha)
 
+    def test_legacy_saved_sections_are_read_without_rewriting_or_revaluing(self):
+        self.prepare()
+        text = "# Synthetic legacy report\n\n## Original overview\n\n| Unit | Value |\n| --- | --- |\n| CAD | " + self.payload["totals"]["total_cad"] + " |\n\n![Original allocation](charts/allocation.png)\n\n## Original method\n\nOriginal assumptions remain frozen.\n"
+        (self.folder / "report.md").write_text(text)
+        self.before = self.hashes()
+        self.plan.unlink(); self.new_plan(); self.confirm()
+        report = self.client.get(f"/api/v1/portfolios/{self.pid}/reports").json()["reports"][0]["id"]
+        with patch("urllib.request.urlopen", side_effect=AssertionError("No network")):
+            response = self.client.get(f"/api/v1/portfolios/{self.pid}/reports/{report}/document")
+        self.assertEqual(response.status_code, 200, response.text)
+        document = response.json()
+        self.assertEqual(document["report"]["verification_basis"], "migration_capture")
+        self.assertEqual(document["sections"][0]["title"], "Original overview")
+        self.assertEqual(document["sections"][0]["blocks"][0]["rows"][0][1], self.payload["totals"]["total_cad"])
+        self.assertIsNotNone(document["sections"][0]["blocks"][1]["artifact_id"])
+        self.assertEqual(self.hashes(), self.before)
+
     def test_explicit_acceptance_keeps_originals_ids_locales_exports_and_frozen_formats(self):
         result = self.prepare()
         self.assertEqual(result["legacy_reports"], 1)
@@ -88,6 +105,10 @@ class LegacyAdoptionTests(unittest.TestCase):
             response = self.client.get(prefix, params={"locale": locale})
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json()["totals"], self.payload["totals"])
+        document_response = self.client.get(prefix + "/document")
+        # This fixture intentionally contains only an artifact placeholder, not a document.
+        self.assertEqual(document_response.status_code, 409)
+        self.assertEqual(document_response.json()["error"]["code"], "report_document_unavailable")
         exported = self.client.get(prefix + "/export", params={"dataset": "holdings", "format": "json"})
         self.assertEqual(exported.status_code, 200)
         self.assertEqual(exported.json()["verification_basis"],"migration_capture")
