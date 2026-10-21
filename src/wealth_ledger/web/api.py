@@ -62,7 +62,7 @@ class SecurityBoundary:
                 headers.extend([(b"cache-control", b"no-store, private"), (b"pragma", b"no-cache"),
                     (b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer"),
                     (b"x-frame-options", b"DENY"), (b"content-security-policy", (
-                        b"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+                        b"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
                         if request.url.path in {"/", "/login", "/app"} or request.url.path.startswith(("/app/", "/assets/"))
                         else b"default-src 'none'; frame-ancestors 'none'")),
                     (b"x-request-id", request_id.encode())])

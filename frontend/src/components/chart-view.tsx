@@ -9,6 +9,7 @@ import {
 import { SVGRenderer } from "echarts/renderers";
 import type { EChartsOption } from "echarts";
 import { amount, date, chartNumber } from "../lib/format";
+import { useTheme } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
 import type { Currency } from "../lib/api";
 use([
@@ -33,6 +34,7 @@ export function Chart({
   currency?: Currency;
 }) {
   const { locale } = useI18n();
+  const { resolved } = useTheme();
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!root.current) return;
@@ -40,20 +42,27 @@ export function Chart({
     const reduce = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
+    const colors = getComputedStyle(document.documentElement);
+    const color = (token: string) => colors.getPropertyValue(token).trim();
     const option: EChartsOption = {
       useUTC: true,
+      darkMode: resolved === "dark",
       animation: !reduce,
       animationDuration: 250,
       aria: { enabled: true, label: { description: title } },
       textStyle: {
         fontFamily: "Atkinson Hyperlegible, sans-serif",
-        color: "#193B51",
+        color: color("--navy"),
       },
+      color: [color("--chart-bar")],
       grid: { left: 14, right: 20, top: 15, bottom: 12, containLabel: true },
       tooltip: {
         trigger: "axis",
         renderMode: "richText",
         confine: true,
+        backgroundColor: color("--paper"),
+        borderColor: color("--border"),
+        textStyle: { color: color("--navy") },
         formatter: (params: unknown) => {
           const item = (Array.isArray(params) ? params[0] : params) as {
             dataIndex?: number;
@@ -67,6 +76,7 @@ export function Chart({
         ? {
             type: "time",
             axisLabel: {
+              color: color("--muted"),
               hideOverlap: true,
               formatter: (value: number | string) =>
                 new Intl.DateTimeFormat(locale, {
@@ -75,14 +85,19 @@ export function Chart({
                   timeZone: "America/Toronto",
                 }).format(new Date(Number(value))),
             },
-            axisLine: { lineStyle: { color: "#CBD8DF" } },
+            axisLine: { lineStyle: { color: color("--border") } },
           }
-        : { type: "value", splitLine: { lineStyle: { color: "#E6EDF1" } } },
+        : {
+            type: "value",
+            axisLabel: { color: color("--muted") },
+            splitLine: { lineStyle: { color: color("--border") } },
+          },
       yAxis: line
         ? {
             type: "value",
+            axisLabel: { color: color("--muted") },
             scale: true,
-            splitLine: { lineStyle: { color: "#E6EDF1" } },
+            splitLine: { lineStyle: { color: color("--border") } },
           }
         : {
             type: "category",
@@ -90,7 +105,11 @@ export function Chart({
             inverse: true,
             axisLine: { show: false },
             axisTick: { show: false },
-            axisLabel: { width: 155, overflow: "truncate" },
+            axisLabel: {
+              color: color("--muted"),
+              width: 155,
+              overflow: "truncate",
+            },
           },
       series: [
         line
@@ -104,15 +123,18 @@ export function Chart({
               showSymbol: true,
               symbolSize: 7,
               smooth: false,
-              lineStyle: { width: 2, color: "#157F7A" },
-              itemStyle: { color: "#157F7A" },
-              areaStyle: { color: "#157F7A", opacity: 0.06 },
+              lineStyle: { width: 2, color: color("--teal") },
+              itemStyle: { color: color("--teal") },
+              areaStyle: { color: color("--teal"), opacity: 0.06 },
             }
           : {
               type: "bar",
               data: values.map(chartNumber),
               barMaxWidth: 22,
-              itemStyle: { color: "#367B9B", borderRadius: [0, 4, 4, 0] },
+              itemStyle: {
+                color: color("--chart-bar"),
+                borderRadius: [0, 4, 4, 0],
+              },
             },
       ],
     };
@@ -123,6 +145,6 @@ export function Chart({
       observer.disconnect();
       chart.dispose();
     };
-  }, [title, labels, values, line, locale, currency]);
+  }, [title, labels, values, line, locale, currency, resolved]);
   return <div className="chart" role="img" aria-label={title} ref={root} />;
 }

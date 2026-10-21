@@ -9,6 +9,7 @@ import App from "./App";
 import { LocaleContext } from "./lib/i18n";
 import type { Locale } from "./lib/api";
 import "./styles.css";
+import { ThemeProvider } from "./lib/theme";
 const client = new QueryClient({
   defaultOptions: {
     queries: {
@@ -37,6 +38,8 @@ function Root() {
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Root />
+    <ThemeProvider>
+      <Root />
+    </ThemeProvider>
   </StrictMode>,
 );

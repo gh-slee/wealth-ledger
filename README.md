@@ -131,7 +131,7 @@ On Windows, use `.venv\Scripts\python.exe` instead of Unix activation. Broader W
 1. Create or select an independent portfolio.
 2. Supply a Wealthsimple holdings CSV, a Bull Bitcoin order CSV, both, or an optional **BTC quantity with its observation time**. A BTC quantity is not its CAD/USD market value.
 3. Review the preview and any missing references. Choose a saved source context or enter the required host settings, then review account mappings. Unknown opening quantities remain unknown; see the [browser guide](docs/web-frontend.md).
-4. Confirm the import and leave the worker running. Once published, open the analysis pages or **Report library**.
+4. Confirm the import and leave the worker running. Once published, open the analysis pages or **Analysis reports**. Read the full saved report with charts and tables, then download PDF, ODS, Markdown or a complete ZIP from the same page. System, light and dark themes are available.
 
 Use **Financial records** for cash-flow coverage, contributions and BTC openings/balances/events, including append-only corrections. The same operations remain available in the CLI. Holdings changes and purchase spending do not establish contributions. See [financial declarations](docs/web-financial-records.md).
 
@@ -251,7 +251,7 @@ Current imports support the documented Wealthsimple holdings and Bull Bitcoin or
 
 | Guide | Read it for… |
 |---|---|
-| [Browser workflow](docs/web-frontend.md) · [Web operations](docs/web-operations.md) | Sign-in, uploads, analysis, exports, installation, HTTPS, and host commands. |
+| [Report reading](docs/web-analysis-reports.md) · [Browser workflow](docs/web-frontend.md) · [Web operations](docs/web-operations.md) | Sign-in, uploads, analysis, exports, installation, HTTPS, and host commands. |
 | [User manual](docs/user-manual.md) · [Examples](examples/README.md) | CLI/private workspaces, source setup, contributions, balances, and recovery. |
 | [Exports and private backups](docs/web-backups.md) · [Operations acceptance](docs/web-release-acceptance.md) | Report ZIPs, CSV/JSON ranges, consistent backups, empty-instance restore, upgrades, rollback, resources and platform evidence. |
 | [Reports](docs/report-spec.md) · [ODS](docs/workbook.md) | Interpretation, formulas, charts, evidence, and validation. |

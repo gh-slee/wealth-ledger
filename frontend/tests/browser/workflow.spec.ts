@@ -93,7 +93,9 @@ test("frozen reports, charts, three locales, mobile, downloads and cache isolati
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBeTruthy();
-  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Analysis reports", exact: true })
+    .click();
   const saved = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "portfolio.ods", exact: true })
@@ -211,7 +213,9 @@ test("real CSV preview, explicit confirmation and worker report publication", as
   await expect(
     page.locator(".job-list").getByText("Published", { exact: true }),
   ).toBeVisible({ timeout: 60000 });
-  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Analysis reports", exact: true })
+    .click();
   for (const name of ["portfolio.ods", "report.md", "report.pdf"])
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 });
@@ -483,11 +487,11 @@ test("legacy migration basis is visible in three locales and retained downloads 
   await page
     .getByRole("combobox", { name: "界面语言", exact: true })
     .selectOption("en-CA");
-  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Analysis reports", exact: true })
+    .click();
   await expect(
-    page
-      .locator(".report-row")
-      .getByText("Verified at migration.", { exact: false }),
+    page.getByText("Verified at migration.", { exact: false }),
   ).toBeVisible();
   const saved = page.waitForEvent("download");
   await page
@@ -563,7 +567,9 @@ test("frozen source publications preserve partial scope, generic providers and e
   await expect(
     page.getByRole("table", { name: "Holdings", exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Analysis reports", exact: true })
+    .click();
   for (const name of ["portfolio.ods", "report.md", "report.pdf"])
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   const download = page.waitForEvent("download");
@@ -781,9 +787,11 @@ test("regular parser upload reviews mappings and publishes without hand-written 
       { exact: true },
     ),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Report library", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Analysis reports", exact: true })
+    .click();
   for (const name of ["portfolio.ods", "report.md", "report.pdf"])
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(
-      2,
+      1,
     );
 });

@@ -5,7 +5,7 @@ import json
 from typing import Literal
 
 from fastapi import Depends, Query
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from .storage import ID, WebError
 
@@ -30,6 +30,10 @@ class ReportSummary(ViewModel):
     published_at: float
     verification_basis: Literal["publication_manifest", "migration_capture"] = "publication_manifest"
     artifacts: list[Artifact]
+    scope_key: str | None = None
+    scope_labels: list[str] = Field(default_factory=list)
+    report_locale: Locale | None = None
+    edition_label: str | None = None
 
 
 class ReportList(ViewModel):
@@ -161,7 +165,19 @@ class Publications:
         result = json.loads(row["result_json"])
         from .report_evidence import legacy_evidence
         verification = legacy_evidence(self.store,row["portfolio_id"],row["id"]) if result.get("adopted") is True else None
-        return {"id": row["id"], "valuation_as_of": result["valuation_as_of"], "published_at": datetime.fromisoformat(verification["evidence"]["published_at"]).timestamp() if verification else row["updated_at"],
+        metadata = {}
+        payloads = [file for file in files if file["relative_path"].endswith("/data.json")]
+        if len(payloads) == 1:
+            raw, _, _ = self.store.read_artifact(row["portfolio_id"], payloads[0]["id"])
+            try:
+                from .report_document import edition_metadata
+                data = json.loads(raw)
+                if data["meta"]["as_of"] != result["valuation_as_of"]:
+                    raise ValueError("Report cutoff differs")
+                metadata = edition_metadata(data, payloads[0]["relative_path"])
+            except (ValueError, KeyError, TypeError) as exc:
+                raise WebError(409, "report_integrity", "Published report fields need local review") from exc
+        return {**metadata, "id": row["id"], "valuation_as_of": result["valuation_as_of"], "published_at": datetime.fromisoformat(verification["evidence"]["published_at"]).timestamp() if verification else row["updated_at"],
                 "verification_basis": "migration_capture" if verification is not None else "publication_manifest",
                 "artifacts": [{"id": file["id"], "filename": PurePosixPath(file["relative_path"]).name,
                                **{key: file[key] for key in ("media_type", "byte_size", "sha256")}} for file in files]}
@@ -277,3 +293,9 @@ def install_report_routes(app, store, require_owner):
     @app.get("/api/v1/portfolios/{portfolio_id}/reports/{report_id}", response_model=ReportView)
     def report(portfolio_id: str, report_id: str, locale: Locale="en-CA", owner=Depends(require_owner)):
         return publications.view(portfolio_id,report_id,locale,owner["owner_id"])
+
+    from .report_document import ReportDocument, read_document
+
+    @app.get("/api/v1/portfolios/{portfolio_id}/reports/{report_id}/document", response_model=ReportDocument)
+    def document(portfolio_id: str, report_id: str, owner=Depends(require_owner)):
+        return read_document(publications, portfolio_id, report_id, owner["owner_id"])

@@ -42,6 +42,10 @@ runnable; the browser workflow reads frozen reports and drives confirmed jobs.
 
 - [x] **WEB-009 Recognized legacy publication adoption**: implemented and verified locally with explicit pre-checksum acceptance, preserved report bytes/dates, separate migration-time evidence, three-locale UI notices and bound downloads/exports/backup restore. Candidate CI/review and merge remain required before relying on it for deployment. See [legacy report adoption](docs/web-legacy-reports.md).
 
+- [x] **WEB-010 Full Web report reading**: implemented and locally validated; complete saved sections/tables/charts, same-edition downloads, date/scope-grouped history, stable edition links and contextual grouped checks. See [report reading](docs/web-analysis-reports.md). Publication/CI review and deployment remain separate.
+- [x] **WEB-011 Appearance modes**: implemented and locally validated; system/light/dark controls, semantic surfaces and interactive-chart colors, nonfinancial preference storage, three locales and browser/accessibility checks. Saved artifacts retain original styling; no rebuilt production deployment is claimed.
+- [ ] **UX-001 Whole-application UX/design review**: proposed follow-up; review navigation, import/confirmation, report discovery, financial records and empty/error states before approving a replacement visual system. Evaluate Impeccable as optional development guidance; it is not installed or an application runtime dependency. Redesign direction and scope still need review.
+
 This track does not complete the source-plugin SDK, new currencies or combined
 performance automatically. Keep each stage planned until accepted; actual private
 migration is a separate explicit operation.
