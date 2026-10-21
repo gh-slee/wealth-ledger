@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { isLocalResource } from "./request-origin";
 const root = path.resolve(import.meta.dirname, "../../..");
 async function login(page: import("@playwright/test").Page) {
   await page.goto("/");
@@ -16,14 +17,12 @@ async function login(page: import("@playwright/test").Page) {
 }
 test("frozen reports, charts, three locales, mobile, downloads and cache isolation", async ({
   page,
+  baseURL,
 }) => {
+  const origin = new URL(baseURL!).origin;
   const external: string[] = [];
   page.on("request", (request) => {
-    if (
-      !request.url().startsWith("http://localhost:8765") &&
-      !request.url().startsWith("data:")
-    )
-      external.push(request.url());
+    if (!isLocalResource(request.url(), origin)) external.push(request.url());
   });
   await login(page);
   await expect(
