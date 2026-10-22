@@ -159,12 +159,14 @@ review remains separate planned work.
 ### Portfolio overview
 
 <p align="center">
-  <img src="assets/readme/web-overview.png" width="1200" alt="Synthetic portfolio overview with a saved CAD value, source dates, account allocation and recorded observation chart">
+  <img src="assets/readme/web-overview.png" width="1200" alt="Synthetic portfolio overview with a saved CAD value, source dates, evidence status, next steps, account allocation and recorded observation chart">
 </p>
 
 **Example:** inspect a saved CA$1,930.00 portfolio across four accounts, switch the
 display currency between CAD/USD/TWD, and compare the valuation cutoff with each
-source's date. Opening the overview does not refresh prices or create an observation.
+source's date. Review the selected edition's evidence and next steps separately from
+current processing; see [status behavior](docs/web-frontend.md#evidence-status-and-current-processing).
+Opening the overview does not refresh prices or create an observation.
 
 Expand a page below to see its screen and an example task:
 

@@ -198,3 +198,41 @@ registered charts alongside same-edition PDF/ODS/Markdown/ZIP downloads. Its his
 groups editions by valuation instant and scope, with earlier editions expandable.
 Controls support three locales and system/light/dark appearance; original documents
 and files retain their publication language and styling.
+
+## Evidence status and current processing
+
+Overview presents evidence for the **selected saved edition** between its saved
+amount and the existing charts. It shows review/unknown counts, up to three next
+steps and an explicit **Show all next steps** control. **Saved evidence and checks**
+expands the complete findings and original grouped notices; different account
+contexts remain available. Use **Review source dates** to return to the dated rail
+or **Financial records** to open an explicit declaration workflow. These links do
+not save a declaration or create an observation.
+
+Valuation cutoff, publication time and latest-versus-historical edition are
+separate labels. A failed report-list request does not prevent reading an explicitly
+selected, available report; its latest-publication status becomes unavailable.
+Source dates can differ without being declared stale. Only an explicit saved
+`carried_forward` usage establishes carry-forward; no calendar-age rule is applied.
+An order date never becomes a wallet confirmation date.
+
+**Current processing** reads the existing owner/portfolio-scoped jobs independently.
+Queued/running jobs, saved-data-but-unpublished reports and jobs needing review have
+distinct explanations. **View job** opens the existing import or financial-record
+job through `?job=<id>` without confirming, retrying or resubmitting it. A requested
+job absent from the bounded scoped list is reported unavailable, without selecting
+another job. Advanced kinds without a browser detail view require trusted-host
+review. Job-query failure has its own retry; the saved report remains readable.
+
+The status mapper uses stable codes and structured frozen fields, not translated
+prose or today's ledger. Missing wallet-gap fields remain unavailable. The present
+DTO does not establish full cash-flow coverage intervals or eligible whole-portfolio
+period returns; recorded flow totals are insufficient. Complete acquisition costs
+are unknown when not exposed by the saved view; purchase spend and proxy estimates
+do not fill actual-cost evidence. A user-reported BTC total is a declaration, not
+independent verification or proof that earlier gaps are resolved.
+
+This implementation adds no endpoint, database migration, financial formula or
+runtime AI. It preserves original report payloads, observations and downloadable
+artifacts. See [the scoped ticket](ux-p0-002-status.md) and
+[design brief](ux-p0-002-status-design.md) for acceptance and remaining limitations.

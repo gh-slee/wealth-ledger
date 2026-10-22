@@ -5,11 +5,20 @@ import { createServer } from "node:net";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-if (process.argv.slice(2).some((argument) => argument !== "--first-run-only"))
+if (
+  process.argv
+    .slice(2)
+    .some(
+      (argument) => !["--first-run-only", "--overview-only"].includes(argument),
+    )
+)
   throw new Error(
-    "Only --first-run-only is supported; external inputs are forbidden",
+    "Only --first-run-only or --overview-only is supported; external inputs are forbidden",
   );
 const firstRunOnly = process.argv.includes("--first-run-only");
+const overviewOnly = process.argv.includes("--overview-only");
+if (firstRunOnly && overviewOnly)
+  throw new Error("Capture modes are mutually exclusive");
 const root = path.resolve(import.meta.dirname, "../..");
 const origin = "http://localhost:8765";
 const output = path.join(root, "assets/readme");
@@ -109,7 +118,8 @@ try {
     }, scrollTop);
     await page.screenshot({
       path: path.join(output, filename),
-      fullPage: false,
+      fullPage:
+        filename === "web-overview.png" || filename === "web-overview-dark.png",
       animations: "disabled",
     });
     files.push(filename);
@@ -131,6 +141,8 @@ try {
     .getByRole("img", { name: "Value over recorded observations", exact: true })
     .waitFor();
   if (!firstRunOnly) {
+    await expect(page.locator(".evidence-status")).toBeVisible();
+    await expect(page.locator(".processing-status")).toHaveCount(0);
     await capture("web-overview.png");
     await page
       .getByRole("combobox", { name: "Appearance", exact: true })
@@ -140,16 +152,18 @@ try {
     await page
       .getByRole("combobox", { name: "Appearance", exact: true })
       .selectOption("light");
-    const pages = [
-      ["Holdings", "web-holdings.png"],
-      ["Exposure", "web-exposure.png"],
-      ["History", "web-history.png"],
-      ["Bitcoin & flows", "web-bitcoin.png"],
-      ["Import & jobs", "web-imports.png"],
-      ["Financial records", "web-records.png"],
-      ["Analysis reports", "web-reports.png"],
-      ["Settings", "web-settings.png"],
-    ];
+    const pages = overviewOnly
+      ? []
+      : [
+          ["Holdings", "web-holdings.png"],
+          ["Exposure", "web-exposure.png"],
+          ["History", "web-history.png"],
+          ["Bitcoin & flows", "web-bitcoin.png"],
+          ["Import & jobs", "web-imports.png"],
+          ["Financial records", "web-records.png"],
+          ["Analysis reports", "web-reports.png"],
+          ["Settings", "web-settings.png"],
+        ];
     for (const [title, filename] of pages) {
       await page.getByRole("link", { name: title, exact: true }).click();
       await page.getByRole("heading", { name: title, level: 1 }).waitFor();
@@ -215,27 +229,29 @@ try {
       }
     }
   }
-  await page
-    .getByRole("combobox", { name: "Appearance", exact: true })
-    .selectOption("light");
-  await page
-    .getByRole("combobox", { name: "Portfolio", exact: true })
-    .selectOption({ label: "Empty synthetic portfolio" });
-  await page
-    .getByRole("heading", {
-      name: "Start with your first observation",
-      exact: true,
-    })
-    .waitFor();
-  await capture(
-    "web-getting-started.png",
-    true,
-    true,
-    "Empty synthetic portfolio",
-  );
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await page.getByRole("heading", { name: "Sign in", exact: true }).waitFor();
-  if (!firstRunOnly) await capture("web-login.png", false);
+  if (!overviewOnly) {
+    await page
+      .getByRole("combobox", { name: "Appearance", exact: true })
+      .selectOption("light");
+    await page
+      .getByRole("combobox", { name: "Portfolio", exact: true })
+      .selectOption({ label: "Empty synthetic portfolio" });
+    await page
+      .getByRole("heading", {
+        name: "Start with your first observation",
+        exact: true,
+      })
+      .waitFor();
+    await capture(
+      "web-getting-started.png",
+      true,
+      true,
+      "Empty synthetic portfolio",
+    );
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await page.getByRole("heading", { name: "Sign in", exact: true }).waitFor();
+    if (!firstRunOnly) await capture("web-login.png", false);
+  }
   if (failures.length || external.length)
     throw new Error(
       "Browser errors or external requests occurred during capture",
@@ -245,7 +261,9 @@ try {
     source: "examples/demo.py and examples/data only",
     portfolios: firstRunOnly
       ? ["Empty synthetic portfolio"]
-      : ["SYNTHETIC demonstration", "Empty synthetic portfolio"],
+      : overviewOnly
+        ? ["SYNTHETIC demonstration"]
+        : ["SYNTHETIC demonstration", "Empty synthetic portfolio"],
     valuation: firstRunOnly ? null : "2024-02-01T10:00:00-05:00",
     synthetic: true,
     browser: browser.version(),
@@ -253,7 +271,9 @@ try {
     files,
     input_examples: firstRunOnly
       ? "Empty portfolio guidance only; no uploads or declarations"
-      : "Public example CSVs and an unsaved invented wallet declaration; no import or record confirmation",
+      : overviewOnly
+        ? "Read-only synthetic overview; no uploads or declarations"
+        : "Public example CSVs and an unsaved invented wallet declaration; no import or record confirmation",
     external_requests: external.length,
     browser_errors: failures.length,
   };
@@ -262,7 +282,11 @@ try {
   await writeFile(
     path.join(
       review,
-      firstRunOnly ? "first-run-provenance.json" : "provenance.json",
+      firstRunOnly
+        ? "first-run-provenance.json"
+        : overviewOnly
+          ? "overview-provenance.json"
+          : "provenance.json",
     ),
     JSON.stringify(evidence, null, 2) + "\n",
   );

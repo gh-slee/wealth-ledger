@@ -5,6 +5,7 @@ import { amount, date, percent, quantity } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { DataTable } from "./data-table";
 import { Chart } from "./chart";
+import { CurrentProcessing, EvidenceStatus } from "./evidence-status";
 import { ReportNotices } from "./report-notices";
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -17,7 +18,11 @@ const text = (value: unknown): string | null =>
 export function Evidence({ data }: { data: Report }) {
   const { t, locale, label } = useI18n();
   return (
-    <section className="evidence-rail" aria-label={t("evidence")}>
+    <section
+      id="source-evidence"
+      className="evidence-rail"
+      aria-label={t("evidence")}
+    >
       <div className="evidence-cutoff">
         <span className="eyebrow">{t("cutoff")}</span>
         <strong>{date(data.as_of, locale)}</strong>
@@ -55,9 +60,13 @@ export function Evidence({ data }: { data: Report }) {
 export function Overview({
   data,
   currency,
+  portfolio,
+  latest,
 }: {
   data: Report;
   currency: Currency;
+  portfolio: string;
+  latest?: Models["ReportSummary"];
 }) {
   const { t, locale } = useI18n();
   const field = `total_${currency.toLowerCase()}` as "total_cad";
@@ -90,6 +99,13 @@ export function Overview({
           </span>
         </div>
       </div>
+      <CurrentProcessing portfolio={portfolio} />
+      <EvidenceStatus
+        key={data.report.id}
+        data={data}
+        portfolio={portfolio}
+        latest={latest}
+      />
       <div className="analysis-grid">
         <section className="panel">
           <div className="panel-heading">
@@ -156,17 +172,6 @@ export function Overview({
         </div>
         <p className="muted">{t("frozen")}</p>
       </section>
-      {!!data.findings.length && (
-        <section className="panel findings">
-          <h2>{t("findings")}</h2>
-          <ul>
-            {data.findings.map((finding, index) => (
-              <li key={index}>{finding}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <ReportNotices data={data} />
     </>
   );
 }

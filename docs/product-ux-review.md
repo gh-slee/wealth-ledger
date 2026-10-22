@@ -76,7 +76,7 @@ Tickets are separately scoped; a roadmap entry does not itself ship a feature.
 | ID | Priority | Ticket | Status |
 |---|---|---|---|
 | UX-P0-001 | P0 | [First-use and empty-state guidance](ux-p0-001-first-run.md) | Verified locally; not merged |
-| UX-P0-002 | P0 | [Evidence status and next actions](ux-p0-002-status.md) | Planned |
+| UX-P0-002 | P0 | [Evidence status and next actions](ux-p0-002-status.md) | Verified locally; not merged |
 | UX-P0-003 | P0 | [Understandable import and recovery](ux-p0-003-imports.md) | Planned |
 | UX-P1-001 | P1 | [Activity, contributions and transfers](ux-p1-001-activity.md) | Planned |
 | UX-P1-002 | P1 | [Eligible performance and attribution](ux-p1-002-performance.md) | Planned |
@@ -91,7 +91,8 @@ Tickets are separately scoped; a roadmap entry does not itself ship a feature.
 | UX-P2-004 | P2 | [Operations and account security UX](ux-p2-004-operations.md) | Planned |
 | UX-P2-005 | P2 | [Cost and tax evidence exports](ux-p2-005-tax-evidence.md) | Planned |
 
-Review/merge the locally verified P0-001 slice, then implement P0-002 and P0-003 before expanding analytical scope.
+Review/merge the locally verified P0-001 and P0-002 slices, then implement P0-003
+before expanding analytical scope.
 Performance depends on contribution/transfer and valuation evidence; income and
 corporate-action models need their own contracts. Track distributions through
 WEB-008 rather than pretending a currently available public image exists.

@@ -55,7 +55,7 @@ its own problem, scope, dependencies, acceptance criteria and validation record.
 | ID | Priority | Status | Ticket |
 |---|---|---|---|
 | UX-P0-001 | P0 | Verified locally; not merged | [First-use guidance](docs/ux-p0-001-first-run.md) |
-| UX-P0-002 | P0 | Design proposed; implementation pending | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
+| UX-P0-002 | P0 | Verified locally; not merged | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
 | UX-P0-003 | P0 | Planned | [Understandable import/recovery](docs/ux-p0-003-imports.md) |
 | UX-P1-001 | P1 | Planned | [Activity, contributions, transfers](docs/ux-p1-001-activity.md) |
 | UX-P1-002 | P1 | Planned | [Eligible returns and attribution](docs/ux-p1-002-performance.md) |
@@ -83,7 +83,7 @@ migration is a separate explicit operation.
 
 | ID | Status | Scope |
 |---|---|---|
-| FUT-002 | Not implemented | Unified read-only status: latest successful report, source dates/carried data, BTC gaps, unclassified funding, coverage gaps and pending/failed jobs; deterministic next steps without observations or quote queries |
+| FUT-002 | Web status verified locally; broader projection pending | UX-P0-002 adds frozen-edition evidence/actions and separate scoped live jobs without writes or quote queries. Numeric BTC gaps, complete coverage intervals and finer funding classifications remain unavailable where not exposed by the saved DTO; do not infer them. Broader unified/CLI status remains planned |
 | FUT-003 | Partially implemented | Web frozen CSV/JSON datasets and supported date ranges exist (WEB-005); broader unified CLI/range exports and a local report index remain. Preserve revisions/unknowns and tracking scopes; see UX-P1-005 |
 | FUT-004 | Not implemented | ETF shared-company/weighted overlap: define denominators/formulas, reuse official evidence/identities and disclose dates, parsing coverage and unknown weights |
 | FUT-005 | Not implemented | Separate quantity, market-price and FX effects on value; define interaction allocation and identify splits/scope/mixed dates/missing quotes; quantity effects are not contributions |

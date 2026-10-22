@@ -1,6 +1,6 @@
 # UX-P0-002 design brief: evidence status and next actions
 
-Status: **Proposal awaiting design confirmation; no feature implementation**
+Status: **Implemented and verified locally; not yet merged or deployed**
 
 Parent: [UX-P0-002](ux-p0-002-status.md). Visitor mode: **Operate**.
 Visual authority: [DESIGN.md](../DESIGN.md), existing Overview and synthetic gallery.
@@ -131,8 +131,11 @@ No whole-app redesign, new financial formulas, inferred fees/contributions,
 retroactive payload rewriting, personal data access, deployment or publication is
 part of this brief. The proposal adds no runtime AI or local office dependency.
 
-## Decision requested
+## Delivery boundary
 
-Confirm the three-layer evidence section, separate current-processing area and
-initial limit of three action groups with explicit access to all remaining groups.
-Implementation starts only after that design confirmation; the ticket remains open.
+The implementation follows the three-layer section, separate current-processing
+area and initial limit of three action groups with explicit access to all groups.
+Existing DTOs do not expose numeric wallet gaps or complete cash-flow coverage
+intervals; these remain unavailable rather than inferred. No new read model or
+ledger migration was needed. Completion evidence belongs in the parent ticket;
+merge and deployment remain separate from local implementation.

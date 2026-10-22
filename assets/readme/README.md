@@ -6,7 +6,7 @@
 | `report-preview.png` | The invented offline report from `examples/demo.py`. |
 | `web-getting-started.png` | Empty synthetic portfolio; first-observation guidance, no financial records. |
 | `web-login.png` | Blank sign-in form; no entered credentials. |
-| `web-overview.png` | Saved synthetic portfolio totals, source dates and account allocation. |
+| `web-overview.png` | Saved synthetic portfolio totals, source dates, evidence status and account allocation. |
 | `web-overview-dark.png` | The same synthetic overview with dark appearance selected. |
 | `web-holdings.png` | Native CAD/USD securities and account filters. |
 | `web-exposure.png` | Invented sector classifications and direct/ETF company rankings. |
@@ -78,8 +78,14 @@ node frontend/scripts/capture-readme.mjs
 To refresh only the empty-portfolio guidance without rewriting unrelated gallery
 images, use `node frontend/scripts/capture-readme.mjs --first-run-only`. The same
 isolated fixture, origin/portfolio and blank-password guards apply; provenance is
-saved to ignored `work/readme-capture/first-run-provenance.json`. No other command-line
-arguments are accepted. This mode never creates financial data in the empty ledger.
+saved to ignored `work/readme-capture/first-run-provenance.json`.
+
+Use `node frontend/scripts/capture-readme.mjs --overview-only` to refresh only
+`web-overview.png` and `web-overview-dark.png`; its receipt is
+`work/readme-capture/overview-provenance.json`. The two selective modes are mutually
+exclusive; no URL, portfolio or source-file arguments are accepted. Neither mode
+submits financial input. The first-run mode never creates financial records in
+the empty ledger.
 
 Activate the Python environment first, or set `WEALTH_LEDGER_TEST_PYTHON` to its
 executable. An already installed Chrome binary can be selected with
@@ -100,8 +106,9 @@ The capture script:
 7. Closes the browser and terminates the fixture afterward; its temporary data is removed.
 
 The thirteen Web images use a 1440x1200 viewport with reduced motion. The report-reader
-image is a scrolled viewport; other images start at the page heading. Screenshots
-show representative visible content, not every section of a long page. All existing
+image is a scrolled viewport. Both overview images capture the full page so that
+the evidence section and following charts remain visible; other images start at
+the page heading and capture one viewport. All existing
 application locales and financial semantics remain unchanged.
 
 Browser/fixture/file provenance is saved under ignored

@@ -49,6 +49,7 @@ import {
   Holdings,
   Overview,
 } from "./components/analysis";
+import { CurrentProcessing } from "./components/evidence-status";
 import { Imports } from "./components/imports";
 import { GettingStarted } from "./components/getting-started";
 import { Financial } from "./components/financial";
@@ -491,7 +492,7 @@ function PortfolioWorkspace({
             {error(failure)}
           </p>
         )}
-        {portfolios.isError || reports.isError || report.isError ? (
+        {portfolios.isError || (reports.isError && !data) || report.isError ? (
           <section className="panel error" role="alert">
             <p>
               {error(
@@ -551,7 +552,12 @@ function PortfolioWorkspace({
                   <>
                     <Evidence data={data} />
                     {navPage === "overview" ? (
-                      <Overview data={data} currency={currency} />
+                      <Overview
+                        data={data}
+                        currency={currency}
+                        portfolio={portfolio}
+                        latest={reports.isError ? undefined : editions[0]}
+                      />
                     ) : navPage === "holdings" ? (
                       <Holdings data={data} currency={currency} />
                     ) : navPage === "exposure" ? (
@@ -567,7 +573,12 @@ function PortfolioWorkspace({
             ) : reports.isPending || reports.isFetching || report.isFetching ? (
               <p aria-live="polite">{t("loading")}</p>
             ) : (
-              <GettingStarted portfolio={portfolio} />
+              <>
+                {navPage === "overview" && (
+                  <CurrentProcessing portfolio={portfolio} />
+                )}
+                <GettingStarted portfolio={portfolio} />
+              </>
             )}
           </>
         )}

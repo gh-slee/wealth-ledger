@@ -2,14 +2,20 @@ import type { Report } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { groupedIssues } from "../lib/report-library";
 
-export function ReportNotices({ data }: { data: Report }) {
+export function ReportNotices({
+  data,
+  embedded = false,
+}: {
+  data: Report;
+  embedded?: boolean;
+}) {
   const { t } = useI18n();
   if (!data.issues.length) return null;
   const groups = groupedIssues(data);
   const counts = (severity: string) =>
     data.issues.filter((issue) => issue.severity === severity).length;
   return (
-    <details className="report-notices panel">
+    <details className={embedded ? "report-notices" : "report-notices panel"}>
       <summary>
         {t("reportChecks")} · {t("issueError")} {counts("error")} ·{" "}
         {t("issueWarning")} {counts("warning")} · {t("issueInfo")}{" "}

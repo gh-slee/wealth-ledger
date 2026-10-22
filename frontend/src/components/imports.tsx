@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -43,6 +44,8 @@ type Binding = {
 export function Imports({ portfolio }: { portfolio: string }) {
   const { t, label, error, locale } = useI18n();
   const client = useQueryClient();
+  const [jobParams, setJobParams] = useSearchParams();
+  const requestedJob = jobParams.get("job");
   const [parserMode, setParserMode] = useState(true);
   const [sourceFiles, setSourceFiles] = useState<File[]>([]);
   const [choices, setChoices] = useState<Binding[]>([]);
@@ -61,7 +64,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false),
     [failure, setFailure] = useState(""),
-    [selected, setSelected] = useState<string | null>(null),
+    [selected, setSelected] = useState<string | null>(requestedJob),
     [confirming, setConfirming] = useState(false);
   // Stable request keys survive uncertain network retries, but not edited input.
   const previewKey = useRef(crypto.randomUUID()),
@@ -96,7 +99,12 @@ export function Imports({ portfolio }: { portfolio: string }) {
       });
     }
   }, [publishedIds, client, portfolio]);
-  const job = importJobs.find((job) => job.id === selected) ?? importJobs[0];
+  useEffect(() => {
+    setSelected(requestedJob);
+  }, [requestedJob]);
+  const job =
+    importJobs.find((job) => job.id === selected) ??
+    (selected ? undefined : importJobs[0]);
   const result = record(job?.result),
     preview = record(result.preview ?? result);
   useEffect(() => {
@@ -788,6 +796,9 @@ export function Imports({ portfolio }: { portfolio: string }) {
       )}
       <section className="panel">
         <h2>{t("jobs")}</h2>
+        {selected && !job && jobs.isSuccess && (
+          <p role="status">{t("processingJobMissing")}</p>
+        )}
         {importJobs.length ? (
           <div className="job-list">
             {importJobs.map((value) => (
@@ -796,6 +807,7 @@ export function Imports({ portfolio }: { portfolio: string }) {
                 key={value.id}
                 onClick={() => {
                   setSelected(value.id);
+                  setJobParams({ job: value.id }, { replace: true });
                   setFailure("");
                 }}
               >

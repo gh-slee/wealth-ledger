@@ -326,6 +326,7 @@ test("financial declarations preview, save, revise and remain isolated from froz
 }) => {
   await login(page);
   await page
+    .getByRole("navigation", { name: "Portfolio navigation", exact: true })
     .getByRole("link", { name: "Financial records", exact: true })
     .click();
   await expect(
@@ -452,6 +453,7 @@ test("financial declarations preview, save, revise and remain isolated from froz
     .getByRole("combobox", { name: "Portfolio", exact: true })
     .selectOption({ label: "Empty synthetic portfolio" });
   await page
+    .getByRole("navigation", { name: "Portfolio navigation", exact: true })
     .getByRole("link", { name: "Financial records", exact: true })
     .click();
   await expect(

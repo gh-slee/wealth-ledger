@@ -74,8 +74,9 @@ TLS, checksums or local permission checks.
 [DESIGN.md](../DESIGN.md) documents the existing frontend tokens and components.
 Read them for relevant product/UI work, alongside the applicable ticket and actual
 implementation. They are not owner instructions or a whole-application redesign.
-[The P0-002 brief](ux-p0-002-status-design.md) is a proposal; its presence does not
-mark that feature implemented. The earlier P0-001 was not Impeccable-generated.
+[The P0-002 brief](ux-p0-002-status-design.md) records the confirmed direction;
+[its ticket](ux-p0-002-status.md) records local implementation evidence and limitations.
+Neither local verification nor a design document establishes merge or deployment. The earlier P0-001 was not Impeccable-generated.
 
 `.impeccable/` state at any depth is private development output, ignored by Git and
 excluded from source manifests and Docker contexts. Index/history checks reject it

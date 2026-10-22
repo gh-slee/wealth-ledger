@@ -216,6 +216,10 @@ the active navigation edge and evidence rail provide stronger orientation cues.
   and semantic links/buttons in the real application.
 - **Evidence rail:** dates and scope labels wrap above analysis, with a stronger
   upper border (2px) and a standard lower border (1px). Dates remain source-specific.
+- **Evidence status:** a scoped summary, at most three initially visible action
+  groups with an explicit full-list control, then native expandable evidence. The
+  current-processing area is independent of a frozen edition. Reuse existing panel,
+  button and status primitives; avoid a second bordered panel inside evidence.
 - **Report checks:** a native expandable section preserves counts, stable codes and
   account contexts. Grouping repeated notices must not erase distinct evidence.
 
