@@ -32,6 +32,8 @@ financial declarations share the CLI core; legacy adoption uses trusted-host com
 - Use English for public code, identifiers, comments, canonical documentation and generic examples.
   Preserve intentional locale catalogs, compatibility strings and source/user text.
   Personal conversation preferences belong only in the ignored override.
+- After substantial UI changes, refresh affected README screenshots and captions
+  with synthetic data; follow [the screenshot maintenance guide](assets/readme/README.md#when-to-refresh-screenshots).
 - Keep public guidance here; vendor integrations should reference it rather than
   duplicate it. Private preferences and session state never belong in this file.
 - Start new sessions in this repository. If subagents are explicitly requested,

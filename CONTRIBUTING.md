@@ -53,6 +53,9 @@ unit/browser tests and accessibility. Keep broader release acceptance visible.
 - Update affected contracts when behavior changes. Report changes need affected
   formula/cache and ODS/PDF checks; do not regenerate real financial reports for
   documentation work. Locale changes follow the [i18n guide](docs/i18n-plan.md).
+- Substantial UI changes must update affected README screenshots and captions.
+  Follow the [screenshot maintenance guide](assets/readme/README.md#when-to-refresh-screenshots)
+  using isolated synthetic data and visual/privacy review.
 - Keep roadmap/acceptance facts in public docs; personal preferences, authorization
   and current-session state belong in an ignored private override.
 

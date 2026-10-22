@@ -29,6 +29,24 @@ Only these thirteen named PNG paths are allowlisted for publication; arbitrary
 screenshots remain blocked. Inspect every newly generated image before staging.
 The local capture receipt is evidence, not a substitute for visual privacy review.
 
+## When to refresh screenshots
+
+Refresh affected README screenshots and captions in the same change when a major
+UI change makes the gallery inaccurate: page layouts, navigation, visible workflows,
+charts, themes, or added/removed pages. Keep the gallery representative of the
+current application. Backend-only changes and minor visual adjustments do not need
+new captures unless they make an existing image or explanation misleading.
+
+Use the isolated synthetic capture workflow below, never a personal instance or
+real financial data. If page routes or states change, update the capture script
+alongside the images. Review every regenerated PNG at full size, including light
+and dark examples where affected; confirm mock data, blank credential fields and
+accurate captions. Check README links and the explicit image publication allowlist,
+then run the publication/privacy guards documented in
+[the publishing guide](../../docs/publishing.md#local-review-before-publication).
+Keep capture receipts private. A successful capture alone is not visual or privacy
+approval, and image refreshes do not authorize deployment or financial data changes.
+
 ## Exported report preview
 
 With the locked Python core dependencies installed, from the repository root:
