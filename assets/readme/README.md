@@ -4,6 +4,7 @@
 |---|---|
 | `wealth-ledger-mark.svg` | Original project artwork under the project MIT license. |
 | `report-preview.png` | The invented offline report from `examples/demo.py`. |
+| `web-getting-started.png` | Empty synthetic portfolio; first-observation guidance, no financial records. |
 | `web-login.png` | Blank sign-in form; no entered credentials. |
 | `web-overview.png` | Saved synthetic portfolio totals, source dates and account allocation. |
 | `web-overview-dark.png` | The same synthetic overview with dark appearance selected. |
@@ -25,7 +26,7 @@ The filled wallet form is not submitted and the selected CSVs are not uploaded o
 confirmed by the screenshot script. The application UI is captured as rendered;
 financial text, tables, warnings and charts are not replaced with a visual mockup.
 
-Only these thirteen named PNG paths are allowlisted for publication; arbitrary
+Only these fourteen named PNG paths are allowlisted for publication; arbitrary
 screenshots remain blocked. Inspect every newly generated image before staging.
 The local capture receipt is evidence, not a substitute for visual privacy review.
 
@@ -74,6 +75,12 @@ cd ..
 node frontend/scripts/capture-readme.mjs
 ```
 
+To refresh only the empty-portfolio guidance without rewriting unrelated gallery
+images, use `node frontend/scripts/capture-readme.mjs --first-run-only`. The same
+isolated fixture, origin/portfolio and blank-password guards apply; provenance is
+saved to ignored `work/readme-capture/first-run-provenance.json`. No other command-line
+arguments are accepted. This mode never creates financial data in the empty ledger.
+
 Activate the Python environment first, or set `WEALTH_LEDGER_TEST_PYTHON` to its
 executable. An already installed Chrome binary can be selected with
 `WEALTH_LEDGER_BROWSER_CHANNEL=chrome`; Playwright uses a new disposable profile,
@@ -92,7 +99,7 @@ The capture script:
    browser requests. Images show the page, not desktop/address-bar/profile contents.
 7. Closes the browser and terminates the fixture afterward; its temporary data is removed.
 
-The twelve Web images use a 1440x1200 viewport with reduced motion. The report-reader
+The thirteen Web images use a 1440x1200 viewport with reduced motion. The report-reader
 image is a scrolled viewport; other images start at the page heading. Screenshots
 show representative visible content, not every section of a long page. All existing
 application locales and financial semantics remain unchanged.

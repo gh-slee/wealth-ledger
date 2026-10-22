@@ -102,6 +102,8 @@ docker compose up -d
 
 Open **[http://localhost:8000](http://localhost:8000)**. Sign in as `owner` using the password you set on the host, create a portfolio, and open **Import & jobs**. New instances start with no financial history or personal accounts. Try the [invented example files](examples/README.md) first.
 
+For the complete first-portfolio flow, source requirements, contribution backfill and later updates, follow [Start tracking a new portfolio](docs/getting-started.md).
+
 The `web` and `worker` services share the private `wealth-data` named volume. Initialize the owner once. `docker compose down` retains the volume; deleting the volume removes its data. The sample deployment binds to loopback. For HTTPS, remote access, upgrades, fresh rebuild contexts, and password resets, follow [Web operations](docs/web-operations.md) and the [upgrade/rollback runbook](docs/web-release-acceptance.md).
 
 Prebuilt multi-architecture images and a pull-only Compose recipe are planned. Current installation builds locally. The platform/evidence matrix is in [operations acceptance](docs/web-release-acceptance.md); Windows and macOS hosts use Linux containers.
@@ -136,6 +138,17 @@ On Windows, use `.venv\Scripts\python.exe` instead of Unix activation. Broader W
 Use **Financial records** for cash-flow coverage, contributions and BTC openings/balances/events, including append-only corrections. The same operations remain available in the CLI. Holdings changes and purchase spending do not establish contributions. See [financial declarations](docs/web-financial-records.md).
 
 ## Screenshots
+
+New portfolios explain the first observation, optional evidence and later contribution tracking. See the [product review and prioritized UX tickets](docs/product-ux-review.md) for implemented versus planned work.
+
+<details>
+<summary><strong>First observation: a new, empty portfolio</strong></summary>
+
+![Getting started with an empty synthetic portfolio](assets/readme/web-getting-started.png)
+
+Choose available exports, review before confirmation, and then read the published report. No financial data is imported by opening this guide.
+
+</details>
 
 The following are actual application screens from a **disposable synthetic portfolio**,
 using only the [public example data](examples/README.md). Accounts, amounts, holdings,

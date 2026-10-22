@@ -40,11 +40,40 @@ runnable; the browser workflow reads frozen reports and drives confirmed jobs.
 - [x] **WEB-007 Release/operations acceptance**: exclusive metadata upgrades, atomic capacity-failure cleanup, abrupt-exit/retry tests, offline dependency-license inventory and [upgrade/rollback/platform guidance](docs/web-release-acceptance.md). Synthetic local acceptance, Linux/arm64 Docker Desktop and merged Linux/amd64 CI passed. This establishes readiness to review deployment/adoption, not an already migrated or running private instance.
 - [ ] **WEB-008 Prebuilt multi-architecture distribution**: public GHCR Linux/amd64 and Linux/arm64 images, digest/version-pinned pull-only Compose, explicit image publication approval, final-image/browser/OS notices and SBOM/vulnerability review, provenance/signatures, clean pull/install/upgrade/restore tests and documented Docker Desktop macOS/Windows plus Linux host matrix. Keep local source builds available; no source checkout, host Python or npm required for end users. Do not claim arbitrary CPUs, Windows-native containers, NAS or rootless hosts are accepted without evidence.
 
-- [x] **WEB-009 Recognized legacy publication adoption**: implemented and verified locally with explicit pre-checksum acceptance, preserved report bytes/dates, separate migration-time evidence, three-locale UI notices and bound downloads/exports/backup restore. Candidate CI/review and merge remain required before relying on it for deployment. See [legacy report adoption](docs/web-legacy-reports.md).
+- [x] **WEB-009 Recognized legacy publication adoption**: implemented and verified locally with explicit pre-checksum acceptance, preserved report bytes/dates, separate migration-time evidence, three-locale UI notices and bound downloads/exports/backup restore. The implementation is merged; any deployment still needs its own fixed-version acceptance. See [legacy report adoption](docs/web-legacy-reports.md).
 
-- [x] **WEB-010 Full Web report reading**: implemented and locally validated; complete saved sections/tables/charts, same-edition downloads, date/scope-grouped history, stable edition links and contextual grouped checks. See [report reading](docs/web-analysis-reports.md). Publication/CI review and deployment remain separate.
-- [x] **WEB-011 Appearance modes**: implemented and locally validated; system/light/dark controls, semantic surfaces and interactive-chart colors, nonfinancial preference storage, three locales and browser/accessibility checks. Saved artifacts retain original styling; no rebuilt production deployment is claimed.
-- [ ] **UX-001 Whole-application UX/design review**: proposed follow-up; review navigation, import/confirmation, report discovery, financial records and empty/error states before approving a replacement visual system. Evaluate Impeccable as optional development guidance; it is not installed or an application runtime dependency. Redesign direction and scope still need review.
+- [x] **WEB-010 Full Web report reading**: implemented and merged; complete saved sections/tables/charts, same-edition downloads, date/scope-grouped history, stable edition links and contextual grouped checks. See [report reading](docs/web-analysis-reports.md). Deployment remains a separate reviewed operation.
+- [x] **WEB-011 Appearance modes**: implemented and merged; system/light/dark controls, semantic surfaces and interactive-chart colors, nonfinancial preference storage, three locales and browser/accessibility checks. Saved artifacts retain original styling; no rebuilt production deployment is claimed.
+- [x] **UX-001 Product/UX assessment and prioritized implementation plan**: evidence-based page/journey review, first-use and plugin explanation, comparable-product references and fifteen P0/P1/P2 tickets with acceptance criteria; see [review and ticket index](docs/product-ux-review.md). This does not mark the whole redesign or all proposed features complete.
+
+### Prioritized product and UX delivery
+
+P0 is the first-use/trustworthy-update gate for this program. P1 adds core analytics
+and operation capabilities; P2 adds optional/dependent extensions. Each row links to
+its own problem, scope, dependencies, acceptance criteria and validation record.
+
+| ID | Priority | Status | Ticket |
+|---|---|---|---|
+| UX-P0-001 | P0 | Verified locally; not merged | [First-use guidance](docs/ux-p0-001-first-run.md) |
+| UX-P0-002 | P0 | Planned | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
+| UX-P0-003 | P0 | Planned | [Understandable import/recovery](docs/ux-p0-003-imports.md) |
+| UX-P1-001 | P1 | Planned | [Activity, contributions, transfers](docs/ux-p1-001-activity.md) |
+| UX-P1-002 | P1 | Planned | [Eligible returns and attribution](docs/ux-p1-002-performance.md) |
+| UX-P1-003 | P1 | Planned | [Income, fees, corporate actions](docs/ux-p1-003-income.md) |
+| UX-P1-004 | P1 | Planned | [Targets and ETF overlap / FUT-004](docs/ux-p1-004-allocation.md) |
+| UX-P1-005 | P1 | Planned | [Analysis workbench/drill-down](docs/ux-p1-005-analysis.md) |
+| UX-P1-006 | P1 | Planned | [Source capabilities and extensions](docs/ux-p1-006-sources.md) |
+| UX-P1-007 | P1 | Planned | [Pull-only distribution / WEB-008](docs/ux-p1-007-distribution.md) |
+| UX-P2-001 | P2 | Planned | [Benchmarks/risk](docs/ux-p2-001-risk.md) |
+| UX-P2-002 | P2 | Planned | [Goals/scenarios](docs/ux-p2-002-goals.md) |
+| UX-P2-003 | P2 | Planned | [Mobile/balance privacy](docs/ux-p2-003-mobile.md) |
+| UX-P2-004 | P2 | Planned | [Operations/account security UX](docs/ux-p2-004-operations.md) |
+| UX-P2-005 | P2 | Planned | [Cost/tax evidence exports](docs/ux-p2-005-tax-evidence.md) |
+
+Sequence: review/merge the locally verified P0-001 slice, then implement P0-002 and P0-003. Cross-linked existing
+roadmap items are the same work, not duplicate implementations. Do not implement
+financial-return features before their evidence/flow/valuation prerequisites.
+
 
 This track does not complete the source-plugin SDK, new currencies or combined
 performance automatically. Keep each stage planned until accepted; actual private
@@ -55,11 +84,11 @@ migration is a separate explicit operation.
 | ID | Status | Scope |
 |---|---|---|
 | FUT-002 | Not implemented | Unified read-only status: latest successful report, source dates/carried data, BTC gaps, unclassified funding, coverage gaps and pending/failed jobs; deterministic next steps without observations or quote queries |
-| FUT-003 | Not implemented | Date/range exports for assets, purchases, contributions and balances, plus a local report index; retain revisions/unknowns and distinguish different tracking scopes |
+| FUT-003 | Partially implemented | Web frozen CSV/JSON datasets and supported date ranges exist (WEB-005); broader unified CLI/range exports and a local report index remain. Preserve revisions/unknowns and tracking scopes; see UX-P1-005 |
 | FUT-004 | Not implemented | ETF shared-company/weighted overlap: define denominators/formulas, reuse official evidence/identities and disclose dates, parsing coverage and unknown weights |
 | FUT-005 | Not implemented | Separate quantity, market-price and FX effects on value; define interaction allocation and identify splits/scope/mixed dates/missing quotes; quantity effects are not contributions |
 
-WEB-007 operations acceptance is verified and merged. The source-plugin daily workflow and legacy compatibility are implemented locally and still need candidate review/CI and merge; WEB-008 remains the separate pull-only distribution track. Actual deployment/adoption remains an explicit operator action. WEB-006 is implemented and verified locally; it does not itself authorize deployment or private migration. FUT-002 remains an optional convenience feature. Bull funding-source classification
+WEB-007 operations acceptance is verified and merged. The source-plugin daily workflow and legacy compatibility are implemented and merged; WEB-008 remains the separate pull-only distribution track. Actual deployment/adoption remains an explicit operator action. WEB-006 is implemented and verified locally; it does not itself authorize deployment or private migration. FUT-002 remains an optional convenience feature. Bull funding-source classification
 and transfer matching is next on the cash-flow track. Unfinished items do not block
 currently supported updates.
 
@@ -78,7 +107,7 @@ translated documentation and additional locales are separate work.
 - [x] **I18N-006 Docs/public manifest**: README/manual/API/report/development contracts, reviewed JSON/font/doc paths and public manifests; preserve first-publication approval requirements.
 - [ ] **I18N-007 More locales/translated documentation**: candidates fr-CA/ja-JP; verify formatting/fonts/terms/licenses and maintain complete translated README/manual editions separately.
 
-## Extensible source adapters (contract/registry implemented; integration planned)
+## Extensible source adapters (default v2 integration implemented)
 
 Product direction: one application for bank, brokerage, Bitcoin broker and exchange
 exports through source-parser plugins. Wealthsimple and Bull Bitcoin are the first
@@ -105,7 +134,7 @@ built-in importers. Current support is format-specific, not universal CSV suppor
 - [x] **SRC-004C3C2 Ordinary CLI/Web cutover**: connect automatic source identification/context defaults and explicit mapping review to regular upload/preview/confirm/jobs; optional BTC-only/either-source/both-source/saved-data flows, source-aware browser read/export views, recovery and full browser/container/history preservation acceptance. Explicit saved-context selection, revision parents and dated source-account contribution/coverage declarations are implemented; native guards remain necessary.
 - [x] **SRC-004C3C2A Source Web publication/read/export**: explicit source-report API previews/exact approval use isolated existing jobs, immutable publications and ordinary report library/downloads; source-aware read/export DTOs preserve provenance, observed-subtotal scope and unknowns. Browser job review/confirms exact digests; interrupted registry publication and full empty restore have synthetic acceptance. The default browser form now uses the separate automatic preparation entry.
 - [x] **SRC-004C3C2B Automatic CLI/Web entry**: shared isolated source detection/frozen host defaults, editable account mappings in regular upload forms, optional BTC-only/either/both/saved inputs, explicit reference policies, exact approval and receipt-only recovery. The regular CLI/browser now default to this path; explicit native compatibility keeps its guard; see [usage and boundaries](docs/source-projections.md#automatic-import-entry-src-004c3c2b).
-  Default workflow acceptance covers explicit saved contexts/corrections, native/mixed source history, installed third-parser reports, three-locale browser exports and full empty-volume restore including canonical manual cash flows. Candidate review/CI and merge are still required before deployment/adoption; neither personal migration nor additional real institutions is implied. See [daily usage](docs/source-projections.md#default-daily-workflow).
+  Default workflow acceptance covers explicit saved contexts/corrections, native/mixed source history, installed third-parser reports, three-locale browser exports and full empty-volume restore including canonical manual cash flows. The cutover is merged; fixed-version deployment/adoption acceptance remains separate. No personal migration or additional real institution is implied. See [daily usage](docs/source-projections.md#default-daily-workflow).
 
 
 The implemented pipeline uses versioned protocol/registry discovery, isolated
@@ -125,9 +154,9 @@ upload/network automatically or use an LLM to generate/select parsers at runtime
 See [adapter design](docs/source-adapters.md), [SDK/install acceptance](docs/parser-sdk.md)
 and [the original implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004).
 
-Next on this track: review and merge the complete implemented candidate with its
-actual CI results; deployment/adoption requires a fixed reviewed version and separate
-operator evidence. New real institutions require format-specific fixtures and tests.
+The existing parser cutover is implemented and merged. Further source-capability UX
+is tracked by UX-P1-006; new real institutions require format-specific fixtures and
+tests. Deployment/adoption requires a fixed reviewed version and separate operator evidence.
 Pull-only multi-architecture distribution remains WEB-008; no image release is implied.
 
 ## Cash flows and additional data

@@ -23,6 +23,12 @@ PUBLIC_ROOT_FILES = {
 }
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
+    'ux-p0-001-first-run.md', 'ux-p0-002-status.md', 'ux-p0-003-imports.md',
+    'ux-p1-001-activity.md', 'ux-p1-002-performance.md', 'ux-p1-003-income.md',
+    'ux-p1-004-allocation.md', 'ux-p1-005-analysis.md', 'ux-p1-006-sources.md',
+    'ux-p1-007-distribution.md', 'ux-p2-001-risk.md', 'ux-p2-002-goals.md',
+    'ux-p2-003-mobile.md', 'ux-p2-004-operations.md', 'ux-p2-005-tax-evidence.md',
+    'getting-started.md', 'product-ux-review.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
     'source-adapters.md', 'source-ingestion.md', 'source-projections.md', 'parser-sdk.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-analysis-reports.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md', 'web-legacy-reports.md',
 }
@@ -36,6 +42,7 @@ PUBLIC_FUND_FIXTURES = {
 }
 PUBLIC_README_PNGS = {
     'assets/readme/report-preview.png', 'assets/readme/web-overview.png',
+    'assets/readme/web-getting-started.png',
     'assets/readme/web-exposure.png', 'assets/readme/web-login.png',
     'assets/readme/web-holdings.png', 'assets/readme/web-history.png',
     'assets/readme/web-bitcoin.png', 'assets/readme/web-imports.png',

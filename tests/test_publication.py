@@ -41,7 +41,13 @@ class PublicationPolicyTests(unittest.TestCase):
                      'assets/readme/web-bitcoin.png', 'assets/readme/web-imports.png',
                      'assets/readme/web-records.png', 'assets/readme/web-reports.png',
                      'assets/readme/web-settings.png', 'assets/readme/web-overview-dark.png',
-                     'assets/readme/web-report-reader.png'):
+                     'assets/readme/web-report-reader.png', 'assets/readme/web-getting-started.png',
+                     'docs/ux-p0-001-first-run.md', 'docs/ux-p0-002-status.md', 'docs/ux-p0-003-imports.md',
+                     'docs/ux-p1-001-activity.md', 'docs/ux-p1-002-performance.md', 'docs/ux-p1-003-income.md',
+                     'docs/ux-p1-004-allocation.md', 'docs/ux-p1-005-analysis.md', 'docs/ux-p1-006-sources.md',
+                     'docs/ux-p1-007-distribution.md', 'docs/ux-p2-001-risk.md', 'docs/ux-p2-002-goals.md',
+                     'docs/ux-p2-003-mobile.md', 'docs/ux-p2-004-operations.md', 'docs/ux-p2-005-tax-evidence.md',
+                     'docs/getting-started.md', 'docs/product-ux-review.md'):
             self.assertTrue(guard.path_allowed(path), path)
 
     def test_private_and_unknown_paths(self):

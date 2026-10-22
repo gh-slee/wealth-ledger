@@ -35,6 +35,8 @@ keep the backend on port 8000 but configure its public origin as
 `http://localhost:5173`, matching the browser. Vite preserves Host/Origin when proxying
 `/api`; do not enable permissive CORS or disable the API's origin checks.
 
+New users should start with [the first-portfolio guide](getting-started.md). Empty analysis pages explain the first observation without loading demo finances or assuming a zero balance. See [the UX review](product-ux-review.md) for remaining prioritized work.
+
 ## Daily use
 
 1. Sign in with the owner initialized on the host. Create or select an independent

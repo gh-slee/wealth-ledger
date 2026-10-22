@@ -1181,3 +1181,50 @@ tbody tr:hover {
     width: 100%;
   }
 }
+
+.getting-started {
+  max-width: 70rem;
+}
+.getting-started > h2 {
+  margin-top: 0.5rem;
+}
+.start-steps {
+  list-style-type: decimal;
+  margin: 1.5rem 0;
+  padding-left: 1.75rem;
+  display: grid;
+  gap: 1.25rem;
+}
+.start-steps li {
+  padding-left: 0.5rem;
+}
+.start-steps li::marker {
+  color: var(--teal);
+  font-weight: bold;
+}
+.start-help {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.start-help dl {
+  margin: 1rem 0;
+}
+.start-help dt {
+  font-weight: bold;
+  margin-top: 1rem;
+}
+.start-help dd {
+  margin: 0.25rem 0 0;
+  line-height: 1.55;
+}
+.start-followup {
+  margin-top: 1.5rem;
+  background: var(--soft);
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+}
+.start-followup a {
+  display: inline-block;
+  margin: 0.75rem 1.5rem 0 0;
+}
