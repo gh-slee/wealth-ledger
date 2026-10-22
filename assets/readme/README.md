@@ -12,7 +12,7 @@
 | `web-exposure.png` | Invented sector classifications and direct/ETF company rankings. |
 | `web-history.png` | The fixture's single actual observation; no fabricated monthly points. |
 | `web-bitcoin.png` | Invented BTC/LBTC quantities, costs and monthly purchase rates. |
-| `web-imports.png` | Both public example CSVs selected locally, before upload/preview. |
+| `web-imports.png` | Staged preparation with both public example CSVs selected locally, before upload/preview. |
 | `web-records.png` | Unsaved invented BTC quantity, dated observation and synthetic evidence source. |
 | `web-reports.png` | Saved report context, original downloads and grouped edition history. |
 | `web-report-reader.png` | Scrolled saved report contents and original analysis tables. |
@@ -22,7 +22,8 @@ All Web screenshots come from `scripts/web_browser_fixture.py`, using public
 `examples/demo.py` / `examples/data` inputs in a newly created temporary instance.
 They contain no real user's accounts, balances, wallet addresses, prices, or broker
 exports. Dates, values and company names are demonstration data, not current quotes.
-The filled wallet form is not submitted and the selected CSVs are not uploaded or
+Published jobs in the import image are seeded demonstration history, not imports
+from the current file selections. The filled wallet form is not submitted and the selected CSVs are not uploaded or
 confirmed by the screenshot script. The application UI is captured as rendered;
 financial text, tables, warnings and charts are not replaced with a visual mockup.
 
@@ -82,9 +83,12 @@ saved to ignored `work/readme-capture/first-run-provenance.json`.
 
 Use `node frontend/scripts/capture-readme.mjs --overview-only` to refresh only
 `web-overview.png` and `web-overview-dark.png`; its receipt is
-`work/readme-capture/overview-provenance.json`. The two selective modes are mutually
-exclusive; no URL, portfolio or source-file arguments are accepted. Neither mode
-submits financial input. The first-run mode never creates financial records in
+`work/readme-capture/overview-provenance.json`.
+
+Use `node frontend/scripts/capture-readme.mjs --imports-only` for only
+`web-imports.png`, with receipt `work/readme-capture/imports-provenance.json`.
+The three selective modes are mutually exclusive; no URL, portfolio or source-file
+arguments are accepted. None of these modes submits financial input. The first-run mode never creates financial records in
 the empty ledger.
 
 Activate the Python environment first, or set `WEALTH_LEDGER_TEST_PYTHON` to its
@@ -106,8 +110,8 @@ The capture script:
 7. Closes the browser and terminates the fixture afterward; its temporary data is removed.
 
 The thirteen Web images use a 1440x1200 viewport with reduced motion. The report-reader
-image is a scrolled viewport. Both overview images capture the full page so that
-the evidence section and following charts remain visible; other images start at
+image is a scrolled viewport. Both overview images and the import screen capture the full page so that
+evidence, charts and staged controls remain visible; other images start at
 the page heading and capture one viewport. All existing
 application locales and financial semantics remain unchanged.
 

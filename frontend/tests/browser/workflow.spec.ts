@@ -174,6 +174,9 @@ test("real CSV preview, explicit confirmation and worker report publication", as
     .getByRole("combobox", { name: "Portfolio", exact: true })
     .selectOption({ label: "Empty synthetic portfolio" });
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await page
+    .getByText("Advanced parser and compatibility options", { exact: true })
+    .click();
   await page.getByLabel("Use parser plugins", { exact: true }).uncheck();
   // Invented unrecognized ETF/stock names avoid production issuer network calls.
   const csv = readFileSync(
@@ -271,6 +274,9 @@ test("a dated BTC total can be submitted without either CSV", async ({
     page.getByRole("heading", { name: "Start with your first observation" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await page
+    .getByText("Advanced parser and compatibility options", { exact: true })
+    .click();
   await page.getByLabel("Use parser plugins", { exact: true }).uncheck();
   await page.getByLabel("BTC total (optional)", { exact: true }).fill("0.01");
   await page

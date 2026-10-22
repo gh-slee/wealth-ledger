@@ -9,15 +9,19 @@ if (
   process.argv
     .slice(2)
     .some(
-      (argument) => !["--first-run-only", "--overview-only"].includes(argument),
+      (argument) =>
+        !["--first-run-only", "--overview-only", "--imports-only"].includes(
+          argument,
+        ),
     )
 )
   throw new Error(
-    "Only --first-run-only or --overview-only is supported; external inputs are forbidden",
+    "Only --first-run-only, --overview-only or --imports-only is supported; external inputs are forbidden",
   );
 const firstRunOnly = process.argv.includes("--first-run-only");
 const overviewOnly = process.argv.includes("--overview-only");
-if (firstRunOnly && overviewOnly)
+const importsOnly = process.argv.includes("--imports-only");
+if ([firstRunOnly, overviewOnly, importsOnly].filter(Boolean).length > 1)
   throw new Error("Capture modes are mutually exclusive");
 const root = path.resolve(import.meta.dirname, "../..");
 const origin = "http://localhost:8765";
@@ -118,8 +122,11 @@ try {
     }, scrollTop);
     await page.screenshot({
       path: path.join(output, filename),
-      fullPage:
-        filename === "web-overview.png" || filename === "web-overview-dark.png",
+      fullPage: [
+        "web-overview.png",
+        "web-overview-dark.png",
+        "web-imports.png",
+      ].includes(filename),
       animations: "disabled",
     });
     files.push(filename);
@@ -141,29 +148,33 @@ try {
     .getByRole("img", { name: "Value over recorded observations", exact: true })
     .waitFor();
   if (!firstRunOnly) {
-    await expect(page.locator(".evidence-status")).toBeVisible();
-    await expect(page.locator(".processing-status")).toHaveCount(0);
-    await capture("web-overview.png");
-    await page
-      .getByRole("combobox", { name: "Appearance", exact: true })
-      .selectOption("dark");
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    await capture("web-overview-dark.png");
-    await page
-      .getByRole("combobox", { name: "Appearance", exact: true })
-      .selectOption("light");
-    const pages = overviewOnly
-      ? []
-      : [
-          ["Holdings", "web-holdings.png"],
-          ["Exposure", "web-exposure.png"],
-          ["History", "web-history.png"],
-          ["Bitcoin & flows", "web-bitcoin.png"],
-          ["Import & jobs", "web-imports.png"],
-          ["Financial records", "web-records.png"],
-          ["Analysis reports", "web-reports.png"],
-          ["Settings", "web-settings.png"],
-        ];
+    if (!importsOnly) {
+      await expect(page.locator(".evidence-status")).toBeVisible();
+      await expect(page.locator(".processing-status")).toHaveCount(0);
+      await capture("web-overview.png");
+      await page
+        .getByRole("combobox", { name: "Appearance", exact: true })
+        .selectOption("dark");
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+      await capture("web-overview-dark.png");
+      await page
+        .getByRole("combobox", { name: "Appearance", exact: true })
+        .selectOption("light");
+    }
+    const pages = importsOnly
+      ? [["Import & jobs", "web-imports.png"]]
+      : overviewOnly
+        ? []
+        : [
+            ["Holdings", "web-holdings.png"],
+            ["Exposure", "web-exposure.png"],
+            ["History", "web-history.png"],
+            ["Bitcoin & flows", "web-bitcoin.png"],
+            ["Import & jobs", "web-imports.png"],
+            ["Financial records", "web-records.png"],
+            ["Analysis reports", "web-reports.png"],
+            ["Settings", "web-settings.png"],
+          ];
     for (const [title, filename] of pages) {
       await page.getByRole("link", { name: title, exact: true }).click();
       await page.getByRole("heading", { name: title, level: 1 }).waitFor();
@@ -196,6 +207,9 @@ try {
             path.join(root, "examples/data/wealthsimple-holdings.csv"),
             path.join(root, "examples/data/bull-orders.csv"),
           ]);
+        await expect(
+          page.locator(".import-stages [aria-current='step']"),
+        ).toContainText("Prepare inputs");
         await page
           .getByRole("button", { name: "Upload & preview", exact: true })
           .waitFor();
@@ -229,7 +243,7 @@ try {
       }
     }
   }
-  if (!overviewOnly) {
+  if (!overviewOnly && !importsOnly) {
     await page
       .getByRole("combobox", { name: "Appearance", exact: true })
       .selectOption("light");
@@ -261,7 +275,7 @@ try {
     source: "examples/demo.py and examples/data only",
     portfolios: firstRunOnly
       ? ["Empty synthetic portfolio"]
-      : overviewOnly
+      : overviewOnly || importsOnly
         ? ["SYNTHETIC demonstration"]
         : ["SYNTHETIC demonstration", "Empty synthetic portfolio"],
     valuation: firstRunOnly ? null : "2024-02-01T10:00:00-05:00",
@@ -271,9 +285,11 @@ try {
     files,
     input_examples: firstRunOnly
       ? "Empty portfolio guidance only; no uploads or declarations"
-      : overviewOnly
-        ? "Read-only synthetic overview; no uploads or declarations"
-        : "Public example CSVs and an unsaved invented wallet declaration; no import or record confirmation",
+      : importsOnly
+        ? "Public example CSVs selected locally; no upload, preview or confirmation"
+        : overviewOnly
+          ? "Read-only synthetic overview; no uploads or declarations"
+          : "Public example CSVs and an unsaved invented wallet declaration; no import or record confirmation",
     external_requests: external.length,
     browser_errors: failures.length,
   };
@@ -284,9 +300,11 @@ try {
       review,
       firstRunOnly
         ? "first-run-provenance.json"
-        : overviewOnly
-          ? "overview-provenance.json"
-          : "provenance.json",
+        : importsOnly
+          ? "imports-provenance.json"
+          : overviewOnly
+            ? "overview-provenance.json"
+            : "provenance.json",
     ),
     JSON.stringify(evidence, null, 2) + "\n",
   );

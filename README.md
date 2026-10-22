@@ -230,12 +230,15 @@ are disclosed rather than filled with zero.
 <details>
 <summary><strong>Import &amp; jobs — preview supported CSVs before confirmation</strong></summary>
 
-<img src="assets/readme/web-imports.png" width="1200" alt="Synthetic import form with the public Wealthsimple holdings and Bull Bitcoin order examples selected">
+<img src="assets/readme/web-imports.png" width="1200" alt="Staged synthetic import preparation with the public Wealthsimple holdings and Bull Bitcoin order examples selected">
 
 **Example:** select `examples/data/wealthsimple-holdings.csv` and
 `examples/data/bull-orders.csv`, or provide either independently. Review detected
-sources, account mappings and checks before confirming. The screenshot shows selected
+sources, account mappings and checks through prepare, review and confirm stages.
+Advanced compatibility/corrections are expandable; failed saved reports use explicit
+resume. The screenshot shows selected
 sample files **before upload/preview**; no import is confirmed by the capture script.
+Published jobs below are seeded demonstration history, separate from these selections.
 See [the browser workflow](docs/web-frontend.md) for saved contexts, reference inputs
 and job recovery.
 

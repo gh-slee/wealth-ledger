@@ -236,3 +236,68 @@ This implementation adds no endpoint, database migration, financial formula or
 runtime AI. It preserves original report payloads, observations and downloadable
 artifacts. See [the scoped ticket](ux-p0-002-status.md) and
 [design brief](ux-p0-002-status-design.md) for acceptance and remaining limitations.
+
+## Staged import review and recovery
+
+Import & jobs now shows the actual sequence **Prepare inputs -> Review saved
+preview -> Confirm and publish**. This is a visible task sequence, not a wizard
+that discards file fields when moving between screens. Supply either supported
+CSV, both, a dated BTC total alone, or saved facts. Each selected CSV exposes its
+verified context choice, stable account alias and timezone. Keep an alias stable
+for the same source account across later exports. A filename or upload time is
+not observation evidence; entered times require an explicit UTC offset.
+
+**Advanced parser and compatibility options** contains the retained parser-mode
+switch. Per-file parser overrides and correction parents are also expandable.
+These controls remain available, but are not required for normal supported imports.
+Native compatibility keeps its canonical-omission guard. Source labels preserve an
+unknown enabled provider ID rather than substituting another institution's name.
+
+**Optional reference JSON** contains FX/BTC-price uploads and the explicit public
+fetch choice. The default parser preparation uses `saved_only` and does not fetch
+network references. Selecting the public fetch option is separate consent for
+deterministic reference queries/private caches; it never books financial facts.
+Native preview remains offline and its formal confirmation may fetch missing
+references under the existing native contract. A missing-reference result links
+directly back to these options; provide the named evidence and preview again.
+
+The review shows saved source dates, mappings, observed subtotals, quantities and
+pending/blocking checks when the API supplies them. **Saved job identity and technical
+details** exposes its job/operation identifiers, expiry and exact approval digest
+when available. These are the saved preview's inputs, not unsent form values.
+Only supported ready results are confirmable: native `checked`/`pending_reference`,
+or source `awaiting_confirmation` with its exact digest. Mapping/reference review,
+blockers, malformed or unknown states cannot be confirmed through the UI.
+
+Editing inputs or mappings invalidates the selected preview's approval in this tab,
+including after switching between jobs. Create and review a new preview. If a
+formal job is already linked, open that job instead of confirming again. Another
+unfinished financial job also prevents a new confirmation. Backend expiry,
+fingerprint, mutual-exclusion and exact-approval checks remain authoritative.
+No client guard bypasses those contracts. New draft edits return progress to Prepare
+even while an older published job remains selected; its outcome stays explicitly
+separate and contains no preview-pending message.
+
+An uncertain network response keeps the same unchanged request body and idempotency
+key for retry. Reopening a confirmation does not rotate its key. Double submissions
+are guarded synchronously and controls are disabled while a request is in flight.
+A stale/expired approval requires a fresh preview, not an unchanged confirmation
+retry. Unsent fields/files stay in the tab after errors; they are never persisted
+in browser storage and closing/reloading the tab loses the unsent draft. Re-select
+original inputs when a new mapping/reference preview needs them after a reload.
+A user-submitted job receives focus when it becomes available; background polling
+does not repeatedly move focus.
+
+| Outcome | Next action |
+|---|---|
+| Published | Open the saved report edition and its original exports. |
+| Queued/running | Wait for the worker; a new update is not a way to accelerate it. |
+| Data committed | Data is saved; wait for report publication. No cancellation or reimport can undo it. |
+| Report failed | Explicitly resume the same saved report. Its original inputs/cutoff remain fixed. |
+| Blocked/failed preview | Correct the nonbooking inputs and create a fresh preview. |
+| Cancelled queued work | Earlier history remains; prepare a fresh preview if needed. |
+| Interrupted/needs review/unknown update outcome | Preserve evidence and use trusted-host recovery; do not guess a reimport or force retry. |
+
+See [the recovery contract](web-imports.md#interruption-and-error-handling) before
+stopping writers or restoring a backup. This UX change adds no financial endpoint,
+parser, database migration, formula, automatic repair or runtime AI.

@@ -220,6 +220,10 @@ the active navigation edge and evidence rail provide stronger orientation cues.
   groups with an explicit full-list control, then native expandable evidence. The
   current-processing area is independent of a frozen edition. Reuse existing panel,
   button and status primitives; avoid a second bordered panel inside evidence.
+- **Import stages:** a simple numbered list expresses the actual prepare, review
+  and publish sequence. Current-stage text carries emphasis; native disclosures
+  hold advanced controls and disabled field groups indicate an active request.
+  User-submitted results receive focus; background polling does not steal it.
 - **Report checks:** a native expandable section preserves counts, stable codes and
   account contexts. Grouping repeated notices must not erase distinct evidence.
 
