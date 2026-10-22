@@ -36,7 +36,12 @@ PUBLIC_FUND_FIXTURES = {
 }
 PUBLIC_README_PNGS = {
     'assets/readme/report-preview.png', 'assets/readme/web-overview.png',
-    'assets/readme/web-exposure.png',
+    'assets/readme/web-exposure.png', 'assets/readme/web-login.png',
+    'assets/readme/web-holdings.png', 'assets/readme/web-history.png',
+    'assets/readme/web-bitcoin.png', 'assets/readme/web-imports.png',
+    'assets/readme/web-records.png', 'assets/readme/web-reports.png',
+    'assets/readme/web-settings.png', 'assets/readme/web-overview-dark.png',
+    'assets/readme/web-report-reader.png',
 }
 PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {

@@ -137,22 +137,145 @@ Use **Financial records** for cash-flow coverage, contributions and BTC openings
 
 ## Screenshots
 
+The following are actual application screens from a **disposable synthetic portfolio**,
+using only the [public example data](examples/README.md). Accounts, amounts, holdings,
+prices and dates are invented. These are saved demonstration reports, not live quotes
+or a maintainer's financial data. Screenshots show the current UI; a broader design
+review remains separate planned work.
+
+### Portfolio overview
+
 <p align="center">
-  <img src="assets/readme/web-overview.png" width="1200" alt="Synthetic Web dashboard showing a frozen portfolio value, independent source dates, recorded history, and account allocation">
+  <img src="assets/readme/web-overview.png" width="1200" alt="Synthetic portfolio overview with a saved CAD value, source dates, account allocation and recorded observation chart">
 </p>
 
-<p align="center"><em>Invented accounts, holdings, prices, and dates from the disposable browser fixture. This is a saved demonstration observation, not live market data or a real portfolio.</em></p>
+**Example:** inspect a saved CA$1,930.00 portfolio across four accounts, switch the
+display currency between CAD/USD/TWD, and compare the valuation cutoff with each
+source's date. Opening the overview does not refresh prices or create an observation.
+
+Expand a page below to see its screen and an example task:
 
 <details>
-<summary><strong>Company rankings and classified exposure</strong></summary>
+<summary><strong>Sign in — access your own instance</strong></summary>
 
-<p align="center">
-  <img src="assets/readme/web-exposure.png" width="1200" alt="Synthetic sector allocation, classification coverage, ranked ETF and direct company exposure, and frozen source dates">
-</p>
+<img src="assets/readme/web-login.png" width="1200" alt="Wealth Ledger sign-in page with blank username and password inputs">
 
-The top-20 table combines direct and ETF holdings. Whole-portfolio weights include cash; unresolved constituents remain visible in coverage and report attachments. [Screenshot provenance and reproduction](assets/readme/README.md).
+Sign in with the account created on your host. Each instance has one owner or
+household and can contain independent portfolios. The screenshot contains no entered
+credentials; the demonstration account is used only in the disposable fixture.
 
 </details>
+
+<details>
+<summary><strong>Holdings — compare accounts and native currencies</strong></summary>
+
+<img src="assets/readme/web-holdings.png" width="1200" alt="Synthetic holdings table with account and CAD/USD filters, quantities, costs and saved valuations">
+
+**Example:** filter the invented TFSA, RRSP or non-registered holdings, then compare
+CAD and USD securities. The CAD-valued BTC proxy is kept outside this native-currency
+securities table and appears on the Bitcoin page.
+
+</details>
+
+<details>
+<summary><strong>Exposure — inspect company concentration and ETF holdings</strong></summary>
+
+<img src="assets/readme/web-exposure.png" width="1200" alt="Synthetic sector allocation, classification coverage and ranked company exposure through direct stocks and ETFs">
+
+**Example:** inspect sector/country/region allocation and the top-20 company ranking,
+including direct stocks and ETF constituents. Whole-portfolio weights include cash;
+effective dates, unresolved constituents and classification coverage remain visible.
+
+</details>
+
+<details>
+<summary><strong>History — track actual recorded observations</strong></summary>
+
+<img src="assets/readme/web-history.png" width="1200" alt="Synthetic history page showing one recorded observation and its exact table values">
+
+This example has **one observation**, so the chart shows one point. More dated inputs
+build the timeline; the app does not fabricate missing month-end balances. Multiple
+report editions at one cutoff do not become additional financial observations.
+Value changes alone are not contribution-adjusted investment returns.
+
+</details>
+
+<details>
+<summary><strong>Bitcoin &amp; flows — review purchases, quantities and funding</strong></summary>
+
+<img src="assets/readme/web-bitcoin.png" width="1200" alt="Synthetic Bitcoin page with BTC equivalent quantities, known costs and monthly purchase-rate table">
+
+**Example:** review BTC/LBTC quantities, saved valuations and monthly quantity-weighted
+CAD/BTC purchase rates. Purchase spending and funding remain distinct from proven
+external contributions; unknown wallet fees, acquisition costs and cash-flow coverage
+are disclosed rather than filled with zero.
+
+</details>
+
+<details>
+<summary><strong>Import &amp; jobs — preview supported CSVs before confirmation</strong></summary>
+
+<img src="assets/readme/web-imports.png" width="1200" alt="Synthetic import form with the public Wealthsimple holdings and Bull Bitcoin order examples selected">
+
+**Example:** select `examples/data/wealthsimple-holdings.csv` and
+`examples/data/bull-orders.csv`, or provide either independently. Review detected
+sources, account mappings and checks before confirming. The screenshot shows selected
+sample files **before upload/preview**; no import is confirmed by the capture script.
+See [the browser workflow](docs/web-frontend.md) for saved contexts, reference inputs
+and job recovery.
+
+</details>
+
+<details>
+<summary><strong>Financial records — enter contributions and BTC declarations</strong></summary>
+
+<img src="assets/readme/web-records.png" width="1200" alt="Financial records form filled with an unsaved invented BTC total, observation timestamp and synthetic evidence source">
+
+**Example:** enter an invented `0.00950000 BTC` total with the explicit timestamp
+`2024-02-02T12:00:00-05:00` and a source reference. This is an **unsaved form example**,
+not a wallet confirmation. The same page supports contributions, coverage, openings,
+fees/events and append-only corrections through preview and confirmation. Saving a
+record and generating a report are separate actions.
+
+</details>
+
+<details>
+<summary><strong>Analysis reports — read the full report and download the same edition</strong></summary>
+
+<img src="assets/readme/web-reports.png" width="1200" alt="Analysis reports page with original PDF, ODS and Markdown downloads, report context and grouped history">
+
+<img src="assets/readme/web-report-reader.png" width="1200" alt="Saved report reader with a section contents rail and the original analysis tables from the synthetic edition">
+
+**Example:** read saved sections and charts, filter/sort report tables, and download
+PDF, ODS, Markdown, a complete report ZIP or frozen CSV/JSON datasets. History groups
+editions by date and scope. The reader preserves the original report's language and
+assumptions; viewing or exporting does not regenerate the report.
+
+</details>
+
+<details>
+<summary><strong>Settings — choose future report language and cost policy</strong></summary>
+
+<img src="assets/readme/web-settings.png" width="1200" alt="Synthetic portfolio settings showing future report language and actual known BTC cost policy, with blank password-change fields">
+
+**Example:** choose the language for future reports and an explicit BTC cost policy.
+Changing settings does not rewrite old report editions. Interface language and
+system/light/dark appearance are separate controls. Password fields are blank in
+this screenshot.
+
+</details>
+
+<details>
+<summary><strong>Dark mode — use system, light or dark appearance</strong></summary>
+
+<img src="assets/readme/web-overview-dark.png" width="1200" alt="The same invented portfolio overview in dark mode with theme-aware chart axes and tables">
+
+The browser stores only the nonfinancial appearance preference. Original downloadable
+reports and saved PNG charts keep their publication styling.
+
+</details>
+
+[Reproduce and review these synthetic screenshots](assets/readme/README.md).
 
 ## Architecture
 

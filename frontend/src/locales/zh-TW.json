@@ -131,7 +131,7 @@
   "currentPassword": "目前密碼",
   "newPassword": "新密碼（14–256 字元）",
   "passwordHint": "更改密碼後，所有工作階段將結束。",
-  "maintenance": "進階 BTC 事件、供款與舊帳本遷移仍使用 CLI；網頁表單尚在規劃。",
+  "maintenance": "請在「財務紀錄」記錄 BTC 事件與供款。既有帳本遷移仍透過受信任主機上的 CLI 執行。",
   "details": "詳細資料",
   "close": "關閉",
   "viewData": "查看圖表資料",
