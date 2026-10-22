@@ -37,3 +37,12 @@ Synthetic core/API/browser status cases; no private portfolio inspection.
 
 No completion claim yet. Record actual checks, limitations and merged status here
 when this ticket is implemented; do not substitute a checked roadmap row for tests.
+
+## Impeccable Operate-mode implementation direction
+
+Use three layers: a brief status summary, only actionable issues with one relevant
+next step each, then expandable evidence. Keep the saved amount and observation date
+visible. Do not replace unknowns with reassuring green badges, guess source freshness,
+or turn every informational notice into an interruption. This is a scoped refinement
+of the existing workbench, not a new brand or a live valuation screen. Follow
+[the optional design workflow](ui-design-workflow.md) during implementation.

@@ -38,3 +38,12 @@ Real synthetic mapping/publication/retry browser tests plus API stale-plan and r
 
 No completion claim yet. Record actual checks, limitations and merged status here
 when this ticket is implemented; do not substitute a checked roadmap row for tests.
+
+## Impeccable Operate-mode implementation direction
+
+Reduce simultaneous decisions through source selection, required source details,
+then exact review/confirmation. Reveal advanced corrections and compatibility only
+when needed. Keep familiar controls, visible progress, a recoverable draft, and clear
+outcomes for committed data versus published reports. Preserve all existing explicit
+approval/idempotency guards. Follow [the design workflow](ui-design-workflow.md);
+this direction does not itself implement or approve new financial behavior.

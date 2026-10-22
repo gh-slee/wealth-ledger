@@ -105,6 +105,7 @@ portfolio updates. Report the checks actually run and any gaps.
 - Reports and ETF analysis: [report spec](docs/report-spec.md), [ODS](docs/workbook.md).
 - Financial declarations and copy-verified CLI adoption: [forms](docs/web-financial-records.md), [adoption](docs/web-adoption.md); preserve append-only data and the original workspace.
 - [Legacy report acceptance](docs/web-legacy-reports.md) requires explicit opt-in and separate migration-time evidence; never rewrite old manifests or weaken modern verification.
+- UI/UX agent tasks: prefer installed Impeccable using [the design workflow](docs/ui-design-workflow.md); it is optional development guidance, with synthetic inputs and no runtime AI. Preserve existing identity for scoped fixes and follow actual skill/authorization requirements.
 - Browser UI: [frontend workflow](docs/web-frontend.md); keep queries scoped, clear
   caches on logout/switch, preserve decimal strings and use no persistent finance cache.
 - Locale changes: [i18n contract](docs/i18n-plan.md).

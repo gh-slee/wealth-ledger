@@ -81,3 +81,6 @@ AGENTS.override.md
 
 # Independent parser example build output
 /examples/parser-plugin/build/
+
+# Private design-tool output at any depth
+.impeccable/

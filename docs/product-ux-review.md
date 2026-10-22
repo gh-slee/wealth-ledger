@@ -134,3 +134,11 @@ contributions and irregular updates. Use [the adapter contract](source-adapters.
 and [SDK guide](parser-sdk.md) for exact plugin boundaries. Do not install Python
 from an uploaded CSV, silently enable a detector or translate a v1 batch into a
 bookable v2 batch. New real formats require sanitized samples and acceptance tests.
+
+## Optional design-tool workflow
+
+Future UI tasks prefer the reviewed [Impeccable workflow](ui-design-workflow.md)
+when available. The earlier assessment and P0-001 implementation used separate
+frontend-design guidance; this integration does not retroactively reattribute them
+or replace the established visual system. Ticket priority and finance safeguards
+remain unchanged.

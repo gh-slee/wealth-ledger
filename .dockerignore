@@ -56,3 +56,6 @@
 **/node_modules/**
 **/dist/**
 **/*.map
+
+# Agent design state is never application source
+**/.impeccable/**

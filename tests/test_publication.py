@@ -47,7 +47,7 @@ class PublicationPolicyTests(unittest.TestCase):
                      'docs/ux-p1-004-allocation.md', 'docs/ux-p1-005-analysis.md', 'docs/ux-p1-006-sources.md',
                      'docs/ux-p1-007-distribution.md', 'docs/ux-p2-001-risk.md', 'docs/ux-p2-002-goals.md',
                      'docs/ux-p2-003-mobile.md', 'docs/ux-p2-004-operations.md', 'docs/ux-p2-005-tax-evidence.md',
-                     'docs/getting-started.md', 'docs/product-ux-review.md'):
+                     'docs/getting-started.md', 'docs/product-ux-review.md', 'docs/ui-design-workflow.md'):
             self.assertTrue(guard.path_allowed(path), path)
 
     def test_private_and_unknown_paths(self):
@@ -251,6 +251,27 @@ create_pr = true
                            + ' refs/heads/feature/test ' + '0' * 40 + '\n')):
             self.assertFalse(result['passed'])
             self.assertTrue(any(entry['path'] == path for entry in result['violations']))
+
+    def test_design_state_is_ignored_and_excluded_from_worktree(self):
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        paths = ('.impeccable/critique/synthetic.json',
+                 'src/wealth_ledger/.impeccable/capture.py')
+        for path in paths:
+            self.write(path, 'Private synthetic design state.\n')
+            self.run_git('check-ignore', '-q', '--', path)
+            self.assertFalse(guard.path_allowed(path))
+        result = guard.scan_worktree(self.root)
+        self.assertTrue(result['passed'])
+        self.assertFalse(set(paths) & {row['path'] for row in result['files']})
+
+    def test_force_added_design_state_blocks_index_and_history(self):
+        self.write('.gitignore', '.impeccable/\n')
+        path = 'src/wealth_ledger/.impeccable/capture.py'
+        self.write(path, '# Private synthetic design state\n')
+        self.run_git('add', '-f', '--', path)
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic forced design-state fixture')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
 
     def test_staged_secret_is_found(self):
         self.write('README.md', 'Example credential: ' + 'ghp_' + 'a' * 36)
