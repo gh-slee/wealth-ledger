@@ -131,7 +131,7 @@
   "currentPassword": "Current password",
   "newPassword": "New password (14–256 characters)",
   "passwordHint": "Changing the password ends all sessions.",
-  "maintenance": "Advanced BTC events, contributions and legacy adoption remain available through the CLI; Web forms are planned.",
+  "maintenance": "Use Financial records for BTC events and contributions. Existing-ledger adoption remains a trusted-host CLI operation.",
   "details": "Details",
   "close": "Close",
   "viewData": "View chart data",

@@ -36,7 +36,12 @@ class PublicationPolicyTests(unittest.TestCase):
                      'assets/readme/README.md', 'frontend/package-lock.json', 'frontend/src/App.tsx',
                      'frontend/src/locales/zh-TW.json', 'docs/web-frontend.md',
                      'frontend/scripts/capture-readme.mjs', 'assets/readme/web-overview.png',
-                     'assets/readme/web-exposure.png'):
+                     'assets/readme/web-exposure.png', 'assets/readme/web-login.png',
+                     'assets/readme/web-holdings.png', 'assets/readme/web-history.png',
+                     'assets/readme/web-bitcoin.png', 'assets/readme/web-imports.png',
+                     'assets/readme/web-records.png', 'assets/readme/web-reports.png',
+                     'assets/readme/web-settings.png', 'assets/readme/web-overview-dark.png',
+                     'assets/readme/web-report-reader.png'):
             self.assertTrue(guard.path_allowed(path), path)
 
     def test_private_and_unknown_paths(self):
