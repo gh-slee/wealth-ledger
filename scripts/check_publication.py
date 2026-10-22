@@ -15,7 +15,7 @@ import zipfile
 import io
 
 PUBLIC_ROOT_FILES = {
-    '.gitignore', '.gitattributes', 'AGENTS.md', 'README.md', 'TODO.md',
+    '.gitignore', '.gitattributes', 'AGENTS.md', 'README.md', 'TODO.md', 'PRODUCT.md', 'DESIGN.md',
     'LICENSE', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',
     'pyproject.toml', 'build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'requirements.txt', 'requirements.lock', '.env.example',
     'requirements-web.txt', 'requirements-web.lock', 'requirements-web-test.lock',
@@ -23,7 +23,7 @@ PUBLIC_ROOT_FILES = {
 }
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md', 'ui-design-workflow.md',
-    'ux-p0-001-first-run.md', 'ux-p0-002-status.md', 'ux-p0-003-imports.md',
+    'ux-p0-001-first-run.md', 'ux-p0-002-status.md', 'ux-p0-002-status-design.md', 'ux-p0-003-imports.md',
     'ux-p1-001-activity.md', 'ux-p1-002-performance.md', 'ux-p1-003-income.md',
     'ux-p1-004-allocation.md', 'ux-p1-005-analysis.md', 'ux-p1-006-sources.md',
     'ux-p1-007-distribution.md', 'ux-p2-001-risk.md', 'ux-p2-002-goals.md',

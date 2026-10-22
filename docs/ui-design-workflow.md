@@ -70,18 +70,23 @@ TLS, checksums or local permission checks.
 
 ## Context and local artifacts
 
-Existing [product/UX review](product-ux-review.md), [first-use guide](getting-started.md)
-and [priority tickets](../TODO.md) remain the current public references. No
-PRODUCT.md or DESIGN.md was created by this setup: Impeccable init requires its
-product confirmation round, and documenting/replacing a visual system is separate
-work. Do not label the earlier P0-001 implementation as Impeccable-generated.
+[PRODUCT.md](../PRODUCT.md) records confirmed generic product facts;
+[DESIGN.md](../DESIGN.md) documents the existing frontend tokens and components.
+Read them for relevant product/UI work, alongside the applicable ticket and actual
+implementation. They are not owner instructions or a whole-application redesign.
+[The P0-002 brief](ux-p0-002-status-design.md) is a proposal; its presence does not
+mark that feature implemented. The earlier P0-001 was not Impeccable-generated.
 
 `.impeccable/` state at any depth is private development output, ignored by Git and
 excluded from source manifests and Docker contexts. Index/history checks reject it
-even if forced into Git. Never turn generated critiques, screenshots, live sessions
-or local configuration into public source by renaming them. Optional PRODUCT.md or
-DESIGN.md would require a separate reviewed public-doc allowlist addition and must
-contain generic confirmed product/design facts, never owner/session memory.
+even if forced into Git. The local config carries explicitly selected workflow
+defaults; the generated design sidecar carries component previews and metadata.
+Synthesized preview ramps are not new application colors. A fresh clone does not
+inherit this private state: regenerate it from the public design record when needed,
+and ask for unset workflow defaults rather than copying another owner's settings.
+Never turn critiques, screenshots, live sessions or local configuration into public
+source by renaming them. Only the exact reviewed product/design documents belong
+in the public allowlist; keep owner/session memory in the ignored override.
 
 No hooks, automatic updater, live-browser overlay or network moodboard workflow is
 enabled by this setup. Select such capabilities deliberately for a scoped task and

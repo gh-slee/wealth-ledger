@@ -2,13 +2,17 @@
 
 Priority: **P0**
 
-Status: **Planned**
+Status: **Design proposed; awaiting confirmation before implementation**
 
 Parent: [Product and UX review](product-ux-review.md)
 
 ## Problem
 
 Source dates and checks exist, but users lack one prioritized explanation of what is stale, unconfirmed or incomplete and what action to take.
+
+The [concrete design brief](ux-p0-002-status-design.md) describes hierarchy,
+frozen-versus-current evidence, state handling and implementation acceptance.
+No feature code has been added for this proposal.
 
 ## Proposed scope
 

@@ -55,7 +55,7 @@ its own problem, scope, dependencies, acceptance criteria and validation record.
 | ID | Priority | Status | Ticket |
 |---|---|---|---|
 | UX-P0-001 | P0 | Verified locally; not merged | [First-use guidance](docs/ux-p0-001-first-run.md) |
-| UX-P0-002 | P0 | Planned | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
+| UX-P0-002 | P0 | Design proposed; implementation pending | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
 | UX-P0-003 | P0 | Planned | [Understandable import/recovery](docs/ux-p0-003-imports.md) |
 | UX-P1-001 | P1 | Planned | [Activity, contributions, transfers](docs/ux-p1-001-activity.md) |
 | UX-P1-002 | P1 | Planned | [Eligible returns and attribution](docs/ux-p1-002-performance.md) |
