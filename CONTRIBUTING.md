@@ -65,7 +65,10 @@ unit/browser tests and accessibility. Keep broader release acceptance visible.
 
 Use a feature branch. Describe the concrete problem, resulting behavior, validation
 and limitations. Run relevant tests and the [publication/privacy checks](docs/publishing.md)
-before publication. Never attach private inputs, reports, credentials or session
+before publication. After the final reviewed commit, run `python scripts/check_pr_image.py`
+for every PR/update, including docs-only changes; Docker must be available. See the
+[isolated candidate gate](docs/development.md#pre-pr-candidate-image-gate). This builds
+a local candidate without deploying it. Never attach private inputs, reports, credentials or session
 transcripts. Stage explicit reviewed paths rather than `git add .`.
 
 Agent-assisted contributors can use [the repository setup guide](docs/agent-development.md);

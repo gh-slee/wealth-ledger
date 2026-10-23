@@ -180,10 +180,21 @@ def publish(root: Path, plan: dict, *, message: str | None, title: str, body_fil
         command(root, ['git', 'switch', '-c', refreshed['branch']])
     if refreshed['staged_files']:
         command(root, ['git', 'commit', '-m', str(message)])
+    # Build after the final commit so candidate provenance names the exact pushed HEAD.
+    image_head = git(root, 'rev-parse', 'HEAD')
+    image_index = git(root, 'ls-files', '--stage', '-z')
+    command(root, [str(test_python), str(root / 'scripts/check_pr_image.py'), '--root', str(root)])
+    if (git(root, 'rev-parse', 'HEAD') != image_head or
+            git(root, 'ls-files', '--stage', '-z') != image_index or
+            git(root, 'diff', '--name-only', '-z')):
+        raise PublishError('Image verification changed reviewed inputs; review before publication.')
+    public_text = (message or '').encode() + b'\n' + title.encode() + b'\n' + body_file.read_bytes()
+    if hashlib.sha256(public_text).hexdigest() != refreshed['description_fingerprint']:
+        raise PublishError('PR text changed during image verification; obtain renewed review.')
     history = scan_history(root, base=refreshed['base_ref'])
     if not history['passed']:
         raise PublishError('Outgoing commit audit failed; nothing has been pushed.')
-    command(root, ['git', 'push', '--set-upstream', refreshed['remote'], 'HEAD:refs/heads/' + refreshed['branch']])
+    command(root, ['git', 'push', '--set-upstream', refreshed['remote'], '--no-follow-tags', 'HEAD:refs/heads/' + refreshed['branch']])
     existing = json.loads(command(root, ['gh', 'pr', 'list', '--repo', refreshed['repository'], '--head', refreshed['branch'], '--base', refreshed['base'], '--state', 'open', '--json', 'url']).decode())
     if existing:
         url = existing[0]['url']
@@ -199,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--message')
     parser.add_argument('--title', required=True)
     parser.add_argument('--body-file', type=Path, required=True)
-    parser.add_argument('--execute', action='store_true', help='Run full tests, commit already reviewed staged changes, push a feature branch and create/reuse a PR.')
+    parser.add_argument('--execute', action='store_true', help='Run full tests, commit reviewed changes, build/smoke-test the candidate image, then push a feature branch and create/reuse a PR.')
     args = parser.parse_args(argv)
     try:
         plan = prepare(args.root, args.branch, args.body_file, args.message, args.title)

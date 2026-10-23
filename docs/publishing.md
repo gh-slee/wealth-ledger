@@ -75,7 +75,7 @@ are needed for this setup.
 
 ## Feature branch and pull request workflow
 
-1. Complete only the requested implementation and relevant documentation/tests.
+1. Complete only the requested implementation and relevant documentation/tests. Commit the reviewed scope, then run the [pre-PR image gate](development.md#pre-pr-candidate-image-gate), including docs-only changes; preserve its exact commit/image-ID evidence before requesting approval.
 2. Review and deliberately stage the public paths. Do not stage unrelated work.
 3. Write a public-safe PR description into an ignored file, for example
    `private/publication/pr-body.md`, describing the problem, behavior and validation.
@@ -92,12 +92,12 @@ python scripts/dev_publish.py \
 
 This example names a proposed branch; it does not create an example implementation.
 Without `--execute`, the tool only plans and leaves branch/index/commits unchanged.
-After approval, use identical arguments with `--execute`. The publisher verifies
+After approval, use identical arguments with `--execute`. Docker is required even for documentation-only changes. The candidate check always invokes a build, permits layer caching and records an immutable image ID; a failure stops before push/PR creation. A final local commit may remain if its image check fails. Manual publication must run the same gate explicitly; it is not a global GitHub CLI/browser hook. The publisher verifies
 local authorization, target, identities, index and full history before network
 operations; confirms GitHub authentication/repository identity, fetches, rechecks,
 runs the full unit suite, then checks again. Changed HEAD, branch, index or PR text
 stops publication for renewed review. Only reviewed staged changes are committed;
-outgoing history is checked, a normal feature push occurs, and a PR is created or
+the final committed source is built and smoke-tested by `check_pr_image.py`, outgoing history is checked, a normal feature push occurs, and a PR is created or
 reused. If a Codex session creates a PR, attach it using that session's required app
 tool; the publisher itself has no Codex dependency.
 

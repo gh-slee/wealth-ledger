@@ -67,6 +67,12 @@ Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 `npm --prefix frontend run check:source` and `npm --prefix frontend run test:e2e`.
 Use Node 24 LTS (or 22.12+) and see docs/web-frontend.md for browser prerequisites.
 An installable core/contract wheel and SDK are available; see [packaging](docs/parser-sdk.md).
+Before every PR (including documentation-only changes), commit the reviewed scope
+and run `python scripts/check_pr_image.py` from a clean tracked tree. It always
+invokes a source-only candidate build (layer cache allowed), verifies isolated API,
+browser assets and worker startup, and saves local image-ID evidence under ignored
+`work/pr-images/`. Build/check failure or unavailable Docker blocks submission;
+never substitute a real instance. See [the pre-PR gate](docs/development.md#pre-pr-candidate-image-gate).
 Keep build tooling separate from runtime. CI runs Linux/Python 3.12 tests
 and offline synthetic report demos for default/proxy policies and three locales.
 Use focused tests while iterating; report changes also need affected formula/cache,

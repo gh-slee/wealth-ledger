@@ -455,6 +455,63 @@ create_pr = true
         test_index = next(i for i, args in enumerate(calls) if 'unittest' in args)
         push_index = next(i for i, args in enumerate(calls) if args[:2] == ['git', 'push'])
         self.assertLess(test_index, push_index)
+        image_index = next(i for i, args in enumerate(calls) if any(str(arg).endswith('check_pr_image.py') for arg in args))
+        self.assertLess(test_index, image_index)
+        self.assertLess(image_index, push_index)
+
+    def test_failed_candidate_build_blocks_push_and_pr(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if any(str(arg).endswith('check_pr_image.py') for arg in args):
+                raise publisher.PublishError('Synthetic candidate failure')
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            with self.assertRaises(publisher.PublishError):
+                publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        self.assertFalse(any(args[:2] == ['git', 'push'] or args[:3] == ['gh', 'pr', 'create'] for args in calls))
+
+    def test_inputs_changed_by_image_check_stop_publication(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if any(str(arg).endswith('check_pr_image.py') for arg in args):
+                self.write('README.md', '# Unreviewed change\n')
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            with self.assertRaises(publisher.PublishError):
+                publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        self.assertFalse(any(args[:2] == ['git', 'push'] for args in calls))
+
+    def test_pr_text_changed_during_image_check_stops_publication(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if any(str(arg).endswith('check_pr_image.py') for arg in args):
+                body.write_text('Changed unreviewed PR text')
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            with self.assertRaises(publisher.PublishError):
+                publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        self.assertFalse(any(args[:2] == ['git', 'push'] for args in calls))
 
     def test_failed_tests_prevent_commit_and_push(self):
         body = self.authorize()
