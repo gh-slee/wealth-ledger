@@ -143,7 +143,8 @@ job returns `report_id`, `artifact_ids`, valuation cutoff and snapshot ID. Use t
 existing scoped `GET /artifacts` and `GET /artifacts/{artifact_id}` for original
 ODS/MD/PDF, charts, manifests and detailed CSV/JSON. Downloads are private attachments,
 not static HTML/Markdown execution. All report bytes are verified before atomic
-metadata registration. Browser report libraries/ZIPs/full backup are later stages.
+metadata registration. The [report library](web-analysis-reports.md), scoped ZIP exports and
+[complete backups](web-backups.md) use this published registry.
 
 ## Queue and process boundaries
 
@@ -356,3 +357,16 @@ archives return `source_integrity`, never a guessed setting. See [default workfl
 Canonical investment IDs are also valid in financial cash-flow/coverage declarations;
 the original native account ID contract remains accepted. They use the same staged
 preview/confirm/record protocol and require a separate report publication afterward.
+
+## Browser stage and approval guidance
+
+The regular browser organizes inputs, saved preview review and formal outcomes as
+three visible stages. Advanced compatibility/correction controls remain available
+through disclosures. Missing references link to their corrective form options.
+Editing the draft invalidates the selected approval in the current tab; stale
+server approval cannot be reused. Same-request network retries retain request
+identity, while proven committed reports use explicit report-only resume. Unknown
+outcomes require trusted-host review, never a generic reimport. The browser does
+not persist unsent financial drafts in local storage. See
+[the detailed browser procedure](web-frontend.md#staged-import-review-and-recovery).
+Backend approval, expiry, isolation and receipt-recovery contracts above are unchanged.

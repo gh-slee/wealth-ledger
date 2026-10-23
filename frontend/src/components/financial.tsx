@@ -1,4 +1,5 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -80,10 +81,12 @@ const fields: Record<string, Message> = {
 export function Financial({ portfolio }: { portfolio: string }) {
   const { t, error, label } = useI18n();
   const client = useQueryClient();
+  const [jobParams, setJobParams] = useSearchParams();
+  const requestedJob = jobParams.get("job");
   const [command, setCommand] = useState<Command>("balance"),
     [action, setAction] = useState("revise"),
     [chosenRecord, setChosenRecord] = useState(""),
-    [selected, setSelected] = useState<string | null>(null),
+    [selected, setSelected] = useState<string | null>(requestedJob),
     [busy, setBusy] = useState(false),
     [failure, setFailure] = useState(""),
     [confirming, setConfirming] = useState(false),
@@ -120,6 +123,9 @@ export function Financial({ portfolio }: { portfolio: string }) {
     jobs.data?.jobs.filter((j) =>
       ["record", "record_preview"].includes(j.kind),
     ) ?? [];
+  useEffect(() => {
+    setSelected(requestedJob);
+  }, [requestedJob]);
   const job = history.find((j) => j.id === selected);
   const result = object(job?.result),
     preview = object(result.declaration),
@@ -784,9 +790,18 @@ export function Financial({ portfolio }: { portfolio: string }) {
       </section>
       <section className="panel">
         <h2>{t("recordJobs")}</h2>
+        {selected && !job && jobs.isSuccess && (
+          <p role="status">{t("processingJobMissing")}</p>
+        )}
         <div className="job-list">
           {history.map((j) => (
-            <button key={j.id} onClick={() => setSelected(j.id)}>
+            <button
+              key={j.id}
+              onClick={() => {
+                setSelected(j.id);
+                setJobParams({ job: j.id }, { replace: true });
+              }}
+            >
               <span>
                 {t(
                   j.kind === "record_preview"

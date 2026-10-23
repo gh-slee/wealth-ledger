@@ -102,6 +102,8 @@ docker compose up -d
 
 Open **[http://localhost:8000](http://localhost:8000)**. Sign in as `owner` using the password you set on the host, create a portfolio, and open **Import & jobs**. New instances start with no financial history or personal accounts. Try the [invented example files](examples/README.md) first.
 
+For the complete first-portfolio flow, source requirements, contribution backfill and later updates, follow [Start tracking a new portfolio](docs/getting-started.md).
+
 The `web` and `worker` services share the private `wealth-data` named volume. Initialize the owner once. `docker compose down` retains the volume; deleting the volume removes its data. The sample deployment binds to loopback. For HTTPS, remote access, upgrades, fresh rebuild contexts, and password resets, follow [Web operations](docs/web-operations.md) and the [upgrade/rollback runbook](docs/web-release-acceptance.md).
 
 Prebuilt multi-architecture images and a pull-only Compose recipe are planned. Current installation builds locally. The platform/evidence matrix is in [operations acceptance](docs/web-release-acceptance.md); Windows and macOS hosts use Linux containers.
@@ -137,6 +139,17 @@ Use **Financial records** for cash-flow coverage, contributions and BTC openings
 
 ## Screenshots
 
+New portfolios explain the first observation, optional evidence and later contribution tracking. See the [product review and prioritized UX tickets](docs/product-ux-review.md) for implemented versus planned work.
+
+<details>
+<summary><strong>First observation: a new, empty portfolio</strong></summary>
+
+![Getting started with an empty synthetic portfolio](assets/readme/web-getting-started.png)
+
+Choose available exports, review before confirmation, and then read the published report. No financial data is imported by opening this guide.
+
+</details>
+
 The following are actual application screens from a **disposable synthetic portfolio**,
 using only the [public example data](examples/README.md). Accounts, amounts, holdings,
 prices and dates are invented. These are saved demonstration reports, not live quotes
@@ -146,12 +159,14 @@ review remains separate planned work.
 ### Portfolio overview
 
 <p align="center">
-  <img src="assets/readme/web-overview.png" width="1200" alt="Synthetic portfolio overview with a saved CAD value, source dates, account allocation and recorded observation chart">
+  <img src="assets/readme/web-overview.png" width="1200" alt="Synthetic portfolio overview with a saved CAD value, source dates, evidence status, next steps, account allocation and recorded observation chart">
 </p>
 
 **Example:** inspect a saved CA$1,930.00 portfolio across four accounts, switch the
 display currency between CAD/USD/TWD, and compare the valuation cutoff with each
-source's date. Opening the overview does not refresh prices or create an observation.
+source's date. Review the selected edition's evidence and next steps separately from
+current processing; see [status behavior](docs/web-frontend.md#evidence-status-and-current-processing).
+Opening the overview does not refresh prices or create an observation.
 
 Expand a page below to see its screen and an example task:
 
@@ -215,12 +230,15 @@ are disclosed rather than filled with zero.
 <details>
 <summary><strong>Import &amp; jobs — preview supported CSVs before confirmation</strong></summary>
 
-<img src="assets/readme/web-imports.png" width="1200" alt="Synthetic import form with the public Wealthsimple holdings and Bull Bitcoin order examples selected">
+<img src="assets/readme/web-imports.png" width="1200" alt="Staged synthetic import preparation with the public Wealthsimple holdings and Bull Bitcoin order examples selected">
 
 **Example:** select `examples/data/wealthsimple-holdings.csv` and
 `examples/data/bull-orders.csv`, or provide either independently. Review detected
-sources, account mappings and checks before confirming. The screenshot shows selected
+sources, account mappings and checks through prepare, review and confirm stages.
+Advanced compatibility/corrections are expandable; failed saved reports use explicit
+resume. The screenshot shows selected
 sample files **before upload/preview**; no import is confirmed by the capture script.
+Published jobs below are seeded demonstration history, separate from these selections.
 See [the browser workflow](docs/web-frontend.md) for saved contexts, reference inputs
 and job recovery.
 

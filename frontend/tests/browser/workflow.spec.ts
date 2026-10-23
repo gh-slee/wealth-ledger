@@ -174,6 +174,9 @@ test("real CSV preview, explicit confirmation and worker report publication", as
     .getByRole("combobox", { name: "Portfolio", exact: true })
     .selectOption({ label: "Empty synthetic portfolio" });
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await page
+    .getByText("Advanced parser and compatibility options", { exact: true })
+    .click();
   await page.getByLabel("Use parser plugins", { exact: true }).uncheck();
   // Invented unrecognized ETF/stock names avoid production issuer network calls.
   const csv = readFileSync(
@@ -271,6 +274,9 @@ test("a dated BTC total can be submitted without either CSV", async ({
     page.getByRole("heading", { name: "Start with your first observation" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await page
+    .getByText("Advanced parser and compatibility options", { exact: true })
+    .click();
   await page.getByLabel("Use parser plugins", { exact: true }).uncheck();
   await page.getByLabel("BTC total (optional)", { exact: true }).fill("0.01");
   await page
@@ -326,6 +332,7 @@ test("financial declarations preview, save, revise and remain isolated from froz
 }) => {
   await login(page);
   await page
+    .getByRole("navigation", { name: "Portfolio navigation", exact: true })
     .getByRole("link", { name: "Financial records", exact: true })
     .click();
   await expect(
@@ -452,6 +459,7 @@ test("financial declarations preview, save, revise and remain isolated from froz
     .getByRole("combobox", { name: "Portfolio", exact: true })
     .selectOption({ label: "Empty synthetic portfolio" });
   await page
+    .getByRole("navigation", { name: "Portfolio navigation", exact: true })
     .getByRole("link", { name: "Financial records", exact: true })
     .click();
   await expect(

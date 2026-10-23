@@ -4,8 +4,10 @@ Wealth Ledger welcomes synthetic parser fixtures, financial regression fixes,
 translations, documentation and portability improvements. Discuss new financial
 models or source-adapter contracts before implementation. An independent trusted
 parser registry, nonbooking CLI/API source plans, installable core and author SDK
-are implemented. The [v2 canonical foundation](docs/source-ingestion.md) is a gated
-developer API; production financial integration and existing-importer migration remain planned. Optional browser/API/worker workflows are implemented. See [TODO.md](TODO.md).
+are implemented. The [v2 canonical foundation](docs/source-ingestion.md) supplies the separate data-only API; the default v2 CLI/browser workflow now implements
+financial preparation, mapping, exact approval and source-neutral publication.
+See the [product review and priority tickets](docs/product-ux-review.md) for remaining
+UX and analysis work. Optional API/worker workflows are implemented. See [TODO.md](TODO.md).
 
 ## Development setup
 

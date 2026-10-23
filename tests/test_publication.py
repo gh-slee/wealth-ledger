@@ -21,7 +21,7 @@ class PublicationPolicyTests(unittest.TestCase):
         for path in ('build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'docs/parser-sdk.md',
                      'examples/parser-plugin/pyproject.toml', 'examples/parser-plugin/LICENSE',
                      'examples/parser-plugin/tests/test_installed_api.py',
-                     'README.md', 'src/wealth_ledger/core.py', 'scripts/update.py',
+                     'README.md', 'PRODUCT.md', 'DESIGN.md', 'docs/ux-p0-002-status-design.md', 'src/wealth_ledger/core.py', 'scripts/update.py',
                      'tests/test_publication.py', 'config/publish.example.toml',
                      'docs/development.md', '.githooks/pre-push', 'examples/data/wealthsimple-holdings.csv',
                      'examples/data/bull-orders.csv', 'examples/data/fx.json',
@@ -41,7 +41,13 @@ class PublicationPolicyTests(unittest.TestCase):
                      'assets/readme/web-bitcoin.png', 'assets/readme/web-imports.png',
                      'assets/readme/web-records.png', 'assets/readme/web-reports.png',
                      'assets/readme/web-settings.png', 'assets/readme/web-overview-dark.png',
-                     'assets/readme/web-report-reader.png'):
+                     'assets/readme/web-report-reader.png', 'assets/readme/web-getting-started.png',
+                     'docs/ux-p0-001-first-run.md', 'docs/ux-p0-002-status.md', 'docs/ux-p0-003-imports.md',
+                     'docs/ux-p1-001-activity.md', 'docs/ux-p1-002-performance.md', 'docs/ux-p1-003-income.md',
+                     'docs/ux-p1-004-allocation.md', 'docs/ux-p1-005-analysis.md', 'docs/ux-p1-006-sources.md',
+                     'docs/ux-p1-007-distribution.md', 'docs/ux-p2-001-risk.md', 'docs/ux-p2-002-goals.md',
+                     'docs/ux-p2-003-mobile.md', 'docs/ux-p2-004-operations.md', 'docs/ux-p2-005-tax-evidence.md',
+                     'docs/getting-started.md', 'docs/product-ux-review.md', 'docs/ui-design-workflow.md'):
             self.assertTrue(guard.path_allowed(path), path)
 
     def test_private_and_unknown_paths(self):
@@ -53,7 +59,7 @@ class PublicationPolicyTests(unittest.TestCase):
                      'examples/parser-plugin/build/lib/synthetic_parser/__init__.py',
                      'examples/parser-plugin/private.csv', 'examples/parser-plugin/.env',
                      'examples/parser-plugin/AGENTS.override.md', 'src/wealth_ledger/_bundle/private.json',
-                     'examples/demo.csv', 'unreviewed.md', '../README.md', '/README.md',
+                     'examples/demo.csv', 'PRODUCT.local.md', 'DESIGN.local.md', 'unreviewed.md', '../README.md', '/README.md',
                      'src\\wealth_ledger\\core.py', '.github/workflows/deploy.yml',
                      'src/wealth_ledger/locales/user.json', 'assets/fonts/downloaded-font.ttf',
                      'assets/readme/private-screenshot.png', 'assets/readme/export.csv',
@@ -245,6 +251,27 @@ create_pr = true
                            + ' refs/heads/feature/test ' + '0' * 40 + '\n')):
             self.assertFalse(result['passed'])
             self.assertTrue(any(entry['path'] == path for entry in result['violations']))
+
+    def test_design_state_is_ignored_and_excluded_from_worktree(self):
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        paths = ('.impeccable/critique/synthetic.json',
+                 'src/wealth_ledger/.impeccable/capture.py')
+        for path in paths:
+            self.write(path, 'Private synthetic design state.\n')
+            self.run_git('check-ignore', '-q', '--', path)
+            self.assertFalse(guard.path_allowed(path))
+        result = guard.scan_worktree(self.root)
+        self.assertTrue(result['passed'])
+        self.assertFalse(set(paths) & {row['path'] for row in result['files']})
+
+    def test_force_added_design_state_blocks_index_and_history(self):
+        self.write('.gitignore', '.impeccable/\n')
+        path = 'src/wealth_ledger/.impeccable/capture.py'
+        self.write(path, '# Private synthetic design state\n')
+        self.run_git('add', '-f', '--', path)
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic forced design-state fixture')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
 
     def test_staged_secret_is_found(self):
         self.write('README.md', 'Example credential: ' + 'ghp_' + 'a' * 36)

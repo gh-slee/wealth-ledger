@@ -49,7 +49,9 @@ import {
   Holdings,
   Overview,
 } from "./components/analysis";
+import { CurrentProcessing } from "./components/evidence-status";
 import { Imports } from "./components/imports";
+import { GettingStarted } from "./components/getting-started";
 import { Financial } from "./components/financial";
 import { ReportReader } from "./components/report-reader";
 import { groupEditions } from "./lib/report-library";
@@ -122,6 +124,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     const ended = () => {
+      if (auth !== "signed-in") return;
       setAuth("signed-out");
       setExpired(true);
       void client.cancelQueries();
@@ -130,7 +133,7 @@ export default function App() {
     };
     window.addEventListener("ledger:unauthorized", ended);
     return () => window.removeEventListener("ledger:unauthorized", ended);
-  }, [client, navigate]);
+  }, [auth, client, navigate]);
   useEffect(() => {
     if (auth !== "signed-in") return;
     let last = 0;
@@ -352,7 +355,7 @@ function PortfolioWorkspace({
       });
       await switchPortfolio(value.id);
     } catch (reason) {
-      if (reason instanceof ApiError) setFailure(reason.code);
+      setFailure(reason instanceof ApiError ? reason.code : "request_failed");
     } finally {
       setCreating(false);
     }
@@ -489,7 +492,7 @@ function PortfolioWorkspace({
             {error(failure)}
           </p>
         )}
-        {portfolios.isError || reports.isError || report.isError ? (
+        {portfolios.isError || (reports.isError && !data) || report.isError ? (
           <section className="panel error" role="alert">
             <p>
               {error(
@@ -507,9 +510,14 @@ function PortfolioWorkspace({
               {t("retry")}
             </Button>
           </section>
+        ) : portfolios.isPending ? (
+          <p role="status" aria-busy="true">
+            {t("loading")}
+          </p>
         ) : !portfolio ? (
           <section className="panel">
             <h2>{t("noPortfolios")}</h2>
+            <p className="muted">{t("createPortfolioHint")}</p>
             <form className="inline-form" onSubmit={create}>
               <label>
                 {t("name")}
@@ -544,7 +552,12 @@ function PortfolioWorkspace({
                   <>
                     <Evidence data={data} />
                     {navPage === "overview" ? (
-                      <Overview data={data} currency={currency} />
+                      <Overview
+                        data={data}
+                        currency={currency}
+                        portfolio={portfolio}
+                        latest={reports.isError ? undefined : editions[0]}
+                      />
                     ) : navPage === "holdings" ? (
                       <Holdings data={data} currency={currency} />
                     ) : navPage === "exposure" ? (
@@ -560,14 +573,12 @@ function PortfolioWorkspace({
             ) : reports.isPending || reports.isFetching || report.isFetching ? (
               <p aria-live="polite">{t("loading")}</p>
             ) : (
-              <section className="panel empty-state">
-                <Upload aria-hidden="true" />
-                <h2>{t("noReport")}</h2>
-                <p>{t("noReportHint")}</p>
-                <Button asChild>
-                  <Link to={`/app/${portfolio}/imports`}>{t("preview")}</Link>
-                </Button>
-              </section>
+              <>
+                {navPage === "overview" && (
+                  <CurrentProcessing portfolio={portfolio} />
+                )}
+                <GettingStarted portfolio={portfolio} />
+              </>
             )}
           </>
         )}

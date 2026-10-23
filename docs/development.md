@@ -371,3 +371,10 @@ compatibility is explicitly selected. Full Docker backup/empty-volume restore ch
 preserve verified saved contexts and canonical manual contributions alongside native,
 wallet, adopted legacy and frozen source reports. Use disposable synthetic resources
 only. These checks establish implementation evidence, not a personal deployment.
+
+## Optional UI design guidance
+
+For agent-assisted interface work, use [the Impeccable workflow](ui-design-workflow.md)
+when installed. It records version review, per-process telemetry opt-out, task scope,
+synthetic visual acceptance and private artifact boundaries. It adds no application
+dependency and is not required for backend work or human contributions.

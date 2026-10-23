@@ -11,13 +11,17 @@ SRC-003 provides an installable Python core, one shared version-1 contract,
 Everything runs in code. No runtime LLM, local LibreOffice or institution login is
 required. No package has been published to PyPI by this work.
 
-**This SDK is for nonbooking source plans.** A valid batch or successful test cannot
-import financial data. All plans retain `ingestible: false` and
-`booking_blocker: protocol_v1_not_bookable`. Wealthsimple/Bull financial imports
-still use their existing implementation. Lossless protocol-v2 context, native/CAD
-costs and canonical binding/revision/effect storage are implemented in the gated
-[SRC-004A foundation](source-ingestion.md). Production financial ingestion, importer
-migration and source-neutral reporting remain SRC-004B/C. Do not advertise support for arbitrary CSV exports.
+**The v1 SDK example is for nonbooking source plans.** Its plans retain
+`ingestible: false` and `booking_blocker: protocol_v1_not_bookable`; successful
+normalization is not financial import. The same installed core also provides the
+implemented [protocol-v2 pipeline](source-ingestion.md) and
+[default financial preparation/approval workflow](source-projections.md#default-daily-workflow).
+Wealthsimple and Bull Bitcoin use pure v2 built-ins through that workflow, including
+source-neutral valuation and publication. Compatible externally installed v2 parsers
+can use the same pipeline after explicit host enablement and acceptance; the v1
+example does not silently become v2. Only the two specified real CSV formats are
+built in; do not advertise arbitrary bank or exchange exports. See
+[the first-use/plugin explanation](getting-started.md#how-parser-plugins-work-now).
 
 ## Build local artifacts
 
@@ -110,9 +114,8 @@ side-effect freedom; audit every plugin and dependency. Use synthetic fixtures o
 
 The example's deterministic `fetched_at` equals source time and carries a warning.
 It does not assert a real retrieval time. V1 has no host parse context; new adapters
-can develop against [v2](source-ingestion.md), whose context and canonical storage
-remain separate from production CSV import/report routes. Never invent dates or
-financial values to fit v1.
+should use [v2](source-ingestion.md) and its default financial approval workflow.
+V1 remains separate and nonbooking. Never invent dates or financial values to fit v1.
 
 ## Explicit native enablement
 

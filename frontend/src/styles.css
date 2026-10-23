@@ -1181,3 +1181,163 @@ tbody tr:hover {
     width: 100%;
   }
 }
+
+.getting-started {
+  max-width: 70rem;
+}
+.getting-started > h2 {
+  margin-top: 0.5rem;
+}
+.start-steps {
+  list-style-type: decimal;
+  margin: 1.5rem 0;
+  padding-left: 1.75rem;
+  display: grid;
+  gap: 1.25rem;
+}
+.start-steps li {
+  padding-left: 0.5rem;
+}
+.start-steps li::marker {
+  color: var(--teal);
+  font-weight: bold;
+}
+.start-help {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.start-help dl {
+  margin: 1rem 0;
+}
+.start-help dt {
+  font-weight: bold;
+  margin-top: 1rem;
+}
+.start-help dd {
+  margin: 0.25rem 0 0;
+  line-height: 1.55;
+}
+.start-followup {
+  margin-top: 1.5rem;
+  background: var(--soft);
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+}
+.start-followup a {
+  display: inline-block;
+  margin: 0.75rem 1.5rem 0 0;
+}
+
+/* Evidence and operational status are separate, scoped read-only summaries. */
+.status-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  margin: 1.2rem 0 1.5rem;
+}
+.status-dates dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.status-dates dd {
+  margin: 0.35rem 0 0;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.status-actions {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+}
+.status-actions > li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+.status-actions > li > div {
+  min-width: 0;
+  max-width: 72ch;
+}
+.status-actions strong {
+  display: block;
+  margin: 0.35rem 0;
+}
+.status-actions p {
+  margin: 0.35rem 0;
+}
+.status-actions small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.status-actions .button {
+  flex-shrink: 0;
+}
+.evidence-status > details {
+  scroll-margin-top: 1rem;
+}
+.processing-status > .muted,
+.evidence-status > .muted {
+  max-width: 72ch;
+}
+@media (max-width: 700px) {
+  .status-actions > li {
+    flex-direction: column;
+  }
+  .status-actions .button {
+    width: 100%;
+  }
+  .evidence-status .panel-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.import-stages {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+.import-stages li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.import-stages li[aria-current="step"] {
+  color: var(--navy);
+  font-weight: 700;
+}
+.import-stages span {
+  font-variant-numeric: tabular-nums;
+}
+.import-controls {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 1.1rem;
+}
+.import-controls > h3 {
+  margin-top: 0.6rem;
+  margin-bottom: 0;
+}
+.import-review > p {
+  max-width: 72ch;
+  margin-bottom: 1rem;
+}
+.import-review .job-facts dd {
+  overflow-wrap: anywhere;
+}
+.import-error-guidance {
+  display: block;
+  margin-top: 0.5rem;
+  max-width: 72ch;
+}

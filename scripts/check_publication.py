@@ -15,14 +15,20 @@ import zipfile
 import io
 
 PUBLIC_ROOT_FILES = {
-    '.gitignore', '.gitattributes', 'AGENTS.md', 'README.md', 'TODO.md',
+    '.gitignore', '.gitattributes', 'AGENTS.md', 'README.md', 'TODO.md', 'PRODUCT.md', 'DESIGN.md',
     'LICENSE', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',
     'pyproject.toml', 'build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'requirements.txt', 'requirements.lock', '.env.example',
     'requirements-web.txt', 'requirements-web.lock', 'requirements-web-test.lock',
     'Dockerfile', '.dockerignore', 'compose.yaml',
 }
 PUBLIC_DOCS = {
-    'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md',
+    'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md', 'ui-design-workflow.md',
+    'ux-p0-001-first-run.md', 'ux-p0-002-status.md', 'ux-p0-002-status-design.md', 'ux-p0-003-imports.md',
+    'ux-p1-001-activity.md', 'ux-p1-002-performance.md', 'ux-p1-003-income.md',
+    'ux-p1-004-allocation.md', 'ux-p1-005-analysis.md', 'ux-p1-006-sources.md',
+    'ux-p1-007-distribution.md', 'ux-p2-001-risk.md', 'ux-p2-002-goals.md',
+    'ux-p2-003-mobile.md', 'ux-p2-004-operations.md', 'ux-p2-005-tax-evidence.md',
+    'getting-started.md', 'product-ux-review.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
     'source-adapters.md', 'source-ingestion.md', 'source-projections.md', 'parser-sdk.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-analysis-reports.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md', 'web-legacy-reports.md',
 }
@@ -36,6 +42,7 @@ PUBLIC_FUND_FIXTURES = {
 }
 PUBLIC_README_PNGS = {
     'assets/readme/report-preview.png', 'assets/readme/web-overview.png',
+    'assets/readme/web-getting-started.png',
     'assets/readme/web-exposure.png', 'assets/readme/web-login.png',
     'assets/readme/web-holdings.png', 'assets/readme/web-history.png',
     'assets/readme/web-bitcoin.png', 'assets/readme/web-imports.png',
@@ -47,7 +54,7 @@ PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {
     '.git', 'data', 'reports', 'backups', 'work', 'private', 'outputs', 'output',
     'dist', 'build', 'node_modules', 'venv', 'htmlcov', '.cursor', '.codex', '.agents',
-    '.pytest_cache', '.mypy_cache', '.ruff_cache',
+    '.pytest_cache', '.mypy_cache', '.ruff_cache', '.impeccable',
 }
 PRIVATE_SUFFIXES = ('.db', '.sqlite', '.sqlite3', '.pem', '.key', '.p12', '.pfx',
                     '.keystore', '.log', '.bak', '.pyc', '.pyo', '.zip', '.zip.part')
@@ -87,7 +94,7 @@ def path_allowed(path: str) -> bool:
     parts = p.parts
     if p.name.casefold() in PRIVATE_INSTRUCTION_NAMES:
         return False
-    if any(part in {'__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'} for part in parts):
+    if any(part in {'__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.impeccable'} for part in parts):
         return False
     if any(part.startswith('.venv') for part in parts):
         return False
@@ -254,7 +261,7 @@ def scan_worktree(root: Path) -> dict:
             continue
         if path.name in {'.DS_Store', 'Thumbs.db', '.coverage'} or rel.lower().endswith(PRIVATE_SUFFIXES):
             continue
-        if parts[0] in IGNORED_ROOTS or any(part in {'.git', '__pycache__', 'node_modules', 'dist', 'test-results', 'playwright-report'} or part.startswith('.venv') or part.endswith('.egg-info') for part in parts):
+        if parts[0] in IGNORED_ROOTS or any(part in {'.git', '__pycache__', 'node_modules', 'dist', 'test-results', 'playwright-report', '.impeccable'} or part.startswith('.venv') or part.endswith('.egg-info') for part in parts):
             continue
         if len(parts) >= 2 and parts[0] == 'config' and parts[1] not in PUBLIC_CONFIG:
             continue  # Ignored private config; Git modes still reject if tracked.

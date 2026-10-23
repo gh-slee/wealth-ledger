@@ -2,23 +2,25 @@
 
 Wealth Ledger is intended as a shared investment ledger for bank, brokerage,
 Bitcoin broker and exchange exports, rather than an application tied to a single
-institution. Source-specific parsers will normalize supported formats while shared
+institution. Source-specific parsers normalize supported formats while shared
 services own validation, evidence, history and reports. Wealthsimple holdings and
 Bull Bitcoin orders are the first built-in importers, not a limit on that scope.
 
-**SRC-001 is implemented as the version-1 normalization contract in
-`wealth_ledger.source_protocol`; SRC-002A provides an independent trusted registry
-in `wealth_ledger.source_registry`. SRC-002B adds nonbooking CLI/API source plans
-and code/configuration fingerprints. SRC-003 adds an installable core/contract,
-[author SDK and independent synthetic parser](parser-sdk.md).** Migration of current
-importers and production financial integration remain planned (SRC-004B/C).
-[SRC-004A](source-ingestion.md) implements the explicit-context v2 contract and
-canonical storage foundation, with a report-projection phase gate.
-The current CLI and Web workflow use direct built-in Wealthsimple/Bull importers,
-not a source-plugin registry. They also support normalized cash-flow inputs and
-explicit BTC declarations; they cannot import arbitrary institution CSVs. Moving
-the existing importers behind the common contract is SRC-004, after registry and
-author-toolkit work. The official ETF registry is separate. See [TODO](../TODO.md).
+**The default CLI/Web workflow uses the implemented protocol-v2 registry pipeline.**
+The two real built-ins are `wealthsimple.holdings` and `bullbitcoin.orders` in
+`wealth_ledger.source_builtin`. Compatible external v2 parsers can use the same
+explicit-context preparation, account mapping, approval, canonical storage,
+source-neutral valuation and report publication flow. See
+[default daily use](source-projections.md#default-daily-workflow) and
+[the first-use explanation](getting-started.md#how-parser-plugins-work-now).
+
+The original protocol-v1 contract and its nonbooking plan/SDK example remain
+available; they do not financially import records. The registry loads only trusted,
+explicitly enabled/pinned installed Python. There is no runtime LLM, parser upload,
+marketplace or universal CSV support. Unified cash-flow inputs and explicit BTC
+declarations are separate supported records. Official ETF reference-data adapters
+are a separate system. [The SDK guide](parser-sdk.md) documents installation and
+acceptance; [TODO](../TODO.md) distinguishes new formats and future source UX.
 
 ## Goal
 
@@ -28,8 +30,9 @@ Detection/normalization are extensible; core validation, atomic submission,
 deduplication/revisions, tracking scope and reporting remain central.
 
 All production work must be reproducible Python, independent of LLMs, agents,
-browser login or local office software. The protocol below is available for contract development; it is not an enabled
-import interface. Future loading/submission commands do not exist yet.
+browser login or local office software. The version-1 protocol below remains a nonbooking development interface. Use
+protocol v2 and the default approval workflow for financial imports; successful
+detection or serialization alone never authorizes booking.
 
 ## Version-1 canonical record kinds
 
@@ -92,9 +95,9 @@ external parser unable to meet these limits cannot claim this preview contract.
 - Account additions/removals require explicit scope revisions; format changes are
   not evidence of investment growth.
 
-The concrete version-1 dataclasses and validators are described below. Database
-migration, stateful deduplication/revisions, portfolio boundary matching and
-submission are still SRC-004 work. A structurally valid batch alone cannot establish
+The concrete version-1 dataclasses and validators are described below. These dataclasses alone do not perform
+stateful deduplication, portfolio boundary matching or submission. The separate
+implemented v2/core pipeline supplies its documented state/approval checks. A structurally valid batch alone cannot establish
 financial completeness or authorize a contribution.
 
 ## Implemented protocol surface (SRC-001)
@@ -145,10 +148,10 @@ API, not crypto transactions.
 and all version/evidence fields. Validate first. It is a deterministic evidence
 serializer, not a database importer or generic JSON deserializer.
 
-Future transactional checks must still verify revision lineage against the ledger,
-portfolio membership, duplicate economic effects across sources, cash counterpart
-completeness, transfer matching, disposal/cost allocation and scope changes. Batch
-validation does not claim these stateful checks are implemented. No runtime LLM is
+Stateful v2/core checks verify lineage, membership, identities, effects and scope
+under their own contracts. A v1 batch validator does not perform those operations.
+Complete transfer matching and disposal/cost allocation still require additional
+evidence and models; valid structure alone cannot establish financial completeness. No runtime LLM is
 involved. The offline synthetic acceptance cases are in `tests/test_source_protocol.py`.
 
 ## Banks, brokers and exchanges
@@ -386,12 +389,11 @@ nonbooking rejection, crash interruption and empty-instance backup restore.
 
 ## Implementation blueprint (planned: SRC-002 through SRC-004)
 
-This section plans financial integration. SRC-002A and SRC-002B are implemented
-as the independent registry and nonbooking plan paths above; SRC-003 adds the
-installable SDK and SRC-004A the gated canonical foundation. Production financial
-ingestion, existing-parser migration and source-neutral reporting remain unavailable. Keep the existing CLI/Web behavior until each
-replacement passes its acceptance gate. The production parser pipeline remains
-Python code; external Python parsers are explicitly trusted extensions.
+This is the **historical design blueprint**, retained for rationale and the original
+acceptance gates. Its proposed locations and former coupling table describe the
+pre-cutover implementation, not current missing features. SRC-004B/C and the default
+CLI/Web cutover are now implemented; use [source projections](source-projections.md)
+for the current contracts and tests. Python plugins remain explicitly trusted.
 
 ### Current coupling to replace
 
@@ -448,14 +450,14 @@ Module boundaries (v1/registry/nonbooking pipeline, SDK and v2 canonical foundat
 
 Version 1 is useful for structural parser development, but it cannot losslessly
 replace current importers. SRC-004A implements the [version-2 contract and canonical
-foundation](source-ingestion.md); SRC-004B/C must still implement production migration
-and projections before financial import support is advertised. Keep version-1 validation/serialization stable; never add required
+foundation](source-ingestion.md); SRC-004B/C now provide production migration
+and source-neutral projections through the default approval workflow. Keep version-1 validation/serialization stable; never add required
 semantics under the same API version or silently coerce a version-1 batch.
 Registry discovery can recognize a contract for inspection without accepting its
 records for ingestion; compatibility must distinguish these capabilities.
 
-The implemented version-2 contract covers the following source fields; production
-parser parity and transactional report projections still need migration acceptance:
+The version-2 contract covers these fields; built-in parity and source-neutral
+publication acceptance are documented in the current source-projection guide:
 
 - **Explicit parse context:** a trusted execution/evidence timestamp, configured
   source-account alias when absent from the export, declared timezone when source
