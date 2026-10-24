@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -185,6 +186,141 @@ create_pr = true
     def test_clean_index_and_all_history_pass(self):
         self.assertTrue(guard.scan_staged(self.root)['passed'])
         self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
+
+    def test_exact_role_skills_are_public_and_not_ignored(self):
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        for relative in sorted(guard.PUBLIC_ROLE_SKILLS):
+            self.assertTrue(guard.path_allowed(relative))
+            self.write(relative, '# Public synthetic role\n')
+            checked = subprocess.run(['git', '-C', str(self.root), 'check-ignore', '-q', '--', relative])
+            self.assertEqual(checked.returncode, 1, relative)
+            self.run_git('add', '--', relative)
+        result = guard.scan_worktree(self.root)
+        self.assertTrue(result['passed'], result['violations'])
+        self.assertTrue(guard.PUBLIC_ROLE_SKILLS <= {row['path'] for row in result['files']})
+        self.assertTrue(guard.scan_staged(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic public roles')
+        self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
+
+    def test_role_exception_does_not_publish_other_agent_or_planning_paths(self):
+        # Test exact patterns independent of macOS Git's case-folding option.
+        self.run_git('config', 'core.ignorecase', 'false')
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        role = '.agents/skills/wealthledger-fullstack-developer/'
+        paths = ('.agents/notes.md', '.agents/skills/extra-role/SKILL.md',
+                 role + 'nested/SKILL.md', role + 'skill.md', role + 'SKILL.md.backup',
+                 role + 'AGENTS.override.md', role + 'agents/openai.yaml',
+                 '.agents/skills/wealthledger-fullstack-developer-copy/SKILL.md',
+                 '.codex/skills/wealthledger-fullstack-developer/SKILL.md',
+                 'docs/specs/wealth-ledger-v2/workflow/notes.md',
+                 'planning-input/notes.md')
+        for relative in paths:
+            self.assertFalse(guard.path_allowed(relative), relative)
+            self.write(relative, '# Private synthetic instruction\n')
+            if relative.startswith(('.agents/', '.codex/')):
+                self.run_git('check-ignore', '-q', '--', relative)
+        manifest = {row['path'] for row in guard.scan_worktree(self.root)['files']}
+        self.assertFalse(set(paths) & manifest)
+        for relative in paths:
+            self.run_git('add', '-f', '--', relative)
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic forbidden agent fixtures')
+        self.run_git('rm', '-r', '--', '.agents', '.codex', 'docs/specs', 'planning-input')
+        self.run_git('commit', '-m', 'Remove forbidden fixtures')
+        self.assertTrue(guard.scan_staged(self.root)['passed'])
+        result = guard.scan_history(self.root, all_history=True)
+        self.assertFalse(result['passed'])
+        self.assertTrue(set(paths) <= {row['path'] for row in result['violations']})
+        allowed = next(iter(guard.PUBLIC_ROLE_SKILLS))
+        for malformed in ('./' + allowed, allowed.replace('/', '//', 1),
+                          allowed.replace('/skills/', '/skills/../skills/'),
+                          '/' + allowed, allowed.replace('/', '\\')):
+            self.assertFalse(guard.path_allowed(malformed), malformed)
+
+    def test_casefolding_git_cannot_publish_a_role_lookalike(self):
+        self.run_git('config', 'core.ignorecase', 'true')
+        relative = '.agents/skills/wealthledger-fintech-pm/skill.md'
+        self.write(relative, '# Synthetic case-only lookalike\n')
+        result = guard.scan_worktree(self.root)
+        self.assertNotIn(relative, {row['path'] for row in result['files']})
+        approved = '.agents/skills/wealthledger-fintech-pm/SKILL.md'
+        self.assertNotIn(approved, {row['path'] for row in result['files']})
+        self.run_git('add', '-f', '--', relative)
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic case-only instruction fixture')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
+
+    def test_secret_in_each_permitted_role_fails_worktree_index_and_deleted_history(self):
+        for relative in sorted(guard.PUBLIC_ROLE_SKILLS):
+            self.write(relative, 'PRIVATE_' + 'FINANCIAL_FIXTURE')
+            self.run_git('add', '--', relative)
+        for result in (guard.scan_worktree(self.root), guard.scan_staged(self.root)):
+            self.assertFalse(result['passed'])
+            self.assertTrue(guard.PUBLIC_ROLE_SKILLS <= {row['path'] for row in result['violations']})
+        self.run_git('commit', '-m', 'Synthetic contaminated public roles')
+        self.run_git('rm', '-r', '--', '.agents')
+        self.run_git('commit', '-m', 'Remove contaminated roles')
+        self.assertTrue(guard.scan_staged(self.root)['passed'])
+        result = guard.scan_history(self.root, all_history=True)
+        self.assertFalse(result['passed'])
+        self.assertTrue(guard.PUBLIC_ROLE_SKILLS <= {row['path'] for row in result['violations']})
+
+    def test_role_and_ancestor_symlinks_are_rejected_before_any_target_read(self):
+        relative = '.agents/skills/wealthledger-fullstack-developer/SKILL.md'
+        parts = Path(relative).parts
+        read_bytes = Path.read_bytes
+        for length in range(1, len(parts) + 1):
+            for dangling in (False, True):
+                with self.subTest(component=length, dangling=dangling):
+                    agent_root = self.root / '.agents'
+                    if agent_root.is_symlink():
+                        agent_root.unlink()
+                    elif agent_root.exists():
+                        shutil.rmtree(agent_root)
+                    external = self.root / 'private' / ('target-' + str(length))
+                    if not dangling:
+                        if length == len(parts):
+                            self.write(external.relative_to(self.root).as_posix(), 'Synthetic private target')
+                        else:
+                            external.mkdir(parents=True, exist_ok=True)
+                    else:
+                        external = external.with_name(external.name + '-missing')
+                    link = self.root.joinpath(*parts[:length])
+                    link.parent.mkdir(parents=True, exist_ok=True)
+                    link.symlink_to(external, target_is_directory=length < len(parts))
+                    def safe_read(path):
+                        if path.relative_to(self.root).parts[0] in {'.agents', 'private'}:
+                            raise AssertionError('Unsafe role target was read')
+                        return read_bytes(path)
+                    with mock.patch.object(Path, 'read_bytes', safe_read):
+                        result = guard.scan_worktree(self.root)
+                    self.assertFalse(result['passed'])
+                    self.assertTrue(any(row['path'] == relative for row in result['violations']))
+                    self.assertNotIn(relative, {row['path'] for row in result['files']})
+
+    def test_nonregular_role_candidates_and_file_ancestors_fail_closed(self):
+        role = '.agents/skills/wealthledger-fullstack-developer'
+        self.write(role, 'Synthetic non-directory ancestor')
+        self.assertFalse(guard.scan_worktree(self.root)['passed'])
+        (self.root / role).unlink()
+        (self.root / role / 'SKILL.md').mkdir(parents=True)
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        self.write(role + '/SKILL.md/private.md', '# Synthetic private descendant\n')
+        self.run_git('check-ignore', '-q', '--', role + '/SKILL.md/private.md')
+        self.assertFalse(guard.scan_worktree(self.root)['passed'])
+
+    def test_force_staged_role_symlink_and_ancestor_symlink_fail_history(self):
+        for relative in ('.agents/skills/wealthledger-fintech-pm/SKILL.md',
+                         '.agents/skills/wealthledger-software-architect'):
+            link = self.root / relative
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(self.root / 'private/missing')
+            self.run_git('add', '-f', '--', relative)
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic role symlinks')
+        self.run_git('rm', '-r', '--', '.agents')
+        self.run_git('commit', '-m', 'Remove role symlinks')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
 
     def test_history_accepts_public_github_system_committer_only(self):
         with mock.patch.dict(os.environ, {'GIT_COMMITTER_EMAIL': 'noreply@github.com'}):
@@ -455,6 +591,63 @@ create_pr = true
         test_index = next(i for i, args in enumerate(calls) if 'unittest' in args)
         push_index = next(i for i, args in enumerate(calls) if args[:2] == ['git', 'push'])
         self.assertLess(test_index, push_index)
+        image_index = next(i for i, args in enumerate(calls) if any(str(arg).endswith('check_pr_image.py') for arg in args))
+        self.assertLess(test_index, image_index)
+        self.assertLess(image_index, push_index)
+
+    def test_failed_candidate_build_blocks_push_and_pr(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if any(str(arg).endswith('check_pr_image.py') for arg in args):
+                raise publisher.PublishError('Synthetic candidate failure')
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            with self.assertRaises(publisher.PublishError):
+                publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        self.assertFalse(any(args[:2] == ['git', 'push'] or args[:3] == ['gh', 'pr', 'create'] for args in calls))
+
+    def test_inputs_changed_by_image_check_stop_publication(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if any(str(arg).endswith('check_pr_image.py') for arg in args):
+                self.write('README.md', '# Unreviewed change\n')
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            with self.assertRaises(publisher.PublishError):
+                publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        self.assertFalse(any(args[:2] == ['git', 'push'] for args in calls))
+
+    def test_pr_text_changed_during_image_check_stops_publication(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if any(str(arg).endswith('check_pr_image.py') for arg in args):
+                body.write_text('Changed unreviewed PR text')
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            with self.assertRaises(publisher.PublishError):
+                publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        self.assertFalse(any(args[:2] == ['git', 'push'] for args in calls))
 
     def test_failed_tests_prevent_commit_and_push(self):
         body = self.authorize()

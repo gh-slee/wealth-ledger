@@ -1,27 +1,15 @@
 # Agent development guide
 
-Wealth Ledger is a local-first Python 3.12+ investment ledger for financial CSV
-exports, SQLite history and ODS, Markdown and PDF reports. Its expansion path is
-source-parser plugins for banks, brokerages and Bitcoin platforms. Current native
-source importers are Wealthsimple holdings and Bull Bitcoin orders; the shared
-parser contract, trusted registry and nonbooking CLI/API source plans exist. Plugin
-SDK and an independently installable synthetic example exist; pure v2 built-in parsers and explicit-context CLI/API previews are implemented.
-B2 supplies opt-in frozen CLI/API data-only confirmation and receipt recovery. C1
-adds an internal read-only source-neutral model. C2 adds identity-bound legacy,
-wallet and frozen-history compatibility; C3A routes BTC declarations through that
-basis. C3B adds trusted-core source report payloads, frozen valuations and portable
-reports. C3C1 adds opt-in frozen source report approval/publication and advanced CLI;
-C3C2A adds Web jobs/library/read/export integration; the regular CLI/browser now
-default to shared source preparation, exact approval and immutable publication, with
-explicit saved-context selection and correction parents. Native compatibility is
-explicit and must keep its guard against canonical-data omission. SRC-004A adds explicit-context v2/canonical storage as a trusted core API;
-see its phase gate below. V1/v2 source plans remain nonbooking;
-separate source-ingestion previews require exact approval and a no-report acknowledgement.
-Production downloads, calculations, charts and report prose are deterministic code;
-no runtime LLM, Codex or local LibreOffice is required. An optional FastAPI API
-supports bounded uploads, offline preview and isolated Huey/SQLite report jobs.
-An optional React/TypeScript/Vite UI reads frozen publications and drives imports;
-financial declarations share the CLI core; legacy adoption uses trusted-host commands.
+Wealth Ledger is a local-first Python 3.12+ investment ledger with SQLite history,
+ODS/Markdown/PDF reports, optional FastAPI/Huey services and a React/TypeScript UI.
+One owner can maintain independent portfolios. Wealthsimple holdings and Bull
+Bitcoin orders use the implemented shared parser/approval/publication pipeline;
+v1/v2 parser previews remain nonbooking. Explicit native compatibility and frozen
+legacy history remain supported, including guards against canonical-data omission.
+Parser protocol v2 is not the planned full product V2. See the evidence-linked
+[capability baseline](docs/capability-status.md) for current and planned boundaries.
+Downloads, finance, charts and report prose are deterministic code; no runtime LLM,
+Codex or local LibreOffice is required.
 
 ## Working agreement
 
@@ -39,6 +27,16 @@ financial declarations share the CLI core; legacy adoption uses trusted-host com
 - Start new sessions in this repository. If subagents are explicitly requested,
   provide applicable shared/private rules and bounded context; do not assume they
   inherit the conversation. Never include private context in public artifacts.
+
+## Spec and role routing
+
+Use [the spec workflow](docs/spec-development.md) for exact-revision human Gate A,
+serialized reservations, bounded PM/Architect/Developer/independent-QA handoffs and
+human Gate B. Repository skills under `.agents/skills/wealthledger-*` are guidance
+for explicit role assignments or an authorized SDD workflow. Discovery alone does
+not authorize implementation or dispatch agents. Developer self-tests are not
+independent QA. Read current source and task-specific references; future plans do
+not imply shipped PostgreSQL, registration or provider integrations.
 
 ## Verified commands
 
@@ -67,6 +65,12 @@ Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 `npm --prefix frontend run check:source` and `npm --prefix frontend run test:e2e`.
 Use Node 24 LTS (or 22.12+) and see docs/web-frontend.md for browser prerequisites.
 An installable core/contract wheel and SDK are available; see [packaging](docs/parser-sdk.md).
+Before every PR (including documentation-only changes), commit the reviewed scope
+and run `python scripts/check_pr_image.py` from a clean tracked tree. It always
+invokes a source-only candidate build (layer cache allowed), verifies isolated API,
+browser assets and worker startup, and saves local image-ID evidence under ignored
+`work/pr-images/`. Build/check failure or unavailable Docker blocks submission;
+never substitute a real instance. See [the pre-PR gate](docs/development.md#pre-pr-candidate-image-gate).
 Keep build tooling separate from runtime. CI runs Linux/Python 3.12 tests
 and offline synthetic report demos for default/proxy policies and three locales.
 Use focused tests while iterating; report changes also need affected formula/cache,
@@ -99,6 +103,7 @@ portfolio updates. Report the checks actually run and any gaps.
 ## Task-specific references
 
 - Setup, tests and CI: [CONTRIBUTING.md](CONTRIBUTING.md), [development](docs/development.md).
+- Current versus planned capabilities: [capability status](docs/capability-status.md).
 - Discovery, private overrides and fresh sessions: [agent setup](docs/agent-development.md).
 - Imports, dates and recovery: [user manual](docs/user-manual.md), [core API](docs/core-api.md).
 - BTC quantities/costs/events: [reconciliation](docs/btc-reconciliation-plan.md).

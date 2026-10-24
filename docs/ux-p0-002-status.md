@@ -2,7 +2,7 @@
 
 Priority: **P0**
 
-Status: **Implemented and verified locally; not yet merged or deployed**
+Status: **Implemented and merged through PR #13 (`0b62a8a`); deployment is a separate operator action**
 
 Parent: [Product and UX review](product-ux-review.md)
 

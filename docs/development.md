@@ -60,6 +60,58 @@ layout changes. Do not run unrelated real imports or broaden checks without reas
 Report observed results, environment and remaining gaps; past CI is not proof of
 new uncommitted work. CI runs after upload and cannot prevent an initial leak.
 
+## Pre-PR candidate image gate
+
+After finishing and committing the reviewed development scope, run this before
+requesting publication approval or submitting a new/updated PR, including docs-only
+changes:
+
+```bash
+python scripts/check_pr_image.py
+```
+
+Use Python 3.12+ and a running Docker daemon. This standard-library development
+helper does not require a local Node or LibreOffice installation. It requires a
+clean tracked Git tree and rejects uncommitted files in the image inputs. It uses
+`docker_context.py` to copy only audited application source, pinned dependencies,
+fonts, frontend inputs and licenses into a fresh context. It does not send the
+checkout, Git history, private instructions or financial workspaces to Docker.
+Normal dependency downloads may occur during build.
+
+Every invocation calls `docker build`; Docker layer caching remains enabled. Even
+when runtime inputs are unchanged by a documentation edit, a fresh candidate tag
+records the current commit. Tags use `wealth-ledger:pr-<commit>-<unique-suffix>` and
+never replace a service tag. The receipt binds the exact commit, context hash and
+immutable image ID. Source/HEAD changes during the check invalidate success.
+
+The smoke container runs that immutable image with read-only code, nonroot UID,
+no external network, host mounts or published ports. `/data` and `/tmp` are disposable
+tmpfs. An invented owner is created only there. It checks API health, bundled browser
+assets, anonymous financial API denial and an empty worker pass; it creates no real
+portfolio or financial import. Only this invocation's container is removed. The
+candidate image, context, logs and success receipt remain under ignored
+`work/pr-images/<unique-id>/` for local review; image bytes are in Docker's local store.
+
+A missing daemon, build/runtime failure or changed source blocks PR submission.
+Do not silently skip the gate or label an older image as current. Correct the problem
+and rerun against the final commit. No success receipt is emitted on failure. The
+optional publisher runs this check automatically after its final commit and before
+push; manual Git/GitHub CLI users must run it explicitly. There is no global hook
+for arbitrary `gh pr create` or a GitHub browser submission. Repository instructions
+make it required for agent-assisted work, but maintainers can bypass local tooling.
+
+Record the commit/image ID and result in the PR validation summary; keep detailed
+local logs/receipts private. Any later commit requires a new run. These startup checks
+complement feature tests and CI's full Docker persistence/backup/restore acceptance;
+they do not replace those tests or certify every platform. Host architecture is
+recorded; a local arm64 build does not establish amd64 acceptance.
+
+This gate never pushes images, publishes a release, changes Compose, upgrades a
+running service or accesses a real volume. Deployment remains a separate reviewed
+backup/restore/upgrade action. Keep matching rollback images. Remove only specific
+unused candidate tags/contexts deliberately; never automatically prune shared
+Docker images or financial volumes.
+
 ## Financial and import contracts
 
 See [core API](core-api.md), [BTC reconciliation](btc-reconciliation-plan.md) and

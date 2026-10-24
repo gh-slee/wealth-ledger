@@ -5,7 +5,8 @@ implement every item. Select work from the current task. Finance, imports, downl
 and reporting remain reusable Python code. The optional browser frontend uses
 TypeScript/JavaScript, with Node for builds only. Production needs no LLM, agent,
 Codex or local LibreOffice. See the [manual](docs/user-manual.md) and
-[development rules](AGENTS.md).
+[development rules](AGENTS.md), [capability baseline](docs/capability-status.md) and
+[spec approval/ownership workflow](docs/spec-development.md).
 
 ## Available capabilities
 
@@ -54,9 +55,9 @@ its own problem, scope, dependencies, acceptance criteria and validation record.
 
 | ID | Priority | Status | Ticket |
 |---|---|---|---|
-| UX-P0-001 | P0 | Verified locally; not merged | [First-use guidance](docs/ux-p0-001-first-run.md) |
-| UX-P0-002 | P0 | Verified locally; not merged | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
-| UX-P0-003 | P0 | Verified locally; not merged | [Understandable import/recovery](docs/ux-p0-003-imports.md) |
+| UX-P0-001 | P0 | Implemented and merged (PR #13) | [First-use guidance](docs/ux-p0-001-first-run.md) |
+| UX-P0-002 | P0 | Implemented and merged (PR #13) | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
+| UX-P0-003 | P0 | Implemented and merged (PR #13) | [Understandable import/recovery](docs/ux-p0-003-imports.md) |
 | UX-P1-001 | P1 | Planned | [Activity, contributions, transfers](docs/ux-p1-001-activity.md) |
 | UX-P1-002 | P1 | Planned | [Eligible returns and attribution](docs/ux-p1-002-performance.md) |
 | UX-P1-003 | P1 | Planned | [Income, fees, corporate actions](docs/ux-p1-003-income.md) |
@@ -70,20 +71,21 @@ its own problem, scope, dependencies, acceptance criteria and validation record.
 | UX-P2-004 | P2 | Planned | [Operations/account security UX](docs/ux-p2-004-operations.md) |
 | UX-P2-005 | P2 | Planned | [Cost/tax evidence exports](docs/ux-p2-005-tax-evidence.md) |
 
-Sequence: review/merge the locally verified P0-001 slice, then implement P0-002 and P0-003. Cross-linked existing
+Sequence: P0-001, P0-002 and P0-003 are merged in `0b62a8a` (PR #13).
+Next consider the separately scoped UX-P1-001 activity/contribution evidence track. Cross-linked existing
 roadmap items are the same work, not duplicate implementations. Do not implement
 financial-return features before their evidence/flow/valuation prerequisites.
 
 
-This track does not complete the source-plugin SDK, new currencies or combined
-performance automatically. Keep each stage planned until accepted; actual private
+These UX slices do not expand parser coverage, supported native currencies or
+combined performance automatically. Keep each stage planned until accepted; actual private
 migration is a separate explicit operation.
 
 ## Daily operations and analysis
 
 | ID | Status | Scope |
 |---|---|---|
-| FUT-002 | Web status verified locally; broader projection pending | UX-P0-002 adds frozen-edition evidence/actions and separate scoped live jobs without writes or quote queries. Numeric BTC gaps, complete coverage intervals and finer funding classifications remain unavailable where not exposed by the saved DTO; do not infer them. Broader unified/CLI status remains planned |
+| FUT-002 | Web status merged; broader projection pending | UX-P0-002 adds frozen-edition evidence/actions and separate scoped live jobs without writes or quote queries. Numeric BTC gaps, complete coverage intervals and finer funding classifications remain unavailable where not exposed by the saved DTO; do not infer them. Broader unified/CLI status remains planned |
 | FUT-003 | Partially implemented | Web frozen CSV/JSON datasets and supported date ranges exist (WEB-005); broader unified CLI/range exports and a local report index remain. Preserve revisions/unknowns and tracking scopes; see UX-P1-005 |
 | FUT-004 | Not implemented | ETF shared-company/weighted overlap: define denominators/formulas, reuse official evidence/identities and disclose dates, parsing coverage and unknown weights |
 | FUT-005 | Not implemented | Separate quantity, market-price and FX effects on value; define interaction allocation and identify splits/scope/mixed dates/missing quotes; quantity effects are not contributions |

@@ -9,6 +9,7 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import struct
+import stat
 import subprocess
 import sys
 import zipfile
@@ -28,7 +29,7 @@ PUBLIC_DOCS = {
     'ux-p1-004-allocation.md', 'ux-p1-005-analysis.md', 'ux-p1-006-sources.md',
     'ux-p1-007-distribution.md', 'ux-p2-001-risk.md', 'ux-p2-002-goals.md',
     'ux-p2-003-mobile.md', 'ux-p2-004-operations.md', 'ux-p2-005-tax-evidence.md',
-    'getting-started.md', 'product-ux-review.md',
+    'getting-started.md', 'product-ux-review.md', 'spec-development.md', 'capability-status.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
     'source-adapters.md', 'source-ingestion.md', 'source-projections.md', 'parser-sdk.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-analysis-reports.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md', 'web-legacy-reports.md',
 }
@@ -50,6 +51,12 @@ PUBLIC_README_PNGS = {
     'assets/readme/web-settings.png', 'assets/readme/web-overview-dark.png',
     'assets/readme/web-report-reader.png',
 }
+PUBLIC_ROLE_SKILLS = frozenset({
+    '.agents/skills/wealthledger-fintech-pm/SKILL.md',
+    '.agents/skills/wealthledger-software-architect/SKILL.md',
+    '.agents/skills/wealthledger-fullstack-developer/SKILL.md',
+    '.agents/skills/wealthledger-qa-automation/SKILL.md',
+})
 PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {
     '.git', 'data', 'reports', 'backups', 'work', 'private', 'outputs', 'output',
@@ -89,7 +96,7 @@ def git(root: Path, *args: str) -> bytes:
 
 def path_allowed(path: str) -> bool:
     p = PurePosixPath(path)
-    if p.is_absolute() or '..' in p.parts or '\\' in path or not p.parts or any(ord(ch) < 32 or 0xD800 <= ord(ch) <= 0xDFFF for ch in path):
+    if p.is_absolute() or '..' in p.parts or '\\' in path or not p.parts or p.as_posix() != path or any(ord(ch) < 32 or 0xD800 <= ord(ch) <= 0xDFFF for ch in path):
         return False
     parts = p.parts
     if p.name.casefold() in PRIVATE_INSTRUCTION_NAMES:
@@ -98,6 +105,10 @@ def path_allowed(path: str) -> bool:
         return False
     if any(part.startswith('.venv') for part in parts):
         return False
+    # Exact reviewed repository skills are the only exception to the private root.
+    # Keep this after malformed/private-name validation, before ignored-root denial.
+    if path in PUBLIC_ROLE_SKILLS:
+        return True
     if parts[0] in IGNORED_ROOTS or path.lower().endswith(PRIVATE_SUFFIXES):
         return False
     if len(parts) == 1:
@@ -245,9 +256,44 @@ def finish(result: dict) -> dict:
     return result
 
 
+def public_role_candidate(root: Path, relative: str) -> tuple[Path | None, str | None]:
+    """Inspect each path component before any target read, including dangling links."""
+    if relative not in PUBLIC_ROLE_SKILLS:
+        raise ValueError('Not a reviewed role skill path')
+    parts = PurePosixPath(relative).parts
+    candidate = root
+    for index, part in enumerate(parts):
+        candidate = candidate / part
+        try:
+            mode = candidate.lstat().st_mode
+        except FileNotFoundError:
+            return None, None
+        if stat.S_ISLNK(mode):
+            return None, 'public role skill or ancestor is a symlink'
+        # Case-insensitive filesystems can resolve a differently spelled private
+        # path to this candidate. Require actual directory-entry spelling too.
+        if part not in {entry.name for entry in candidate.parent.iterdir()}:
+            return None, 'public role skill or ancestor spelling differs from allowlist'
+        if index < len(parts) - 1:
+            if not stat.S_ISDIR(mode):
+                return None, 'public role skill ancestor is not a directory'
+        elif not stat.S_ISREG(mode):
+            return None, 'public role skill is not a regular file'
+    return candidate, None
+
+
 def scan_worktree(root: Path) -> dict:
     """Build a source-only manifest; unknown non-private files fail closed."""
     result = new_result('worktree')
+    # rglob deliberately omits the private .agents root below. Inspect only the
+    # four reviewed candidates explicitly, never following a file/ancestor link.
+    for relative in sorted(PUBLIC_ROLE_SKILLS):
+        candidate, problem = public_role_candidate(root, relative)
+        if problem:
+            result['violations'].append({'path': relative, 'origin': 'worktree',
+                                         'reasons': [problem]})
+        elif candidate is not None:
+            record(result, relative, candidate.read_bytes(), origin='worktree')
     for path in sorted(root.rglob('*')):
         rel = path.relative_to(root).as_posix()
         parts = PurePosixPath(rel).parts

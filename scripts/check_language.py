@@ -11,7 +11,7 @@ import re
 import sys
 import tokenize
 
-from check_publication import path_allowed
+from check_publication import PUBLIC_ROLE_SKILLS, path_allowed, public_role_candidate
 
 CJK = re.compile(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\U00020000-\U000323af]')
 
@@ -53,8 +53,17 @@ def scan(root: Path) -> dict:
     """Read only allowlisted Markdown/Python, never private guidance or data."""
     files = []
     violations = []
+    for relative in sorted(PUBLIC_ROLE_SKILLS):
+        candidate, problem = public_role_candidate(root, relative)
+        if problem:
+            raise LanguageError('Refusing unsafe public role skill: ' + relative)
+        if candidate is not None:
+            files.append(relative)
+            violations.extend(check_file(relative, candidate.read_text(encoding='utf-8')))
     for candidate in sorted(root.rglob('*')):
         rel = candidate.relative_to(root).as_posix()
+        if rel.split('/', 1)[0] == '.agents':
+            continue  # Only the four explicitly inspected candidates above are public.
         if candidate.suffix not in {'.md', '.py'} or not path_allowed(rel):
             continue
         if candidate.is_symlink():

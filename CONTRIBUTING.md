@@ -65,11 +65,17 @@ unit/browser tests and accessibility. Keep broader release acceptance visible.
 
 Use a feature branch. Describe the concrete problem, resulting behavior, validation
 and limitations. Run relevant tests and the [publication/privacy checks](docs/publishing.md)
-before publication. Never attach private inputs, reports, credentials or session
+before publication. After the final reviewed commit, run `python scripts/check_pr_image.py`
+for every PR/update, including docs-only changes; Docker must be available. See the
+[isolated candidate gate](docs/development.md#pre-pr-candidate-image-gate). This builds
+a local candidate without deploying it. Never attach private inputs, reports, credentials or session
 transcripts. Stage explicit reviewed paths rather than `git add .`.
 
 Agent-assisted contributors can use [the repository setup guide](docs/agent-development.md);
-agents are optional development tools, not application dependencies. Owner-specific
+agents are optional development tools, not application dependencies. Follow the
+[spec workflow](docs/spec-development.md) for approved role handoffs and serialized
+reservations; verify claims against [current capabilities](docs/capability-status.md).
+Discovering a skill is not implementation or delegation authorization. Owner-specific
 publication approval is separate from a local tool's repository authorization.
 
 Code and documentation contributions must be compatible with the MIT license.

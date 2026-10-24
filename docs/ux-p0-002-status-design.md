@@ -1,6 +1,6 @@
 # UX-P0-002 design brief: evidence status and next actions
 
-Status: **Implemented and verified locally; not yet merged or deployed**
+Status: **Implemented and merged through PR #13 (`0b62a8a`); deployment is a separate operator action**
 
 Parent: [UX-P0-002](ux-p0-002-status.md). Visitor mode: **Operate**.
 Visual authority: [DESIGN.md](../DESIGN.md), existing Overview and synthetic gallery.
