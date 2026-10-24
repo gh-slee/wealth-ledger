@@ -39,7 +39,13 @@ const countries = [
   ["MX", "Mexico"],
   ["TW", "Taiwan"],
 ] as const;
-const rows = [
+type CountryRow = {
+  key: string;
+  name: string;
+  market_cad: string | null;
+  investment_weight: string | null;
+};
+const rows: CountryRow[] = [
   ...countries.map(([key, name], index) => ({
     key,
     name: `${name} (${key})`,
@@ -59,7 +65,79 @@ const rows = [
     investment_weight: null,
   },
 ];
-async function enterCountry(page: Page, selected = rows) {
+const precisionRows: CountryRow[] = [
+  {
+    key: "precise",
+    name: "Precise saved value",
+    market_cad: "1.00123000",
+    investment_weight: "0.123456",
+  },
+  {
+    key: "negative",
+    name: "Tiny negative adjustment",
+    market_cad: "-0.00420000",
+    investment_weight: null,
+  },
+  {
+    key: "large",
+    name: "Large saved value",
+    market_cad: "9007199254740993.12345678901234567890",
+    investment_weight: null,
+  },
+  {
+    key: "zero",
+    name: "Explicit zero",
+    market_cad: "0",
+    investment_weight: "0",
+  },
+  {
+    key: "scaled-zero",
+    name: "Zero with saved precision",
+    market_cad: "0.00000000",
+    investment_weight: "0",
+  },
+  {
+    key: "negative-zero",
+    name: "Saved negative zero",
+    market_cad: "-0.00000000",
+    investment_weight: "0",
+  },
+  {
+    key: "missing",
+    name: "Missing saved value",
+    market_cad: null,
+    investment_weight: null,
+  },
+];
+// Literal expectations deliberately do not use a production formatter.
+const exactCadCells = [
+  "1.00123000",
+  "-0.00420000",
+  "9007199254740993.12345678901234567890",
+  "0",
+  "0.00000000",
+  "-0.00000000",
+  "—",
+];
+const referenceRows: CountryRow[] = [
+  {
+    key: "reference",
+    name: "Standard formatted value",
+    market_cad: "1.00123000",
+    investment_weight: "0.123456",
+  },
+  {
+    key: "reference-null",
+    name: "Unknown reference value",
+    market_cad: null,
+    investment_weight: null,
+  },
+];
+async function enterCountry(
+  page: Page,
+  selected = rows,
+  references?: CountryRow[],
+) {
   const writes: string[] = [];
   const external: string[] = [];
   page.on("request", (request) => {
@@ -80,6 +158,14 @@ async function enterCountry(page: Page, selected = rows) {
         ...data.dimensions.country,
         rows: selected,
       };
+      if (references) {
+        for (const dimension of ["sector", "region"]) {
+          data.dimensions[dimension] = {
+            ...data.dimensions[dimension],
+            rows: references,
+          };
+        }
+      }
       await route.fulfill({ json: data });
     },
   );
@@ -172,12 +258,13 @@ for (const viewport of [
           await table.locator("tbody tr td:first-child").allTextContents(),
         ).toEqual(expected.map((row) => row.name));
         for (const row of expected) {
-          const exact = row.market_cad.startsWith("-")
-            ? `−CA$${row.market_cad.slice(1)}`
-            : `CA$${row.market_cad}`;
           await expect(
-            table.getByRole("row").filter({ hasText: row.name }),
-          ).toContainText(exact);
+            table
+              .getByRole("row")
+              .filter({ hasText: row.name })
+              .locator("td")
+              .nth(1),
+          ).toHaveText(row.market_cad ?? "—");
         }
       };
       await checkTable(rows.slice(0, 20));
@@ -189,10 +276,10 @@ for (const viewport of [
       await checkTable(rows.slice(20));
       await expect(
         table.getByRole("row").filter({ hasText: "Unallocated adjustment" }),
-      ).toContainText("−CA$0.15");
+      ).toContainText("-0.15");
       await expect(
         table.getByRole("row").filter({ hasText: "Unknown classification" }),
-      ).toContainText("CA$12.34");
+      ).toContainText("12.34");
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -209,6 +296,70 @@ for (const viewport of [
         path: `test-results/country-${viewport.width}-${theme}.png`,
         fullPage: true,
       });
+      expect(writes).toEqual([]);
+      expect(external).toEqual([]);
+    });
+    test(`country CAD strings stay exact and other dimensions keep formatting at ${viewport.width}px in ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { writes, external } = await enterCountry(
+        page,
+        precisionRows,
+        referenceRows,
+      );
+      await page
+        .getByRole("combobox", { name: "Appearance", exact: true })
+        .selectOption(theme);
+      await page.getByText("View chart data", { exact: true }).click();
+      const table = page.getByRole("table", { name: "Country", exact: true });
+      await expect(table.locator("tbody tr td:first-child")).toHaveText([
+        "Precise saved value",
+        "Tiny negative adjustment",
+        "Large saved value",
+        "Explicit zero",
+        "Zero with saved precision",
+        "Saved negative zero",
+        "Missing saved value",
+      ]);
+      await expect(table.locator("tbody tr td:nth-child(2)")).toHaveText(
+        exactCadCells,
+      );
+      await expect(table.locator("tbody tr td:nth-child(3)")).toHaveText([
+        "12.35%",
+        "—",
+        "—",
+        "0.00%",
+        "0.00%",
+        "0.00%",
+        "—",
+      ]);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBeTruthy();
+      await page.screenshot({
+        path: `test-results/country-exact-${viewport.width}-${theme}.png`,
+        fullPage: true,
+      });
+      for (const dimension of ["sector", "region"] as const) {
+        await page
+          .getByRole("combobox", { name: "Exposure", exact: true })
+          .selectOption(dimension);
+        const standard = page.getByRole("table", {
+          name: en[dimension],
+          exact: true,
+        });
+        await expect(standard.locator("tbody tr td:nth-child(2)")).toHaveText([
+          "CA$1.00",
+          "—",
+        ]);
+        await expect(standard.locator("tbody tr td:nth-child(3)")).toHaveText([
+          "12.35%",
+          "—",
+        ]);
+      }
       expect(writes).toEqual([]);
       expect(external).toEqual([]);
     });
@@ -328,7 +479,10 @@ test("failed chart module keeps the complete country table available", async ({
     });
     await route.abort();
   });
-  const { writes, external } = await enterCountry(page);
+  const { writes, external } = await enterCountry(page, [
+    ...rows,
+    ...precisionRows,
+  ]);
   await expect.poll(() => !!rejectChart).toBeTruthy();
   rejectChart?.();
   await expect(
@@ -343,6 +497,11 @@ test("failed chart module keeps the complete country table available", async ({
     .getByRole("button", { name: "Next", exact: true })
     .click();
   await expect(table).toContainText("Taiwan (TW)");
+  for (const [index, row] of precisionRows.entries()) {
+    await expect(
+      table.getByRole("row").filter({ hasText: row.name }).locator("td").nth(1),
+    ).toHaveText(exactCadCells[index]);
+  }
   expect(writes).toEqual([]);
   expect(external).toEqual([]);
 });

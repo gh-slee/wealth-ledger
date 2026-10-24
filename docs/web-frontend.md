@@ -96,8 +96,12 @@ for dates, references, supported overrides and remaining cutover boundaries.
   chart includes every supplied row in its original order, including unknown and
   adjustment buckets. It wraps long labels in a vertically scrollable viewport;
   focus the chart and use Arrow keys, Page Up/Down or Home/End. **View chart data**
-  provides the complete paginated table with exact saved decimal values, including
-  when the chart cannot load. Empty classifications remain explicitly empty. The
+  provides the complete paginated table. Its **CAD** column preserves the original
+  saved country market-value strings, including decimal precision, trailing zeros
+  and negative signs; null remains an em dash, distinct from zero. Percentage
+  weights and chart tooltips retain their standard display formatting. The table
+  remains available when the chart cannot load. Empty classifications remain
+  explicitly empty. The
   chart does not add missing countries, redistribute weights or fetch references.
 - Bull funding is unclassified funding until its origin is supplied. Purchase spend
   is not a second contribution. Cash-flow coverage/BTC event forms share the CLI validators; [their manual](web-financial-records.md) explains saved-data report generation. [Verified CLI adoption](web-adoption.md) is a separate host operation.
