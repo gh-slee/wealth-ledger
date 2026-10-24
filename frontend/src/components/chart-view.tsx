@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { init, use } from "echarts/core";
 import { LineChart, BarChart } from "echarts/charts";
 import {
@@ -26,19 +26,49 @@ export function Chart({
   values,
   line = false,
   currency = "CAD",
+  scrollable = false,
 }: {
   title: string;
   labels: string[];
   values: (string | null | undefined)[];
   line?: boolean;
   currency?: Currency;
+  scrollable?: boolean;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
+  const hintId = useId();
+  const complete = scrollable && !line;
   const { resolved } = useTheme();
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!root.current) return;
-    const chart = init(root.current, undefined, { renderer: "svg" });
+    const target = root.current;
+    const viewport = complete ? target.parentElement : target;
+    const layout = () => {
+      const labelWidth = Math.max(
+        70,
+        Math.min(220, Math.floor(target.clientWidth / 2) - 20),
+      );
+      // Reserve enough room for wrapped 12px labels, including wide CJK glyphs.
+      const lines = labels.reduce(
+        (maximum, label) =>
+          Math.max(
+            maximum,
+            Math.ceil((Array.from(label).length * 12) / labelWidth),
+          ),
+        1,
+      );
+      return {
+        labelWidth,
+        height: Math.max(
+          viewport?.clientHeight ?? 320,
+          labels.length * Math.max(40, lines * 16 + 12) + 50,
+        ),
+      };
+    };
+    const initial = layout();
+    if (complete) target.style.height = `${initial.height}px`;
+    const chart = init(target, undefined, { renderer: "svg" });
     const reduce = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -89,7 +119,10 @@ export function Chart({
           }
         : {
             type: "value",
-            axisLabel: { color: color("--muted") },
+            axisLabel: {
+              color: color("--muted"),
+              ...(complete ? { hideOverlap: true } : {}),
+            },
             splitLine: { lineStyle: { color: color("--border") } },
           },
       yAxis: line
@@ -107,8 +140,11 @@ export function Chart({
             axisTick: { show: false },
             axisLabel: {
               color: color("--muted"),
-              width: 155,
-              overflow: "truncate",
+              width: complete ? initial.labelWidth : 155,
+              overflow: complete ? "break" : "truncate",
+              ...(complete
+                ? { interval: 0, hideOverlap: false, lineHeight: 16 }
+                : {}),
             },
           },
       series: [
@@ -139,12 +175,43 @@ export function Chart({
       ],
     };
     chart.setOption(option);
-    const observer = new ResizeObserver(() => chart.resize());
-    observer.observe(root.current);
+    const observer = new ResizeObserver(() => {
+      if (complete) {
+        const next = layout();
+        target.style.height = `${next.height}px`;
+        chart.resize();
+        chart.setOption({ yAxis: { axisLabel: { width: next.labelWidth } } });
+      } else chart.resize();
+    });
+    observer.observe(viewport ?? target);
     return () => {
       observer.disconnect();
       chart.dispose();
     };
-  }, [title, labels, values, line, locale, currency, resolved]);
+  }, [title, labels, values, line, locale, currency, resolved, complete]);
+  if (complete) {
+    if (!labels.length) return <p role="status">{t("emptyRows")}</p>;
+    return (
+      <>
+        <p className="muted chart-hint" id={hintId}>
+          {t("chartScrollHint")}
+        </p>
+        <div
+          className="chart chart-scroll"
+          role="region"
+          aria-label={title}
+          aria-describedby={hintId}
+          tabIndex={0}
+        >
+          <div
+            className="chart-content"
+            role="img"
+            aria-label={title}
+            ref={root}
+          />
+        </div>
+      </>
+    );
+  }
   return <div className="chart" role="img" aria-label={title} ref={root} />;
 }

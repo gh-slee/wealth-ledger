@@ -357,6 +357,7 @@ export function Exposure({ data }: { data: Report }) {
               title={`${t(dimension)} · CAD`}
               labels={section.rows.map((row) => row.name)}
               values={section.rows.map((row) => row.market_cad)}
+              scrollable={dimension === "country"}
             />
             <details>
               <summary>{t("viewData")}</summary>
@@ -369,7 +370,9 @@ export function Exposure({ data }: { data: Report }) {
                     accessorKey: "market_cad",
                     header: "CAD",
                     cell: ({ getValue }) =>
-                      amount(getValue() as string | null, "CAD", locale),
+                      dimension === "country"
+                        ? ((getValue() as string | null) ?? "—")
+                        : amount(getValue() as string | null, "CAD", locale),
                   },
                   {
                     accessorKey: "investment_weight",

@@ -495,5 +495,7 @@
   "importLinkedJob": "此预览已有正式工作；请检视其保存结果，不要另建导入。",
   "importBlockedByJob": "另一项金融工作尚未完成；确认新更新前请先处理其保存结果。建立预览仍不会登记数据。",
   "importJobKind": "工作类型",
-  "importSelectedJobHint": "此面板显示先前保存的工作；上方新草稿不会改变其结果。"
+  "importSelectedJobHint": "此面板显示先前保存的工作；上方新草稿不会改变其结果。",
+  "chartScrollHint": "滚动可查看所有国家。键盘操作：将焦点移至图表，再使用方向键、Page Up／Down 或 Home／End。下方“查看图表数据”提供精确数值。",
+  "chartUnavailable": "无法显示图表。请展开下方“查看图表数据”查看完整分布。"
 }

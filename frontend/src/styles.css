@@ -423,6 +423,18 @@ form {
   max-width: 100%;
   overflow: hidden;
 }
+.chart-scroll {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--control-border) var(--paper);
+}
+.chart-content {
+  width: 100%;
+}
+.chart-hint {
+  font-size: 0.9rem;
+}
 .account-list > div {
   display: grid;
   grid-template-columns: 1fr auto;
