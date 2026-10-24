@@ -10,6 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from docker_context import FIXED, prepare_context
+from check_publication import PUBLIC_ROLE_SKILLS
 
 
 class DockerContextTests(unittest.TestCase):
@@ -29,8 +30,14 @@ class DockerContextTests(unittest.TestCase):
                      "AGENTS.override.md", "src/wealth_ledger/AGENTS.override.md", ".env"):
             target = self.root / name; target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("invented private test marker")
+        for name in PUBLIC_ROLE_SKILLS:
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("invented private test marker")
         output = self.base / "context"
         manifest = prepare_context(self.root, output)
+        self.assertFalse((output / ".agents").exists())
+        self.assertFalse(set(manifest["files"]) & PUBLIC_ROLE_SKILLS)
         self.assertEqual(set(manifest["files"]), set(FIXED) | {"src/wealth_ledger/__init__.py"})
         for path in output.rglob("*"):
             if path.is_file():

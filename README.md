@@ -28,11 +28,11 @@
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
-Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by reusable parser plugins as that architecture is completed.
+Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by the implemented shared parser pipeline. Support for additional institutions and export formats remains planned.
 
 Review supported inputs in an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data. One owner or household can keep multiple independent portfolios in an instance, through a React/TypeScript interface or the supported **Python CLI**. Both use the same Python financial core.
 
-**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. The default v2 parser workflow supports approved imports and reports from trusted enabled plugins. Additional real institutions require implemented format adapters; arbitrary CSVs are not accepted. See [sources and parser plugins](#sources-and-parser-plugins) for the expansion plan.
+**Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. The default v2 parser workflow supports approved imports and reports from trusted enabled plugins. Additional real institutions require implemented format adapters; arbitrary CSVs are not accepted. See [sources and parser plugins](#sources-and-parser-plugins) for current coverage and the expansion plan. Parser protocol v2 does not mean the full planned product V2 is shipped; see the [capability baseline](docs/capability-status.md).
 
 **Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; financial declaration forms and trusted-host, copy-verified adoption of existing CLI data are implemented. See [project status](#project-status).
 
@@ -400,6 +400,7 @@ Current imports support the documented Wealthsimple holdings and Bull Bitcoin or
 | [Financial declarations](docs/web-financial-records.md) · [CLI adoption](docs/web-adoption.md) | Save contributions/BTC revisions and verify a retained-source migration. |
 | [Source adapters](docs/source-adapters.md) · [Languages](docs/i18n-plan.md) | Extensibility contracts, planned plugin support, and localization. |
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) · [Agent setup](docs/agent-development.md) | Reproducible development, checks, shared instructions, and private guidance. |
+| [Capability status](docs/capability-status.md) · [Spec development](docs/spec-development.md) | Current source versus planned work; exact-revision approval, role handoffs and ownership. |
 
 For help, [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with a minimal **synthetic** reproduction. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 

@@ -72,7 +72,10 @@ a local candidate without deploying it. Never attach private inputs, reports, cr
 transcripts. Stage explicit reviewed paths rather than `git add .`.
 
 Agent-assisted contributors can use [the repository setup guide](docs/agent-development.md);
-agents are optional development tools, not application dependencies. Owner-specific
+agents are optional development tools, not application dependencies. Follow the
+[spec workflow](docs/spec-development.md) for approved role handoffs and serialized
+reservations; verify claims against [current capabilities](docs/capability-status.md).
+Discovering a skill is not implementation or delegation authorization. Owner-specific
 publication approval is separate from a local tool's repository authorization.
 
 Code and documentation contributions must be compatible with the MIT license.

@@ -100,3 +100,37 @@ inheritance or expose private data in a public/remote agent context.
 File/guard tests can verify layout and leak protection. They cannot prove that a
 particular fresh Codex session or a newly created worktree read/copied the files;
 perform the corresponding check when that session/worktree is actually created.
+
+
+## Repository role skills
+
+The four reviewed public skills are
+[PM](../.agents/skills/wealthledger-fintech-pm/SKILL.md),
+[Architect](../.agents/skills/wealthledger-software-architect/SKILL.md),
+[Developer](../.agents/skills/wealthledger-fullstack-developer/SKILL.md) and
+[QA](../.agents/skills/wealthledger-qa-automation/SKILL.md).
+Each references the single shared AGENTS.md and the canonical
+[spec workflow](spec-development.md). Select an explicitly assigned role or an
+authorized SDD stage. Discovery is availability, not approval to implement,
+delegate or start four agents. No global configuration or runtime AI is required.
+
+Only these four exact `.agents/skills/<role>/SKILL.md` files have Git traversal and
+publication exceptions. Everything else under `.agents/`, all `.codex/`, private
+overrides and local planning artifacts remain outside the public allowlist. Do not
+add a broad exception or `agents/openai.yaml`. Git ignore matching can vary with
+filesystem case behavior and `core.ignorecase`; ignoring alone is never publication
+authorization. The guard requires literal allowlisted paths and actual component
+spelling. Worktree inspection reads the four
+candidates only after checking every component for regular-file/directory safety;
+symlinks, including dangling file or ancestor links, fail before reading targets.
+Index and reachable-history checks still reject forbidden force-added content,
+even when later deleted. Public role prose participates in the English check;
+private instructions remain excluded. Source-only Docker contexts and Python
+package source/artifact allowlists exclude role skills independently.
+
+In a fresh session, additionally ask it to list the four available role names and
+descriptions without invoking them, explicitly read the assigned skill and its
+shared references, then summarize its bounded responsibilities. Verify real
+startup discovery in the intended checkout; file layout/tests alone do not prove
+that a particular Codex session discovered skills. Keep discovery evidence distinct
+from role execution, independent QA, remote claims and deployment.
