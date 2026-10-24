@@ -357,6 +357,7 @@ export function Exposure({ data }: { data: Report }) {
               title={`${t(dimension)} · CAD`}
               labels={section.rows.map((row) => row.name)}
               values={section.rows.map((row) => row.market_cad)}
+              scrollable={dimension === "country"}
             />
             <details>
               <summary>{t("viewData")}</summary>

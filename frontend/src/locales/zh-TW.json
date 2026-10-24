@@ -495,5 +495,7 @@
   "importLinkedJob": "此預覽已有正式工作；請檢視其保存結果，不要另建匯入。",
   "importBlockedByJob": "另一項財務工作尚未完成；確認新更新前請先處理其保存結果。建立預覽仍不會登錄資料。",
   "importJobKind": "工作類型",
-  "importSelectedJobHint": "此面板顯示先前保存的工作；上方新草稿不會改變其結果。"
+  "importSelectedJobHint": "此面板顯示先前保存的工作；上方新草稿不會改變其結果。",
+  "chartScrollHint": "捲動可查看所有國家。鍵盤操作：將焦點移至圖表，再使用方向鍵、Page Up／Down 或 Home／End。下方「查看圖表資料」提供精確數值。",
+  "chartUnavailable": "無法顯示圖表。請展開下方「查看圖表資料」查看完整分布。"
 }

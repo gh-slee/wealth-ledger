@@ -495,5 +495,7 @@
   "importLinkedJob": "This preview already has a formal job. Inspect that saved outcome instead of starting another import.",
   "importBlockedByJob": "Another financial job is unfinished. Resolve its saved outcome before confirming a new update. Creating a preview remains nonbooking.",
   "importJobKind": "Job type",
-  "importSelectedJobHint": "This panel shows a previously saved job. New draft inputs above do not change its outcome."
+  "importSelectedJobHint": "This panel shows a previously saved job. New draft inputs above do not change its outcome.",
+  "chartScrollHint": "Scroll to see every country. Keyboard: focus the chart, then use Arrow keys, Page Up / Down or Home / End. Exact values are in View chart data below.",
+  "chartUnavailable": "The chart could not be displayed. Open View chart data below for the complete distribution."
 }

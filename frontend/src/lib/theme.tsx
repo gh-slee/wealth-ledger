@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -36,7 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     changed();
     return () => media.removeEventListener("change", changed);
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = resolved;
   }, [resolved]);
   function setTheme(value: Theme) {

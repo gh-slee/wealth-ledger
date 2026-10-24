@@ -224,6 +224,11 @@ the active navigation edge and evidence rail provide stronger orientation cues.
   and publish sequence. Current-stage text carries emphasis; native disclosures
   hold advanced controls and disabled field groups indicate an active request.
   User-submitted results receive focus; background polling does not steal it.
+- **Country distribution:** a focusable native scroll viewport contains all supplied
+  country rows, with wrapped labels and no automatic label skipping. Localized help
+  names keyboard controls and the complete paginated data table. Unknown and adjustment
+  rows keep their own labels and amounts; the table remains available if the chart
+  fails. Sector, region and history charts retain their existing layouts.
 - **Report checks:** a native expandable section preserves counts, stable codes and
   account contexts. Grouping repeated notices must not erase distinct evidence.
 
