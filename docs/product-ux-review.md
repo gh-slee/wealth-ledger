@@ -1,6 +1,7 @@
 # Investment tracking product and UX review
 
-Review baseline: merged `167884b`, 21 October 2026. This is a product assessment of
+Original review baseline: merged `167884b`, 21 October 2026. Status reconciled
+against merged `0b62a8a` (PR #13), which includes all three UX-P0 slices. This is a product assessment of
 the implemented source, synthetic browser workflows and README gallery, not a claim
 that the proposed features are shipped. Implementation acceptance is recorded in
 each ticket. Public roadmap status and private deployment state are separate.
@@ -23,18 +24,22 @@ set of advanced controls.
 | Area | Implemented | Remaining boundary / evidence |
 |---|---|---|
 | Identity and portfolios | Host-initialized owner, sign-in, isolated portfolios and settings | One owner per instance; no browser registration or household roles. `web/auth.py`, `App.tsx`. |
-| First report | Default parser upload, mappings, preview/approval, jobs and publication | Previous empty state had one short upload link; context/reference choices need more explanation. `components/imports.tsx`. |
+| First report | Default parser upload, mappings, preview/approval, jobs and publication | First-use guidance and staged context/reference explanation are merged (UX-P0-001/003); richer source-capability UX remains planned. `components/imports.tsx`. |
 | Daily analysis | Overview, searchable/sortable holdings, history, BTC, classifications, ETF company rankings | Frozen saved editions, not live quotes. Display totals support CAD/USD/TWD; native securities remain CAD/USD. `components/analysis.tsx`. |
 | Reports | Full saved analysis reader; ODS/Markdown/PDF and CSV/JSON/ZIP exports | Editions at one date are not separate observations. `report-reader.tsx`, `web/report_document.py`. |
 | Financial evidence | BTC totals/events/openings, cash flows and coverage declarations | Bull funding origins/transfer matching and complete combined period returns remain incomplete. `financial.tsx`, `web-financial-records.md`. |
-| Sources | Two real built-in v2 parsers; pinned external registry/SDK; installed synthetic third-parser acceptance | Not universal CSV support. No broker authentication, marketplace or automatic plugin installation. Some preview labels still need generic fallbacks (UX-P0-003). `source_builtin.py`, `source_registry.py`, browser parser publication tests. |
+| Sources | Two real built-in v2 parsers; pinned external registry/SDK; installed synthetic third-parser acceptance | Not universal CSV support. No broker authentication, marketplace or automatic plugin installation. Generic preview fallbacks and staged recovery are merged (UX-P0-003). `source_builtin.py`, `source_registry.py`, browser parser publication tests. |
 | Operations | Dedicated persistent volume, full private backup, empty-target restore, explicit legacy adoption | Prebuilt pull-only distribution and broader host acceptance remain WEB-008. Host commands are still required. |
-| Presentation | Three locales, dark/light/system, keyboard paths, chart data tables, synthetic accessibility tests | Empty, loading and recovery experiences need further coverage. No full visual-system replacement is included in this first slice. |
+| Presentation | Three locales, dark/light/system, keyboard paths, chart data tables, synthetic accessibility tests | P0 empty/loading/recovery coverage is merged; remaining UX-P1/P2 work stays scoped separately. No full visual-system replacement is included in this first slice. |
 
 Files above are under `src/wealth_ledger/`, `frontend/src/`, or `docs/` as applicable.
 A checked roadmap item is not evidence that every possible broker or platform works.
 
 ## Page-by-page findings
+
+These are the original assessment findings. The P0 follow-ups below are now
+merged; P1/P2 follow-ups remain planned. See [capability status](capability-status.md)
+for the source baseline; this historical assessment does not reopen completed P0 work.
 
 | Page / journey | Finding | Follow-up |
 |---|---|---|
@@ -75,9 +80,9 @@ Tickets are separately scoped; a roadmap entry does not itself ship a feature.
 
 | ID | Priority | Ticket | Status |
 |---|---|---|---|
-| UX-P0-001 | P0 | [First-use and empty-state guidance](ux-p0-001-first-run.md) | Verified locally; not merged |
-| UX-P0-002 | P0 | [Evidence status and next actions](ux-p0-002-status.md) | Verified locally; not merged |
-| UX-P0-003 | P0 | [Understandable import and recovery](ux-p0-003-imports.md) | Verified locally; not merged |
+| UX-P0-001 | P0 | [First-use and empty-state guidance](ux-p0-001-first-run.md) | Implemented and merged (PR #13) |
+| UX-P0-002 | P0 | [Evidence status and next actions](ux-p0-002-status.md) | Implemented and merged (PR #13) |
+| UX-P0-003 | P0 | [Understandable import and recovery](ux-p0-003-imports.md) | Implemented and merged (PR #13) |
 | UX-P1-001 | P1 | [Activity, contributions and transfers](ux-p1-001-activity.md) | Planned |
 | UX-P1-002 | P1 | [Eligible performance and attribution](ux-p1-002-performance.md) | Planned |
 | UX-P1-003 | P1 | [Income, fees and corporate actions](ux-p1-003-income.md) | Planned |
@@ -91,8 +96,8 @@ Tickets are separately scoped; a roadmap entry does not itself ship a feature.
 | UX-P2-004 | P2 | [Operations and account security UX](ux-p2-004-operations.md) | Planned |
 | UX-P2-005 | P2 | [Cost and tax evidence exports](ux-p2-005-tax-evidence.md) | Planned |
 
-Review/merge the locally verified P0-001, P0-002 and P0-003 slices before expanding
-analytical scope. The next capability track is UX-P1-001 activity/contribution evidence.
+P0-001, P0-002 and P0-003 are merged. The next separately scoped capability track
+is UX-P1-001 activity/contribution evidence.
 Performance depends on contribution/transfer and valuation evidence; income and
 corporate-action models need their own contracts. Track distributions through
 WEB-008 rather than pretending a currently available public image exists.

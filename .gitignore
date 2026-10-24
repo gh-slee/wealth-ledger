@@ -65,7 +65,21 @@ htmlcov/
 /node_modules/
 /.cursor/
 /.codex/
-/.agents/
+# Traverse only to the four reviewed public role skill files.
+/.agents/*
+!/.agents/skills/
+/.agents/skills/*
+!/.agents/skills/wealthledger-fintech-pm/
+!/.agents/skills/wealthledger-software-architect/
+!/.agents/skills/wealthledger-fullstack-developer/
+!/.agents/skills/wealthledger-qa-automation/
+/.agents/skills/*/*
+!/.agents/skills/wealthledger-fintech-pm/SKILL.md
+!/.agents/skills/wealthledger-software-architect/SKILL.md
+!/.agents/skills/wealthledger-fullstack-developer/SKILL.md
+!/.agents/skills/wealthledger-qa-automation/SKILL.md
+# A same-named directory must not open a subtree.
+/.agents/skills/*/SKILL.md/
 .DS_Store
 Thumbs.db
 

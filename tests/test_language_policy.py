@@ -6,6 +6,8 @@ import io
 from pathlib import Path
 import sys
 import tempfile
+import shutil
+from unittest import mock
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -46,6 +48,56 @@ class LanguagePolicyTests(unittest.TestCase):
             self.assertEqual(result['files_checked'], 1)
             (root / 'README.md').write_text('# \u4e2d\u6587\n', encoding='utf-8')
             self.assertFalse(check_language.scan(root)['passed'])
+
+    def test_public_role_skills_are_checked_but_private_agent_instructions_are_not(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in check_language.PUBLIC_ROLE_SKILLS:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('# English role\n', encoding='utf-8')
+            for relative in ('.agents/private.md', '.agents/skills/extra/SKILL.md',
+                             '.agents/skills/wealthledger-fintech-pm/AGENTS.override.md',
+                             '.codex/skills/private/SKILL.md'):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('\u4e2d\u6587', encoding='utf-8')
+            result = check_language.scan(root)
+            self.assertTrue(result['passed'])
+            self.assertEqual(result['files_checked'], 4)
+            role = next(iter(check_language.PUBLIC_ROLE_SKILLS))
+            (root / role).write_text('# \u4e2d\u6587\n', encoding='utf-8')
+            result = check_language.scan(root)
+            self.assertFalse(result['passed'])
+            self.assertEqual({row['path'] for row in result['violations']}, {role})
+
+    def test_role_leaf_and_ancestor_links_fail_before_reading_targets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'README.md').write_text('# Guide\n', encoding='utf-8')
+            parts = Path('.agents/skills/wealthledger-fintech-pm/SKILL.md').parts
+            for length in range(1, len(parts) + 1):
+                for dangling in (False, True):
+                    with self.subTest(component=length, dangling=dangling):
+                        agent_root = root / '.agents'
+                        if agent_root.is_symlink():
+                            agent_root.unlink()
+                        elif agent_root.exists():
+                            shutil.rmtree(agent_root)
+                        target = root / 'private' / ('target-' + str(length))
+                        if dangling:
+                            target = target.with_name(target.name + '-missing')
+                        elif length == len(parts):
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_text('Synthetic private target', encoding='utf-8')
+                        else:
+                            target.mkdir(parents=True, exist_ok=True)
+                        link = root.joinpath(*parts[:length])
+                        link.parent.mkdir(parents=True, exist_ok=True)
+                        link.symlink_to(target, target_is_directory=length < len(parts))
+                        with mock.patch.object(Path, 'read_text', side_effect=AssertionError('Unexpected target read')):
+                            with self.assertRaises(check_language.LanguageError):
+                                check_language.scan(root)
 
     def test_invalid_python_and_empty_scope_fail_closed(self):
         with self.assertRaises(check_language.LanguageError):

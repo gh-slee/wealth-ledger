@@ -1,0 +1,27 @@
+# Capability status
+
+This is a source baseline, not a deployment receipt or permission to implement the
+roadmap. The current integration ancestry includes merge
+[`0b62a8a` (PR #13)](https://github.com/gh-slee/wealth-ledger/pull/13), which contains
+the three UX-P0 slices. Later unmerged work is not treated as shipped. Tests linked
+below describe executable coverage; this page does not claim they were all rerun
+for a documentation change. See [TODO](../TODO.md) for remaining work and
+[spec development](spec-development.md) for approval/ownership gates.
+
+| Area | Current source and evidence | Planned / explicit limit |
+|---|---|---|
+| Storage and ownership | SQLite, host-initialized single owner and multiple independent portfolios: [storage](../src/wealth_ledger/web/storage.py), [auth](../src/wealth_ledger/web/auth.py), [Web tests](../tests/test_web.py). | PostgreSQL, browser registration, multi-user/household roles and tenant architecture changes require separate approved implementation/migration. |
+| Shared parser pipeline | Current Wealthsimple holdings/Bull Bitcoin order formats, registry/SDK, explicit-context previews and regular CLI/browser preparation, mappings, exact approval and frozen reports: [built-ins](../src/wealth_ledger/source_builtin.py), [pipeline](../src/wealth_ledger/source_pipeline.py), [pipeline tests](../tests/test_source_pipeline.py), [publication tests](../tests/test_source_publication.py), [SDK](parser-sdk.md). | Parser protocol v2 is implemented; full product V2 is not. V1/v2 previews remain nonbooking. No universal CSV, extra real institution/provider, broker authentication, automatic installation or API synchronization is implied. |
+| Finance and history | Decimal/BTC precision, explicit observations/revisions, source-neutral reports and unknown/coverage boundaries: [source report](../src/wealth_ledger/source_report.py), [projection tests](../tests/test_source_projection.py), [wallet declaration tests](../tests/test_source_wallet_declarations.py). | Complete combined returns, broader income/corporate-action and tax models need evidence and separate contracts; missing data stays unknown. |
+| Native/legacy support | Explicit native paths retain canonical-data omission guards; existing IDs, source evidence and frozen reports remain supported: [source projections](source-projections.md), [legacy compatibility tests](../tests/test_source_legacy_projection.py), [legacy Web adoption tests](../tests/test_web_legacy_adoption.py). | No silent rewrite/revaluation, dual writes or automatic private migration. Pre-checksum adoption is explicit and preserves original bytes with separate migration evidence. |
+| Browser and reports | React analysis, full saved-report reader, grouped history, system/light/dark, three locales, ODS/Markdown/PDF and scoped exports: [frontend](web-frontend.md), [report reading](web-analysis-reports.md), [reader tests](../tests/test_web_report_document.py). | Full visual/analytics overhaul and the remaining UX-P1/P2 tracks are planned. Local pilots do not establish merged or deployed behavior. |
+| UX-P0 | First-use guidance, evidence status/actions and staged import/recovery merged through PR #13: [onboarding tests](../frontend/tests/browser/onboarding.spec.ts), [status tests](../frontend/tests/browser/evidence-status.spec.ts), [import tests](../frontend/tests/browser/import-review.spec.ts), [ticket index](product-ux-review.md). | These bounded slices do not complete the whole UX redesign, numeric BTC-gap/coverage models or every future source-capability view. Deployment is a separate operator action. |
+| Operations/distribution | Source-built Docker context, isolated jobs, full backup/empty-target restore and trusted-host adoption: [context helper](../scripts/docker_context.py), [backup tests](../tests/test_web_backups.py), [operations acceptance](web-release-acceptance.md). | Public prebuilt multi-architecture images/pull-only distribution (WEB-008) remain planned. A source build or local smoke check is not a public registry release or real-instance upgrade. |
+| Development roles | Four repository role skills and human-operated [SDD workflow](spec-development.md); [discovery/privacy guide](agent-development.md). | Skills are optional development guidance, never runtime dependencies. Adoption/discovery does not dispatch agents, approve another spec, or prove independent QA. |
+
+Current supported data includes normalized cash-flow CSVs and optional dated BTC
+quantities as well as the two built-in source formats. Native securities remain
+CAD/USD with CAD/USD/TWD display conversion; en-CA/zh-TW/zh-CN contracts and frozen
+historical language are preserved. The generic defaults remain English and
+`actual_only`; proxy cost estimates require opt-in and cannot establish actual
+acquisition costs. See [the manual](user-manual.md) for supported daily operations.
