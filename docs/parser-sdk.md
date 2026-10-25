@@ -23,6 +23,17 @@ example does not silently become v2. Only the two specified real CSV formats are
 built in; do not advertise arbitrary bank or exchange exports. See
 [the first-use/plugin explanation](getting-started.md#how-parser-plugins-work-now).
 
+## Optional domain-v1 development types
+
+`wealth_ledger.domain` supplies a separate [strict fact contract](canonical-domain.md)
+and explicit one-way saved parser-v2 archive bridge. It does not register parser API
+3, replace `source_protocol`/`source_v2`, upgrade a v1 parser or alter entry points.
+The bridge requires caller-supplied UUID/listing/account/leg-role mappings and always
+returns `ingestible=False`; it never invokes the adapter. Exact original archives
+remain recoverable when the new candidate is blocked. These standard-library
+modules are additive development interfaces, not a new install, financial routing,
+PostgreSQL, provider or deployment capability.
+
 ## Build local artifacts
 
 Use Python 3.12+. These commands are run from a reviewed source checkout. On Windows
