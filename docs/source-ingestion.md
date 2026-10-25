@@ -78,6 +78,18 @@ CLI/API** still uses its original contract: it rejects a v2 match with
 making it financially confirmable. Use `source_testing.check_contract_v2` for
 explicit-context author tests. The independent example package remains v1.
 
+## Separate developer domain contract
+
+The opt-in [domain-v1 contract](canonical-domain.md) adds explicit scoped UUIDs,
+connection-qualified aliases/listings, exact decimal tokens, uncertainty-preserving
+time and an all-or-nothing saved parser-v2 archive bridge. Domain version 1 is
+separate from parser APIs 1/2. Successful bridge results always remain nonbooking,
+retain exact original canonical evidence, and are not inputs to this ingestion API.
+No registry, route, SQLite binding, native guard or legacy precision/error behavior
+changes. The new precision profile can block the optional bridge while the original
+valid parser-v2 archive remains accepted by its existing route. No v1 bridge,
+source authority, accepted-head decision or balance arithmetic is implemented.
+
 ## Planning, identities and commit
 
 The trusted API in `wealth_ledger.source_ingestion` provides:

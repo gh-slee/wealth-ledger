@@ -186,6 +186,18 @@ Pull-only multi-architecture distribution remains WEB-008; no image release is i
 Follow [publication procedures](docs/publishing.md); do not label unverified work as
 published. Daily financial imports never commit or push source code.
 
+## Domain contract foundation
+
+- [x] **Developer-only domain v1**: scoped UUID/many-alias/listing vocabulary,
+  strict `decimal-38s-24f-38i-v1` codec, explicit time uncertainty and one-way
+  nonbooking parser-v2 archive bridge with synthetic boundary/retention tests.
+  See [the contract](docs/canonical-domain.md). Existing parser routes, IDs, errors,
+  SQLite mapping restrictions and legacy numeric acceptance are unchanged.
+- [ ] Persisted domain repositories/migrations, accepted source heads, source
+  authority/dedupe and tenant authentication under separately approved contracts.
+- [ ] New source adapters, balance/reconciliation, valuation/FX/returns and corporate
+  action arithmetic; a supported domain shape does not implement these features.
+
 ## Other candidates
 
 - [ ] Dividends, income, fees and realized P&L after complete transaction/income/fee sources.

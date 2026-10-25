@@ -30,6 +30,7 @@ PUBLIC_DOCS = {
     'ux-p1-007-distribution.md', 'ux-p2-001-risk.md', 'ux-p2-002-goals.md',
     'ux-p2-003-mobile.md', 'ux-p2-004-operations.md', 'ux-p2-005-tax-evidence.md',
     'getting-started.md', 'product-ux-review.md', 'spec-development.md', 'capability-status.md',
+    'canonical-domain.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
     'source-adapters.md', 'source-ingestion.md', 'source-projections.md', 'parser-sdk.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-analysis-reports.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md', 'web-legacy-reports.md',
 }

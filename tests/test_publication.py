@@ -51,6 +51,15 @@ class PublicationPolicyTests(unittest.TestCase):
                      'docs/getting-started.md', 'docs/product-ux-review.md', 'docs/ui-design-workflow.md'):
             self.assertTrue(guard.path_allowed(path), path)
 
+    def test_only_named_canonical_domain_document_is_public(self):
+        self.assertTrue(guard.path_allowed('docs/canonical-domain.md'))
+        for path in ('docs/canonical-domain.local.md', 'docs/canonical-domain/AGENTS.override.md',
+                     'docs/AGENTS.override.md', 'AGENTS.override.md',
+                     'tests/fixtures/domain_v1/private.csv', 'work/wl-p0-003/spec.md'):
+            self.assertFalse(guard.path_allowed(path), path)
+        self.assertTrue(guard.content_issues(b'PRIVATE_' + b'FINANCIAL_FIXTURE',
+                                           'docs/canonical-domain.md'))
+
     def test_private_and_unknown_paths(self):
         for path in ('data/raw/export.csv', 'reports/report.md', 'backups/history.db',
                      'config/publish.local.toml', 'docs/session-handoff.md', 'private/readme.md',
