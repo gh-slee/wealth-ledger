@@ -1,0 +1,22 @@
+# Optional development foundation, independent from the existing SQLite Web app.
+# Supply a private bootstrap secret file explicitly. No DB port is exposed.
+services:
+  postgres:
+    image: postgres@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-bootstrap
+    secrets:
+      - postgres-bootstrap
+    volumes:
+      - postgres-foundation:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+secrets:
+  postgres-bootstrap:
+    file: ${WEALTH_LEDGER_PG_BOOTSTRAP_FILE:?Provide a private secret file}
+volumes:
+  postgres-foundation:

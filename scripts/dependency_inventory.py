@@ -17,7 +17,7 @@ def normalized(name):
 
 def locked_python(root, name, seen=None):
     seen = set() if seen is None else seen
-    if name in seen or name not in {"requirements.lock", "requirements-web.lock", "requirements-web-test.lock"}:
+    if name in seen or name not in {"requirements.lock", "requirements-web.lock", "requirements-web-test.lock", "requirements-pg.lock", "requirements-pg-test.lock"}:
         raise ValueError("Invalid or cyclic dependency lock")
     seen.add(name)
     packages = {}
@@ -102,7 +102,7 @@ def inventory(root=ROOT, lock="requirements-web.lock", distribution=importlib.me
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--python-lock", choices=("requirements.lock", "requirements-web.lock", "requirements-web-test.lock"),
+    parser.add_argument("--python-lock", choices=("requirements.lock", "requirements-web.lock", "requirements-web-test.lock", "requirements-pg.lock", "requirements-pg-test.lock"),
                         default="requirements-web.lock")
     parser.add_argument("--require-declared", action="store_true", help="Fail on absent upstream license declarations")
     parser.add_argument("--output", type=Path, help="New JSON file; otherwise stdout. No network or workspace access")

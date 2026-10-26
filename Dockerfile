@@ -13,8 +13,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/src \
     WEALTH_LEDGER_DATA_ROOT=/data MPLCONFIGDIR=/data/cache/matplotlib \
     XDG_CACHE_HOME=/data/cache/system
 WORKDIR /app
-COPY requirements.lock requirements-web.lock /app/
+COPY requirements.lock requirements-web.lock requirements-pg.lock /app/
+ARG WEALTH_LEDGER_POSTGRES=0
 RUN python -m pip install --no-cache-dir -r requirements-web.lock \
+    && case "$WEALTH_LEDGER_POSTGRES" in 0) ;; 1) python -m pip install --no-cache-dir -r requirements-pg.lock ;; *) exit 2 ;; esac \
     && groupadd --gid 10001 ledger \
     && useradd --uid 10001 --gid ledger --no-create-home --home-dir /nonexistent ledger \
     && mkdir /data && chown 10001:10001 /data && chmod 0700 /data

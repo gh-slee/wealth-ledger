@@ -3,7 +3,8 @@
 This is a source baseline, not a deployment receipt or permission to implement the
 roadmap. The current integration ancestry includes merge
 [`0b62a8a` (PR #13)](https://github.com/gh-slee/wealth-ledger/pull/13), which contains
-the three UX-P0 slices. Later unmerged work is not treated as shipped. Tests linked
+the three UX-P0 slices. Domain contracts and development governance also include
+[PR #16](https://github.com/gh-slee/wealth-ledger/pull/16). Later unmerged work is not treated as shipped. Tests linked
 below describe executable coverage; this page does not claim they were all rerun
 for a documentation change. See [TODO](../TODO.md) for remaining work and
 [spec development](spec-development.md) for approval/ownership gates.
@@ -18,6 +19,7 @@ for a documentation change. See [TODO](../TODO.md) for remaining work and
 | Browser and reports | React analysis, full saved-report reader, grouped history, system/light/dark, three locales, ODS/Markdown/PDF and scoped exports: [frontend](web-frontend.md), [report reading](web-analysis-reports.md), [reader tests](../tests/test_web_report_document.py). | Full visual/analytics overhaul and the remaining UX-P1/P2 tracks are planned. Local pilots do not establish merged or deployed behavior. |
 | UX-P0 | First-use guidance, evidence status/actions and staged import/recovery merged through PR #13: [onboarding tests](../frontend/tests/browser/onboarding.spec.ts), [status tests](../frontend/tests/browser/evidence-status.spec.ts), [import tests](../frontend/tests/browser/import-review.spec.ts), [ticket index](product-ux-review.md). | These bounded slices do not complete the whole UX redesign, numeric BTC-gap/coverage models or every future source-capability view. Deployment is a separate operator action. |
 | Operations/distribution | Source-built Docker context, isolated jobs, full backup/empty-target restore and trusted-host adoption: [context helper](../scripts/docker_context.py), [backup tests](../tests/test_web_backups.py), [operations acceptance](web-release-acceptance.md). | Public prebuilt multi-architecture images/pull-only distribution (WEB-008) remain planned. A source build or local smoke check is not a public registry release or real-instance upgrade. |
+| Optional PG foundation | Explicit candidate repositories, SQL precision/RLS/FKs, atomic receipt/outbox, leases/fencing and operator migrations: [contract](postgres-foundation.md), [repositories](../src/wealth_ledger/persistence/repositories.py), [tests](../tests/test_postgres_migrations.py). | Opt-in development infrastructure. Current Web/CLI remain SQLite; no authenticated registration, financial booking/valuation, provider cursor, full app recovery or personal migration is activated. Real-PG tests require explicit isolated configuration; skipped tests are not acceptance. |
 | Development roles | Four repository role skills and human-operated [SDD workflow](spec-development.md); [discovery/privacy guide](agent-development.md). | Skills are optional development guidance, never runtime dependencies. Adoption/discovery does not dispatch agents, approve another spec, or prove independent QA. |
 
 Current supported data includes normalized cash-flow CSVs and optional dated BTC

@@ -1,0 +1,560 @@
+{
+  "format": "synthetic-postgres-oracles-v1",
+  "decimal_cases": [
+    {
+      "id": "D01",
+      "token": "12345678901234.123456789012345678901234",
+      "accepted": true,
+      "expected_numeric": "12345678901234.123456789012345678901234",
+      "significant_effective_integer": [
+        38,
+        24,
+        14
+      ],
+      "reason": null,
+      "expected_satoshis": null
+    },
+    {
+      "id": "D02",
+      "token": "123456789012345.123456789012345678901234",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "39 significant digits",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D03",
+      "token": "0.000000000000000000000001",
+      "accepted": true,
+      "expected_numeric": "0.000000000000000000000001",
+      "significant_effective_integer": [
+        1,
+        24,
+        0
+      ],
+      "reason": null,
+      "expected_satoshis": null
+    },
+    {
+      "id": "D04",
+      "token": "0.0000000000000000000000001",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "25 effective fractional digits",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D05",
+      "token": "10000000000000000000000000000000000000",
+      "accepted": true,
+      "expected_numeric": "10000000000000000000000000000000000000",
+      "significant_effective_integer": [
+        1,
+        0,
+        38
+      ],
+      "reason": null,
+      "expected_satoshis": "1000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "D06",
+      "token": "100000000000000000000000000000000000000",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "39 integer digits",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D07",
+      "token": "99999999999999999999999999999999999999",
+      "accepted": true,
+      "expected_numeric": "99999999999999999999999999999999999999",
+      "significant_effective_integer": [
+        38,
+        0,
+        38
+      ],
+      "reason": null,
+      "expected_satoshis": "9999999999999999999999999999999999999900000000"
+    },
+    {
+      "id": "D08",
+      "token": "999999999999999999999999999999999999999",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "39 significant/integer digits",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D09",
+      "token": "-0.0000",
+      "accepted": true,
+      "expected_numeric": "0",
+      "significant_effective_integer": [
+        1,
+        0,
+        0
+      ],
+      "reason": null,
+      "expected_satoshis": "0"
+    },
+    {
+      "id": "D10",
+      "token": "0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "accepted": true,
+      "expected_numeric": "0",
+      "significant_effective_integer": [
+        1,
+        0,
+        0
+      ],
+      "reason": null,
+      "expected_satoshis": "0"
+    },
+    {
+      "id": "D11",
+      "token": "0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "257 character token",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D12",
+      "token": "-0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "accepted": true,
+      "expected_numeric": "0",
+      "significant_effective_integer": [
+        1,
+        0,
+        0
+      ],
+      "reason": null,
+      "expected_satoshis": "0"
+    },
+    {
+      "id": "D13",
+      "token": "-0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "257 character signed token",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D14",
+      "token": "1.23000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "accepted": true,
+      "expected_numeric": "1.23",
+      "significant_effective_integer": [
+        3,
+        2,
+        1
+      ],
+      "reason": null,
+      "expected_satoshis": null
+    },
+    {
+      "id": "D15",
+      "token": "1.230000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "257 character nonzero token",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D16",
+      "token": "0.0000000100",
+      "accepted": true,
+      "expected_numeric": "0.00000001",
+      "significant_effective_integer": [
+        1,
+        8,
+        0
+      ],
+      "reason": null,
+      "expected_satoshis": "1"
+    },
+    {
+      "id": "D17",
+      "token": "-0.0000000100",
+      "accepted": true,
+      "expected_numeric": "-0.00000001",
+      "significant_effective_integer": [
+        1,
+        8,
+        0
+      ],
+      "reason": null,
+      "expected_satoshis": "-1"
+    },
+    {
+      "id": "D18",
+      "token": "0.000000001",
+      "accepted": true,
+      "expected_numeric": "0.000000001",
+      "significant_effective_integer": [
+        1,
+        9,
+        0
+      ],
+      "reason": "Generic/SECURITY accepted; BTC/LBTC rejected",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D19",
+      "token": "-0.000000001",
+      "accepted": true,
+      "expected_numeric": "-0.000000001",
+      "significant_effective_integer": [
+        1,
+        9,
+        0
+      ],
+      "reason": "Generic accepted; BTC/LBTC rejected",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D20",
+      "token": "-10000000000000000000000000000000000000",
+      "accepted": true,
+      "expected_numeric": "-10000000000000000000000000000000000000",
+      "significant_effective_integer": [
+        1,
+        0,
+        38
+      ],
+      "reason": null,
+      "expected_satoshis": "-1000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "D21",
+      "token": "+1",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D22",
+      "token": "01",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D23",
+      "token": "-01",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D24",
+      "token": "1.",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D25",
+      "token": ".1",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D26",
+      "token": "1e2",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D27",
+      "token": "1E+2",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D28",
+      "token": " 1",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D29",
+      "token": "1 ",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D30",
+      "token": "1\n",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D31",
+      "token": "NaN",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D32",
+      "token": "sNaN",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D33",
+      "token": "Infinity",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D34",
+      "token": "-Infinity",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D35",
+      "token": "inf",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D36",
+      "token": "\u0661",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D37",
+      "token": "\uff11",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D38",
+      "token": "--1",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D39",
+      "token": "0x10",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    },
+    {
+      "id": "D40",
+      "token": "1_000",
+      "accepted": false,
+      "expected_numeric": null,
+      "significant_effective_integer": null,
+      "reason": "Not admitted ASCII plain finite decimal",
+      "expected_satoshis": null
+    }
+  ],
+  "time_cases": [
+    {
+      "id": "T01",
+      "tag": "instant",
+      "token": "2024-02-29T12:34:56.123400+05:45",
+      "fractional_digits": 6,
+      "accepted": true,
+      "derived_utc": "2024-02-29T06:49:56.123400+00:00",
+      "status": "indexable"
+    },
+    {
+      "id": "T02",
+      "tag": "instant",
+      "token": "0001-01-01T00:00:00+23:59",
+      "fractional_digits": 0,
+      "accepted": true,
+      "derived_utc": null,
+      "status": "coded_unindexable"
+    },
+    {
+      "id": "T03",
+      "tag": "instant",
+      "token": "9999-12-31T23:59:59.999999-23:59",
+      "fractional_digits": 6,
+      "accepted": true,
+      "derived_utc": null,
+      "status": "coded_unindexable"
+    },
+    {
+      "id": "T04",
+      "tag": "instant",
+      "token": "2024-01-01T00:00:00+23:59",
+      "fractional_digits": 0,
+      "accepted": true,
+      "derived_utc": "2023-12-31T00:01:00+00:00",
+      "status": "indexable"
+    },
+    {
+      "id": "T05",
+      "tag": "date_only",
+      "token": "2024-02-29",
+      "zone": null,
+      "accepted": true,
+      "derived_utc": null,
+      "status": "date_only"
+    },
+    {
+      "id": "T06",
+      "tag": "date_only",
+      "token": "2024-02-29",
+      "zone": "Unverified/Zone",
+      "accepted": true,
+      "derived_utc": null,
+      "status": "date_only"
+    },
+    {
+      "id": "T07",
+      "tag": "legacy_datetime",
+      "token": "0001-01-01T00:00:00+23:59",
+      "accepted": true,
+      "derived_utc": null,
+      "status": "coded_unindexable",
+      "precision": "legacy_unspecified"
+    },
+    {
+      "id": "T08",
+      "tag": "legacy_datetime",
+      "token": "2024-01-01T00:00:00+00:00:01.500000",
+      "accepted": true,
+      "derived_utc": "2023-12-31T23:59:58.500000+00:00",
+      "status": "indexable",
+      "precision": "legacy_unspecified"
+    },
+    {
+      "id": "T09",
+      "tag": "instant",
+      "token": "2024-02-30T00:00:00Z",
+      "fractional_digits": 0,
+      "accepted": false
+    },
+    {
+      "id": "T10",
+      "tag": "instant",
+      "token": "2024-01-01T00:00:60Z",
+      "fractional_digits": 0,
+      "accepted": false
+    },
+    {
+      "id": "T11",
+      "tag": "instant",
+      "token": "2024-01-01T00:00:00-00:00",
+      "fractional_digits": 0,
+      "accepted": false
+    },
+    {
+      "id": "T12",
+      "tag": "instant",
+      "token": "2024-01-01T00:00:00",
+      "fractional_digits": 0,
+      "accepted": false
+    },
+    {
+      "id": "T13",
+      "tag": "instant",
+      "token": "2024-01-01T00:00:00.1234567Z",
+      "fractional_digits": 7,
+      "accepted": false
+    },
+    {
+      "id": "T14",
+      "tag": "instant",
+      "token": "2024-01-01T00:00:00.1Z",
+      "fractional_digits": 0,
+      "accepted": false
+    }
+  ],
+  "golden_complete": {
+    "path": "golden.json",
+    "sha256": "a265516b789162bd383f7591764cf5e17fc8c57ba8db7b3fd2d7b0b2185d35f4",
+    "bytes": 17948,
+    "expected_counts": {
+      "accounts": 2,
+      "connections": 1,
+      "aliases": 2,
+      "instruments": 4,
+      "issuers": 1,
+      "coverage": 2,
+      "snapshots": 1,
+      "items": 4,
+      "activities": 2,
+      "legs": 4,
+      "fees": 2
+    },
+    "expected_properties": [
+      "events x/y remain distinct despite equal time/quantity",
+      "BTC ticker SECURITY permits arbitrary legal domain fractional precision",
+      "negative 38-integer BTC position remains unsupported signed_position",
+      "negative-zero cost token retained while numerical value is zero",
+      "optional unknown amounts remain NULL pair",
+      "fee included flags true/false retained",
+      "no financial accepted head or calculated balance is implied"
+    ]
+  }
+}

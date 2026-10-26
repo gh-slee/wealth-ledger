@@ -4,6 +4,7 @@
 !.dockerignore
 !requirements.lock
 !requirements-web.lock
+!requirements-pg.lock
 !LICENSE
 !THIRD_PARTY_NOTICES.md
 !src/

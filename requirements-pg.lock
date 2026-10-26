@@ -1,0 +1,5 @@
+# Optional synchronous PostgreSQL runtime. No migration credential/tool required.
+SQLAlchemy==2.1.6
+psycopg==3.3.6
+psycopg-binary==3.3.6
+typing-extensions==4.16.0

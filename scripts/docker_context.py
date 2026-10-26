@@ -10,7 +10,7 @@ import sys
 from check_publication import path_allowed, content_issues
 
 CODE_ROOT = Path(__file__).resolve().parents[1]
-FIXED = ("Dockerfile", ".dockerignore", "requirements.lock", "requirements-web.lock", "LICENSE",
+FIXED = ("Dockerfile", ".dockerignore", "requirements.lock", "requirements-web.lock", "requirements-pg.lock", "LICENSE",
          "THIRD_PARTY_NOTICES.md", "scripts/web.py", "config/company-aliases.json",
          "assets/fonts/NotoSansTC-Regular.ttf", "assets/fonts/NotoSansSC-Regular.ttf",
          "assets/fonts/NotoSansSC-provenance.json", "assets/fonts/OFL.txt", "assets/fonts/OFL-SC.txt",

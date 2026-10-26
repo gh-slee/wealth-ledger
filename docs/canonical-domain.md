@@ -207,3 +207,12 @@ arithmetic, new provider, UI, dependency or runtime AI is added. Rollback means
 removing or declining to adopt these opt-in modules; no stored fact or legacy byte
 requires a financial restore. Independent implementation review, publication,
 merge and any later deployment remain separate gates.
+
+## Optional persistence consumer
+
+The [PostgreSQL foundation](postgres-foundation.md) explicitly validates and stores
+complete domain-v1 candidates with typed SQL precision/scoped references plus exact
+canonical bytes. It does not make them ingestible, choose financial authority or
+change existing parser/Web routes. Source revisions can retain one fact UUID, and
+declaration versions preserve each candidate's original meaning. The domain
+contract, closed codec and pure bridge remain storage-independent and unchanged.

@@ -406,6 +406,13 @@ For help, [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with 
 
 ## Development
 
+An [optional PostgreSQL foundation](docs/postgres-foundation.md) provides candidate
+repositories, transactional receipts/outbox and leased jobs for future services.
+It uses PostgreSQL 18, SQLAlchemy Core, psycopg and operator-only Alembic. The current
+Web/CLI still use SQLite; this foundation does not activate registration, financial
+booking or migrate existing data.
+
+
 Development setup and detailed maintenance procedures live in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md). Application features remain deterministic code and run independently of development agents. Shared project instructions live in [AGENTS.md](AGENTS.md).
 
 ## License

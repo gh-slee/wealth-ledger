@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Explicit optional PostgreSQL foundation operations; never discover/migrate SQLite."""
+import argparse
+import json
+import os
+from pathlib import Path
+import secrets
+import subprocess
+import sys
+import time
+import uuid
+
+ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'src'))
+PG_IMAGE='postgres@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6'
+
+
+def _private(path,text):
+    descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+    with os.fdopen(descriptor,'w') as stream:stream.write(text)
+
+
+def test_environment(output):
+    """Create only new explicitly synthetic Docker resources and generated secrets."""
+    import psycopg
+    from psycopg import sql
+    from psycopg.conninfo import make_conninfo
+    from wealth_ledger.persistence.config import PostgresConfig
+    from wealth_ledger.persistence.context import Database
+    from wealth_ledger.persistence.migration import migrate
+    output=Path(output).resolve()
+    if output.exists():raise ValueError('invalid_config')
+    output.mkdir(parents=True,mode=0o700)
+    suffix=uuid.uuid4().hex[:12];prefix='wealth-ledger-pg-test-'+suffix
+    resources={'container':prefix,'volume':prefix,'network':prefix,'database':'wl_test_'+suffix,
+               'migration_role':'wl_test_'+suffix+'_operator','runtime_role':'wl_test_'+suffix+'_runtime','image':PG_IMAGE}
+    _private(output/'resources.json',json.dumps(resources,indent=2)+'\n')
+    bootstrap=secrets.token_urlsafe(32);_private(output/'bootstrap.secret',bootstrap)
+    for kind in ['volume','network']:
+        if subprocess.run(['docker',kind,'inspect',resources[kind]],capture_output=True).returncode==0:raise ValueError('invalid_config')
+        subprocess.run(['docker',kind,'create','--label','wealth-ledger.test=pg-foundation',resources[kind]],check=True,stdout=subprocess.DEVNULL)
+    # Persist an OS-selected random binding in Docker's configuration. A blank
+    # HostPort is reallocated on restart, invalidating the explicit secret files.
+    # A bind race fails safely; no alternate/fixed service port is adopted.
+    import socket
+    with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as probe:
+        probe.bind(('127.0.0.1',0));selected_port=probe.getsockname()[1]
+    subprocess.run(['docker','run','--detach','--name',prefix,'--label','wealth-ledger.test=pg-foundation',
+        '--network',prefix,'--publish','127.0.0.1:'+str(selected_port)+':5432','--env','POSTGRES_PASSWORD_FILE=/run/secrets/bootstrap',
+        '--mount','type=bind,src='+str(output/'bootstrap.secret')+',dst=/run/secrets/bootstrap,readonly',
+        '--mount','type=volume,src='+prefix+',dst=/var/lib/postgresql',PG_IMAGE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    port=int(subprocess.check_output(['docker','port',prefix,'5432/tcp'],text=True).strip().rsplit(':',1)[1])
+    if port!=selected_port:raise ValueError('invalid_config')
+    options={'host':'127.0.0.1','port':port,'connect_timeout':2}
+    connection=None
+    for attempt in range(100):
+        try:connection=psycopg.connect(**options,dbname='postgres',user='postgres',password=bootstrap,autocommit=True);break
+        except psycopg.OperationalError:time.sleep(.25)
+    if connection is None:raise ValueError('database_unavailable')
+    with connection:
+        for key in ['migration','runtime']:
+            role=resources[key+'_role'];value=secrets.token_urlsafe(32)
+            connection.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE').format(sql.Identifier(role),sql.Literal(value)))
+            _private(output/(key+'.conninfo'),make_conninfo(**options,dbname=resources['database'],user=role,password=value))
+        connection.execute(sql.SQL('CREATE DATABASE {} OWNER {}').format(sql.Identifier(resources['database']),sql.Identifier(resources['migration_role'])))
+    operator=Database(PostgresConfig.from_secret_file(output/'migration.conninfo'))
+    try:status=migrate(operator,resources['runtime_role'])
+    finally:operator.close()
+    configuration={'format':'wealth-ledger-synthetic-pg-tests',**resources,
+                   'migration_secret_file':str(output/'migration.conninfo'),'runtime_secret_file':str(output/'runtime.conninfo')}
+    _private(output/'test-config.json',json.dumps(configuration,indent=2)+'\n')
+    return {'synthetic':True,'config':str(output/'test-config.json'),'schema_revision':status['schema_revision']}
+
+
+def cleanup_environment(path):
+    configuration=json.loads(Path(path).read_text())
+    if configuration.get('format')!='wealth-ledger-synthetic-pg-tests':raise ValueError('invalid_config')
+    prefix=configuration['container']
+    if not prefix.startswith('wealth-ledger-pg-test-') or any(configuration[k]!=prefix for k in ['network','volume']):raise ValueError('invalid_config')
+    for kind in ['container','volume','network']:
+        result=subprocess.run(['docker',kind,'inspect',prefix],capture_output=True,text=True)
+        if result.returncode:continue
+        item=json.loads(result.stdout)[0]
+        labels=item.get('Config',{}).get('Labels',{}) if kind=='container' else item.get('Labels',{})
+        if labels.get('wealth-ledger.test')!='pg-foundation':raise ValueError('invalid_config')
+    subprocess.run(['docker','container','rm','--force',prefix],check=True,stdout=subprocess.DEVNULL)
+    subprocess.run(['docker','volume','rm',prefix],check=True,stdout=subprocess.DEVNULL)
+    subprocess.run(['docker','network','rm',prefix],check=True,stdout=subprocess.DEVNULL)
+    return {'synthetic_resources_removed':True,'private_evidence_directory_preserved':True}
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    commands=parser.add_subparsers(dest='command',required=True)
+    for name in ['status','migrate','finalize-restore']:
+        item=commands.add_parser(name);item.add_argument('--secret-file',required=True,type=Path)
+        if name!='status':item.add_argument('--runtime-role',required=True)
+    commands.add_parser('test-environment').add_argument('--output',required=True,type=Path)
+    commands.add_parser('cleanup-test-environment').add_argument('--config',required=True,type=Path)
+    args=parser.parse_args()
+    try:
+        if args.command=='test-environment':result=test_environment(args.output)
+        elif args.command=='cleanup-test-environment':result=cleanup_environment(args.config)
+        else:
+            from wealth_ledger.persistence.config import PostgresConfig
+            from wealth_ledger.persistence.context import Database
+            from wealth_ledger.persistence.migration import migrate,finalize_restore
+            db=Database(PostgresConfig.from_secret_file(args.secret_file))
+            try:
+                result=db.status() if args.command=='status' else (migrate(db,args.runtime_role) if args.command=='migrate' else finalize_restore(db,args.runtime_role))
+            finally:db.close()
+        print(json.dumps(result));return 0
+    except Exception as error:
+        from wealth_ledger.persistence.errors import PersistenceError
+        code=error.code if isinstance(error,PersistenceError) else 'operation_failed'
+        print(json.dumps({'error':code}),file=sys.stderr);return 2
+
+
+if __name__=='__main__':raise SystemExit(main())
