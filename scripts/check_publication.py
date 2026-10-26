@@ -20,6 +20,7 @@ PUBLIC_ROOT_FILES = {
     'LICENSE', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md',
     'pyproject.toml', 'build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'requirements.txt', 'requirements.lock', '.env.example',
     'requirements-web.txt', 'requirements-web.lock', 'requirements-web-test.lock',
+    'requirements-pg.lock', 'requirements-pg-test.lock', 'compose.pg-foundation.yaml',
     'Dockerfile', '.dockerignore', 'compose.yaml',
 }
 PUBLIC_DOCS = {
@@ -30,7 +31,7 @@ PUBLIC_DOCS = {
     'ux-p1-007-distribution.md', 'ux-p2-001-risk.md', 'ux-p2-002-goals.md',
     'ux-p2-003-mobile.md', 'ux-p2-004-operations.md', 'ux-p2-005-tax-evidence.md',
     'getting-started.md', 'product-ux-review.md', 'spec-development.md', 'capability-status.md',
-    'canonical-domain.md',
+    'canonical-domain.md', 'postgres-foundation.md',
     'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
     'source-adapters.md', 'source-ingestion.md', 'source-projections.md', 'parser-sdk.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-analysis-reports.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md', 'web-legacy-reports.md',
 }
@@ -136,7 +137,8 @@ def path_allowed(path: str) -> bool:
     if parts[0] == 'tests':
         if len(parts) == 2:
             return p.name.startswith('test_') and p.suffix == '.py'
-        return len(parts) == 4 and parts[1:3] == ('fixtures', 'fund_sources') and p.name in PUBLIC_FUND_FIXTURES
+        return len(parts) == 4 and (parts[1:3] == ('fixtures', 'fund_sources') and p.name in PUBLIC_FUND_FIXTURES
+                or parts[1:3] == ('fixtures', 'postgres_foundation') and p.name in {'golden.json','oracles.json'})
     if parts[0] == 'examples':
         if path in {'examples/parser-plugin/pyproject.toml', 'examples/parser-plugin/README.md', 'examples/parser-plugin/LICENSE',
                     'examples/parser-plugin/src/synthetic_parser/__init__.py', 'examples/parser-plugin/src/synthetic_parser/v2.py',

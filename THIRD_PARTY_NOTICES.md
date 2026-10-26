@@ -89,3 +89,17 @@ Keep upstream notices with redistributed packages. Before public prebuilt-image
 publication, review the final image/base OS and bundled browser notices as part of
 [the distribution gate](docs/web-release-acceptance.md). No image is published by
 this inventory command or the current CI.
+
+## Optional PostgreSQL foundation
+
+The optional `postgres` extra uses SQLAlchemy 2.1.6 (MIT), psycopg 3.3.6
+(LGPL-3.0-only) and psycopg-binary 3.3.6. The binary distribution bundles libpq
+and supporting libraries; retain the installed distribution's upstream license
+and notice files. They are not relicensed under this project's MIT license.
+Operator/test tooling adds Alembic 1.20.1 and Mako 1.4.3 (MIT) and
+MarkupSafe 3.0.4 (BSD-3-Clause). Exact transitive versions are in the separate
+PG lockfiles. PostgreSQL's official image includes its own OS/library notices.
+
+Run the dependency inventory against the installed PG test lock to preserve
+upstream metadata and notice hashes. This inventory is not legal clearance,
+a vulnerability audit or a complete operating-system/image SBOM.

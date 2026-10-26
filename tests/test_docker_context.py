@@ -60,6 +60,8 @@ class DockerContextTests(unittest.TestCase):
         self.assertFalse(any(line.startswith(("COPY . ", "COPY ./ ")) for line in lines))
         self.assertTrue(all(not any(s in line for s in ("data/", "private/", "reports/", ".git/", "local.toml")) for line in lines))
         self.assertIn("USER 10001:10001", text)
+        self.assertIn("ARG WEALTH_LEDGER_POSTGRES=0", text)
+        self.assertIn("requirements-pg.lock", text)
         self.assertIn("@sha256:", text.splitlines()[0])
         compose = (ROOT / "compose.yaml").read_text()
         self.assertIn("context: ${WEALTH_LEDGER_BUILD_CONTEXT:-./work/docker-context}", compose)

@@ -430,3 +430,17 @@ For agent-assisted interface work, use [the Impeccable workflow](ui-design-workf
 when installed. It records version review, per-process telemetry opt-out, task scope,
 synthetic visual acceptance and private artifact boundaries. It adds no application
 dependency and is not required for backend work or human contributions.
+
+## Optional real PostgreSQL acceptance
+
+Use the separate [PG foundation workflow](postgres-foundation.md#installation-and-tests).
+Install `requirements-pg-test.lock` in a dedicated test environment and keep
+`requirements-build.lock` in a separate build environment. The existing runtime
+and build locks intentionally pin different `packaging` versions; do not merge or
+loosen them to make one environment satisfy both.
+
+Real-PG tests require `WEALTH_LEDGER_PG_TEST=1` and an explicit synthetic test config.
+They exercise actual RLS/constraints/locks and dump/empty-target restore; default
+unit-test skips cannot certify PostgreSQL. Preserve the four existing CI jobs and
+run the separate PG job, installed-package checks, normal pre-PR candidate image
+and explicit PG image profile. No test uses the current financial instance.

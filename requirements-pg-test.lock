@@ -1,0 +1,6 @@
+# Operator migration tools and real-PG acceptance; never required by core/Web.
+-r requirements-web-test.lock
+-r requirements-pg.lock
+alembic==1.20.1
+Mako==1.4.3
+MarkupSafe==3.0.4

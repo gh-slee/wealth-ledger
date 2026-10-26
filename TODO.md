@@ -193,8 +193,13 @@ published. Daily financial imports never commit or push source code.
   nonbooking parser-v2 archive bridge with synthetic boundary/retention tests.
   See [the contract](docs/canonical-domain.md). Existing parser routes, IDs, errors,
   SQLite mapping restrictions and legacy numeric acceptance are unchanged.
-- [ ] Persisted domain repositories/migrations, accepted source heads, source
-  authority/dedupe and tenant authentication under separately approved contracts.
+- [x] **Optional PostgreSQL candidate foundation**: exact typed candidate storage,
+  immutable scoped revisions, SQL precision/RLS/FKs, atomic receipts/outbox, leased
+  jobs and explicit operator migrations. See [scope and opt-in acceptance](docs/postgres-foundation.md).
+  This does not switch the current app backend or complete the full product V2.
+- [ ] Authenticated tenant services, financial accepted source heads, source
+  authority/dedupe, coordinated app recovery and approved legacy backend cutover
+  under their separately reviewed contracts.
 - [ ] New source adapters, balance/reconciliation, valuation/FX/returns and corporate
   action arithmetic; a supported domain shape does not implement these features.
 

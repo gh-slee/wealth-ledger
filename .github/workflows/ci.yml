@@ -142,3 +142,50 @@ jobs:
           python scripts/docker_context.py --output work/sdk-image-context
           docker build --tag wealth-ledger-sdk-base:test work/sdk-image-context
           python scripts/check_plugin_image.py --base-image wealth-ledger-sdk-base:test --wheel work/sdk-dist/wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl
+
+
+  postgres-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      WEALTH_LEDGER_PG_TEST: "1"
+      WEALTH_LEDGER_PG_TEST_CONFIG: work/pg-ci/test-config.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            requirements-web.lock
+            requirements-web-test.lock
+            requirements-pg.lock
+            requirements-pg-test.lock
+      - name: Install exact optional operator/test dependencies
+        run: python -m pip install -r requirements-pg-test.lock
+      - name: Inventory optional dependency notices
+        run: |
+          mkdir -p work
+          python scripts/dependency_inventory.py --python-lock requirements-pg-test.lock --require-declared --output work/pg-dependency-inventory.json
+      - name: Create a fresh synthetic PostgreSQL18 environment
+        run: python scripts/postgres.py test-environment --output work/pg-ci
+      - name: Verify real SQL precision, privileges, races, jobs and double empty restore
+        run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_postgres_*.py' -v
+      - name: Build the explicit source-only PG runtime profile
+        run: |
+          python scripts/docker_context.py --output work/pg-runtime-context
+          docker build --build-arg WEALTH_LEDGER_POSTGRES=1 --tag wealth-ledger-pg-ci:test work/pg-runtime-context
+      - name: Verify nonroot runtime-role candidate roundtrip in the optional image
+        env:
+          WEALTH_LEDGER_PG_RUNTIME_IMAGE: wealth-ledger-pg-ci:test
+        run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_postgres_packaging.py' -v
+      - name: Remove only recorded synthetic resources
+        if: always()
+        run: |
+          if test -f work/pg-ci/test-config.json; then
+            python scripts/postgres.py cleanup-test-environment --config work/pg-ci/test-config.json
+          fi
