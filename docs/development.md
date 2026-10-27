@@ -444,3 +444,12 @@ They exercise actual RLS/constraints/locks and dump/empty-target restore; defaul
 unit-test skips cannot certify PostgreSQL. Preserve the four existing CI jobs and
 run the separate PG job, installed-package checks, normal pre-PR candidate image
 and explicit PG image profile. No test uses the current financial instance.
+
+## Separate optional identity acceptance
+
+The explicit0002 identity service has its own [operator/API and test workflow](web-v2-identity.md).
+Its synthetic marker/configuration, roles and databases are separate from0001
+foundation tests. Run identity SQL/HTTP plus native optional-image acceptance;
+missing opt-in execution is a skip, not a pass. The default SQLite Web/CLI and
+0001 migration/DDL remain unchanged. Do not activate0002 on an existing ledger
+merely to test a source change.

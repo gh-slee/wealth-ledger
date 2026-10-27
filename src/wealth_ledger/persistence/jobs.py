@@ -73,6 +73,24 @@ def enqueue_in_transaction(uow,key,request,expected_generation,*,connection=None
 
 
 class Jobs:
+    def read(self, context, job_id):
+        """Read only the closed public DTO in the caller's actual scoped snapshot."""
+        identifier(job_id)
+        with self.database.transaction(context, readonly=True) as uow:
+            row = execute(uow.connection, "SELECT id,kind,status,attempt,error_code FROM wl_pg.jobs WHERE tenant_id=:t AND portfolio_id=:p AND id=:id",
+                          **parameters(uow), id=job_id).mappings().one_or_none()
+            if row is None:
+                return None
+            if (row['kind'] != 'foundation' or row['status'] not in
+                    {'queued','running','retryable_error','succeeded','failed','cancelled'}
+                    or type(row['attempt']) is not int or not 0 <= row['attempt'] <= 3):
+                raise PersistenceError('database_unavailable')
+            code = row['error_code']
+            if code is not None and code not in CODES:
+                code = 'internal_error'
+            return {'id': str(row['id']), 'kind': row['kind'], 'status': row['status'],
+                    'attempt': row['attempt'], 'error_code': code}
+
     def __init__(self,database):self.database=database
 
     def enqueue(self,context,key,request,*,expected_generation,connection=None,max_attempts=3):

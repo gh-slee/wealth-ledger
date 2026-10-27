@@ -246,3 +246,12 @@ A fresh operation key adds only an immutable key/digest-binding receipt; candida
 rows, generation, audit and outbox do not change. Reusing that key with changed
 content conflicts. Saved-key replay precedes generation checks. An explicit head
 update is still a new CAS operation, even when its candidate bytes already exist.
+
+## Separate optional identity acceptance
+
+The explicit0002 identity service has its own [operator/API and test workflow](web-v2-identity.md).
+Its synthetic marker/configuration, roles and databases are separate from0001
+foundation tests. Run identity SQL/HTTP plus native optional-image acceptance;
+missing opt-in execution is a skip, not a pass. The default SQLite Web/CLI and
+0001 migration/DDL remain unchanged. Do not activate0002 on an existing ledger
+merely to test a source change.

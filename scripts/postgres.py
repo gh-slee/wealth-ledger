@@ -17,10 +17,10 @@ PG_IMAGE='postgres@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee2
 
 def _private(path,text):
     descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-    with os.fdopen(descriptor,'w') as stream:stream.write(text)
+    with os.fdopen(descriptor,'wb' if isinstance(text,bytes) else 'w') as stream:stream.write(text)
 
 
-def test_environment(output):
+def test_environment(output, *, identity=False):
     """Create only new explicitly synthetic Docker resources and generated secrets."""
     import psycopg
     from psycopg import sql
@@ -34,6 +34,7 @@ def test_environment(output):
     suffix=uuid.uuid4().hex[:12];prefix='wealth-ledger-pg-test-'+suffix
     resources={'container':prefix,'volume':prefix,'network':prefix,'database':'wl_test_'+suffix,
                'migration_role':'wl_test_'+suffix+'_operator','runtime_role':'wl_test_'+suffix+'_runtime','image':PG_IMAGE}
+    if identity:resources['identity_role']='wl_test_'+suffix+'_identity'
     _private(output/'resources.json',json.dumps(resources,indent=2)+'\n')
     bootstrap=secrets.token_urlsafe(32);_private(output/'bootstrap.secret',bootstrap)
     for kind in ['volume','network']:
@@ -51,30 +52,38 @@ def test_environment(output):
         '--mount','type=volume,src='+prefix+',dst=/var/lib/postgresql',PG_IMAGE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     port=int(subprocess.check_output(['docker','port',prefix,'5432/tcp'],text=True).strip().rsplit(':',1)[1])
     if port!=selected_port:raise ValueError('invalid_config')
-    options={'host':'127.0.0.1','port':port,'connect_timeout':2}
+    options={'host':'127.0.0.1','port':port,'connect_timeout':5 if identity else 2}
+    if identity:options['sslmode']='disable'
     connection=None
     for attempt in range(100):
         try:connection=psycopg.connect(**options,dbname='postgres',user='postgres',password=bootstrap,autocommit=True);break
         except psycopg.OperationalError:time.sleep(.25)
     if connection is None:raise ValueError('database_unavailable')
     with connection:
-        for key in ['migration','runtime']:
+        for key in ['migration','runtime']+(['identity'] if identity else []):
             role=resources[key+'_role'];value=secrets.token_urlsafe(32)
             connection.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE').format(sql.Identifier(role),sql.Literal(value)))
             _private(output/(key+'.conninfo'),make_conninfo(**options,dbname=resources['database'],user=role,password=value))
         connection.execute(sql.SQL('CREATE DATABASE {} OWNER {}').format(sql.Identifier(resources['database']),sql.Identifier(resources['migration_role'])))
-    operator=Database(PostgresConfig.from_secret_file(output/'migration.conninfo'))
-    try:status=migrate(operator,resources['runtime_role'])
+    operator=Database(PostgresConfig.from_secret_file(output/'migration.conninfo'),schema_mode='identity' if identity else 'foundation')
+    try:
+        if identity:
+            import hashlib
+            from wealth_ledger.persistence.migration import migrate_identity
+            key=secrets.token_bytes(32);_private(output/'identity.key',key)
+            status=migrate_identity(operator,resources['runtime_role'],resources['identity_role'],hashlib.sha256(key).hexdigest())
+        else:status=migrate(operator,resources['runtime_role'])
     finally:operator.close()
-    configuration={'format':'wealth-ledger-synthetic-pg-tests',**resources,
+    configuration={'format':'wealth-ledger-synthetic-identity-tests' if identity else 'wealth-ledger-synthetic-pg-tests',**resources,
                    'migration_secret_file':str(output/'migration.conninfo'),'runtime_secret_file':str(output/'runtime.conninfo')}
+    if identity:configuration.update(identity_secret_file=str(output/'identity.conninfo'),key_file=str(output/'identity.key'))
     _private(output/'test-config.json',json.dumps(configuration,indent=2)+'\n')
     return {'synthetic':True,'config':str(output/'test-config.json'),'schema_revision':status['schema_revision']}
 
 
 def cleanup_environment(path):
     configuration=json.loads(Path(path).read_text())
-    if configuration.get('format')!='wealth-ledger-synthetic-pg-tests':raise ValueError('invalid_config')
+    if configuration.get('format') not in {'wealth-ledger-synthetic-pg-tests','wealth-ledger-synthetic-identity-tests'}:raise ValueError('invalid_config')
     prefix=configuration['container']
     if not prefix.startswith('wealth-ledger-pg-test-') or any(configuration[k]!=prefix for k in ['network','volume']):raise ValueError('invalid_config')
     for kind in ['container','volume','network']:
@@ -96,10 +105,12 @@ def main():
         item=commands.add_parser(name);item.add_argument('--secret-file',required=True,type=Path)
         if name!='status':item.add_argument('--runtime-role',required=True)
     commands.add_parser('test-environment').add_argument('--output',required=True,type=Path)
+    commands.add_parser('test-identity-environment').add_argument('--output',required=True,type=Path)
     commands.add_parser('cleanup-test-environment').add_argument('--config',required=True,type=Path)
     args=parser.parse_args()
     try:
         if args.command=='test-environment':result=test_environment(args.output)
+        elif args.command=='test-identity-environment':result=test_environment(args.output,identity=True)
         elif args.command=='cleanup-test-environment':result=cleanup_environment(args.config)
         else:
             from wealth_ledger.persistence.config import PostgresConfig
