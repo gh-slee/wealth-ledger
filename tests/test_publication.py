@@ -60,6 +60,16 @@ class PublicationPolicyTests(unittest.TestCase):
         self.assertTrue(guard.content_issues(b'PRIVATE_' + b'FINANCIAL_FIXTURE',
                                            'docs/canonical-domain.md'))
 
+    def test_exact_identity_docs_fixture_do_not_allow_private_neighbors(self):
+        for path in ['docs/web-v2-identity.md','tests/fixtures/identity_v2/oracle.json']:
+            self.assertTrue(guard.path_allowed(path))
+            self.assertTrue(guard.content_issues(b'PRIVATE_' + b'FINANCIAL_FIXTURE',path))
+            self.assertTrue(guard.content_issues(b'/Users/' + b'example/private.csv',path))
+        for path in ['docs/web-v2-identity.local.md','docs/AGENTS.override.md',
+                     'tests/fixtures/identity_v2/operator.conninfo','tests/fixtures/identity_v2/identity.key',
+                     'tests/fixtures/identity_v2/receipt.json','tests/fixtures/identity_v2/private.csv']:
+            self.assertFalse(guard.path_allowed(path),path)
+
     def test_private_and_unknown_paths(self):
         for path in ('data/raw/export.csv', 'reports/report.md', 'backups/history.db',
                      'config/publish.local.toml', 'docs/session-handoff.md', 'private/readme.md',

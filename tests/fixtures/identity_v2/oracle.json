@@ -1,0 +1,12 @@
+{
+  "format": "wealth-ledger-synthetic-identity-oracle-v1",
+  "setup_and_member": {"users": 2, "roots": 2, "portfolios": 2, "generation_sum": 0, "admin_count": 1},
+  "single_invite_race": {"attempts": 16, "commits": 1, "registration_rejected": 15},
+  "single_setup_race": {"attempts": 16, "commits": 1, "setup_closed": 15},
+  "restore_invites": {"rows": 6, "request_mappings": 5, "issued_before": 3, "issued_after": 0, "consumed_after": 1, "revoked_after": 5, "restore_after": 4, "manual_after": 1},
+  "identity_tables": 7,
+  "identity_functions": 22,
+  "gateway_functions": 15,
+  "finance_rls_tables": 22,
+  "cookie": {"anonymous_max_age": 600, "authenticated_max_age": 43200, "idle_seconds": 1800}
+}
