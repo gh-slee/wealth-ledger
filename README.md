@@ -409,10 +409,11 @@ For help, [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with 
 An [optional PostgreSQL foundation](docs/postgres-foundation.md) provides candidate
 repositories, transactional receipts/outbox and leased jobs for future services.
 It uses PostgreSQL 18, SQLAlchemy Core, psycopg and operator-only Alembic. The current
-Web/CLI still use SQLite. A separate [V2 identity backend](docs/web-v2-identity.md)
-is under implementation/acceptance review: protected first setup, invitation
-registration and own-scope read APIs. It is explicitly opt-in, has no new UI and
-is not a financial import/export service or existing-data migration path.
+Web/CLI still use SQLite. The separate [V2 identity backend](docs/web-v2-identity.md),
+merged in [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19), provides protected
+first setup, invitation registration and own-scope read APIs. It is explicitly
+opt-in, has no new UI and is not a financial import/export service or existing-data
+migration path.
 
 
 Development setup and detailed maintenance procedures live in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md). Application features remain deterministic code and run independently of development agents. Shared project instructions live in [AGENTS.md](AGENTS.md).

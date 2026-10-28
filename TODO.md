@@ -197,11 +197,11 @@ published. Daily financial imports never commit or push source code.
   immutable scoped revisions, SQL precision/RLS/FKs, atomic receipts/outbox, leased
   jobs and explicit operator migrations. See [scope and opt-in acceptance](docs/postgres-foundation.md).
   This does not switch the current app backend or complete the full product V2.
-- [ ] **WL-P0-005 — in local implementation/acceptance review**: opt-in protected
+- [x] **WL-P0-005 — optional V2 identity backend**: protected
   first setup, single administrator, invitation lifecycle, isolated sessions and
-  restore quarantine. [Operator/API scope](docs/web-v2-identity.md). Backend only;
-  setup/invitation UI remains WL-P0-011. Do not mark complete before independent
-  acceptance, human review, authorized merge and integration CI.
+  restore quarantine, merged through [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19).
+  [Operator/API scope](docs/web-v2-identity.md). Merged-main CI passed. Backend only; setup/invitation UI
+  remains WL-P0-011. Existing Web/CLI stay on SQLite; no financial cutover is activated.
 - [ ] Authenticated tenant services, financial accepted source heads, source
   authority/dedupe, coordinated app recovery and approved legacy backend cutover
   under their separately reviewed contracts.
