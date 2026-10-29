@@ -382,7 +382,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md) and opt-in [legacy report evidence](docs/web-legacy-reports.md); actual private migration is explicit |
 | Extensible financial CSV sources | Two real built-ins; installable SDK/trusted registry, v1 nonbooking previews and default v2 CLI/browser approved reports implemented. Personal adoption and additional real formats remain: [SRC-004](TODO.md) |
-| Optional V2 source lifecycle | Local implementation under review: [catalog/enablement/connections](docs/web-v2-sources.md); backend only, no production V2 upload or current-data migration |
+| Optional V2 source lifecycle | Merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22): [catalog/enablement/connections](docs/web-v2-sources.md); optional PostgreSQL backend only, no production V2 upload or current-data migration |
 | Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |
