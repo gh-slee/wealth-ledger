@@ -57,6 +57,28 @@ validation and privacy findings and obtain the approval required by local guidan
 Changed scope needs renewed approval. A previous push or `authorized = true` is not
 proof of approval for a new scope. No automatic merge, force push or release.
 
+## PR description standard
+
+Use the [canonical PR template](../.github/pull_request_template.md) and
+[authoring workflow](agent-development.md#pr-authoring-and-updates) for both creation
+and updates. Save a complete public-safe Markdown body, then run:
+
+```bash
+python scripts/check_pr_description.py --body-file private/publication/pr-body.md
+```
+
+The checker validates format only. Authors must verify the diff, meaningful file
+coverage, commands/results, CI links, independent review and material risks.
+Humanizer cannot remove required headings/bullets or weaken facts. Existing image,
+privacy, independent QA and owner approval requirements still apply.
+
+`dev_publish.py` validates the body during planning and input rechecks. It explicitly
+uses `gh pr create --body-file` for a new PR and `gh pr edit --body-file` for an
+existing one; it does not rely on GitHub template insertion or commit-message
+fill. It fingerprints the reviewed text and refuses changes before the final
+create/update. Direct API/CLI use must validate and send the same complete body,
+then read back the result. A format pass does not establish CI success or consent.
+
 ## Optional publisher capability configuration
 
 Copy `config/publish.example.toml` to ignored `config/publish.local.toml`. It contains
@@ -108,7 +130,7 @@ operations; confirms GitHub authentication/repository identity, fetches, recheck
 runs the full unit suite, then checks again. Changed HEAD, branch, index or PR text
 stops publication for renewed review. Only reviewed staged changes are committed;
 the final committed source is built and smoke-tested by `check_pr_image.py`, outgoing
-history is checked, a normal feature push occurs, and a PR is created or reused. If a Codex session creates a PR, attach it using that session's required app
+history is checked, a normal feature push occurs, and a PR is created or its reviewed title/body are updated. If a Codex session creates a PR, attach it using that session's required app
 tool; the publisher itself has no Codex dependency.
 
 Tracked unstaged changes are rejected; untracked files are never auto-added. A new

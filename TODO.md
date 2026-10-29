@@ -202,11 +202,13 @@ published. Daily financial imports never commit or push source code.
   restore quarantine, merged through [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19).
   [Operator/API scope](docs/web-v2-identity.md). Merged-main CI passed. Backend only; setup/invitation UI
   remains WL-P0-011. Existing Web/CLI stay on SQLite; no financial cutover is activated.
-- [ ] **WL-P0-006 — optional V2 source capabilities**: local implementation under
-  review for inert reviewed catalogs, per-user exact-version enablement, reusable
-  FILE_IMPORT connections, restricted SQL functions, nonbooking transport and
-  test-only native isolation. See [source operator/API scope](docs/web-v2-sources.md).
-  Independent implementation acceptance, merged CI and rollout remain pending;
+- [x] **WL-P0-006 — optional V2 source capabilities**: independently accepted
+  implementation merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22):
+  inert reviewed catalogs, per-user exact-version enablement, reusable FILE_IMPORT
+  connections, restricted SQL functions, nonbooking transport and test-only native
+  isolation. See [source operator/API scope](docs/web-v2-sources.md). All seven
+  [merged-main CI jobs](https://github.com/gh-slee/wealth-ledger/actions/runs/40914248281)
+  passed. Deployment is separate;
   production V2 upload/financial acceptance belongs to subsequent stages.
 - [ ] Authenticated tenant services, financial accepted source heads, source
   authority/dedupe, coordinated app recovery and approved legacy backend cutover

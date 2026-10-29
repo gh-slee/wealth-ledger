@@ -15,6 +15,7 @@ import tomllib
 from urllib.parse import urlsplit
 
 from check_publication import AuditError, content_issues, git, scan_history, scan_staged
+from check_pr_description import check as check_pr_description
 
 
 class PublishError(RuntimeError):
@@ -137,6 +138,8 @@ def prepare(root: Path, branch: str | None, body_file: Path | None, message: str
         raise PublishError('A public commit --message is required for staged changes.')
     if not title or not body_file or not body_file.is_file():
         raise PublishError('A reviewed public PR --title and --body-file are required.')
+    if not check_pr_description(body_file, root / '.github/pull_request_template.md')['passed']:
+        raise PublishError('PR description must follow .github/pull_request_template.md; run check_pr_description.py.')
     public_text = (message or '').encode() + b'\n' + title.encode() + b'\n' + body_file.read_bytes()
     if content_issues(public_text, 'public-description.txt'):
         raise PublishError('Commit or PR description contains a blocked privacy pattern.')
@@ -196,8 +199,13 @@ def publish(root: Path, plan: dict, *, message: str | None, title: str, body_fil
         raise PublishError('Outgoing commit audit failed; nothing has been pushed.')
     command(root, ['git', 'push', '--set-upstream', refreshed['remote'], '--no-follow-tags', 'HEAD:refs/heads/' + refreshed['branch']])
     existing = json.loads(command(root, ['gh', 'pr', 'list', '--repo', refreshed['repository'], '--head', refreshed['branch'], '--base', refreshed['base'], '--state', 'open', '--json', 'url']).decode())
+    # Remote lookup must not change the exact reviewed text before create/update.
+    latest_text = (message or '').encode() + b'\n' + title.encode() + b'\n' + body_file.read_bytes()
+    if hashlib.sha256(latest_text).hexdigest() != refreshed['description_fingerprint']:
+        raise PublishError('PR text changed after push; review it before creating or updating the PR.')
     if existing:
         url = existing[0]['url']
+        command(root, ['gh', 'pr', 'edit', url, '--repo', refreshed['repository'], '--title', title, '--body-file', str(body_file.resolve())])
     else:
         url = command(root, ['gh', 'pr', 'create', '--repo', refreshed['repository'], '--head', refreshed['branch'], '--base', refreshed['base'], '--title', title, '--body-file', str(body_file.resolve())]).decode().strip()
     return {**refreshed, 'execute': True, 'pull_request_url': url}

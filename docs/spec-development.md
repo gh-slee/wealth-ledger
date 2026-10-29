@@ -115,6 +115,16 @@ review handoff; repairs return through the same reservation rather than a second
 writer. Architect reviews changed high-risk contracts. Update README/capability/
 manual/SDK/API/deployment guidance as applicable; do not claim planned work shipped.
 
+For PR authoring, use the [canonical template](../.github/pull_request_template.md)
+and [authoring workflow](agent-development.md#pr-authoring-and-updates). Developer
+handoffs include the exact base/HEAD, meaningful modules/interfaces changed, actual
+commands/results/counts/skips, CI links/status, compatibility/rollback constraints
+and NOT RUN gaps. QA/Architect handoffs identify independently checked scope,
+expected results, outcomes and unresolved risks separately from Developer evidence.
+Only verified public-safe summaries belong in the corresponding PR categories;
+private authorizations, reviewer files and transcripts remain local. Human Gate B
+and the existing independence/approval requirements are unchanged.
+
 Before Gate B, revalidate the latest integration baseline, relevant tests, docs,
 privacy/index/reachable-history audit and actual integration CI. Follow the
 [pre-PR candidate image gate](development.md#pre-pr-candidate-image-gate) after the

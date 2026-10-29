@@ -196,3 +196,44 @@ AGENTS.md; they may not discover them automatically. A pull does not execute set
 by itself, and files/tests cannot guarantee that every human or agent follows a
 writing style. Contributors remain responsible for the final text. CI performs
 mocked offline bootstrap/privacy tests and never needs to download these skills.
+
+## PR authoring and updates
+
+[AGENTS.md](../AGENTS.md) routes every new PR and description update to the
+[canonical template](../.github/pull_request_template.md). Its required sections,
+evidence categories and conditional review aids take precedence over Humanizer's
+stylistic suggestions. Prefer focused Markdown bullets and grouped modules. Keep
+public descriptions free of private context; public review summaries must not link
+to local reviewer files or expose owner approval evidence.
+
+Before drafting, inspect the actual target base, head, full branch diff, current
+implementation and relevant docs. Gather the Developer's commands/results, actual
+CI runs and independently verified QA/architecture outcomes. Preserve missing
+checks as NOT RUN and running CI as PENDING. Test skips do not establish coverage;
+Developer self-tests do not establish independent QA. For a small PR, one summary
+sentence, two change bullets and compact evidence entries can be enough.
+
+Save the complete final body in an ignored file and run:
+
+```bash
+python scripts/check_pr_description.py --body-file private/publication/pr-body.md
+```
+
+The standard-library checker reads requirements from the template. It checks
+headings/order, summary and file bullets, and explicit evidence statuses. It ignores
+headings in comments/fenced examples and rejects empty optional sections. It does
+not judge prose, verify test/CI/review claims, prove module coverage or authorize
+publication. Review those separately and keep existing image/privacy/approval gates.
+
+Use the exact validated file with `gh pr create --body-file` or
+`gh pr edit --body-file`; an API tool must receive the same validated Markdown in
+its body field. Never assume that GitHub inserts the template when a body is supplied.
+Do not use commit-message autofill. After implementation or review changes, revise
+the relevant sections as a whole, revalidate evidence/issue links and rerun the
+checker instead of appending an unstructured status log. A lookup alone does not
+update an existing PR: the local publisher explicitly sends its title and body.
+
+In a fresh-session check, additionally ask the agent to locate the canonical PR
+template, distinguish the four evidence categories and explain why Humanizer may
+not collapse them into prose. File tests can verify routing and format behavior;
+they cannot guarantee that every agent or contributor follows the standard.

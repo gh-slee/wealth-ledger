@@ -31,15 +31,18 @@ historical language are preserved. The generic defaults remain English and
 acquisition costs. See [the manual](user-manual.md) for supported daily operations.
 
 
-## Optional source lifecycle under review
+## Optional V2 source lifecycle
 
-The local WL-P0-006 implementation adds an explicit0003 sources backend profile:
+WL-P0-006, merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22),
+adds the explicit `0003` sources backend profile:
 [operator/API guide](web-v2-sources.md), [contract](../src/wealth_ledger/data_sources/contract_v1.py),
 [lifecycle SQL](../src/wealth_ledger/persistence/source_schema.py),
 [SQL tests](../tests/test_source_lifecycle.py), [HTTP tests](../tests/test_web_v2_sources.py)
-and [native test-only harness](../tests/test_source_harness.py). This entry describes
-source under review, not merged/deployed acceptance. Inert catalogs, user-version
+and [native test-only harness](../tests/test_source_harness.py). Independent
+implementation review is accepted; all seven
+[merged-main CI jobs](https://github.com/gh-slee/wealth-ledger/actions/runs/40914248281)
+passed on `4867f02`. This source baseline does not establish deployment or a data migration. Inert catalogs, user-version
 confirmation and reusable connections do not import financial facts. Default
-SQLite and the optional0002 identity profile remain separate. V2 upload/financial
+SQLite and the optional `0002` identity profile remain separate. V2 upload/financial
 acceptance, frontend, reporting parity and existing-ledger migration remain later
 stages. The fake offline API is not an available live provider.

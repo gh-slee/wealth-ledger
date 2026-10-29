@@ -213,7 +213,9 @@ create_pr = true
         self.run_git('remote', 'add', 'origin', 'https://github.com/example/project.git')
         self.run_git('update-ref', 'refs/remotes/origin/main', self.run_git('rev-parse', 'HEAD'))
         self.run_git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
-        return self.write('private/pr.txt', 'Public change and validation.\n')
+        self.write('.github/pull_request_template.md', (SCRIPTS.parent / '.github/pull_request_template.md').read_text())
+        from test_pr_description import valid_body
+        return self.write('private/pr.txt', valid_body())
 
     def test_clean_index_and_all_history_pass(self):
         self.assertTrue(guard.scan_staged(self.root)['passed'])
@@ -641,6 +643,9 @@ create_pr = true
         self.assertEqual(len(pushes), 1)
         self.assertIn('HEAD:refs/heads/feature/test', pushes[0])
         self.assertFalse(any('--force' in arg for args in calls for arg in args))
+        creates = [args for args in calls if args[:3] == ['gh', 'pr', 'create']]
+        self.assertEqual(creates[0][creates[0].index('--body-file') + 1], str(body.resolve()))
+        self.assertNotIn('--fill', creates[0])
         self.assertFalse(any(args[:2] == ['git', 'add'] for args in calls))
         test_index = next(i for i, args in enumerate(calls) if 'unittest' in args)
         push_index = next(i for i, args in enumerate(calls) if args[:2] == ['git', 'push'])
@@ -648,6 +653,56 @@ create_pr = true
         image_index = next(i for i, args in enumerate(calls) if any(str(arg).endswith('check_pr_image.py') for arg in args))
         self.assertLess(test_index, image_index)
         self.assertLess(image_index, push_index)
+
+    def test_invalid_pr_format_stops_planning_before_remote_calls(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        body.write_text('Commit-message autofill without the required review sections.')
+        with mock.patch.object(publisher, 'command', wraps=publisher.command) as commands:
+            with self.assertRaises(publisher.PublishError):
+                publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        self.assertFalse(any(call.args[1][0] == 'gh' for call in commands.call_args_list))
+
+    def test_existing_pr_receives_the_complete_reviewed_body_file(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if args[:3] == ['gh', 'pr', 'list']:
+                return b'[{"url":"https://github.com/example/project/pull/1"}]'
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        edits = [args for args in calls if args[:3] == ['gh', 'pr', 'edit']]
+        self.assertEqual(len(edits), 1)
+        self.assertEqual(edits[0][edits[0].index('--body-file') + 1], str(body.resolve()))
+        self.assertIn('--title', edits[0])
+        self.assertFalse(any('--fill' in args or args[:3] == ['gh', 'pr', 'create'] for args in calls))
+
+    def test_remote_lookup_cannot_sneak_changed_text_into_create_or_update(self):
+        body = self.authorize()
+        self.write('README.md', '# Reviewed change\n')
+        self.run_git('add', 'README.md')
+        plan = publisher.prepare(self.root, 'feature/test', body, 'Message', 'Title')
+        calls = []
+        def fake_command(root, args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['gh', 'repo', 'view']:
+                return b'{"nameWithOwner":"example/project"}'
+            if args[:3] == ['gh', 'pr', 'list']:
+                body.write_text(body.read_text() + '\nUnreviewed addition.\n')
+                return b'[]'
+            return b''
+        with mock.patch.object(publisher.shutil, 'which', return_value='gh'), mock.patch.object(publisher, 'command', side_effect=fake_command):
+            with self.assertRaises(publisher.PublishError):
+                publisher.publish(self.root, plan, message='Message', title='Title', body_file=body)
+        self.assertFalse(any(args[:3] in (['gh', 'pr', 'create'], ['gh', 'pr', 'edit']) for args in calls))
 
     def test_failed_candidate_build_blocks_push_and_pr(self):
         body = self.authorize()
