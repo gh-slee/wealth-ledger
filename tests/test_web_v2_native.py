@@ -159,3 +159,96 @@ class IdentityNativeImage(IdentityCase):
             self.assertEqual(result['me_status'],200);self.assertEqual(result['own_status'],200)
             self.assertEqual(result['own_digest'],expected[result['user_id']])
             self.assertEqual(result['foreign_status'],404 if result['user_id']==a.user_id else 200)
+
+
+# Two independent, real ASGI processes share only the checked SQL budget state.
+# No patched budget helper, forwarded peer or production route/header is used.
+SOURCE_PROGRAM=r'''
+import http.client,json,multiprocessing as mp,os,socket,sys,time
+import uvicorn
+from wealth_ledger.persistence.config import PostgresConfig
+from wealth_ledger.web_v2.config import Settings
+from wealth_ledger.web_v2.api import create_app
+from wealth_ledger.data_sources.catalog_v1 import decode_catalog
+from wealth_ledger.data_sources.contract_v1 import canonical
+payload=json.load(sys.stdin);context=mp.get_context('fork');children=[];ports=[];ready=context.Queue()
+def server(listener):
+ port=listener.getsockname()[1]
+ app=create_app(Settings(PostgresConfig(payload['identity'],1),PostgresConfig(payload['financial'],1),bytes.fromhex(payload['key']),
+     'http://127.0.0.1:'+str(port),schema_profile='sources',source_catalog=decode_catalog(canonical(payload['catalog']))))
+ ready.put(os.getpid())
+ uvicorn.Server(uvicorn.Config(app,proxy_headers=False,access_log=False,log_level='critical')).run(sockets=[listener])
+try:
+ pids=[]
+ for _ in range(2):
+  listener=socket.socket();listener.bind(('127.0.0.1',0));listener.listen(128);ports.append(listener.getsockname()[1])
+  child=context.Process(target=server,args=(listener,));child.start();children.append(child);listener.close();pids.append(ready.get(timeout=30))
+ def request(index,path):
+  connection=http.client.HTTPConnection('127.0.0.1',ports[index],timeout=10)
+  try:
+   connection.request('GET',path,headers={'Cookie':'wealth_v2_session='+payload['token']})
+   response=connection.getresponse();raw=response.read();return response.status,json.loads(raw)
+  finally:connection.close()
+ for index in range(2):
+  deadline=time.monotonic()+10
+  while True:
+   try:
+    status,_=request(index,'/api/v2/me')
+    if status!=200:raise RuntimeError('Synthetic login failed')
+    break
+   except OSError:
+    if time.monotonic()>=deadline:raise
+    time.sleep(.02)
+ statuses=[]
+ for index in range(61):
+  status,value=request(index%2,'/api/v2/sources');statuses.append(status)
+ print(json.dumps({'statuses':statuses,'last_code':value.get('error',{}).get('code'),'process_count':len(set(pids)),
+                   'linux':sys.platform=='linux','nonroot':os.getuid()==10001}))
+finally:
+ for child in children:
+  child.terminate();child.join(timeout=5)
+  if child.is_alive():child.kill();child.join(timeout=5)
+'''
+
+
+from test_source_lifecycle import ConfiguredSourceCase,CONTENT_ENABLED
+
+
+@unittest.skipUnless(CONTENT_ENABLED and os.environ.get('WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE'),
+                     'Explicit native source image and content proofs required')
+class SourceNativeImage(ConfiguredSourceCase):
+    def test_two_native_http_processes_share_actual_database_source_read_budget(self):
+        from psycopg.conninfo import make_conninfo
+        from wealth_ledger.data_sources.contract_v1 import primitive
+        import re
+        token,principal=self.bootstrap()
+        image=os.environ['WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE']
+        self.assertRegex(image,r'^sha256:[0-9a-f]{64}$')
+        payload={'identity':make_conninfo(self.configs['identity'].conninfo,host=self.config['container'],port=5432),
+            'financial':make_conninfo(self.configs['runtime'].conninfo,host=self.config['container'],port=5432),
+            'key':self.key.hex(),'token':token,'catalog':primitive(self.catalog)}
+        name='wealth-ledger-source-http-'+__import__('uuid').uuid4().hex
+        process=None;owned=False
+        try:
+            # This integration container intentionally joins ONLY the separately
+            # marked synthetic PG network. It is not the network-none parser child.
+            created=subprocess.run(['docker','create','--name',name,'--label','wealth-ledger.test=source-http','-i',
+                '--network',self.config['network'],'--user','10001:10001','--read-only','--cap-drop','ALL',
+                '--security-opt','no-new-privileges','--entrypoint','python',image,'-c',SOURCE_PROGRAM],
+                stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30)
+            self.assertEqual(created.returncode,0,'Synthetic native source container creation failed');owned=True
+            process=subprocess.Popen(['docker','start','--attach','--interactive',name],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            stdout,stderr=process.communicate(json.dumps(payload).encode(),timeout=90)
+            Path('work').mkdir(exist_ok=True)
+            # Diagnostics stay ignored/private and bounded; stdout contains only
+            # counts/status codes, never the input's generated credentials.
+            diagnostic=Path('work')/(name+'.stderr')
+            descriptor=os.open(diagnostic,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+            with os.fdopen(descriptor,'wb') as stream:stream.write(stderr[:65536])
+            self.assertEqual(process.returncode,0,'Native source HTTP failed; inspect private bounded stderr')
+            value=json.loads(stdout);self.assertTrue(value['linux']);self.assertTrue(value['nonroot'])
+            self.assertEqual(value['process_count'],2);self.assertEqual(value['statuses'],[200]*60+[429])
+            self.assertEqual(value['last_code'],'rate_limited')
+        finally:
+            if owned:subprocess.run(['docker','rm','--force',name],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=10)
+            if process and process.poll() is None:process.kill();process.wait(timeout=5)

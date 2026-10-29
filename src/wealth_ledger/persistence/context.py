@@ -44,7 +44,7 @@ def execute(connection, sql, **parameters):
 
 class Database:
     def __init__(self, config, *, schema_mode="foundation"):
-        revisions = {"foundation": REVISION, "identity": "0002_identity"}
+        revisions = {"foundation": REVISION, "identity": "0002_identity", "sources": "0003_source_lifecycle"}
         if schema_mode not in revisions:
             raise PersistenceError("invalid_config")
         self.schema_mode = schema_mode
@@ -52,7 +52,7 @@ class Database:
         from sqlalchemy import create_engine, event
         from psycopg.conninfo import conninfo_to_dict
         options = conninfo_to_dict(config.conninfo)
-        if schema_mode == "identity":
+        if schema_mode in {"identity", "sources"}:
             options.update(connect_timeout=5, options="-c statement_timeout=5000 -c lock_timeout=2000 -c idle_in_transaction_session_timeout=5000")
         self.engine = create_engine("postgresql+psycopg://", connect_args=options,
             pool_size=config.pool_size, max_overflow=0, pool_timeout=5,
@@ -111,7 +111,7 @@ class Database:
                     if principal is not None:
                         # This MUST be the first snapshot read in the actual repository transaction.
                         row = execute(conn, REALM_SNAPSHOT).mappings().one()
-                        if (self.schema_mode != "identity" or not readonly
+                        if (self.schema_mode not in {"identity", "sources"} or not readonly
                                 or not row["ready"] or row["revision"] != self.revision
                                 or not principal.matches_realm(row)):
                             raise PersistenceError("database_unavailable")
@@ -151,7 +151,7 @@ class RequestDatabase:
 
     def __post_init__(self):
         from .identity import Principal
-        if type(self.principal) is not Principal or self.database.schema_mode != "identity":
+        if type(self.principal) is not Principal or self.database.schema_mode not in {"identity", "sources"}:
             raise PersistenceError("invalid_context")
 
     @contextmanager

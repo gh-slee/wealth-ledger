@@ -1,7 +1,7 @@
 """Closed optional V2 wire schemas. Validation errors are never echoed to clients."""
 from typing import Annotated, Literal
 import re
-from pydantic import BaseModel, ConfigDict, Field, AfterValidator, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, AfterValidator, SecretStr, field_validator, model_validator
 from wealth_ledger.persistence.errors import CODES
 
 
@@ -145,7 +145,10 @@ ERROR_CODES = ('invalid_headers','invalid_host','invalid_length','not_found','me
  'origin_rejected','authentication_required','invalid_credentials','csrf_rejected','anonymous_session_required',
  'unsupported_media_type','body_too_large','request_timeout','invalid_input','rate_limited','authentication_busy',
  'credentials_changed','session_changed','registration_rejected','instance_not_ready','internal_error',
- 'setup_rejected','setup_closed','setup_required','admin_required','invite_already_issued','invite_not_active')
+ 'setup_rejected','setup_closed','setup_required','admin_required','invite_already_issued','invite_not_active',
+ 'source_catalog_unavailable','source_unavailable','source_capability_unavailable','source_context_incompatible',
+ 'source_connection_conflict','source_revision_conflict','source_idempotency_conflict','source_repreview_required',
+ 'source_capacity_reached','source_counter_exhausted','source_commit_uncertain')
 
 
 class ErrorDetail(Closed):
@@ -156,3 +159,158 @@ class ErrorDetail(Closed):
 
 class Error(Closed):
     error: ErrorDetail
+
+
+# Sources are available only in the explicit0003 backend profile. These models
+# contain metadata, never financial values or executable plugin configuration.
+def source_counter(value):
+    from wealth_ledger.data_sources.contract_v1 import counter
+    return counter(value)
+
+
+def source_text(value):
+    import unicodedata
+    if value != value.strip() or any(unicodedata.category(ch)=='Cc' or 0xD800<=ord(ch)<=0xDFFF for ch in value):
+        raise ValueError('Invalid source label')
+    return value
+
+
+Counter = Annotated[str,AfterValidator(source_counter)]
+PositiveCounter = Annotated[str,AfterValidator(lambda v: source_counter(v) if v!='0' else (_ for _ in ()).throw(ValueError('Positive counter required')))]
+Namespace = Annotated[str,Field(min_length=1,max_length=64,pattern=r'^[a-z][a-z0-9_.-]{0,63}$')]
+SourceLabel = Annotated[str,Field(min_length=1,max_length=100),AfterValidator(source_text)]
+SourceAlias = Annotated[str,Field(min_length=1,max_length=160),AfterValidator(source_text)]
+SourceCapability = Literal['FILE_IMPORT','PULL_API']
+VersionOne = Annotated[int,Field(strict=True,ge=1,le=1)]
+
+
+class SourceRealm(Closed):
+    incarnation: UUID
+    restore_epoch: Counter
+
+
+class SourceCommon(Closed):
+    operation_id: UUID
+    expected_revision: Counter
+    expected_realm: SourceRealm
+
+
+class SourceEnableRequest(SourceCommon):
+    enabled: bool
+    installation_id: Hex | None
+
+    @model_validator(mode='after')
+    def installation_required(self):
+        if self.enabled != (self.installation_id is not None):
+            raise ValueError('Explicit installation confirmation required')
+        return self
+
+
+class SourceCreateRequest(SourceCommon):
+    plugin_id: Namespace
+    capability: SourceCapability
+    installation_id: Hex
+    display_label: SourceLabel
+    parser_source_alias: SourceAlias | None
+
+    @model_validator(mode='after')
+    def initial_revision(self):
+        if self.expected_revision!='0':
+            raise ValueError('Create revision must be zero')
+        return self
+
+
+class SourceUpdateRequest(SourceCommon):
+    enabled: bool
+    installation_id: Hex
+    display_label: SourceLabel
+
+
+class SourceEnablement(Closed):
+    enabled: bool
+    installation_id: Hex | None
+    revision: Counter
+    generation: Counter
+
+
+class Capability(Closed):
+    capability: SourceCapability
+    active_installation_id: Hex | None
+    availability_generation: PositiveCounter | None
+    adapter_id: Namespace | None
+    package_version: Annotated[str,Field(min_length=1,max_length=200)] | None
+    format_versions: Annotated[list[Annotated[str,Field(min_length=1,max_length=128)]],Field(max_length=32)]
+    domain_contract_version: VersionOne
+    parser_api_version: Annotated[int,Field(strict=True,ge=2,le=2)] | None
+    enablement: SourceEnablement
+    status: Literal['DISABLED','CONFIRMATION_REQUIRED','UNAVAILABLE','ENABLED']
+    reason: Literal['source_unavailable','source_capability_unavailable','source_counter_exhausted'] | None
+    connection_count: Annotated[int,Field(strict=True,ge=0,le=256)]
+
+
+class CatalogItem(Closed):
+    plugin_id: Namespace
+    provider_id: Namespace
+    display_name: Annotated[str,Field(min_length=1,max_length=100)]
+    publisher_label: Annotated[str,Field(min_length=1,max_length=100)]
+    docs_url: Annotated[str,Field(max_length=1024)] | None
+    capabilities: Annotated[list[Capability],Field(max_length=2)]
+
+
+class SourceCatalogPage(Closed):
+    items: Annotated[list[CatalogItem],Field(max_length=100)]
+    next_after: Namespace | None
+    catalog_revision: Counter
+    state_revision: Counter
+    realm: SourceRealm
+
+
+class SourceConnection(Closed):
+    id: UUID
+    connection_version: Hex
+    plugin_id: Namespace
+    provider_id: Namespace
+    capability: Literal['FILE_IMPORT']
+    installation_id: Hex
+    availability_generation: PositiveCounter
+    display_label: SourceLabel
+    parser_source_alias: SourceAlias | None
+    enabled: bool
+    revision: Counter
+    generation: Counter
+    status: Literal['DISABLED','SOURCE_DISABLED','CONFIRMATION_REQUIRED','UNAVAILABLE','ENABLED']
+    reason: Literal['source_unavailable','source_context_incompatible','source_counter_exhausted'] | None
+
+
+class SourceConnectionPage(Closed):
+    items: Annotated[list[SourceConnection],Field(max_length=100)]
+    next_after: UUID | None
+    catalog_revision: Counter
+    state_revision: Counter
+    realm: SourceRealm
+
+
+class SourceConnectionRead(Closed):
+    resource: SourceConnection
+    catalog_revision: Counter
+    state_revision: Counter
+    realm: SourceRealm
+
+
+class SourceMutation(Closed):
+    operation_id: UUID
+    replayed: bool
+    representation: Literal['committed','historical']
+    changed: bool
+    resource: SourceEnablement | SourceConnection
+    catalog_revision: Counter
+    state_revision: Counter
+    realm: SourceRealm
+
+
+class SourceEnableMutation(SourceMutation):
+    resource: SourceEnablement
+
+
+class SourceConnectionMutation(SourceMutation):
+    resource: SourceConnection

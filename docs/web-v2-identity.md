@@ -253,3 +253,15 @@ flags, environment bypasses or headers. Native SIGKILL, real lock waits and two
 empty-target dumps have separate tests. Default opt-in skips are not acceptance.
 Keep failed logs/oracles and independent review evidence. Cleanup may remove only
 the exact recorded synthetic resource IDs using `cleanup-test-environment`.
+
+
+## Separately selected source profile
+
+The optional0003 [sources backend](web-v2-sources.md) is implemented locally under
+review. Identity remains the default exact0002 profile; it never silently accepts
+0003. Explicit sources startup requires matching source catalog, function/body/
+role inventory and key. Host setup/invite/account commands use the same safeguards
+with `--schema-profile sources`. Source enablement/connections do not grant an
+administrator access to another user's ledger or change the one-portfolio-per-user
+boundary. Restore preserves initialized closure and invitation/credential fences.
+Production V2 import and UI activation remain separate stages.

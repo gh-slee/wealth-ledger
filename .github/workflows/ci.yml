@@ -226,3 +226,44 @@ jobs:
           if test -f work/identity-ci/test-config.json; then
             python scripts/postgres.py cleanup-test-environment --config work/identity-ci/test-config.json
           fi
+
+  postgres-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      WEALTH_LEDGER_IDENTITY_TEST: "1"
+      WEALTH_LEDGER_IDENTITY_TEST_CONFIG: work/source-ci/test-config.json
+      WEALTH_LEDGER_SOURCE_ARTIFACT_FILE: work/source-ci/source-content.json
+      WEALTH_LEDGER_SOURCE_HARNESS_TEST: "1"
+      WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT: work/source-runtime-context/context-manifest.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install locked optional source dependencies
+        run: python -m pip install -r requirements-pg-test.lock
+      - name: Create separate marked synthetic source target
+        run: python scripts/postgres.py test-identity-environment --output work/source-ci
+      - name: Build exact source-only image and bind actual content
+        run: |
+          python scripts/docker_context.py --output work/source-runtime-context
+          docker build --build-arg WEALTH_LEDGER_POSTGRES=1 --tag wealth-ledger-source-ci:test --iidfile work/source-image-id work/source-runtime-context
+          export WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE="$(cat work/source-image-id)"
+          python scripts/postgres.py test-source-artifact --image "$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE" --context-manifest work/source-runtime-context/context-manifest.json --output work/source-ci/source-content.json
+          echo "WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE=$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE" >> "$GITHUB_ENV"
+          echo "WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE=$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE" >> "$GITHUB_ENV"
+      - name: Execute source codec, real SQL, API, replay, fault, restore and native shared-budget cases
+        run: |
+          PYTHONPATH=src:tests python -m unittest test_source_capabilities test_source_transport test_source_capability_compatibility test_source_lifecycle test_source_lifecycle_security test_source_lifecycle_races test_source_lifecycle_restore test_web_v2_sources test_web_v2_native.SourceNativeImage -v
+      - name: Execute actual test-only processing containment and offline API parity
+        run: PYTHONPATH=src:tests python -m unittest test_source_harness -v
+      - name: Remove only recorded synthetic source resources
+        if: always()
+        run: |
+          if test -f work/source-ci/test-config.json; then
+            python scripts/postgres.py cleanup-test-environment --config work/source-ci/test-config.json
+          fi
