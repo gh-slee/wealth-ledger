@@ -25,3 +25,10 @@ A different model identity alone does not establish oracle independence. Keep
 Developer self-tests distinct from independent QA. Report to Developer for bounded
 repairs, retest changed boundaries, then hand evidence to human Gate B. Do not
 self-approve product/PR, grant claims, merge or deploy.
+
+Provide a public-safe evidence summary for the [canonical PR template](../../../.github/pull_request_template.md):
+independently verified scope, source/fixture basis, commands/results/counts/skips,
+unresolved defects and NOT RUN gaps. Keep it separate from Developer evidence;
+never copy private review paths, transcripts or human approval records into a PR.
+Review the final PR's claims against this evidence without granting publication
+or merge approval. Preserve the required structure when applying Humanizer.

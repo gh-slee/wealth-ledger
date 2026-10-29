@@ -25,3 +25,10 @@ Hand off exact diff/base/HEAD, commands/results, synthetic fixture/oracle versio
 defects and NOT RUN gaps to independent QA. Developer self-tests do not satisfy
 independent QA; stop writing when transferring review ownership. Pause retains the
 claim and requires a resumable record before any stopped-writer transfer.
+
+For PR preparation or updates, use the [canonical template](../../../.github/pull_request_template.md)
+and [authoring workflow](../../../docs/agent-development.md#pr-authoring-and-updates).
+Hand over meaningful changed modules/interfaces, actual commands/results/counts/
+skips and CI links/status, compatibility/rollback concerns and unverified gaps.
+Keep self-tests distinct from independent review. Validate the final Markdown body
+and send it explicitly; Humanizer must preserve the required PR structure.

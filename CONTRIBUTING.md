@@ -80,8 +80,16 @@ unit/browser tests and accessibility. Keep broader release acceptance visible.
 
 ## Pull requests
 
-Use a feature branch. Describe the concrete problem, resulting behavior, validation
-and limitations. Run relevant tests and the [publication/privacy checks](docs/publishing.md)
+Use a feature branch and the [canonical PR template](.github/pull_request_template.md)
+for new PRs and description updates. Start with the problem and resulting behavior,
+group meaningful changed files/modules, and keep local, CI, independent review and
+pre-PR image evidence distinct. Keep small changes short and remove unused optional
+sections. Humanizer may improve wording without removing required structure.
+Generate the body from the actual full base-to-head diff and verified evidence;
+mark pending, failed, skipped or unrun work honestly. Before submission, run
+`python scripts/check_pr_description.py --body-file <reviewed-markdown-file>` and
+provide that exact body via `--body-file` or the API, without commit autofill.
+Run relevant tests and the [publication/privacy checks](docs/publishing.md)
 before publication. After the final reviewed commit, run `python scripts/check_pr_image.py`
 for every PR/update, including docs-only changes; Docker must be available. See the
 [isolated candidate gate](docs/development.md#pre-pr-candidate-image-gate). This builds
