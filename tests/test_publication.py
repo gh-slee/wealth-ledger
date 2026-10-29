@@ -256,6 +256,28 @@ create_pr = true
                           '/' + allowed, allowed.replace('/', '\\')):
             self.assertFalse(guard.path_allowed(malformed), malformed)
 
+    def test_downloaded_writing_skills_remain_ignored_and_fail_staged_deleted_history(self):
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        paths = {'.agents/skills/' + name + '/' + filename
+                 for name in ('caveman', 'humanizer')
+                 for filename in ('SKILL.md', 'LICENSE', 'NOTICE', 'LICENSE-MIT', '_origin.json')}
+        for relative in sorted(paths):
+            self.assertFalse(guard.path_allowed(relative), relative)
+            self.write(relative, 'Synthetic downloaded text.\n')
+            self.run_git('check-ignore', '-q', '--', relative)
+        self.assertFalse(paths & {row['path'] for row in guard.scan_worktree(self.root)['files']})
+        for relative in sorted(paths):
+            self.run_git('add', '-f', '--', relative)
+        result = guard.scan_staged(self.root)
+        self.assertFalse(result['passed'])
+        self.assertTrue(paths <= {row['path'] for row in result['violations']})
+        self.run_git('commit', '-m', 'Synthetic forbidden downloads')
+        self.run_git('rm', '-r', '--', '.agents')
+        self.run_git('commit', '-m', 'Remove downloaded text')
+        result = guard.scan_history(self.root, all_history=True)
+        self.assertFalse(result['passed'])
+        self.assertTrue(paths <= {row['path'] for row in result['violations']})
+
     def test_casefolding_git_cannot_publish_a_role_lookalike(self):
         self.run_git('config', 'core.ignorecase', 'true')
         relative = '.agents/skills/wealthledger-fintech-pm/skill.md'

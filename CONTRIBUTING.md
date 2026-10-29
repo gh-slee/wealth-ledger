@@ -27,6 +27,23 @@ CI currently validates Linux/Python 3.12; this is not a claim of full Windows or
 macOS acceptance. See [development procedures](docs/development.md) for focused
 tests, report validation and the exact CI commands.
 
+## Shared writing setup
+
+For agent-assisted work, run this once after cloning or pulling these instructions:
+
+```bash
+python3 scripts/setup_writing_skills.py --ensure
+```
+
+The helper downloads the latest upstream text only for missing repository-local
+Caveman or Humanizer skills. Existing copies stay unchanged. Each downloaded copy
+includes its licenses and an exact commit/hash receipt in an ignored directory.
+There is no global installation, background updater or application dependency.
+[AGENTS.md](AGENTS.md#writing-and-skill-setup) defines when to use each skill;
+[the setup guide](docs/agent-development.md#shared-writing-skills) covers offline
+checks, updates, other agents and fresh-session verification. Human contributors
+can follow the same writing rules without using an agent or downloading skills.
+
 ## Optional Web development
 
 Install `requirements-web-test.lock` for API/security tests and run the same unittest

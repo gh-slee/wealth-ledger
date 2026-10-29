@@ -134,3 +134,65 @@ shared references, then summarize its bounded responsibilities. Verify real
 startup discovery in the intended checkout; file layout/tests alone do not prove
 that a particular Codex session discovered skills. Keep discovery evidence distinct
 from role execution, independent QA, remote claims and deployment.
+
+## Shared writing skills
+
+The tracked setup script and AGENTS.md travel with a clone or pull. The downloaded
+skills do not: `.agents/skills/caveman/` and `.agents/skills/humanizer/` are ignored
+local copies, and publication checks reject them even if force-added. The four
+reviewed repository role skills above remain the only public skill exceptions.
+No private override, maintainer home path or personal language preference is needed.
+
+At the first development task in a new session, AGENTS.md asks the agent to run:
+
+```bash
+python3 scripts/setup_writing_skills.py --ensure
+```
+
+For each missing skill, the helper resolves the public upstream default-branch HEAD
+and downloads the skill and license/notice files from that exact commit. This keeps
+one installation internally consistent without pinning future installations to a
+repository-managed version. Caveman comes from [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman);
+Humanizer comes from [blader/humanizer](https://github.com/blader/humanizer).
+It downloads text only and runs no upstream installer, proxy, hooks or code. Each
+`_origin.json` records the resolved commit, retrieval time and file hashes. Do not
+commit any downloaded directory or receipt.
+
+Existing valid SKILL.md files are kept without a network request, including manual
+local copies. Their printed hash identifies the current bytes; presence alone is
+not proof of freshness, upstream origin or an editorial quality check. A malformed,
+partial or symlinked installation is reported for inspection and is never replaced.
+Interrupted downloads leave no partial new skill directory. Each skill installs
+independently; a successful first download is kept if the second fails.
+
+Check availability without downloading or writing:
+
+```bash
+python3 scripts/setup_writing_skills.py --check
+```
+
+Exit status 0 means both skills are present with expected discovery metadata;
+1 means one is missing, and 2 means setup could not complete. Review local changes
+before moving or removing one generated skill directory to request a newer copy,
+then run `--ensure` again. This is latest-when-missing, not an automatic overwrite
+of working instructions on every task. Upstream changes may require a reviewed
+bootstrap adjustment if metadata, paths or licenses change. HTTPS verification
+stays enabled; an unavailable network or denied permission must be reported.
+
+Use Caveman for transient agent-to-agent coding handoffs. Keep exact evidence and
+clear permission boundaries. Use Humanizer for human-readable prose, with the
+reader's purpose deciding structure and detail. Formal contracts and audit records
+retain their required information. Repository instructions take precedence over
+third-party style defaults. Load a relevant skill once and apply it while writing;
+no separate LLM pass, external editing service or runtime AI is required.
+
+Codex can discover repository-local skills under `.agents/skills/`. Start a fresh
+session in this repository after pulling changed AGENTS.md instructions. Ask it to
+identify the shared writing section, run the offline check and name which skill
+applies to an agent handoff versus a PR. Verify any private override explicitly
+includes AGENTS.md. See [official skill discovery](https://developers.openai.com/codex/skills/).
+Other agent tools can read the same files manually or through a thin adapter to
+AGENTS.md; they may not discover them automatically. A pull does not execute setup
+by itself, and files/tests cannot guarantee that every human or agent follows a
+writing style. Contributors remain responsible for the final text. CI performs
+mocked offline bootstrap/privacy tests and never needs to download these skills.
