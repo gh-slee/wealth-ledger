@@ -154,6 +154,11 @@ portfolio updates. Report the checks actually run and any gaps.
   explicit native compatibility guards; never bypass them to drop source data. Source
   manual cash declarations retain date-only precision, original CSV and cross-store
   ID/evidence verification. Test with synthetic isolated workspaces only.
+- Optional sources-profile changes: read [source lifecycle](docs/web-v2-sources.md) and
+  [explicit native acceptance](docs/development.md#optional-source-profile-acceptance).
+  Keep0001/0002 providers byte-identical, ordinary finance access read-only and
+  catalog metadata inert. Only the explicit0003 profile may expose source routes;
+  test-only containment is not production upload/booking authority.
 - Parser author/build/install acceptance: [SDK guide](docs/parser-sdk.md); preserve nonbooking v1 limits and audit wheel/sdist contents.
 - Planned work: [TODO](TODO.md), [source adapters](docs/source-adapters.md),
   [self-hosted web app](docs/self-hosted-webapp.md).

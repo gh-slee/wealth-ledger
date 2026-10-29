@@ -57,8 +57,12 @@ class Passwords:
 class Auth:
     def __init__(self, settings):
         self.settings = settings
-        self.store = IdentityStore(settings.identity)
-        self.financial = Database(settings.financial, schema_mode='identity')
+        self.store = IdentityStore(settings.identity,schema_mode=getattr(settings,"schema_profile","identity"))
+        self.financial = Database(settings.financial, schema_mode=getattr(settings,'schema_profile','identity'))
+        self.sources = None
+        if getattr(settings,'schema_profile','identity')=='sources':
+            from wealth_ledger.persistence.source_store import SourceStore
+            self.sources = SourceStore(settings.identity,settings.source_catalog)
         self.passwords = Passwords()
         try:
             self.ready()
@@ -69,6 +73,8 @@ class Auth:
     def close(self):
         self.store.close()
         self.financial.close()
+        if self.sources is not None:
+            self.sources.close()
 
     def instance(self):
         state = self.store.status()
@@ -79,13 +85,22 @@ class Auth:
     def ready(self):
         try:
             left = self.instance()
-            if role_inventory(self.store.database, gateway=True) == role_inventory(self.financial, gateway=False):
+            gateway_role=role_inventory(self.store.database,gateway=True)
+            runtime_role=role_inventory(self.financial,gateway=False)
+            if gateway_role == runtime_role:
                 raise IdentityError()
             with self.financial.engine.begin() as conn:
                 right = execute(conn, REALM_SNAPSHOT).mappings().one()
-            if (any(left[k] != right[k] for k in REALM_KEYS) or right['revision'] != '0002_identity'
+            if (any(left[k] != right[k] for k in REALM_KEYS) or right['revision'] != self.financial.revision
                     or right['ready'] is not True):
                 raise IdentityError()
+            if self.sources is not None:
+                from wealth_ledger.persistence.source_migration import verify_inventory
+                with self.financial.engine.begin() as conn:
+                    verify_inventory(conn,runtime_role=runtime_role,gateway_role=gateway_role)
+                    saved=execute(conn,'SELECT digest FROM wl_sources.catalog_state WHERE id=1').scalar_one()
+                    if saved!=self.sources.catalog_digest:
+                        raise IdentityError()
             return True
         except Exception:
             raise IdentityError() from None
@@ -204,3 +219,9 @@ class Auth:
             return value
         except PersistenceError:
             raise IdentityError() from None
+
+
+    def source(self, principal, name, payload, *, deadline):
+        if self.sources is None:
+            raise RequestError('not_found',404)
+        return self.sources.call(name,principal,payload,deadline=deadline)

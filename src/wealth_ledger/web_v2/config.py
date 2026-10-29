@@ -41,9 +41,18 @@ class Settings:
     financial: object=field(repr=False)
     key: bytes=field(repr=False)
     origin: str
+    schema_profile: str="identity"
+    source_catalog: object=field(default=None,repr=False)
 
     def __post_init__(self):
         try:
+            if self.schema_profile not in {'identity','sources'}:
+                raise ValueError()
+            if self.schema_profile=='sources':
+                from wealth_ledger.data_sources.catalog_v1 import validate_catalog
+                validate_catalog(self.source_catalog)
+            elif self.source_catalog is not None:
+                raise ValueError()
             if any(name.startswith('PG') and value for name,value in os.environ.items()):
                 raise ValueError()
             left=connection_options(self.identity);right=connection_options(self.financial)
@@ -60,10 +69,14 @@ class Settings:
             raise ValueError('Invalid explicit identity configuration') from None
 
     @classmethod
-    def from_files(cls,identity_file,financial_file,key_file,origin,*,pool_size=5):
+    def from_files(cls,identity_file,financial_file,key_file,origin,*,pool_size=5,schema_profile="identity",source_catalog_file=None):
         from wealth_ledger.persistence.config import PostgresConfig
+        if (schema_profile=='sources') != (source_catalog_file is not None):
+            raise ValueError('Explicit source catalog/profile required')
+        from wealth_ledger.data_sources.catalog_v1 import read_catalog_file
+        catalog=read_catalog_file(source_catalog_file) if source_catalog_file is not None else None
         return cls(PostgresConfig.from_secret_file(identity_file,pool_size=pool_size),
-                   PostgresConfig.from_secret_file(financial_file,pool_size=pool_size),private_bytes(key_file,32),origin)
+                   PostgresConfig.from_secret_file(financial_file,pool_size=pool_size),private_bytes(key_file,32),origin,schema_profile,catalog)
 
     @property
     def host(self):

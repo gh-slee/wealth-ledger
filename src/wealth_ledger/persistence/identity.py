@@ -100,8 +100,10 @@ class Principal:
 
 class IdentityStore:
     """Each expected business rejection commits its sampled clock before mapping."""
-    def __init__(self, config):
-        self.database=Database(config,schema_mode='identity')
+    def __init__(self, config, *, schema_mode="identity"):
+        if schema_mode not in {"identity", "sources"}:
+            raise IdentityError()
+        self.database=Database(config,schema_mode=schema_mode)
 
     def close(self):
         self.database.close()
@@ -151,7 +153,7 @@ class IdentityStore:
     def status(self):
         value=self.call('identity_status_v1')
         required=set(REALM_KEYS)|{'ready','schema_revision','key_digest','bootstrap_closed','admin_user_id'}
-        if (set(value)!=required or value['schema_revision']!='0002_identity' or value['ready'] is not True
+        if (set(value)!=required or value['schema_revision']!=self.database.revision or value['ready'] is not True
                 or type(value['bootstrap_closed']) is not bool or value['bootstrap_closed']!=(value['admin_user_id'] is not None)
                 or type(value['key_digest']) is not str or not re.fullmatch(r'[0-9a-f]{64}',value['key_digest'])):
             raise IdentityError()
@@ -167,11 +169,24 @@ class IdentityStore:
         raise IdentityError()
 
 
-def role_inventory(database, *, gateway):
+def role_inventory(database, *, gateway, connection=None, role=None):
     """Inspect effective rights, including PUBLIC/column grants and memberships."""
     from .context import execute
+    from contextlib import nullcontext
+    class CatalogRole:
+        # A metadata-only view for a trusted operator to inspect another fixed
+        # runtime role without SET ROLE or requiring that role's password.
+        def __init__(self, raw, name):
+            if type(name) is not str or not re.fullmatch(r'[a-z][a-z0-9_]{0,62}',name):
+                raise IdentityError()
+            self.raw,self.name=raw,name
+        def execute(self,statement,parameters=None):
+            from sqlalchemy import text
+            sql=statement.text.replace('current_user','CAST(:inventory_role AS name)')
+            return self.raw.execute(text(sql),{**(parameters or {}),'inventory_role':self.name})
     try:
-        with database.engine.begin() as conn:
+        with (database.engine.begin() if connection is None else nullcontext(connection)) as checked:
+            conn=CatalogRole(checked,role) if role is not None else checked
             role=execute(conn,"""SELECT current_user AS name,r.rolsuper,r.rolbypassrls,r.rolcreatedb,r.rolcreaterole,
               EXISTS(SELECT 1 FROM pg_auth_members WHERE member=r.oid) AS member,
               EXISTS(SELECT 1 FROM pg_namespace WHERE nspname IN ('wl_identity','wl_pg') AND nspowner=r.oid)
@@ -227,6 +242,9 @@ def role_inventory(database, *, gateway):
                         if (column['writable']!=insertable or column['changeable']!=(column['attname'] in updates.get(table,set()))
                                 or column['referenceable']):
                             raise IdentityError()
+            if database.schema_mode=='sources':
+                from .source_store import source_role_inventory
+                source_role_inventory(conn,gateway=gateway)
             return role['name']
     except IdentityError:
         raise

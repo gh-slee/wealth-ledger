@@ -98,6 +98,36 @@ def cleanup_environment(path):
     return {'synthetic_resources_removed':True,'private_evidence_directory_preserved':True}
 
 
+
+def source_test_artifact(image,context_manifest,output):
+    """Explicit test-host proof from an audited context; no ambient discovery."""
+    import hashlib
+    import re
+    import tomllib
+    from wealth_ledger.data_sources.contract_v1 import canonical
+    from wealth_ledger.data_sources.catalog_v1 import verify_installation
+    from wealth_ledger.data_sources.compatibility_v1 import builtin_descriptors
+    if not re.fullmatch(r'sha256:[0-9a-f]{64}',image):raise ValueError('invalid_config')
+    manifest=json.loads(Path(context_manifest).read_bytes())
+    files=[]
+    for name,digest in sorted(manifest['files'].items()):
+        if not name.startswith('src/wealth_ledger/'):continue
+        path=Path(name)
+        if path.is_absolute() or '..' in path.parts or '__pycache__' in path.parts or (ROOT/path).is_symlink():raise ValueError('invalid_config')
+        if hashlib.sha256((ROOT/path).read_bytes()).hexdigest()!=digest:raise ValueError('invalid_config')
+        files.append({'path':name[4:],'sha256':digest})
+    if not files:raise ValueError('invalid_config')
+    project=tomllib.loads((ROOT/'pyproject.toml').read_text())['project']
+    raw=canonical({'format':'source-content-v1','package_distribution':project['name'],'package_version':project['version'],
+        'entry_points':[{'name':'wealthsimple.holdings','target':'wealth_ledger.source_builtin:registrations'},
+                        {'name':'bullbitcoin.orders','target':'wealth_ledger.source_builtin:registrations'}], 'files':files})
+    descriptors=builtin_descriptors(package_distribution=project['name'],package_version=project['version'],
+        artifact_sha256=hashlib.sha256(raw).hexdigest(),execution_image_digest=image[7:],entry_point_target='wealth_ledger.source_builtin:registrations')
+    for descriptor in descriptors:verify_installation(descriptor,raw,image_root='/app/src')
+    _private(Path(output),raw)
+    return {'synthetic':True,'artifact_file':str(output),'files':len(files),'image_id':image}
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     commands=parser.add_subparsers(dest='command',required=True)
@@ -107,11 +137,16 @@ def main():
     commands.add_parser('test-environment').add_argument('--output',required=True,type=Path)
     commands.add_parser('test-identity-environment').add_argument('--output',required=True,type=Path)
     commands.add_parser('cleanup-test-environment').add_argument('--config',required=True,type=Path)
+    artifact=commands.add_parser('test-source-artifact')
+    artifact.add_argument('--image',required=True)
+    artifact.add_argument('--context-manifest',required=True,type=Path)
+    artifact.add_argument('--output',required=True,type=Path)
     args=parser.parse_args()
     try:
         if args.command=='test-environment':result=test_environment(args.output)
         elif args.command=='test-identity-environment':result=test_environment(args.output,identity=True)
         elif args.command=='cleanup-test-environment':result=cleanup_environment(args.config)
+        elif args.command=='test-source-artifact':result=source_test_artifact(args.image,args.context_manifest,args.output)
         else:
             from wealth_ledger.persistence.config import PostgresConfig
             from wealth_ledger.persistence.context import Database

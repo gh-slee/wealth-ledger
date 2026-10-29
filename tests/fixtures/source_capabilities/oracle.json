@@ -1,0 +1,773 @@
+{
+  "provenance": "Wholly invented approved source-contract vectors, independently reviewed before implementation; no real financial inputs",
+  "contexts": [
+    {
+      "name": "parser2_availability1",
+      "primitive": {
+        "context_version": 1,
+        "realm": {
+          "database": "synthetic_db",
+          "database_oid": "101",
+          "server_address": "127.0.0.1",
+          "server_port": 5432,
+          "incarnation": "44444444-4444-4444-8444-444444444444",
+          "restore_epoch": "0"
+        },
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection": {
+          "id": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "kind": "connection",
+            "value": "33333333-3333-4333-8333-333333333333"
+          },
+          "provider": "demo",
+          "kind": "FILE_IMPORT"
+        },
+        "connection_version": "c69b5aff63accae019652b06257747651128cb69d94b057802bd52233cd6143c",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "1",
+        "installation_descriptor": {
+          "descriptor_version": 1,
+          "plugin_id": "demo",
+          "provider_id": "demo",
+          "adapter_id": "demo.holdings",
+          "package_distribution": "synthetic-source",
+          "package_version": "1.0.0",
+          "entry_point_name": "demo.holdings",
+          "entry_point_target": "synthetic_source:factory",
+          "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+          "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+          "source_contract_version": 1,
+          "domain_contract_version": 1,
+          "parser_api_version": 2,
+          "payload_kind": "parser_v2",
+          "capabilities": [
+            "FILE_IMPORT"
+          ],
+          "format_versions": [
+            "demo-file-v1"
+          ],
+          "asset_categories": [
+            "SECURITY"
+          ],
+          "alias_policy": "forbidden",
+          "execution_profile": "reviewed-file-v1"
+        },
+        "installation_id": "07860633e05aaeacec357ee687c8512893b13667b4f5f2ca387d2333ec61daf9",
+        "transport": "FILE_IMPORT",
+        "format_version": "demo-file-v1",
+        "mapping_revision": "mapping-v1",
+        "evidence_reference": "synthetic-é-context",
+        "parse_context": {
+          "codec": "parser2_context_v1",
+          "value": {
+            "evidence_at": "2024-03-01T12:00:00+00:00",
+            "source_reference": "synthetic-é-context",
+            "account_alias": null,
+            "source_timezone": null,
+            "format_selection": null,
+            "revisions": [],
+            "scope_revisions": []
+          }
+        },
+        "binding_context": {
+          "codec": "bridge_context_v1",
+          "value": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "source_connection": {
+              "tenant_id": "11111111-1111-4111-8111-111111111111",
+              "portfolio_id": "22222222-2222-4222-8222-222222222222",
+              "kind": "connection",
+              "value": "33333333-3333-4333-8333-333333333333"
+            },
+            "connections": [
+              {
+                "id": {
+                  "tenant_id": "11111111-1111-4111-8111-111111111111",
+                  "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                  "kind": "connection",
+                  "value": "33333333-3333-4333-8333-333333333333"
+                },
+                "provider": "demo",
+                "kind": "FILE_IMPORT"
+              }
+            ],
+            "accounts": [],
+            "aliases": [],
+            "instruments": [],
+            "issuers": [],
+            "facts": [],
+            "snapshots": [],
+            "leg_roles": [],
+            "mapping_revision": "mapping-v1",
+            "evidence_reference": "synthetic-é-context",
+            "imported_at": null,
+            "accepted_at": null
+          }
+        },
+        "expected_provenance": {
+          "raw_sha256": "9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c",
+          "canonical_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "provider": "demo",
+          "adapter": "demo.holdings",
+          "adapter_version": "1.0.0",
+          "export_version": "demo-file-v1",
+          "evidence_reference": "synthetic-é-context",
+          "source_effective_at": null,
+          "evidence_at": {
+            "token": "2024-03-01T12:00:00+00:00",
+            "zone": "UTC",
+            "fractional_digits": 0,
+            "tag": "instant"
+          },
+          "imported_at": null,
+          "accepted_at": null,
+          "legacy": null
+        }
+      },
+      "canonical_utf8": "{\"availability_generation\":\"1\",\"binding_context\":{\"codec\":\"bridge_context_v1\",\"value\":{\"accepted_at\":null,\"accounts\":[],\"aliases\":[],\"connections\":[{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"33333333-3333-4333-8333-333333333333\"},\"kind\":\"FILE_IMPORT\",\"provider\":\"demo\"}],\"evidence_reference\":\"synthetic-é-context\",\"facts\":[],\"imported_at\":null,\"instruments\":[],\"issuers\":[],\"leg_roles\":[],\"mapping_revision\":\"mapping-v1\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"snapshots\":[],\"source_connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"33333333-3333-4333-8333-333333333333\"},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\"}},\"connection\":{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"33333333-3333-4333-8333-333333333333\"},\"kind\":\"FILE_IMPORT\",\"provider\":\"demo\"},\"connection_generation\":\"0\",\"connection_version\":\"c69b5aff63accae019652b06257747651128cb69d94b057802bd52233cd6143c\",\"context_version\":1,\"enablement_generation\":\"1\",\"evidence_reference\":\"synthetic-é-context\",\"expected_provenance\":{\"accepted_at\":null,\"adapter\":\"demo.holdings\",\"adapter_version\":\"1.0.0\",\"canonical_sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"evidence_at\":{\"fractional_digits\":0,\"tag\":\"instant\",\"token\":\"2024-03-01T12:00:00+00:00\",\"zone\":\"UTC\"},\"evidence_reference\":\"synthetic-é-context\",\"export_version\":\"demo-file-v1\",\"imported_at\":null,\"legacy\":null,\"provider\":\"demo\",\"raw_sha256\":\"9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c\",\"source_effective_at\":null},\"format_version\":\"demo-file-v1\",\"installation_descriptor\":{\"adapter_id\":\"demo.holdings\",\"alias_policy\":\"forbidden\",\"artifact_sha256\":\"c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b\",\"asset_categories\":[\"SECURITY\"],\"capabilities\":[\"FILE_IMPORT\"],\"descriptor_version\":1,\"domain_contract_version\":1,\"entry_point_name\":\"demo.holdings\",\"entry_point_target\":\"synthetic_source:factory\",\"execution_image_digest\":\"8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9\",\"execution_profile\":\"reviewed-file-v1\",\"format_versions\":[\"demo-file-v1\"],\"package_distribution\":\"synthetic-source\",\"package_version\":\"1.0.0\",\"parser_api_version\":2,\"payload_kind\":\"parser_v2\",\"plugin_id\":\"demo\",\"provider_id\":\"demo\",\"source_contract_version\":1},\"installation_id\":\"07860633e05aaeacec357ee687c8512893b13667b4f5f2ca387d2333ec61daf9\",\"mapping_revision\":\"mapping-v1\",\"parse_context\":{\"codec\":\"parser2_context_v1\",\"value\":{\"account_alias\":null,\"evidence_at\":\"2024-03-01T12:00:00+00:00\",\"format_selection\":null,\"revisions\":[],\"scope_revisions\":[],\"source_reference\":\"synthetic-é-context\",\"source_timezone\":null}},\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"realm\":{\"database\":\"synthetic_db\",\"database_oid\":\"101\",\"incarnation\":\"44444444-4444-4444-8444-444444444444\",\"restore_epoch\":\"0\",\"server_address\":\"127.0.0.1\",\"server_port\":5432},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"transport\":\"FILE_IMPORT\"}",
+      "sha256": "5e2bc92c3a41ae863ff8621ec03b61cc8266d63dc1ec054c39cdc091c1917f43",
+      "fingerprint": {
+        "incarnation": "44444444-4444-4444-8444-444444444444",
+        "restore_epoch": "0",
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection_id": "33333333-3333-4333-8333-333333333333",
+        "connection_version": "c69b5aff63accae019652b06257747651128cb69d94b057802bd52233cd6143c",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "1",
+        "installation_id": "07860633e05aaeacec357ee687c8512893b13667b4f5f2ca387d2333ec61daf9",
+        "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+        "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+        "mapping_revision": "mapping-v1",
+        "context_sha256": "5e2bc92c3a41ae863ff8621ec03b61cc8266d63dc1ec054c39cdc091c1917f43"
+      },
+      "purpose": "Complete parser2-context hash syntax vector, not a valid broker payload acceptance"
+    },
+    {
+      "name": "parser2_availability3",
+      "primitive": {
+        "context_version": 1,
+        "realm": {
+          "database": "synthetic_db",
+          "database_oid": "101",
+          "server_address": "127.0.0.1",
+          "server_port": 5432,
+          "incarnation": "44444444-4444-4444-8444-444444444444",
+          "restore_epoch": "0"
+        },
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection": {
+          "id": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "kind": "connection",
+            "value": "33333333-3333-4333-8333-333333333333"
+          },
+          "provider": "demo",
+          "kind": "FILE_IMPORT"
+        },
+        "connection_version": "c69b5aff63accae019652b06257747651128cb69d94b057802bd52233cd6143c",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "3",
+        "installation_descriptor": {
+          "descriptor_version": 1,
+          "plugin_id": "demo",
+          "provider_id": "demo",
+          "adapter_id": "demo.holdings",
+          "package_distribution": "synthetic-source",
+          "package_version": "1.0.0",
+          "entry_point_name": "demo.holdings",
+          "entry_point_target": "synthetic_source:factory",
+          "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+          "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+          "source_contract_version": 1,
+          "domain_contract_version": 1,
+          "parser_api_version": 2,
+          "payload_kind": "parser_v2",
+          "capabilities": [
+            "FILE_IMPORT"
+          ],
+          "format_versions": [
+            "demo-file-v1"
+          ],
+          "asset_categories": [
+            "SECURITY"
+          ],
+          "alias_policy": "forbidden",
+          "execution_profile": "reviewed-file-v1"
+        },
+        "installation_id": "07860633e05aaeacec357ee687c8512893b13667b4f5f2ca387d2333ec61daf9",
+        "transport": "FILE_IMPORT",
+        "format_version": "demo-file-v1",
+        "mapping_revision": "mapping-v1",
+        "evidence_reference": "synthetic-é-context",
+        "parse_context": {
+          "codec": "parser2_context_v1",
+          "value": {
+            "evidence_at": "2024-03-01T12:00:00+00:00",
+            "source_reference": "synthetic-é-context",
+            "account_alias": null,
+            "source_timezone": null,
+            "format_selection": null,
+            "revisions": [],
+            "scope_revisions": []
+          }
+        },
+        "binding_context": {
+          "codec": "bridge_context_v1",
+          "value": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "source_connection": {
+              "tenant_id": "11111111-1111-4111-8111-111111111111",
+              "portfolio_id": "22222222-2222-4222-8222-222222222222",
+              "kind": "connection",
+              "value": "33333333-3333-4333-8333-333333333333"
+            },
+            "connections": [
+              {
+                "id": {
+                  "tenant_id": "11111111-1111-4111-8111-111111111111",
+                  "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                  "kind": "connection",
+                  "value": "33333333-3333-4333-8333-333333333333"
+                },
+                "provider": "demo",
+                "kind": "FILE_IMPORT"
+              }
+            ],
+            "accounts": [],
+            "aliases": [],
+            "instruments": [],
+            "issuers": [],
+            "facts": [],
+            "snapshots": [],
+            "leg_roles": [],
+            "mapping_revision": "mapping-v1",
+            "evidence_reference": "synthetic-é-context",
+            "imported_at": null,
+            "accepted_at": null
+          }
+        },
+        "expected_provenance": {
+          "raw_sha256": "9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c",
+          "canonical_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "provider": "demo",
+          "adapter": "demo.holdings",
+          "adapter_version": "1.0.0",
+          "export_version": "demo-file-v1",
+          "evidence_reference": "synthetic-é-context",
+          "source_effective_at": null,
+          "evidence_at": {
+            "token": "2024-03-01T12:00:00+00:00",
+            "zone": "UTC",
+            "fractional_digits": 0,
+            "tag": "instant"
+          },
+          "imported_at": null,
+          "accepted_at": null,
+          "legacy": null
+        }
+      },
+      "canonical_utf8": "{\"availability_generation\":\"3\",\"binding_context\":{\"codec\":\"bridge_context_v1\",\"value\":{\"accepted_at\":null,\"accounts\":[],\"aliases\":[],\"connections\":[{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"33333333-3333-4333-8333-333333333333\"},\"kind\":\"FILE_IMPORT\",\"provider\":\"demo\"}],\"evidence_reference\":\"synthetic-é-context\",\"facts\":[],\"imported_at\":null,\"instruments\":[],\"issuers\":[],\"leg_roles\":[],\"mapping_revision\":\"mapping-v1\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"snapshots\":[],\"source_connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"33333333-3333-4333-8333-333333333333\"},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\"}},\"connection\":{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"33333333-3333-4333-8333-333333333333\"},\"kind\":\"FILE_IMPORT\",\"provider\":\"demo\"},\"connection_generation\":\"0\",\"connection_version\":\"c69b5aff63accae019652b06257747651128cb69d94b057802bd52233cd6143c\",\"context_version\":1,\"enablement_generation\":\"1\",\"evidence_reference\":\"synthetic-é-context\",\"expected_provenance\":{\"accepted_at\":null,\"adapter\":\"demo.holdings\",\"adapter_version\":\"1.0.0\",\"canonical_sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"evidence_at\":{\"fractional_digits\":0,\"tag\":\"instant\",\"token\":\"2024-03-01T12:00:00+00:00\",\"zone\":\"UTC\"},\"evidence_reference\":\"synthetic-é-context\",\"export_version\":\"demo-file-v1\",\"imported_at\":null,\"legacy\":null,\"provider\":\"demo\",\"raw_sha256\":\"9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c\",\"source_effective_at\":null},\"format_version\":\"demo-file-v1\",\"installation_descriptor\":{\"adapter_id\":\"demo.holdings\",\"alias_policy\":\"forbidden\",\"artifact_sha256\":\"c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b\",\"asset_categories\":[\"SECURITY\"],\"capabilities\":[\"FILE_IMPORT\"],\"descriptor_version\":1,\"domain_contract_version\":1,\"entry_point_name\":\"demo.holdings\",\"entry_point_target\":\"synthetic_source:factory\",\"execution_image_digest\":\"8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9\",\"execution_profile\":\"reviewed-file-v1\",\"format_versions\":[\"demo-file-v1\"],\"package_distribution\":\"synthetic-source\",\"package_version\":\"1.0.0\",\"parser_api_version\":2,\"payload_kind\":\"parser_v2\",\"plugin_id\":\"demo\",\"provider_id\":\"demo\",\"source_contract_version\":1},\"installation_id\":\"07860633e05aaeacec357ee687c8512893b13667b4f5f2ca387d2333ec61daf9\",\"mapping_revision\":\"mapping-v1\",\"parse_context\":{\"codec\":\"parser2_context_v1\",\"value\":{\"account_alias\":null,\"evidence_at\":\"2024-03-01T12:00:00+00:00\",\"format_selection\":null,\"revisions\":[],\"scope_revisions\":[],\"source_reference\":\"synthetic-é-context\",\"source_timezone\":null}},\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"realm\":{\"database\":\"synthetic_db\",\"database_oid\":\"101\",\"incarnation\":\"44444444-4444-4444-8444-444444444444\",\"restore_epoch\":\"0\",\"server_address\":\"127.0.0.1\",\"server_port\":5432},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"transport\":\"FILE_IMPORT\"}",
+      "sha256": "e4484625bee9b86b563f1fd7d09f14758697fac005626532339186509d8c1109",
+      "fingerprint": {
+        "incarnation": "44444444-4444-4444-8444-444444444444",
+        "restore_epoch": "0",
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection_id": "33333333-3333-4333-8333-333333333333",
+        "connection_version": "c69b5aff63accae019652b06257747651128cb69d94b057802bd52233cd6143c",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "3",
+        "installation_id": "07860633e05aaeacec357ee687c8512893b13667b4f5f2ca387d2333ec61daf9",
+        "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+        "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+        "mapping_revision": "mapping-v1",
+        "context_sha256": "e4484625bee9b86b563f1fd7d09f14758697fac005626532339186509d8c1109"
+      }
+    },
+    {
+      "name": "domain1_test_api",
+      "primitive": {
+        "context_version": 1,
+        "realm": {
+          "database": "synthetic_db",
+          "database_oid": "101",
+          "server_address": "127.0.0.1",
+          "server_port": 5432,
+          "incarnation": "44444444-4444-4444-8444-444444444444",
+          "restore_epoch": "0"
+        },
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection": {
+          "id": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "kind": "connection",
+            "value": "55555555-5555-4555-8555-555555555555"
+          },
+          "provider": "demo",
+          "kind": "PULL_API"
+        },
+        "connection_version": "26a15f5585e9fa1a0e55cd5d07a6766d17ca5f82e0d10947e1c0eb20f0e36163",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "1",
+        "installation_descriptor": {
+          "descriptor_version": 1,
+          "plugin_id": "demo",
+          "provider_id": "demo",
+          "adapter_id": "demo.api",
+          "package_distribution": "synthetic-source",
+          "package_version": "1.0.0",
+          "entry_point_name": "demo.holdings",
+          "entry_point_target": "synthetic_source:factory",
+          "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+          "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+          "source_contract_version": 1,
+          "domain_contract_version": 1,
+          "parser_api_version": null,
+          "payload_kind": "domain_v1",
+          "capabilities": [
+            "PULL_API"
+          ],
+          "format_versions": [
+            "demo-api-v1"
+          ],
+          "asset_categories": [
+            "SECURITY"
+          ],
+          "alias_policy": "forbidden",
+          "execution_profile": "contract-api-v1"
+        },
+        "installation_id": "337888066f9b39df376d9cfe6bed0af41ce79fff8af6e57a20dabcc462fc78d6",
+        "transport": "PULL_API",
+        "format_version": "demo-api-v1",
+        "mapping_revision": "mapping-v1",
+        "evidence_reference": "synthetic-é-context",
+        "parse_context": null,
+        "binding_context": {
+          "codec": "domain_allowed_v1",
+          "value": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "accounts": [],
+            "aliases": [],
+            "instruments": [],
+            "issuers": [],
+            "facts": [],
+            "snapshots": [],
+            "leg_roles": [],
+            "mapping_revision": "mapping-v1",
+            "evidence_reference": "synthetic-é-context",
+            "imported_at": null,
+            "accepted_at": null,
+            "connection": {
+              "id": {
+                "tenant_id": "11111111-1111-4111-8111-111111111111",
+                "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                "kind": "connection",
+                "value": "55555555-5555-4555-8555-555555555555"
+              },
+              "provider": "demo",
+              "kind": "PULL_API"
+            },
+            "reference_graph": {
+              "coverage": [],
+              "snapshots": [],
+              "activities": []
+            }
+          }
+        },
+        "expected_provenance": {
+          "raw_sha256": "9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c",
+          "canonical_sha256": null,
+          "provider": "demo",
+          "adapter": "demo.api",
+          "adapter_version": "1.0.0",
+          "export_version": "demo-api-v1",
+          "evidence_reference": "synthetic-é-context",
+          "source_effective_at": null,
+          "evidence_at": {
+            "token": "2024-03-01T12:00:00+00:00",
+            "zone": "UTC",
+            "fractional_digits": 0,
+            "tag": "instant"
+          },
+          "imported_at": null,
+          "accepted_at": null,
+          "legacy": null
+        }
+      },
+      "canonical_utf8": "{\"availability_generation\":\"1\",\"binding_context\":{\"codec\":\"domain_allowed_v1\",\"value\":{\"accepted_at\":null,\"accounts\":[],\"aliases\":[],\"connection\":{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"PULL_API\",\"provider\":\"demo\"},\"evidence_reference\":\"synthetic-é-context\",\"facts\":[],\"imported_at\":null,\"instruments\":[],\"issuers\":[],\"leg_roles\":[],\"mapping_revision\":\"mapping-v1\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"reference_graph\":{\"activities\":[],\"coverage\":[],\"snapshots\":[]},\"snapshots\":[],\"tenant_id\":\"11111111-1111-4111-8111-111111111111\"}},\"connection\":{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"PULL_API\",\"provider\":\"demo\"},\"connection_generation\":\"0\",\"connection_version\":\"26a15f5585e9fa1a0e55cd5d07a6766d17ca5f82e0d10947e1c0eb20f0e36163\",\"context_version\":1,\"enablement_generation\":\"1\",\"evidence_reference\":\"synthetic-é-context\",\"expected_provenance\":{\"accepted_at\":null,\"adapter\":\"demo.api\",\"adapter_version\":\"1.0.0\",\"canonical_sha256\":null,\"evidence_at\":{\"fractional_digits\":0,\"tag\":\"instant\",\"token\":\"2024-03-01T12:00:00+00:00\",\"zone\":\"UTC\"},\"evidence_reference\":\"synthetic-é-context\",\"export_version\":\"demo-api-v1\",\"imported_at\":null,\"legacy\":null,\"provider\":\"demo\",\"raw_sha256\":\"9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c\",\"source_effective_at\":null},\"format_version\":\"demo-api-v1\",\"installation_descriptor\":{\"adapter_id\":\"demo.api\",\"alias_policy\":\"forbidden\",\"artifact_sha256\":\"c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b\",\"asset_categories\":[\"SECURITY\"],\"capabilities\":[\"PULL_API\"],\"descriptor_version\":1,\"domain_contract_version\":1,\"entry_point_name\":\"demo.holdings\",\"entry_point_target\":\"synthetic_source:factory\",\"execution_image_digest\":\"8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9\",\"execution_profile\":\"contract-api-v1\",\"format_versions\":[\"demo-api-v1\"],\"package_distribution\":\"synthetic-source\",\"package_version\":\"1.0.0\",\"parser_api_version\":null,\"payload_kind\":\"domain_v1\",\"plugin_id\":\"demo\",\"provider_id\":\"demo\",\"source_contract_version\":1},\"installation_id\":\"337888066f9b39df376d9cfe6bed0af41ce79fff8af6e57a20dabcc462fc78d6\",\"mapping_revision\":\"mapping-v1\",\"parse_context\":null,\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"realm\":{\"database\":\"synthetic_db\",\"database_oid\":\"101\",\"incarnation\":\"44444444-4444-4444-8444-444444444444\",\"restore_epoch\":\"0\",\"server_address\":\"127.0.0.1\",\"server_port\":5432},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"transport\":\"PULL_API\"}",
+      "sha256": "0e3676ca960e7df2e5b0a180480afe1bbcba438a5080b8a5d1dcc87e48f65db4",
+      "fingerprint": {
+        "incarnation": "44444444-4444-4444-8444-444444444444",
+        "restore_epoch": "0",
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection_id": "55555555-5555-4555-8555-555555555555",
+        "connection_version": "26a15f5585e9fa1a0e55cd5d07a6766d17ca5f82e0d10947e1c0eb20f0e36163",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "1",
+        "installation_id": "337888066f9b39df376d9cfe6bed0af41ce79fff8af6e57a20dabcc462fc78d6",
+        "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+        "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+        "mapping_revision": "mapping-v1",
+        "context_sha256": "0e3676ca960e7df2e5b0a180480afe1bbcba438a5080b8a5d1dcc87e48f65db4"
+      },
+      "purpose": "Independent PULL_API domain-context syntax fixture, never a production-configured connection"
+    },
+    {
+      "name": "domain1_reference_correction",
+      "primitive": {
+        "context_version": 1,
+        "realm": {
+          "database": "synthetic_db",
+          "database_oid": "101",
+          "server_address": "127.0.0.1",
+          "server_port": 5432,
+          "incarnation": "44444444-4444-4444-8444-444444444444",
+          "restore_epoch": "0"
+        },
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection": {
+          "id": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "kind": "connection",
+            "value": "55555555-5555-4555-8555-555555555555"
+          },
+          "provider": "demo",
+          "kind": "PULL_API"
+        },
+        "connection_version": "26a15f5585e9fa1a0e55cd5d07a6766d17ca5f82e0d10947e1c0eb20f0e36163",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "1",
+        "installation_descriptor": {
+          "descriptor_version": 1,
+          "plugin_id": "demo",
+          "provider_id": "demo",
+          "adapter_id": "demo.api",
+          "package_distribution": "synthetic-source",
+          "package_version": "1.0.0",
+          "entry_point_name": "demo.holdings",
+          "entry_point_target": "synthetic_source:factory",
+          "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+          "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+          "source_contract_version": 1,
+          "domain_contract_version": 1,
+          "parser_api_version": null,
+          "payload_kind": "domain_v1",
+          "capabilities": [
+            "PULL_API"
+          ],
+          "format_versions": [
+            "demo-api-v1"
+          ],
+          "asset_categories": [
+            "SECURITY"
+          ],
+          "alias_policy": "forbidden",
+          "execution_profile": "contract-api-v1"
+        },
+        "installation_id": "337888066f9b39df376d9cfe6bed0af41ce79fff8af6e57a20dabcc462fc78d6",
+        "transport": "PULL_API",
+        "format_version": "demo-api-v1",
+        "mapping_revision": "mapping-v1",
+        "evidence_reference": "synthetic-é-context",
+        "parse_context": null,
+        "binding_context": {
+          "codec": "domain_allowed_v1",
+          "value": {
+            "tenant_id": "11111111-1111-4111-8111-111111111111",
+            "portfolio_id": "22222222-2222-4222-8222-222222222222",
+            "accounts": [
+              {
+                "id": {
+                  "tenant_id": "11111111-1111-4111-8111-111111111111",
+                  "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                  "kind": "account",
+                  "value": "77777777-7777-4777-8777-777777777777"
+                },
+                "category": "non-registered",
+                "role": "investment",
+                "label": "Synthetic account"
+              }
+            ],
+            "aliases": [
+              {
+                "connection": {
+                  "tenant_id": "11111111-1111-4111-8111-111111111111",
+                  "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                  "kind": "connection",
+                  "value": "55555555-5555-4555-8555-555555555555"
+                },
+                "provider": "demo",
+                "source_account_key": "synthetic-account",
+                "account": {
+                  "tenant_id": "11111111-1111-4111-8111-111111111111",
+                  "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                  "kind": "account",
+                  "value": "77777777-7777-4777-8777-777777777777"
+                },
+                "mapping_revision": "mapping-v1",
+                "evidence_reference": "synthetic-é-context"
+              }
+            ],
+            "instruments": [
+              {
+                "id": {
+                  "tenant_id": "11111111-1111-4111-8111-111111111111",
+                  "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                  "kind": "instrument",
+                  "value": "88888888-8888-4888-8888-888888888888"
+                },
+                "kind": "SECURITY",
+                "currency": "CAD",
+                "ticker": "SYNTH",
+                "mic": "XTSE",
+                "symbol": null,
+                "network": null,
+                "settlement_identity": null,
+                "issuer": null,
+                "identifiers": [],
+                "source_descriptor": "Synthetic reference fixture",
+                "evidence_reference": "synthetic-é-context"
+              }
+            ],
+            "issuers": [],
+            "facts": [
+              {
+                "source": {
+                  "connection": {
+                    "tenant_id": "11111111-1111-4111-8111-111111111111",
+                    "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                    "kind": "connection",
+                    "value": "55555555-5555-4555-8555-555555555555"
+                  },
+                  "provider": "demo",
+                  "source_account_key": "synthetic-account",
+                  "kind": "activity",
+                  "source_id": "trade-x",
+                  "observation_id": "",
+                  "revision": "r2",
+                  "record_kind": null
+                },
+                "id": {
+                  "tenant_id": "11111111-1111-4111-8111-111111111111",
+                  "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                  "kind": "fact",
+                  "value": "66666666-6666-4666-8666-666666666666"
+                }
+              }
+            ],
+            "snapshots": [],
+            "leg_roles": [
+              {
+                "source": {
+                  "connection": {
+                    "tenant_id": "11111111-1111-4111-8111-111111111111",
+                    "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                    "kind": "connection",
+                    "value": "55555555-5555-4555-8555-555555555555"
+                  },
+                  "provider": "demo",
+                  "source_account_key": "synthetic-account",
+                  "kind": "activity",
+                  "source_id": "trade-x",
+                  "observation_id": "",
+                  "revision": "r2",
+                  "record_kind": null
+                },
+                "ordinal": 0,
+                "role": "OTHER"
+              }
+            ],
+            "mapping_revision": "mapping-v1",
+            "evidence_reference": "synthetic-é-context",
+            "imported_at": null,
+            "accepted_at": null,
+            "connection": {
+              "id": {
+                "tenant_id": "11111111-1111-4111-8111-111111111111",
+                "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                "kind": "connection",
+                "value": "55555555-5555-4555-8555-555555555555"
+              },
+              "provider": "demo",
+              "kind": "PULL_API"
+            },
+            "reference_graph": {
+              "coverage": [],
+              "snapshots": [],
+              "activities": [
+                {
+                  "identity": {
+                    "id": {
+                      "tenant_id": "11111111-1111-4111-8111-111111111111",
+                      "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                      "kind": "fact",
+                      "value": "66666666-6666-4666-8666-666666666666"
+                    },
+                    "source": {
+                      "connection": {
+                        "tenant_id": "11111111-1111-4111-8111-111111111111",
+                        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                        "kind": "connection",
+                        "value": "55555555-5555-4555-8555-555555555555"
+                      },
+                      "provider": "demo",
+                      "source_account_key": "synthetic-account",
+                      "kind": "activity",
+                      "source_id": "trade-x",
+                      "observation_id": "",
+                      "revision": "r2",
+                      "record_kind": null
+                    },
+                    "change": "correction",
+                    "parent": {
+                      "tenant_id": "11111111-1111-4111-8111-111111111111",
+                      "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                      "selector": {
+                        "connection": {
+                          "tenant_id": "11111111-1111-4111-8111-111111111111",
+                          "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                          "kind": "connection",
+                          "value": "55555555-5555-4555-8555-555555555555"
+                        },
+                        "provider": "demo",
+                        "source_account_key": "synthetic-account",
+                        "kind": "activity",
+                        "source_id": "trade-x",
+                        "observation_id": "",
+                        "revision": "r1",
+                        "record_kind": null
+                      }
+                    }
+                  },
+                  "legs": [
+                    {
+                      "account": {
+                        "tenant_id": "11111111-1111-4111-8111-111111111111",
+                        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                        "kind": "account",
+                        "value": "77777777-7777-4777-8777-777777777777"
+                      },
+                      "instrument": {
+                        "tenant_id": "11111111-1111-4111-8111-111111111111",
+                        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                        "kind": "instrument",
+                        "value": "88888888-8888-4888-8888-888888888888"
+                      },
+                      "role": "OTHER"
+                    }
+                  ],
+                  "fees": null,
+                  "economic_references": [
+                    {
+                      "tenant_id": "11111111-1111-4111-8111-111111111111",
+                      "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                      "selector": {
+                        "connection": {
+                          "tenant_id": "11111111-1111-4111-8111-111111111111",
+                          "portfolio_id": "22222222-2222-4222-8222-222222222222",
+                          "kind": "connection",
+                          "value": "55555555-5555-4555-8555-555555555555"
+                        },
+                        "provider": "demo",
+                        "source_account_key": "synthetic-account",
+                        "kind": "cash_flows",
+                        "source_id": "fund-x",
+                        "observation_id": "",
+                        "revision": "r1",
+                        "record_kind": null
+                      }
+                    }
+                  ],
+                  "transfer_reference": null,
+                  "cash_flow": null
+                }
+              ]
+            }
+          }
+        },
+        "expected_provenance": {
+          "raw_sha256": "9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c",
+          "canonical_sha256": null,
+          "provider": "demo",
+          "adapter": "demo.api",
+          "adapter_version": "1.0.0",
+          "export_version": "demo-api-v1",
+          "evidence_reference": "synthetic-é-context",
+          "source_effective_at": null,
+          "evidence_at": {
+            "token": "2024-03-01T12:00:00+00:00",
+            "zone": "UTC",
+            "fractional_digits": 0,
+            "tag": "instant"
+          },
+          "imported_at": null,
+          "accepted_at": null,
+          "legacy": null
+        }
+      },
+      "canonical_utf8": "{\"availability_generation\":\"1\",\"binding_context\":{\"codec\":\"domain_allowed_v1\",\"value\":{\"accepted_at\":null,\"accounts\":[{\"category\":\"non-registered\",\"id\":{\"kind\":\"account\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"77777777-7777-4777-8777-777777777777\"},\"label\":\"Synthetic account\",\"role\":\"investment\"}],\"aliases\":[{\"account\":{\"kind\":\"account\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"77777777-7777-4777-8777-777777777777\"},\"connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"evidence_reference\":\"synthetic-é-context\",\"mapping_revision\":\"mapping-v1\",\"provider\":\"demo\",\"source_account_key\":\"synthetic-account\"}],\"connection\":{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"PULL_API\",\"provider\":\"demo\"},\"evidence_reference\":\"synthetic-é-context\",\"facts\":[{\"id\":{\"kind\":\"fact\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"66666666-6666-4666-8666-666666666666\"},\"source\":{\"connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"activity\",\"observation_id\":\"\",\"provider\":\"demo\",\"record_kind\":null,\"revision\":\"r2\",\"source_account_key\":\"synthetic-account\",\"source_id\":\"trade-x\"}}],\"imported_at\":null,\"instruments\":[{\"currency\":\"CAD\",\"evidence_reference\":\"synthetic-é-context\",\"id\":{\"kind\":\"instrument\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"88888888-8888-4888-8888-888888888888\"},\"identifiers\":[],\"issuer\":null,\"kind\":\"SECURITY\",\"mic\":\"XTSE\",\"network\":null,\"settlement_identity\":null,\"source_descriptor\":\"Synthetic reference fixture\",\"symbol\":null,\"ticker\":\"SYNTH\"}],\"issuers\":[],\"leg_roles\":[{\"ordinal\":0,\"role\":\"OTHER\",\"source\":{\"connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"activity\",\"observation_id\":\"\",\"provider\":\"demo\",\"record_kind\":null,\"revision\":\"r2\",\"source_account_key\":\"synthetic-account\",\"source_id\":\"trade-x\"}}],\"mapping_revision\":\"mapping-v1\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"reference_graph\":{\"activities\":[{\"cash_flow\":null,\"economic_references\":[{\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"selector\":{\"connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"cash_flows\",\"observation_id\":\"\",\"provider\":\"demo\",\"record_kind\":null,\"revision\":\"r1\",\"source_account_key\":\"synthetic-account\",\"source_id\":\"fund-x\"},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\"}],\"fees\":null,\"identity\":{\"change\":\"correction\",\"id\":{\"kind\":\"fact\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"66666666-6666-4666-8666-666666666666\"},\"parent\":{\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"selector\":{\"connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"activity\",\"observation_id\":\"\",\"provider\":\"demo\",\"record_kind\":null,\"revision\":\"r1\",\"source_account_key\":\"synthetic-account\",\"source_id\":\"trade-x\"},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\"},\"source\":{\"connection\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"activity\",\"observation_id\":\"\",\"provider\":\"demo\",\"record_kind\":null,\"revision\":\"r2\",\"source_account_key\":\"synthetic-account\",\"source_id\":\"trade-x\"}},\"legs\":[{\"account\":{\"kind\":\"account\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"77777777-7777-4777-8777-777777777777\"},\"instrument\":{\"kind\":\"instrument\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"88888888-8888-4888-8888-888888888888\"},\"role\":\"OTHER\"}],\"transfer_reference\":null}],\"coverage\":[],\"snapshots\":[]},\"snapshots\":[],\"tenant_id\":\"11111111-1111-4111-8111-111111111111\"}},\"connection\":{\"id\":{\"kind\":\"connection\",\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"value\":\"55555555-5555-4555-8555-555555555555\"},\"kind\":\"PULL_API\",\"provider\":\"demo\"},\"connection_generation\":\"0\",\"connection_version\":\"26a15f5585e9fa1a0e55cd5d07a6766d17ca5f82e0d10947e1c0eb20f0e36163\",\"context_version\":1,\"enablement_generation\":\"1\",\"evidence_reference\":\"synthetic-é-context\",\"expected_provenance\":{\"accepted_at\":null,\"adapter\":\"demo.api\",\"adapter_version\":\"1.0.0\",\"canonical_sha256\":null,\"evidence_at\":{\"fractional_digits\":0,\"tag\":\"instant\",\"token\":\"2024-03-01T12:00:00+00:00\",\"zone\":\"UTC\"},\"evidence_reference\":\"synthetic-é-context\",\"export_version\":\"demo-api-v1\",\"imported_at\":null,\"legacy\":null,\"provider\":\"demo\",\"raw_sha256\":\"9af06be4b1e80ca62559a000c9b44375a6a80b5ed57e755aa5e75a0f1c8d150c\",\"source_effective_at\":null},\"format_version\":\"demo-api-v1\",\"installation_descriptor\":{\"adapter_id\":\"demo.api\",\"alias_policy\":\"forbidden\",\"artifact_sha256\":\"c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b\",\"asset_categories\":[\"SECURITY\"],\"capabilities\":[\"PULL_API\"],\"descriptor_version\":1,\"domain_contract_version\":1,\"entry_point_name\":\"demo.holdings\",\"entry_point_target\":\"synthetic_source:factory\",\"execution_image_digest\":\"8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9\",\"execution_profile\":\"contract-api-v1\",\"format_versions\":[\"demo-api-v1\"],\"package_distribution\":\"synthetic-source\",\"package_version\":\"1.0.0\",\"parser_api_version\":null,\"payload_kind\":\"domain_v1\",\"plugin_id\":\"demo\",\"provider_id\":\"demo\",\"source_contract_version\":1},\"installation_id\":\"337888066f9b39df376d9cfe6bed0af41ce79fff8af6e57a20dabcc462fc78d6\",\"mapping_revision\":\"mapping-v1\",\"parse_context\":null,\"portfolio_id\":\"22222222-2222-4222-8222-222222222222\",\"realm\":{\"database\":\"synthetic_db\",\"database_oid\":\"101\",\"incarnation\":\"44444444-4444-4444-8444-444444444444\",\"restore_epoch\":\"0\",\"server_address\":\"127.0.0.1\",\"server_port\":5432},\"tenant_id\":\"11111111-1111-4111-8111-111111111111\",\"transport\":\"PULL_API\"}",
+      "sha256": "c014150199c6aa08020c2da39457fd81bd489981fbd7503e3bffa5b02a6042e5",
+      "fingerprint": {
+        "incarnation": "44444444-4444-4444-8444-444444444444",
+        "restore_epoch": "0",
+        "tenant_id": "11111111-1111-4111-8111-111111111111",
+        "portfolio_id": "22222222-2222-4222-8222-222222222222",
+        "connection_id": "55555555-5555-4555-8555-555555555555",
+        "connection_version": "26a15f5585e9fa1a0e55cd5d07a6766d17ca5f82e0d10947e1c0eb20f0e36163",
+        "connection_generation": "0",
+        "enablement_generation": "1",
+        "availability_generation": "1",
+        "installation_id": "337888066f9b39df376d9cfe6bed0af41ce79fff8af6e57a20dabcc462fc78d6",
+        "artifact_sha256": "c661efc96ca63878c69dc3db3a90281b5efcae93ee1e7da50f74220e309b146b",
+        "execution_image_digest": "8cb7dce53446f667242ec858bfc5caf8753dbea4a1bb25c2e0427b7721c768b9",
+        "mapping_revision": "mapping-v1",
+        "context_sha256": "c014150199c6aa08020c2da39457fd81bd489981fbd7503e3bffa5b02a6042e5"
+      },
+      "purpose": "Nonempty direct expected reference projection and full context hash syntax fixture, not a decoded financial candidate or accepted historical authority"
+    }
+  ],
+  "payload_precedence": {
+    "raw_byte_hex": "ff",
+    "canonical_base64": "/w==",
+    "correct_sha256": "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89",
+    "wrong_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "bad_hash_for_both_branches": {
+      "namespace": "source_v1",
+      "code": "source_payload_digest_mismatch",
+      "field": "$.envelope.payload_sha256"
+    },
+    "correct_hash_parser2": {
+      "namespace": "source_v1",
+      "code": "source_payload_invalid",
+      "field": "$.envelope.payload_base64"
+    },
+    "correct_hash_domain1": {
+      "namespace": "domain_v1",
+      "code": "domain_invalid_type",
+      "field": "$",
+      "ordinal": null
+    },
+    "tests_executed": []
+  }
+}

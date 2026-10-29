@@ -70,6 +70,19 @@ class PublicationPolicyTests(unittest.TestCase):
                      'tests/fixtures/identity_v2/receipt.json','tests/fixtures/identity_v2/private.csv']:
             self.assertFalse(guard.path_allowed(path),path)
 
+    def test_exact_source_docs_fixture_allowlist_preserves_private_boundaries(self):
+        paths=['docs/web-v2-sources.md','config/source-catalog.example.json']+[
+            'tests/fixtures/source_capabilities/'+name for name in ('catalog.json','oracle.json','Dockerfile','worker.py','fake_api.py','README.md')]
+        for path in paths:
+            self.assertTrue(guard.path_allowed(path),path)
+            self.assertTrue(guard.content_issues(b'PRIVATE_'+b'FINANCIAL_FIXTURE',path))
+            self.assertTrue(guard.content_issues(b'/Users/'+b'example/private.csv',path))
+        for path in ('docs/web-v2-sources.local.md','config/source-catalog.json','config/source-proofs.json',
+            'tests/fixtures/source_capabilities/AGENTS.override.md','tests/fixtures/source_capabilities/operator.conninfo',
+            'tests/fixtures/source_capabilities/private.csv','tests/fixtures/source_capabilities/private.json',
+            'tests/fixtures/source_capabilities/extra.py','tests/fixtures/source_capabilities/image.tar'):
+            self.assertFalse(guard.path_allowed(path),path)
+
     def test_private_and_unknown_paths(self):
         for path in ('data/raw/export.csv', 'reports/report.md', 'backups/history.db',
                      'config/publish.local.toml', 'docs/session-handoff.md', 'private/readme.md',

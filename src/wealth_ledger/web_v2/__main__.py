@@ -18,17 +18,27 @@ def parser():
     serve.add_argument('--port',required=True,type=int)
     serve.add_argument('--tls-cert-file',type=Path)
     serve.add_argument('--tls-key-file',type=Path)
-    for action,operations in [('operator',['migrate-identity']),('identity',['status','finalize-restore']),
+    serve.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
+    serve.add_argument('--source-catalog-file',type=Path)
+    for action,operations in [('operator',['migrate-identity','migrate-sources']),('identity',['status','finalize-restore']),
+                               ('sources',['status','catalog-apply','finalize-restore']),
                                ('setup',['arm','revoke']),('invite',['issue','revoke']),
                                ('account',['reset-password','disable','enable'])]:
         group=commands.add_parser(action).add_subparsers(dest='operation',required=True)
         for operation in operations:
             item=group.add_parser(operation)
             item.add_argument('--secret-file',required=True,type=Path)
-            if operation in {'migrate-identity','finalize-restore'}:
+            if operation in {'migrate-identity','migrate-sources','finalize-restore'} or action=='sources':
                 item.add_argument('--runtime-role',required=True)
                 item.add_argument('--identity-role',required=True)
                 item.add_argument('--key-file',required=True,type=Path)
+            if action in {'setup','invite','account'} or action=='identity' and operation=='status':
+                item.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
+            if action=='sources' or operation=='migrate-sources':
+                item.add_argument('--source-catalog-file',required=True,type=Path)
+                if operation!='status':item.add_argument('--source-proof-file',type=Path)
+            if action=='sources' and operation=='catalog-apply':
+                item.add_argument('--expected-catalog-revision',required=True)
             if operation=='finalize-restore':
                 item.add_argument('--replace-missing-key',action='store_true',help='Only for an isolated restored copy: rebind a newly created private key and quarantine all credentials')
             if operation in {'arm','issue'}:item.add_argument('--output',required=True,type=Path)
@@ -46,7 +56,7 @@ def main(argv=None):
             from .config import Settings
             from .api import create_app
             import uvicorn
-            settings=Settings.from_files(args.identity_file,args.financial_file,args.key_file,args.origin)
+            settings=Settings.from_files(args.identity_file,args.financial_file,args.key_file,args.origin,schema_profile=args.schema_profile,source_catalog_file=args.source_catalog_file)
             import ipaddress
             import ssl
             bind='127.0.0.1' if args.host=='localhost' else args.host
@@ -78,7 +88,7 @@ def main(argv=None):
         permitted={'operation_failed','invalid_config','invalid_input','private_export_failed',
                    'password_input_required','password_confirmation_failed','migration_target_invalid',
                    'migration_role_required','schema_unsupported','restore_required','counter_exhausted',
-                   'setup_closed','setup_already_armed','setup_not_active','operator_not_found',
+                   'stale_generation','setup_closed','setup_already_armed','setup_not_active','operator_not_found',
                    'invite_not_active','setup_required','instance_not_ready'}
         result={'error':code if code in permitted else 'operation_failed'}
         if isinstance(error,OperatorError) and error.record_id:

@@ -123,8 +123,12 @@ def execute_command(args):
     from wealth_ledger.persistence.identity import IdentityStore
     from wealth_ledger.persistence.migration import migrate_identity, finalize_identity_restore
     from .config import private_bytes
-    store=IdentityStore(PostgresConfig.from_secret_file(args.secret_file))
+    source_action=args.action=='sources' or args.action=='operator' and args.operation=='migrate-sources'
+    profile='sources' if source_action else getattr(args,'schema_profile','identity')
+    store=IdentityStore(PostgresConfig.from_secret_file(args.secret_file),schema_mode=profile)
     try:
+        if source_action:
+            return source_command(args,store)
         if args.action=='operator':
             key=private_bytes(args.key_file,32)
             if len(key)!=32:raise OperatorError('invalid_config')
@@ -156,3 +160,58 @@ def execute_command(args):
         store.call('set_user_enabled_v1',user_id,args.operation=='enable')
         return {'enabled':args.operation=='enable'}
     finally:store.close()
+
+
+
+def source_proofs(catalog,path):
+    """Explicit private host paths only; proof inputs never enter a child or API."""
+    if path is None:return ()
+    from .config import private_bytes
+    from wealth_ledger.data_sources.contract_v1 import load_json,MAX_CONTEXT,installation_id
+    from wealth_ledger.data_sources.catalog_v1 import verify_installation
+    value=load_json(private_bytes(path,MAX_CONTEXT))
+    if type(value) is not dict or set(value)!={'format','installations'} or value['format']!='source-proof-input-v1' or type(value['installations']) is not list:
+        raise OperatorError('invalid_config')
+    by_id={installation_id(descriptor):descriptor for descriptor in catalog.installations}
+    seen=set();proofs=[]
+    for item in value['installations']:
+        if (type(item) is not dict or set(item)!={'installation_id','artifact_file','image_root'}
+                or type(item['installation_id']) is not str or item['installation_id'] not in by_id or item['installation_id'] in seen
+                or type(item['artifact_file']) is not str or not item['artifact_file'] or type(item['image_root']) is not str):
+            raise OperatorError('invalid_config')
+        seen.add(item['installation_id'])
+        artifact=Path(item['artifact_file'])
+        if not artifact.is_absolute():artifact=Path(path).parent/artifact
+        proofs.append(verify_installation(by_id[item['installation_id']],private_bytes(artifact,MAX_CONTEXT),image_root=item['image_root']))
+    return tuple(proofs)
+
+
+def source_command(args,store):
+    from .config import private_bytes
+    from wealth_ledger.data_sources.catalog_v1 import read_catalog_file,catalog_digest
+    from wealth_ledger.data_sources.contract_v1 import counter
+    from wealth_ledger.persistence.source_migration import migrate_sources,apply_catalog,finalize_sources_restore,verify_inventory
+    from wealth_ledger.persistence.context import execute
+    import hmac
+    key=private_bytes(args.key_file,32)
+    if len(key)!=32:raise OperatorError('invalid_config')
+    key_digest=hashlib.sha256(key).hexdigest();catalog=read_catalog_file(args.source_catalog_file)
+    if args.action=='sources' and args.operation=='status':
+        state=store.status()
+        if not hmac.compare_digest(state['key_digest'],key_digest):raise OperatorError('invalid_config')
+        with store.database.engine.begin() as conn:
+            verify_inventory(conn,runtime_role=args.runtime_role,gateway_role=args.identity_role)
+            saved=execute(conn,'SELECT digest FROM wl_sources.catalog_state WHERE id=1').scalar_one()
+            if saved!=catalog_digest(catalog):raise OperatorError('invalid_config')
+        return {'ready':True,'schema_revision':state['schema_revision'],'catalog_revision':catalog.catalog_revision,
+                'catalog_digest':saved,'definitions':len(catalog.definitions),'installations':len(catalog.installations)}
+    proofs=source_proofs(catalog,args.source_proof_file)
+    if args.action=='operator':
+        state=migrate_sources(store.database,args.runtime_role,args.identity_role,key_digest,catalog,proofs=proofs)
+        return {'ready':state['ready'],'schema_revision':state['schema_revision'],'catalog_revision':catalog.catalog_revision}
+    if args.operation=='catalog-apply':
+        state=store.status()
+        if not hmac.compare_digest(state['key_digest'],key_digest):raise OperatorError('invalid_config')
+        return apply_catalog(store.database,args.runtime_role,args.identity_role,catalog,expected_revision=counter(args.expected_catalog_revision),proofs=proofs)
+    state=finalize_sources_restore(store.database,args.runtime_role,args.identity_role,key_digest,catalog,proofs=proofs,replace_missing_key=args.replace_missing_key)
+    return {'ready':state['ready'],'schema_revision':state['schema_revision'],'catalog_revision':catalog.catalog_revision}

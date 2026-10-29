@@ -255,3 +255,14 @@ foundation tests. Run identity SQL/HTTP plus native optional-image acceptance;
 missing opt-in execution is a skip, not a pass. The default SQLite Web/CLI and
 0001 migration/DDL remain unchanged. Do not activate0002 on an existing ledger
 merely to test a source change.
+
+
+## Explicit source lifecycle profile
+
+The local optional0003 implementation is under review; see [sources](web-v2-sources.md)
+for exact migration/catalog/role/restore boundaries. It preserves the frozen0001/
+0002 providers and requires the explicitly selected sources profile. It does not
+activate the current SQLite app, implement financial booking or downgrade safely
+in place. Source metadata uses separate revisions/receipts and restricted gateway
+functions, while the financial request role remains read-only. Database-only
+synthetic double-restore tests do not complete V2 whole-app backup or migration.

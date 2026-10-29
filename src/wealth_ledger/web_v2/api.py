@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse
 from .auth import Auth, RequestError, TOKEN, HEX, digest
 from . import schemas as s
 from wealth_ledger.persistence.identity import IdentityError
+from wealth_ledger.data_sources.lifecycle_v1 import SourceError
 from wealth_ledger.domain.canonical_v1 import DomainBatchV1
 
 SECURITY_HEADERS = {'Cache-Control':'no-store, private', 'Pragma':'no-cache',
@@ -31,6 +32,9 @@ ROUTES = {
 }
 DYNAMIC = ((re.compile(r'/api/v2/(candidate-batches|jobs)/[^/]+\Z'),('GET',)),
            (re.compile(r'/api/v2/admin/invitations/[^/]+/revoke\Z'),('POST',)))
+SOURCE_ROUTES = {'/api/v2/sources':('GET',),'/api/v2/source-connections':('GET','POST')}
+SOURCE_DYNAMIC = ((re.compile(r'/api/v2/sources/[^/]+/capabilities/[^/]+\Z'),('PUT',)),
+                  (re.compile(r'/api/v2/source-connections/[^/]+\Z'),('GET','PUT')))
 ANONYMOUS = {'/api/v2/auth/login','/api/v2/auth/register','/api/v2/auth/setup'}
 
 
@@ -108,7 +112,7 @@ class Boundary:
         async def run():
             try:
                 await self.request(scope,receive,protected_send,entered,request_id)
-            except (RequestError,IdentityError) as error:
+            except (RequestError,IdentityError,SourceError) as error:
                 await error_response(error,request_id,self.settings,language=language)(scope,receive,protected_send)
             except Exception:
                 await error_response(RequestError('internal_error',500),request_id,self.settings,language=language)(scope,receive,protected_send)
@@ -152,6 +156,12 @@ class Boundary:
         methods=ROUTES.get(path)
         if methods is None:
             methods=next((m for pattern,m in DYNAMIC if pattern.fullmatch(path)),None)
+        source_request=False
+        if methods is None and getattr(self.settings,'schema_profile','identity')=='sources':
+            methods=SOURCE_ROUTES.get(path)
+            if methods is None:
+                methods=next((m for pattern,m in SOURCE_DYNAMIC if pattern.fullmatch(path)),None)
+            source_request=methods is not None
         if methods is None:
             raise RequestError('not_found',404)
         if method not in methods:
@@ -203,12 +213,17 @@ class Boundary:
             raise RequestError('authentication_required',401,clear_cookie=True)
         if path.startswith('/api/v2/admin/'):
             self.auth.admin(principal)
+        if source_request:
+            await asyncio.to_thread(self.auth.budget,'source_write' if unsafe else 'source_read',
+                                    scope.get('client',('unknown',0))[0],principal.user_id)
         params=query(scope)
-        if path!='/api/v2/admin/invitations' or method!='GET':
+        source_list=source_request and method=='GET' and path in SOURCE_ROUTES
+        if not source_list and path!='/api/v2/admin/invitations' or method!='GET':
             if params:
                 raise RequestError('invalid_input',422)
         scope.setdefault('state',{}).update(request_id=request_id,token=token,principal=principal,
-                                             peer=scope.get('client',('unknown',0))[0],query=params,language=scope.get('identity_language','en-CA'))
+                                             peer=scope.get('client',('unknown',0))[0],query=params,language=scope.get('identity_language','en-CA'),
+                                             source_request=source_request,source_deadline=entered+20)
         if unsafe:
             content_types=headers.get(b'content-type',[])
             if len(content_types)!=1 or not re.fullmatch(r'application/json(?:\s*;\s*charset=utf-8)?',content_types[0],re.I):
@@ -269,10 +284,11 @@ def create_app(settings):
 
     @app.exception_handler(ResponseValidationError)
     async def invalid_response(request,error):
-        return error_response(IdentityError(),request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
+        return error_response(RequestError('internal_error',500) if getattr(request.state,'source_request',False) else IdentityError(),request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
 
     @app.exception_handler(RequestError)
     @app.exception_handler(IdentityError)
+    @app.exception_handler(SourceError)
     async def bounded_error(request,error):
         return error_response(error,request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
 
@@ -362,6 +378,65 @@ def create_app(settings):
     def revoke(record_id:str,body:s.Empty,request:Request):
         auth.revoke_invite(request.state.principal,checked_uuid(record_id),request.state.peer)
         return Response(status_code=204)
+
+    if getattr(settings,'schema_profile','identity')=='sources':
+        def source_result(request,name,payload):
+            return auth.source(request.state.principal,name,payload,deadline=request.state.source_deadline)
+
+        def source_query(request,*,connections=False):
+            from wealth_ledger.data_sources.contract_v1 import counter,NAMESPACE
+            params=request.state.query
+            if not set(params)<={'limit','after','catalog_revision','state_revision','incarnation','restore_epoch'}:
+                raise RequestError('invalid_input',422)
+            limit=params.get('limit','50')
+            if not re.fullmatch(r'[1-9][0-9]{0,2}',limit) or not 1<=int(limit)<=100:
+                raise RequestError('invalid_input',422)
+            after=params.get('after')
+            tokens={'catalog_revision','state_revision','incarnation','restore_epoch'}
+            if after is None and set(params)&tokens or after is not None and not tokens<=set(params):
+                raise RequestError('invalid_input',422)
+            realm=None
+            try:
+                if after is not None:
+                    if connections:
+                        checked_uuid(after)
+                    elif not NAMESPACE.fullmatch(after):
+                        raise ValueError()
+                    realm={'incarnation':checked_uuid(params['incarnation']),'restore_epoch':counter(params['restore_epoch'])}
+                    counter(params['catalog_revision']);counter(params['state_revision'])
+            except ValueError:
+                raise RequestError('invalid_input',422) from None
+            return {'after':after,'limit':int(limit),'catalog_revision':params.get('catalog_revision'),
+                    'state_revision':params.get('state_revision'),'expected_realm':realm}
+
+        @app.get('/api/v2/sources',response_model=s.SourceCatalogPage,responses=errors)
+        def source_catalog(request:Request):
+            return source_result(request,'sources_catalog_v1',source_query(request))
+
+        @app.get('/api/v2/source-connections',response_model=s.SourceConnectionPage,responses=errors)
+        def source_connections(request:Request):
+            return source_result(request,'sources_connections_v1',source_query(request,connections=True))
+
+        @app.get('/api/v2/source-connections/{record_id}',response_model=s.SourceConnectionRead,responses=errors)
+        def source_connection(record_id:str,request:Request):
+            return source_result(request,'sources_connection_v1',{'connection_id':checked_uuid(record_id)})
+
+        @app.put('/api/v2/sources/{plugin_id}/capabilities/{capability}',response_model=s.SourceEnableMutation,responses=errors)
+        def source_enable(plugin_id:str,capability:str,body:s.SourceEnableRequest,request:Request):
+            if not re.fullmatch(r'[a-z][a-z0-9_.-]{0,63}',plugin_id) or capability not in {'FILE_IMPORT','PULL_API'}:
+                raise RequestError('invalid_input',422)
+            return source_result(request,'set_source_enablement_v1',body.model_dump()|{'plugin_id':plugin_id,'capability':capability})
+
+        @app.post('/api/v2/source-connections',response_model=s.SourceConnectionMutation,status_code=201,responses=errors)
+        def source_create(body:s.SourceCreateRequest,request:Request,response:Response):
+            value=source_result(request,'create_source_connection_v1',body.model_dump())
+            if value.get('replayed') is True:
+                response.status_code=200
+            return value
+
+        @app.put('/api/v2/source-connections/{record_id}',response_model=s.SourceConnectionMutation,responses=errors)
+        def source_update(record_id:str,body:s.SourceUpdateRequest,request:Request):
+            return source_result(request,'update_source_connection_v1',body.model_dump()|{'connection_id':checked_uuid(record_id)})
 
     @app.get('/api/v2/openapi.json',responses=errors)
     def openapi():return app.openapi()

@@ -271,3 +271,19 @@ CSV upload/context/mapping forms now use the default shared preparation core.
 The installed acceptance includes 257 core/source cases, including default routing,
 reusable contexts, corrections and manual source-account flows; plugin13 remains
 a separate independently installed/immutable-image suite.
+
+
+## Optional full-product V2 source contract
+
+The current parser SDK/protocol2 remains supported. The separate, locally
+implemented [source lifecycle profile](web-v2-sources.md) is under review and wraps
+existing parser2 output or direct domain1 payloads in source-transport1. These three
+version numbers have independent meanings. Descriptors bind exact reviewed
+package/artifact/image content; menus read inert metadata rather than executing
+entry points. Minimal child input excludes database/session/realm authority; strict
+host admission remains nonbooking. Direct-domain reference/provenance declarations
+must match caller-owned expected mappings/graphs, not permissions derived from
+candidate output. See [native test fixtures](../tests/fixtures/source_capabilities/README.md)
+for the offline file/API parity recipe. This is not a live connector API, automatic
+plugin marketplace or production V2 uploader. The existing SDK/core wheels contain
+application modules and exclude the synthetic worker/fixture image context.

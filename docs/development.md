@@ -453,3 +453,50 @@ foundation tests. Run identity SQL/HTTP plus native optional-image acceptance;
 missing opt-in execution is a skip, not a pass. The default SQLite Web/CLI and
 0001 migration/DDL remain unchanged. Do not activate0002 on an existing ledger
 merely to test a source change.
+
+## Optional source-profile acceptance
+
+The opt-in0003 source lifecycle is documented in [the operator/API guide](web-v2-sources.md).
+Use the existing `requirements-pg-test.lock`; it adds no runtime AI or Docker SDK.
+Run the source tests against a new explicitly marked synthetic target. The normal
+SQLite service, existing portfolios and ports are never test targets.
+
+```bash
+python scripts/postgres.py test-identity-environment --output work/source-test
+python scripts/docker_context.py --output work/source-runtime-context
+docker build --build-arg WEALTH_LEDGER_POSTGRES=1 \
+  --tag wealth-ledger-source-test:local --iidfile work/source-image-id work/source-runtime-context
+export WEALTH_LEDGER_IDENTITY_TEST=1
+export WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/source-test/test-config.json
+export WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE="$(cat work/source-image-id)"
+export WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE="$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE"
+export WEALTH_LEDGER_SOURCE_ARTIFACT_FILE=work/source-test/source-content.json
+export WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT=work/source-runtime-context/context-manifest.json
+export WEALTH_LEDGER_SOURCE_HARNESS_TEST=1
+python scripts/postgres.py test-source-artifact \
+  --image "$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE" \
+  --context-manifest "$WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT" \
+  --output "$WEALTH_LEDGER_SOURCE_ARTIFACT_FILE"
+PYTHONPATH=src:tests python -m unittest \
+  test_source_capabilities test_source_transport test_source_capability_compatibility \
+  test_source_lifecycle test_source_lifecycle_security test_source_lifecycle_races \
+  test_source_lifecycle_restore test_web_v2_sources test_web_v2_native.SourceNativeImage \
+  test_source_harness -v
+python scripts/postgres.py cleanup-test-environment --config "$WEALTH_LEDGER_IDENTITY_TEST_CONFIG"
+```
+
+Use unique new context/target/tag names on later runs; helpers refuse overwriting
+private evidence. A context/image must match current source hashes; rebuild after
+source changes. Keep exact reviewed candidate receipts separate from development
+self-test snapshots. The seven-job workflow adds `postgres-sources` alongside the
+six existing jobs. Its source feature tests must execute without skips. A default
+suite's opt-in skips are not evidence of PostgreSQL/native containment acceptance.
+
+Tests cover strict raw-SQL/HTTP contracts, scoped roles, canonical capacity and
+counter exhaustion, actual16-connection CAS/replay, real post-COMMIT ack loss,
+migration/finalization fault rollback, matching double empty-target restore and
+two real HTTP processes sharing SQL budgets. The running test worker adds native
+file/socket/environment/network/resource/cancellation/cleanup probes and real
+builtin normalization/offline API parity. Read the [frozen test recipe](../tests/fixtures/source_capabilities/README.md).
+It is not a production runner or arbitrary hostile-code sandbox. Final reviewed
+image/independent evidence and actual merged CI remain separate acceptance gates.
