@@ -419,6 +419,12 @@ migration path.
 
 Development setup and detailed maintenance procedures live in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md). Application features remain deterministic code and run independently of development agents. Shared project instructions live in [AGENTS.md](AGENTS.md).
 
+## Support this project
+
+If you find this project useful, consider [sponsoring on GitHub](https://github.com/sponsors/gh-slee) to support ongoing development, bug fixes, testing, documentation, and maintenance.
+
+Sponsorship is entirely optional. All features remain free and open source.
+
 ## License
 
 Code and canonical documentation are [MIT licensed](LICENSE). Bundled fonts and dependencies retain their own licenses; downloaded official data retains its provider's rights. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Project artwork and screenshot provenance are documented in [assets/readme/README.md](assets/readme/README.md).
