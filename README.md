@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml"><img src="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
+  <a href="https://github.com/sponsors/gh-slee"><img src="https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?style=flat-square&amp;logo=githubsponsors&amp;logoColor=white" alt="Sponsor gh-slee on GitHub"></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-149ECA?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React and TypeScript frontend"></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12 or newer"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?style=flat-square&amp;logo=docker&amp;logoColor=white" alt="Docker Compose deployment"></a>
@@ -25,7 +26,8 @@
   <a href="#screenshots">Screenshots</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#documentation">Documentation</a> ·
-  <a href="CONTRIBUTING.md">Contribute</a>
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="#support-this-project">Support</a>
 </p>
 
 Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by the implemented shared parser pipeline. Support for additional institutions and export formats remains planned.
@@ -421,7 +423,11 @@ Development setup and detailed maintenance procedures live in [CONTRIBUTING.md](
 
 ## Support this project
 
-If you find this project useful, consider [sponsoring on GitHub](https://github.com/sponsors/gh-slee) to support ongoing development, bug fixes, testing, documentation, and maintenance.
+I want Wealth Ledger to be a tool you can understand and run for yourself. If it helps you make sense of your investment records, consider supporting the work behind it. Your support helps me spend more time on careful testing, clearer reports and new source adapters.
+
+[❤️ Sponsor on GitHub](https://github.com/sponsors/gh-slee)
+
+You can also help with a [star](https://github.com/gh-slee/wealth-ledger/stargazers), a [bug report](https://github.com/gh-slee/wealth-ledger/issues) or a [contribution](CONTRIBUTING.md). Thank you!
 
 Sponsorship is entirely optional. All features remain free and open source.
 
