@@ -133,6 +133,8 @@ _INDEXES = (
     '{"columns":["purge_at"],"kind":"INDEX","name":"stage_purge_idx","table":"stages"}',
     '{"columns":["purge_at"],"kind":"INDEX","name":"decision_purge_idx","table":"decisions"}',
     '{"columns":["purge_at"],"kind":"INDEX","name":"preview_purge_idx","table":"previews"}',
+    '{"columns":["tenant_id","portfolio_id","parent_id"],"kind":"INDEX","name":"source_revision_parent_idx","table":"source_revisions"}',
+    '{"columns":["tenant_id","portfolio_id","revision_id"],"kind":"INDEX","name":"activity_head_revision_idx","table":"activity_heads"}',
     '{"columns":["worker_id","claim_request_id"],"kind":"UNIQUE_PARTIAL_CLAIM_REQUEST_NOT_NULL","name":"worker_claim_request_uq","table":"leases"}',
 )
 
@@ -1618,12 +1620,13 @@ BEGIN
       body->'identifiers');
     END IF;
    END IF;
-   -- A mapping is identified by its connection and closed source identity.
+   -- A mapping is identified by its connection and closed source identity; a
+   -- free-text instrument descriptor is evidence, not identity (owner decision).
    -- An unchanged target appends nothing; a changed target appends a revision.
    source_key:=pg_catalog.jsonb_build_object('version',1,'tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,
     'connection_id',pin->>'connection_id','entity_kind',kind,'source_identity',CASE WHEN kind='account'
      THEN pg_catalog.jsonb_build_object('source_account_key',source->'source_account_key')
-     ELSE source-ARRAY['local_id','identifier','issuer_local_id'] END);
+     ELSE source-ARRAY['local_id','identifier','issuer_local_id','source_descriptor'] END);
    token:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source_key)),'hex');
    prior_id:=NULL;prior_revision:=0;prior_entity:=NULL;prior_version:=NULL;
    SELECT m.id,m.revision,m.entity_id,m.entity_version INTO prior_id,prior_revision,prior_entity,prior_version
@@ -2577,16 +2580,17 @@ BEGIN
   IF TG_OP='UPDATE' AND (NOT reached OR NOT OLD.active OR target.accepted_change NOT IN ('correction','void')) THEN
    CONFLICT; END IF;
   -- Another group heading any revision of this chain, above, below or beside the
-  -- target, would fork one economic history. UNION also stops on parent cycles.
+  -- target, would fork one economic history. Walk only this tree: up through
+  -- parents, then down every branch by the parent index. UNION stops on cycles.
   IF EXISTS(WITH RECURSIVE mine(id) AS (
     SELECT NEW.revision_id UNION SELECT r.parent_id FROM wl_ingestion.source_revisions r JOIN mine ON r.id=mine.id
      WHERE r.tenant_id=NEW.tenant_id AND r.portfolio_id=NEW.portfolio_id AND r.parent_id IS NOT NULL
-   ), theirs(id) AS (
-    SELECT h.revision_id FROM wl_ingestion.activity_heads h WHERE h.tenant_id=NEW.tenant_id AND
-     h.portfolio_id=NEW.portfolio_id AND h.economic_group_id<>NEW.economic_group_id
-    UNION SELECT r.parent_id FROM wl_ingestion.source_revisions r JOIN theirs ON r.id=theirs.id
-     WHERE r.tenant_id=NEW.tenant_id AND r.portfolio_id=NEW.portfolio_id AND r.parent_id IS NOT NULL
-   ) SELECT 1 FROM mine JOIN theirs USING(id)) THEN CONFLICT; END IF;
+   ), tree(id) AS (
+    SELECT id FROM mine UNION SELECT r.id FROM wl_ingestion.source_revisions r JOIN tree ON r.parent_id=tree.id
+     WHERE r.tenant_id=NEW.tenant_id AND r.portfolio_id=NEW.portfolio_id
+   ) SELECT 1 FROM tree JOIN wl_ingestion.activity_heads h ON h.revision_id=tree.id
+    WHERE h.tenant_id=NEW.tenant_id AND h.portfolio_id=NEW.portfolio_id AND
+     h.economic_group_id<>NEW.economic_group_id) THEN CONFLICT; END IF;
   RETURN NEW;
  END IF;
 

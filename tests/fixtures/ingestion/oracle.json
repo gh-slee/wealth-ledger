@@ -38131,6 +38131,26 @@
       },
       {
         "columns": [
+          "tenant_id",
+          "portfolio_id",
+          "parent_id"
+        ],
+        "kind": "INDEX",
+        "name": "source_revision_parent_idx",
+        "table": "source_revisions"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "portfolio_id",
+          "revision_id"
+        ],
+        "kind": "INDEX",
+        "name": "activity_head_revision_idx",
+        "table": "activity_heads"
+      },
+      {
+        "columns": [
           "worker_id",
           "claim_request_id"
         ],

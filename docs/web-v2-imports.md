@@ -109,8 +109,10 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   credential epochs only increase.
   The `_head_v1` trigger guard keeps heads on authoritative revisions. An
   activity head targets an activity record, is inactive exactly for a void, moves
-  only down its explicit correction chain from an active head, and cannot fork a
-  chain another group already heads or follow a parent cycle. A snapshot head
+  only down its explicit correction chain from an active head, and cannot share
+  any revision of its chain (parent, descendant or sibling) with another group's
+  head or follow a parent cycle. Indexes on revision parents and head targets
+  keep this check limited to the affected chain. A snapshot head
   recomputes its key from the closed canonical instrument scope and account, and
   names only existing scoped instruments. A newer complete observation replaces
   the complete base, a partial one keeps it, and the head cannot move back onto
@@ -123,7 +125,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   every planned fact, mappings, authority links, head compare-and-set updates,
   generation counters, one audit row and at most one outbox event. A mapping is
   identified by its connection and closed source identity, and a changed target
-  appends a revision. An authority decision appends a revision to the latest link
+  appends a revision. A free-text instrument descriptor is evidence, not identity. An authority decision appends a revision to the latest link
   for the same pair. The caller still authenticates, locks, recovers an existing
   receipt, runs `_references_v1`, inserts the receipt with the returned counts
   and changes set and member state. Opt-in PostgreSQL tests accept a base Plan
