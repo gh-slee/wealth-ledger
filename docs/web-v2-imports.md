@@ -141,7 +141,12 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   member's pinned connection, enablement, catalog availability and wrapper
   profile, then runs `_references_v1` and `_effects_v1`. Finally it stores the
   canonical receipt, commits the set and its members, and cancels any live
-  leases. Failures return a fixed code and roll back every effect of the call.
+  leases. Failures return a fixed code and roll back every financial effect of
+  the call. Only an expired set keeps its EXPIRED fencing, which accepts nothing.
+  The receipt is checked again after the set lock wait, the session is rechecked
+  at the database clock, and deferred references are proven before success is
+  returned. Lock-timeout, deadlock and serialization errors reach the caller's
+  retry loop instead of becoming an internal error.
   Opt-in PostgreSQL tests cover commit, exact replay, a reused operation, a new
   operation on a committed set, expiry, source and wrapper changes, request
   shape and a revoked session. Rate admission, grants and the HTTP route are not

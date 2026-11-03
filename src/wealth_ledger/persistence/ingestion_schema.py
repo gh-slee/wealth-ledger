@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import re
 
+from . import identity_schema as _identity
+
 SCHEMA = "wl_ingestion"
 REVISION = "0004_ingestion"
 PREDECESSOR = "0003_source_lifecycle"
@@ -1541,6 +1543,7 @@ DECLARE preview wl_ingestion.previews%ROWTYPE;root wl_ingestion.roots%ROWTYPE;
  key text;local_id text;collection text;kind text;name text;field text;path text[];token text;revision text;
  edit record;input record;n timestamptz;plan_id uuid;input_id uuid;
  prior_id uuid;prior_revision bigint;prior_entity uuid;prior_version text;prior_kind text;prior_reference text;
+ prior_left uuid;prior_right uuid;
  left_id uuid;right_id uuid;head_account uuid;head_version text;
  new_ids text[]:=ARRAY[]::text[];head_keys text[]:=ARRAY[]::text[];
  new_facts bigint:=0;historical_facts bigint:=0;duplicates bigint:=0;
@@ -1556,6 +1559,10 @@ BEGIN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
  payload:=wl_ingestion._validate_plan_v1(p_tenant,p_portfolio,preview.set_id,preview.plan_bytes);
  SELECT * INTO root FROM wl_ingestion.roots WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio FOR UPDATE;
+ -- _validate_plan_v1 also admits a RECONCILING basis; only a READY set is accepted.
+ IF NOT EXISTS(SELECT 1 FROM wl_ingestion.sets s WHERE s.tenant_id=p_tenant AND s.portfolio_id=p_portfolio
+   AND s.id=preview.set_id AND s.state='READY' AND s.revision=preview.set_revision) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
  IF payload->>'preview_id'<>preview.id::text OR root.tenant_id IS NULL OR
   payload->>'expected_accepted_generation'<>root.accepted_generation::text OR
   payload->>'expected_mapping_generation'<>root.mapping_generation::text THEN
@@ -1616,7 +1623,7 @@ BEGIN
    source_key:=pg_catalog.jsonb_build_object('version',1,'tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,
     'connection_id',pin->>'connection_id','entity_kind',kind,'source_identity',CASE WHEN kind='account'
      THEN pg_catalog.jsonb_build_object('source_account_key',source->'source_account_key')
-     ELSE source-ARRAY['local_id','issuer_local_id'] END);
+     ELSE source-ARRAY['local_id','identifier','issuer_local_id'] END);
    token:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source_key)),'hex');
    prior_id:=NULL;prior_revision:=0;prior_entity:=NULL;prior_version:=NULL;
    SELECT m.id,m.revision,m.entity_id,m.entity_version INTO prior_id,prior_revision,prior_entity,prior_version
@@ -1734,13 +1741,15 @@ BEGIN
    IF token IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
    IF field='left' THEN left_id:=token::uuid; ELSE right_id:=token::uuid; END IF;
   END LOOP;
-  prior_id:=NULL;prior_revision:=0;prior_kind:=NULL;prior_reference:=NULL;
-  SELECT a.id,a.revision,a.decision_kind,a.evidence_reference INTO prior_id,prior_revision,prior_kind,prior_reference
+  prior_id:=NULL;prior_revision:=0;prior_kind:=NULL;prior_reference:=NULL;prior_left:=NULL;prior_right:=NULL;
+  SELECT a.id,a.revision,a.decision_kind,a.evidence_reference,a.left_revision_id,a.right_revision_id
+   INTO prior_id,prior_revision,prior_kind,prior_reference,prior_left,prior_right
    FROM wl_ingestion.authority_links a WHERE a.tenant_id=p_tenant AND a.portfolio_id=p_portfolio AND
     ((a.left_revision_id=left_id AND a.right_revision_id IS NOT DISTINCT FROM right_id) OR
      (right_id IS NOT NULL AND a.left_revision_id=right_id AND a.right_revision_id=left_id))
    ORDER BY a.revision DESC LIMIT 1;
-  IF prior_id IS NULL OR prior_kind<>proposal->>'kind' OR prior_reference<>proposal->>'evidence_reference' THEN
+  IF prior_id IS NULL OR prior_kind<>proposal->>'kind' OR prior_reference<>proposal->>'evidence_reference' OR
+   prior_left<>left_id OR prior_right IS DISTINCT FROM right_id THEN
    INSERT INTO wl_ingestion.authority_links(tenant_id,portfolio_id,id,revision,left_revision_id,right_revision_id,
     decision_kind,evidence_reference,evidence_digest,plan_id) VALUES(p_tenant,p_portfolio,
     COALESCE(prior_id,pg_catalog.gen_random_uuid()),COALESCE(prior_revision,0)+1,left_id,right_id,proposal->>'kind',
@@ -1763,7 +1772,8 @@ BEGIN
    'portfolio_id',p_portfolio::text,'receipt_id',p_receipt::text,'accepted_generation',after_accepted::text,
    'mapping_generation',after_mapping::text,'plan_digest',preview.plan_digest,
    'changed_revision_ids',(SELECT COALESCE(pg_catalog.jsonb_agg(x ORDER BY x COLLATE "C"),'[]'::jsonb) FROM pg_catalog.unnest(new_ids) x),
-   'changed_head_keys',(SELECT COALESCE(pg_catalog.jsonb_agg(DISTINCT x),'[]'::jsonb) FROM pg_catalog.unnest(head_keys) x),
+   'changed_head_keys',(SELECT COALESCE(pg_catalog.jsonb_agg(x ORDER BY x COLLATE "C"),'[]'::jsonb)
+    FROM (SELECT DISTINCT x FROM pg_catalog.unnest(head_keys) x) keys),
    'accepted_at',pg_catalog.jsonb_build_object('tag','instant','token',
     pg_catalog.to_char(n AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS')||'+00:00','zone',null,'fractional_digits',0));
   INSERT INTO wl_ingestion.outbox(tenant_id,portfolio_id,id,receipt_id,version,type,accepted_generation,plan_digest,
@@ -1779,6 +1789,7 @@ EXCEPTION WHEN SQLSTATE '22023' THEN
  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
 WHEN unique_violation OR foreign_key_violation THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict';
 WHEN data_exception THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
 WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
 END $effects$;
 REVOKE ALL ON FUNCTION wl_ingestion._effects_v1(uuid,uuid,uuid,uuid) FROM PUBLIC;
@@ -1795,6 +1806,7 @@ DECLARE guard jsonb;st wl_pg.instance_state%ROWTYPE;cs wl_sources.catalog_state%
  selected wl_ingestion.sets%ROWTYPE;member wl_ingestion.members%ROWTYPE;
  cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;
  tenant uuid;portfolio uuid;receipt uuid;plan_id uuid;preview_id uuid;n timestamptz;
+ ss wl_identity.sessions%ROWTYPE;
  request_digest text;code text;result jsonb;catalog jsonb;wrappers jsonb;generation bigint;
 BEGIN
  -- The browser sends only these three opaque fields; finance comes from stored bytes.
@@ -1834,9 +1846,19 @@ BEGIN
  IF preview.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
  PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
  SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview.set_id FOR UPDATE;
+ -- Members, then leases and the preview by ID, before any source, entity or head row.
+ PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=preview.set_id ORDER BY id FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=preview.set_id ORDER BY id FOR UPDATE;
  SELECT * INTO preview FROM wl_ingestion.previews WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview_id FOR SHARE;
  IF preview.id IS NULL OR selected.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ -- A concurrent attempt may have committed this operation while we waited.
+ result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
+  (p_payload->>'operation_id')::uuid,'ACCEPT',request_digest);
+ IF result IS NOT NULL THEN RETURN pg_catalog.jsonb_build_object('ok',true,'value',result); END IF;
  n:=wl_identity._clock_timestamp_v1();
+ -- The session must still be live at the DB clock after every lock wait.
+ SELECT * INTO ss FROM wl_identity.sessions WHERE token_digest=p_digest;
+SESSION_RECHECK
  IF selected.state IN ('RECEIVING','NORMALIZING','RECONCILING','NEEDS_MAPPING','CONFLICT','READY') AND
   (n>=selected.expires_at OR n>=preview.expires_at) THEN
   -- Expiry wins under the set lock; it fences work and accepts nothing.
@@ -1888,7 +1910,7 @@ BEGIN
  receipt:=pg_catalog.gen_random_uuid();
  result:=wl_ingestion._effects_v1(tenant,portfolio,preview.id,receipt);
  SELECT a.id INTO plan_id FROM wl_ingestion.accepted_plans a WHERE a.tenant_id=tenant AND a.portfolio_id=portfolio AND a.receipt_id=receipt;
- n:=pg_catalog.date_trunc('second',wl_identity._clock_timestamp_v1());
+ SELECT a.created_at INTO n FROM wl_ingestion.audit a WHERE a.tenant_id=tenant AND a.portfolio_id=portfolio AND a.receipt_id=receipt;
  result:=result||pg_catalog.jsonb_build_object('id',receipt::text,'kind','ACCEPT','operation_id',p_payload->>'operation_id',
   'origin_incarnation',st.incarnation::text,'origin_restore_epoch',st.restore_epoch::text,
   'created_at',pg_catalog.jsonb_build_object('tag','instant','token',
@@ -1903,6 +1925,8 @@ BEGIN
  UPDATE wl_ingestion.members SET state='committed' WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id;
  UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
   AND set_id=selected.id AND state IN ('offered','active');
+ -- Deferred references are proven here, so a broken acceptance never reports ok:true.
+ SET CONSTRAINTS ACCEPTED_FOREIGN_KEYS IMMEDIATE;
  RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
 EXCEPTION WHEN SQLSTATE '22023' THEN
  -- The failed block rolls back every effect; only a fixed code leaves the database.
@@ -1911,11 +1935,16 @@ EXCEPTION WHEN SQLSTATE '22023' THEN
   'import_evidence_unsupported','import_operation_conflict','import_expired','instance_not_ready') THEN code:='import_invalid'; END IF;
  RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
 WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict');
+WHEN foreign_key_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict');
 WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
 WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
 END $accept$;
 REVOKE ALL ON FUNCTION wl_ingestion.accept_preview_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;
-'''
+'''.replace('SESSION_RECHECK', _identity.check_session()).replace('ACCEPTED_FOREIGN_KEYS', ','.join(
+    'wl_ingestion.' + json.loads(x)['name'] for x in _FOREIGN_KEYS if json.loads(x)['table'] in (
+        'accepted_inputs', 'accepted_plans', 'source_revisions', 'activity_heads', 'snapshot_heads', 'mappings',
+        'authority_links', 'lineage', 'receipts', 'audit', 'outbox')))
 
 
 REPLAY_DDL = r'''
@@ -2349,6 +2378,7 @@ BEGIN
   END IF;
   -- A new raw attempt advances the fence; reserve and bind fill empty fields once.
   IF NEW.fence-OLD.fence NOT IN (0,1) OR
+   (OLD.state='reupload_required' AND NEW.state='receiving' AND NEW.fence<>OLD.fence+1) OR
    ((NEW.raw_digest,NEW.raw_bytes,NEW.raw_deadline) IS DISTINCT FROM
     (OLD.raw_digest,OLD.raw_bytes,OLD.raw_deadline) AND NEW.fence=OLD.fence AND
     NOT (OLD.raw_digest IS NULL AND (OLD.raw_deadline IS NULL OR NEW.raw_deadline=OLD.raw_deadline))) OR
@@ -2457,7 +2487,9 @@ BEGIN
    (NEW.tenant_id,NEW.portfolio_id) IS DISTINCT FROM (OLD.tenant_id,OLD.portfolio_id)) THEN REJECT; END IF;
   -- Only the rate count resets with a 300s window; held bytes/leases/sets never do.
   IF NEW.window_start<>OLD.window_start THEN
-   IF NEW.window_start<OLD.window_start+interval '300 seconds' OR NEW.window_start>n THEN REJECT; END IF;
+   IF NEW.window_start<OLD.window_start+interval '300 seconds' OR NEW.window_start>n OR
+    (NEW.reserved_bytes,NEW.lease_count,NEW.outstanding_sets) IS DISTINCT FROM
+    (OLD.reserved_bytes,OLD.lease_count,OLD.outstanding_sets) THEN REJECT; END IF;
   ELSIF NEW.used_count<OLD.used_count THEN REJECT; END IF;
   RETURN NEW;
 
@@ -2527,10 +2559,17 @@ BEGIN
   END LOOP;
   IF TG_OP='UPDATE' AND (NOT reached OR NOT OLD.active OR target.accepted_change NOT IN ('correction','void')) THEN
    CONFLICT; END IF;
-  -- Another group already heading this chain would fork one economic history.
-  IF EXISTS(SELECT 1 FROM wl_ingestion.activity_heads h WHERE h.tenant_id=NEW.tenant_id AND
-   h.portfolio_id=NEW.portfolio_id AND h.economic_group_id<>NEW.economic_group_id AND
-   h.revision_id=ANY(path)) THEN CONFLICT; END IF;
+  -- Another group heading any revision of this chain, above, below or beside the
+  -- target, would fork one economic history. UNION also stops on parent cycles.
+  IF EXISTS(WITH RECURSIVE mine(id) AS (
+    SELECT NEW.revision_id UNION SELECT r.parent_id FROM wl_ingestion.source_revisions r JOIN mine ON r.id=mine.id
+     WHERE r.tenant_id=NEW.tenant_id AND r.portfolio_id=NEW.portfolio_id AND r.parent_id IS NOT NULL
+   ), theirs(id) AS (
+    SELECT h.revision_id FROM wl_ingestion.activity_heads h WHERE h.tenant_id=NEW.tenant_id AND
+     h.portfolio_id=NEW.portfolio_id AND h.economic_group_id<>NEW.economic_group_id
+    UNION SELECT r.parent_id FROM wl_ingestion.source_revisions r JOIN theirs ON r.id=theirs.id
+     WHERE r.tenant_id=NEW.tenant_id AND r.portfolio_id=NEW.portfolio_id AND r.parent_id IS NOT NULL
+   ) SELECT 1 FROM mine JOIN theirs USING(id)) THEN CONFLICT; END IF;
   RETURN NEW;
  END IF;
 

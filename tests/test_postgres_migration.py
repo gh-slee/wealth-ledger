@@ -1303,6 +1303,7 @@ END $test$;
             member + "state='receiving',raw_deadline=now()+interval '120 seconds',raw_digest='" + '5' * 64 + "',raw_bytes=10" + at1 + ';',
             member + "state='reupload_required'" + at1 + ';',
             self.rejects(member + "state='receiving',raw_digest='" + '6' * 64 + "'" + at1),
+            self.rejects(member + "state='receiving'" + at1),
             self.rejects(member + "state='receiving',fence=3,raw_digest='" + '6' * 64 + "'" + at1),
             member + "state='receiving',fence=2,raw_digest='" + '6' * 64 + "'" + at1 + ';',
             self.rejects(self.lease_row(l1, live, m1, fence=1)),
@@ -1378,6 +1379,7 @@ END $test$;
             quota('control', 'now()', 0), self.rejects(quota('storage', 'now()', 1)),
             self.rejects(quota('storage', "now()+interval '1 minute'", 0)),
             self.rejects(q + "used_count=4 WHERE bucket='raw'"),
+            self.rejects(q + "window_start=now(),used_count=0,reserved_bytes=1 WHERE bucket='raw'"),
             q + "window_start=now(),used_count=0 WHERE bucket='raw';",
             self.rejects(q + "window_start=now(),used_count=0 WHERE bucket='read'"),
             q + "reserved_bytes=10,lease_count=1,used_count=6 WHERE bucket='read';",
@@ -1401,8 +1403,8 @@ END $test$;
 
     def test_head_guard_activity_chains_descend_without_forks_or_cycles(self):
         ids = {name: 'e7000000-0000-4000-8000-0000000000' + str(10 + index)
-               for index, name in enumerate(('A', 'B', 'C', 'Z', 'D', 'H', 'N', 'X', 'Y', 'A2', 'B2', 'C2'))}
-        groups = {name: 'e8000000-0000-4000-8000-00000000000' + str(index) for index, name in enumerate('12345', 1)}
+               for index, name in enumerate(('A', 'B', 'C', 'Z', 'D', 'H', 'N', 'X', 'Y', 'A2', 'B2', 'C2', 'P', 'P1', 'P2'))}
+        groups = {name: 'e8000000-0000-4000-8000-00000000000' + str(index) for index, name in enumerate('1234567', 1)}
         seed = ''.join((
             self.revision_row(ids['A'], number=1),
             self.revision_row(ids['B'], 'correction', ids['A'], number=2),
@@ -1415,7 +1417,10 @@ END $test$;
             self.revision_row(ids['Y'], 'correction', ids['X'], number=9),
             self.revision_row(ids['A2'], number=10),
             self.revision_row(ids['B2'], 'correction', ids['A2'], number=11),
-            self.revision_row(ids['C2'], 'correction', ids['B2'], number=12)))
+            self.revision_row(ids['C2'], 'correction', ids['B2'], number=12),
+            self.revision_row(ids['P'], number=13),
+            self.revision_row(ids['P1'], 'correction', ids['P'], number=14),
+            self.revision_row(ids['P2'], 'correction', ids['P'], number=15)))
         def head(group, target, active=True):
             return self.row('activity_heads', {'tenant_id': self.T, 'portfolio_id': self.P,
                 'economic_group_id': groups[group], 'revision_id': ids[target], 'active': active})
@@ -1439,9 +1444,13 @@ END $test$;
             self.rejects('DELETE FROM wl_ingestion.activity_heads'),
             # A same-set correction path may advance one head over several steps.
             head('5', 'A2'), move('5', 'C2') + ';',
+            # A second group may not head the parent or a sibling of another group's head.
+            head('6', 'P1'),
+            self.rejects(head('7', 'P'), 'import_conflict'),
+            self.rejects(head('7', 'P2'), 'import_conflict'),
             "DO $test$ BEGIN IF (SELECT pg_catalog.string_agg(revision_id::text||':'||active,',' ORDER BY "
             "economic_group_id) FROM wl_ingestion.activity_heads)<>'" + ids['C'] + ':false,' + ids['D'] +
-            ':true,' + ids['C2'] + ":true' THEN RAISE EXCEPTION 'unexpected_heads'; END IF; END $test$;"])
+            ':true,' + ids['C2'] + ':true,' + ids['P1'] + ":true' THEN RAISE EXCEPTION 'unexpected_heads'; END IF; END $test$;"])
 
     def test_head_guard_snapshot_key_scope_complete_base_and_order(self):
         from wealth_ledger.ingestion.codec import encode
@@ -1654,6 +1663,9 @@ END $test$;
         plan = ORACLE['plan-first-use.json']
         first = self.effects_call(plan, 'b0000000-0000-4000-8000-000000000001')
         again = self.effects_call(plan, 'b0000000-0000-4000-8000-0000000000aa')
+        self.sql('BEGIN;' + self._plan_seed(plan) + self._preview_seed(plan) + "UPDATE wl_ingestion.sets SET state='RECONCILING';" +
+            self.rejects('PERFORM ' + first, 'import_stale') + "DO $test$ BEGIN IF (SELECT count(*) FROM "
+            "wl_ingestion.accepted_plans)<>0 THEN RAISE EXCEPTION 'reconciling_accepted'; END IF; END $test$;ROLLBACK;")
         self.sql('BEGIN;' + self._plan_seed(plan) + self._preview_seed(plan) + 'SELECT ' + first + ';' +
             # The advanced generations make the same Plan stale. If a caller
             # skipped that check, the retained Plan digest still blocks reuse.
@@ -1674,7 +1686,7 @@ END $test$;
     # insert guards because the fixed installation IDs have no descriptor bytes.
     SESSION = '1' * 64
 
-    def accept_seed(self, *, expires_in_hours=12, availability='ACTIVE'):
+    def accept_seed(self, *, expires_in_hours=12, availability='ACTIVE', installations=None):
         from copy import deepcopy
         import datetime
         from wealth_ledger.ingestion.codec import encode, digest
@@ -1715,7 +1727,14 @@ INSERT INTO wl_sources.connection_lifecycle VALUES('{tenant}','{portfolio}','{pi
  '{pin['connection_version']}','synthetic.qa','synthetic.qa','FILE_IMPORT','{pin['installation_id']}','Synthetic',NULL,
  true,1,pg_catalog.clock_timestamp(),pg_catalog.clock_timestamp());
 SET LOCAL session_replication_role=origin;
-"""
+CREATE TABLE wl_sources.synthetic_installation_ids(id text PRIMARY KEY);
+ALTER TABLE wl_ingestion.accepted_inputs DROP CONSTRAINT accepted_inputs_installation_fk;
+ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installation_fk FOREIGN KEY(installation_id)
+ REFERENCES wl_sources.synthetic_installation_ids(id) DEFERRABLE INITIALLY DEFERRED;
+""" + ''.join("INSERT INTO wl_sources.synthetic_installation_ids VALUES('" + x + "');"
+              for x in ([pin['installation_id']] if installations is None else installations))
+        # The accepted input FK keeps its name and is still checked inside acceptance;
+        # only its target is a synthetic ID table for these rolled-back markers.
         return plan, seed + self._plan_seed(plan) + self._preview_seed(plan), hashlib.sha256(catalog).hexdigest()
 
     def accept_statement(self, label, payload, catalog_digest, *, session=None):
@@ -1801,6 +1820,12 @@ SET LOCAL session_replication_role=origin;
                 self.assertEqual((0, 0, 0, [0, 0]), (out['STATE']['receipts'], out['STATE']['revisions'],
                                                      out['STATE']['outbox'], out['STATE']['generations']))
                 self.assertEqual('READY' if name != 'needs_mapping' else 'NEEDS_MAPPING', out['STATE']['set'][0])
+        # A deferred reference that would fail at COMMIT is proven inside the call.
+        plan, seed, catalog = self.accept_seed(installations=[])
+        out = self.run_labelled(seed + self.accept_statement('result', dict(payload, preview_digest=digest(plan)), catalog)
+                                + self.STATE)
+        self.assertEqual({'ok': False, 'code': 'import_conflict'}, out['RESULT'])
+        self.assertEqual((0, 0, 0), (out['STATE']['receipts'], out['STATE']['revisions'], out['STATE']['audit']))
         # A revoked catalog installation is unavailable even with a valid digest.
         plan, seed, catalog = self.accept_seed(availability='REVOKED')
         payload = dict(payload, preview_digest=digest(plan))
