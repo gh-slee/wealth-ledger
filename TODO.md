@@ -26,10 +26,11 @@ Codex or local LibreOffice. See the [manual](docs/user-manual.md) and
 ## V2 backend development
 
 - [ ] **WL-P0-007 V2 CSV acceptance**: evidence, review, transport and storage
-  fragments are in progress. Complete the checked PostgreSQL transaction/service,
-  live native admission/preparation, worker/launcher and independent
-  recovery/containment acceptance. Native evidence projection and reviewed-profile
-  token checks have focused synthetic coverage; service integration is unfinished.
+  fragments, the transition and head guards, the single accepted write and the
+  authenticated confirm function have independent review. Still to do: the
+  remaining create/upload/decision/cancel/read and worker functions, quota and
+  purge helpers, the operator `0004` migration and grants, routes, worker and
+  launcher, and recovery/concurrency/containment/restore acceptance.
   No operational V2 import profile is available yet. See [current boundaries](docs/web-v2-imports.md).
 
 ## Self-hosted web app (browser/API/worker workflow implemented)

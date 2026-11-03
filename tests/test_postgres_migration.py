@@ -1661,26 +1661,36 @@ END $test$;
 
     def test_effects_rejects_one_source_identity_mapped_to_two_targets(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest, encode
+        from wealth_ledger.ingestion.codec import digest
+        from wealth_ledger.ingestion.mapping import proposed_body
         plan = deepcopy(ORACLE['plan-first-use.json'])
-        stage_digest = plan['inputs'][0]['stage_digest']
+        member = plan['inputs'][0]['member_id']
         minimal = deepcopy(next(v for v in ORACLE.values() if type(v) is dict and 'provenance' in v
-                                and 'accounts' in v and digest(v) == stage_digest))
-        # A second account with the same source_account_key shares one mapping identity.
-        twin = dict(minimal['accounts'][0], local_id=str(len(minimal['accounts'])), label='Synthetic twin')
-        minimal['accounts'].append(twin)
-        other = next(m for m in plan['mappings'] if m['entity_kind'] == 'account' and
-                     m['target']['id'] != plan['mappings'][0]['target']['id'])
-        plan['mappings'].append({'entity_kind': 'account', 'local_id': twin['local_id'],
-                                 'member_id': plan['inputs'][0]['member_id'], 'target': dict(other['target'], mode='existing')})
+                                and 'accounts' in v and digest(v) == plan['inputs'][0]['stage_digest']))
+        # A BTC twin that differs only by its free-text descriptor shares one
+        # mapping identity, but the Plan proposes a second instrument for it.
+        btc = next(a for a in minimal['assets'] if a['kind'] == 'CRYPTO')
+        twin = dict(btc, local_id=str(len(minimal['assets'])), source_descriptor=btc['source_descriptor'] + ' twin')
+        minimal['assets'].append(twin)
+        twin_id = '40000000-0000-4000-8000-0000000000c1'
+        body = proposed_body(minimal, 'instrument', twin['local_id'], twin_id, plan['tenant_id'],
+                             plan['portfolio_id'], plan['mappings'])
+        plan['mappings'].append({'entity_kind': 'instrument', 'local_id': twin['local_id'], 'member_id': member,
+                                 'target': {'id': twin_id, 'mode': 'proposed', 'version': digest(body)}})
+        plan['new_entities'].append({'id': twin_id, 'kind': 'instrument', 'local_id': twin['local_id'],
+                                     'member_id': member, 'version': digest(body)})
         plan['inputs'][0]['stage_digest'] = digest(minimal)
-        seed = self._plan_seed(plan, stages={digest(minimal): minimal}) + self._preview_seed(plan)
+        decisions = {'version': 1, 'operation_id': '10000000-0000-4000-8000-0000000000c1',
+                     'expected_set_revision': '1', **{k: plan[k] for k in ('mappings', 'new_entities', 'authorities', 'parents')}}
+        plan['decision_digest'] = digest(decisions)
+        seed = (self._plan_seed(plan, decisions=decisions, stages={digest(minimal): minimal}) +
+                self._preview_seed(plan))
         call = self.effects_call(plan, 'b0000000-0000-4000-8000-0000000000bb')
-        # The Plan validator or effects must refuse it; either way nothing is accepted.
-        self.sql('BEGIN;' + seed + 'DO $check$ BEGIN BEGIN PERFORM ' + call + "; RAISE EXCEPTION 'twin_accepted'; "
-                 "EXCEPTION WHEN SQLSTATE '22023' THEN IF SQLERRM NOT IN ('import_conflict','import_invalid','import_stale') "
-                 "THEN RAISE; END IF; END; IF (SELECT count(*) FROM wl_ingestion.mappings)<>0 THEN "
-                 "RAISE EXCEPTION 'twin_mapped'; END IF; END $check$;ROLLBACK;")
+        # The Plan itself validates; only the single accepted write refuses it.
+        self.sql('BEGIN;' + seed + 'SELECT ' + self.references_call(plan)[len('SELECT '):] +
+                 self.rejects('PERFORM ' + call, 'import_conflict') +
+                 "DO $check$ BEGIN IF (SELECT count(*) FROM wl_ingestion.mappings)+(SELECT count(*) FROM "
+                 "wl_ingestion.accepted_plans)<>0 THEN RAISE EXCEPTION 'twin_mapped'; END IF; END $check$;ROLLBACK;")
 
     def test_effects_never_applies_an_accepted_plan_twice_and_is_private(self):
         plan = ORACLE['plan-first-use.json']
