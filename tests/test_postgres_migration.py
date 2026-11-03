@@ -1659,6 +1659,29 @@ END $test$;
         self.assertEqual([[effects['head_digest'], seed['head_target_after'], seed['head_complete_base_after']]],
                          out['HEADS'][0]['snapshot'])
 
+    def test_effects_rejects_one_source_identity_mapped_to_two_targets(self):
+        from copy import deepcopy
+        from wealth_ledger.ingestion.codec import digest, encode
+        plan = deepcopy(ORACLE['plan-first-use.json'])
+        stage_digest = plan['inputs'][0]['stage_digest']
+        minimal = deepcopy(next(v for v in ORACLE.values() if type(v) is dict and 'provenance' in v
+                                and 'accounts' in v and digest(v) == stage_digest))
+        # A second account with the same source_account_key shares one mapping identity.
+        twin = dict(minimal['accounts'][0], local_id=str(len(minimal['accounts'])), label='Synthetic twin')
+        minimal['accounts'].append(twin)
+        other = next(m for m in plan['mappings'] if m['entity_kind'] == 'account' and
+                     m['target']['id'] != plan['mappings'][0]['target']['id'])
+        plan['mappings'].append({'entity_kind': 'account', 'local_id': twin['local_id'],
+                                 'member_id': plan['inputs'][0]['member_id'], 'target': dict(other['target'], mode='existing')})
+        plan['inputs'][0]['stage_digest'] = digest(minimal)
+        seed = self._plan_seed(plan, stages={digest(minimal): minimal}) + self._preview_seed(plan)
+        call = self.effects_call(plan, 'b0000000-0000-4000-8000-0000000000bb')
+        # The Plan validator or effects must refuse it; either way nothing is accepted.
+        self.sql('BEGIN;' + seed + 'DO $check$ BEGIN BEGIN PERFORM ' + call + "; RAISE EXCEPTION 'twin_accepted'; "
+                 "EXCEPTION WHEN SQLSTATE '22023' THEN IF SQLERRM NOT IN ('import_conflict','import_invalid','import_stale') "
+                 "THEN RAISE; END IF; END; IF (SELECT count(*) FROM wl_ingestion.mappings)<>0 THEN "
+                 "RAISE EXCEPTION 'twin_mapped'; END IF; END $check$;ROLLBACK;")
+
     def test_effects_never_applies_an_accepted_plan_twice_and_is_private(self):
         plan = ORACLE['plan-first-use.json']
         first = self.effects_call(plan, 'b0000000-0000-4000-8000-000000000001')
@@ -1773,6 +1796,13 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             self.accept_statement('again', payload, catalog) +
             self.accept_statement('changed', dict(payload, preview_digest='0' * 64), catalog) +
             self.accept_statement('fresh', dict(payload, operation_id='50000000-0000-4000-8000-000000000002'), catalog) +
+            self.accept_statement('wrongplan', dict(payload, operation_id='50000000-0000-4000-8000-000000000005',
+                                                    preview_digest='0' * 64), catalog) +
+            # Cleanup may purge the preview; its permanent receipt still answers.
+            'DELETE FROM wl_ingestion.previews;' +
+            self.accept_statement('purged', dict(payload, operation_id='50000000-0000-4000-8000-000000000006'), catalog) +
+            self.accept_statement('purgedwrong', dict(payload, operation_id='50000000-0000-4000-8000-000000000007',
+                                                      preview_digest='0' * 64), catalog) +
             self.STATE.replace("'STATE '", "'AFTER '"))
         first = out['FIRST']
         self.assertTrue(first['ok'])
@@ -1787,6 +1817,9 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(first, out['AGAIN'])
         self.assertEqual({'ok': False, 'code': 'import_operation_conflict'}, out['CHANGED'])
         self.assertEqual(first, out['FRESH'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['WRONGPLAN'])
+        self.assertEqual(first, out['PURGED'])
+        self.assertEqual({'ok': False, 'code': 'not_found'}, out['PURGEDWRONG'])
         expected = {'set': ['COMMITTED', int(plan['expected_set_revision']) + 1, receipt['id'], 'pending'],
                     'members': ['committed'], 'receipts': 1, 'audit': 1, 'outbox': 1, 'revisions': 3,
                     'generations': [1, 1]}

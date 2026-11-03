@@ -1542,6 +1542,7 @@ DECLARE preview wl_ingestion.previews%ROWTYPE;root wl_ingestion.roots%ROWTYPE;
  identity jsonb;issuer jsonb;material jsonb;materials jsonb;source_key jsonb;source_keys jsonb;
  selector jsonb;children jsonb;ref jsonb;replacement jsonb;effect jsonb;proposal jsonb;item jsonb;event jsonb;
  staged jsonb:='{}'::jsonb;member_refs jsonb:='{}'::jsonb;inputs jsonb:='{}'::jsonb;inserted jsonb:='{}'::jsonb;
+ mapped jsonb:='{}'::jsonb;
  key text;local_id text;collection text;kind text;name text;field text;path text[];token text;revision text;
  edit record;input record;n timestamptz;plan_id uuid;input_id uuid;
  prior_id uuid;prior_revision bigint;prior_entity uuid;prior_version text;prior_kind text;prior_reference text;
@@ -1628,6 +1629,11 @@ BEGIN
      THEN pg_catalog.jsonb_build_object('source_account_key',source->'source_account_key')
      ELSE source-ARRAY['local_id','identifier','issuer_local_id','source_descriptor'] END);
    token:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source_key)),'hex');
+   -- Sources sharing one mapping identity must share one target in a Plan;
+   -- otherwise the mapping history would flip between them.
+   IF mapped ? token AND mapped->token<>(target-'mode') THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+   mapped:=pg_catalog.jsonb_set(mapped,ARRAY[token],target-'mode');
    prior_id:=NULL;prior_revision:=0;prior_entity:=NULL;prior_version:=NULL;
    SELECT m.id,m.revision,m.entity_id,m.entity_version INTO prior_id,prior_revision,prior_entity,prior_version
     FROM wl_ingestion.mappings m WHERE m.tenant_id=p_tenant AND m.portfolio_id=p_portfolio AND
@@ -1846,7 +1852,14 @@ BEGIN
  PERFORM 1 FROM wl_pg.connections WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id,version FOR SHARE;
  PERFORM 1 FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id FOR SHARE;
  SELECT * INTO preview FROM wl_ingestion.previews WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview_id;
- IF preview.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ IF preview.id IS NULL THEN
+  -- After cleanup purges a committed preview, its permanent receipt still answers.
+  SELECT pg_catalog.convert_from(r.result_bytes,'UTF8')::jsonb INTO result FROM wl_ingestion.receipts r
+   WHERE r.tenant_id=tenant AND r.portfolio_id=portfolio AND r.preview_id=(p_payload->>'preview_id')::uuid AND r.operation_kind='ACCEPT'
+    AND r.plan_digest=p_payload->>'preview_digest';
+  IF result IS NOT NULL THEN RETURN pg_catalog.jsonb_build_object('ok',true,'value',result); END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found');
+ END IF;
  PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
  SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview.set_id FOR UPDATE;
  -- Members, then leases and the preview by ID, before any source, entity or head row.
@@ -1874,6 +1887,9 @@ SESSION_RECHECK
   SELECT pg_catalog.convert_from(r.result_bytes,'UTF8')::jsonb INTO result FROM wl_ingestion.receipts r
    WHERE r.tenant_id=tenant AND r.portfolio_id=portfolio AND r.id=selected.receipt_id AND r.operation_kind='ACCEPT';
   IF result IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict'); END IF;
+  -- Only a confirmation of the committed Plan reads its receipt.
+  IF result->>'plan_digest' IS DISTINCT FROM p_payload->>'preview_digest' THEN
+   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
   RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
  END IF;
  IF selected.state IN ('RECEIVING','NORMALIZING','RECONCILING','NEEDS_MAPPING','CONFLICT','READY') AND
