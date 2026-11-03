@@ -1786,6 +1786,138 @@ REVOKE ALL ON FUNCTION wl_ingestion._effects_v1(uuid,uuid,uuid,uuid) FROM PUBLIC
     return header + _plan_material_sql() + facts
 
 
+ACCEPT_DDL = r'''
+CREATE FUNCTION wl_ingestion.accept_preview_v1(p_digest text,p_user uuid,p_version bigint,p_realm jsonb,
+ p_catalog_digest text,p_payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $accept$
+DECLARE guard jsonb;st wl_pg.instance_state%ROWTYPE;cs wl_sources.catalog_state%ROWTYPE;
+ ingestion_state wl_ingestion.instance_state%ROWTYPE;preview wl_ingestion.previews%ROWTYPE;
+ selected wl_ingestion.sets%ROWTYPE;member wl_ingestion.members%ROWTYPE;
+ cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;
+ tenant uuid;portfolio uuid;receipt uuid;plan_id uuid;preview_id uuid;n timestamptz;
+ request_digest text;code text;result jsonb;catalog jsonb;wrappers jsonb;generation bigint;
+BEGIN
+ -- The browser sends only these three opaque fields; finance comes from stored bytes.
+ IF pg_catalog.jsonb_typeof(p_payload) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_payload) ORDER BY 1)<>ARRAY['operation_id','preview_digest','preview_id']::text[] OR
+  pg_catalog.jsonb_typeof(p_payload->'operation_id')<>'string' OR pg_catalog.jsonb_typeof(p_payload->'preview_id')<>'string' OR
+  pg_catalog.jsonb_typeof(p_payload->'preview_digest')<>'string' OR
+  (p_payload->>'operation_id') COLLATE "C" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' OR
+  (p_payload->>'preview_id') COLLATE "C" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' OR
+  p_payload->>'operation_id'='00000000-0000-0000-0000-000000000000' OR
+  p_payload->>'preview_id'='00000000-0000-0000-0000-000000000000' OR
+  (p_payload->>'preview_digest') COLLATE "C" !~ '^[0-9a-f]{64}$' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_user_v1(p_digest,p_user,p_version,p_realm,p_catalog_digest);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ tenant:=(guard#>>'{value,tenant_id}')::uuid;portfolio:=(guard#>>'{value,portfolio_id}')::uuid;
+ preview_id:=(p_payload->>'preview_id')::uuid;
+ SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;
+ request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_payload)),'hex');
+ -- An exact receipt is recovered before any mutable preview, source or expiry check.
+ BEGIN
+  result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
+   (p_payload->>'operation_id')::uuid,'ACCEPT',request_digest);
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  -- The same operation ID with a different request is never a new acceptance.
+  IF SQLERRM='import_conflict' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict'); END IF;
+  RAISE;
+ END;
+ IF result IS NOT NULL THEN RETURN pg_catalog.jsonb_build_object('ok',true,'value',result); END IF;
+ -- Source lifecycle rows, then ingestion root, set and preview, in the declared order.
+ PERFORM 1 FROM wl_sources.lifecycle_roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR SHARE;
+ PERFORM 1 FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY plugin_id,capability FOR SHARE;
+ PERFORM 1 FROM wl_pg.connections WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id,version FOR SHARE;
+ PERFORM 1 FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id FOR SHARE;
+ SELECT * INTO preview FROM wl_ingestion.previews WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview_id;
+ IF preview.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
+ SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview.set_id FOR UPDATE;
+ SELECT * INTO preview FROM wl_ingestion.previews WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview_id FOR SHARE;
+ IF preview.id IS NULL OR selected.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ IF selected.state IN ('RECEIVING','NORMALIZING','RECONCILING','NEEDS_MAPPING','CONFLICT','READY') AND
+  (n>=selected.expires_at OR n>=preview.expires_at) THEN
+  -- Expiry wins under the set lock; it fences work and accepts nothing.
+  IF n>=selected.expires_at THEN
+   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+   UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
+   UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND set_id=selected.id AND state IN ('offered','active');
+  END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_expired');
+ END IF;
+ IF selected.state='EXPIRED' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_expired'); END IF;
+ IF selected.state='NEEDS_MAPPING' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_mapping_required'); END IF;
+ IF selected.state='CONFLICT' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict'); END IF;
+ IF selected.state<>'READY' OR preview.plan_bytes IS NULL OR preview.set_revision<>selected.revision OR
+  preview.plan_digest<>p_payload->>'preview_digest' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+ -- Every member's pinned connection, enablement, availability and wrapper must still be current.
+ SELECT * INTO cs FROM wl_sources.catalog_state WHERE id=1;
+ SELECT * INTO ingestion_state FROM wl_ingestion.instance_state WHERE id=1;
+ catalog:=pg_catalog.convert_from(cs.bundle_bytes,'UTF8')::jsonb;
+ wrappers:=pg_catalog.convert_from(ingestion_state.wrapper_catalog_bytes,'UTF8')::jsonb;
+ FOR member IN SELECT * FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id LOOP
+  SELECT * INTO cl FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=member.connection_id;
+  em:=NULL;
+  IF cl.id IS NOT NULL THEN
+   SELECT * INTO em FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND plugin_id=cl.plugin_id AND capability=cl.capability;
+  END IF;
+  IF cl.id IS NULL OR NOT cl.enabled OR em.plugin_id IS NULL OR NOT em.enabled OR NOT EXISTS(
+    SELECT 1 FROM pg_catalog.jsonb_array_elements(CASE WHEN pg_catalog.jsonb_typeof(catalog->'availability')='array'
+     THEN catalog->'availability' ELSE '[]'::jsonb END) a(value)
+    WHERE a.value->>'installation_id'=member.installation_id AND a.value->>'status'='ACTIVE') OR
+   NOT pg_catalog.jsonb_path_exists(wrappers,'$.** ? (@.profile_digest == $digest && @.installation_id == $installation)',
+    pg_catalog.jsonb_build_object('digest',member.wrapper_profile_digest,'installation',member.installation_id)) THEN
+   RETURN pg_catalog.jsonb_build_object('ok',false,'code','source_unavailable'); END IF;
+  SELECT c.generation INTO generation FROM wl_pg.connections c WHERE c.tenant_id=tenant AND c.portfolio_id=portfolio
+   AND c.id=member.connection_id AND c.version=member.connection_version;
+  IF cl.connection_version<>member.connection_version OR cl.installation_id<>member.installation_id OR
+   em.installation_id<>member.installation_id OR em.generation<>member.enablement_generation OR
+   generation IS DISTINCT FROM member.connection_generation OR NOT EXISTS(
+    SELECT 1 FROM pg_catalog.jsonb_array_elements(catalog->'availability') a(value)
+    WHERE a.value->>'installation_id'=member.installation_id AND a.value->>'status'='ACTIVE' AND
+     a.value->>'availability_generation'=member.availability_generation::text) THEN
+   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+ END LOOP;
+ PERFORM wl_ingestion._references_v1(tenant,portfolio,preview.id);
+ receipt:=pg_catalog.gen_random_uuid();
+ result:=wl_ingestion._effects_v1(tenant,portfolio,preview.id,receipt);
+ SELECT a.id INTO plan_id FROM wl_ingestion.accepted_plans a WHERE a.tenant_id=tenant AND a.portfolio_id=portfolio AND a.receipt_id=receipt;
+ n:=pg_catalog.date_trunc('second',wl_identity._clock_timestamp_v1());
+ result:=result||pg_catalog.jsonb_build_object('id',receipt::text,'kind','ACCEPT','operation_id',p_payload->>'operation_id',
+  'origin_incarnation',st.incarnation::text,'origin_restore_epoch',st.restore_epoch::text,
+  'created_at',pg_catalog.jsonb_build_object('tag','instant','token',
+   pg_catalog.to_char(n AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS')||'+00:00','zone',null,'fractional_digits',0));
+ INSERT INTO wl_ingestion.receipts(tenant_id,portfolio_id,id,incarnation,restore_epoch,operation_id,operation_kind,
+  request_digest,preview_id,accepted_plan_id,plan_digest,result_bytes,created_at) VALUES(tenant,portfolio,receipt,
+  st.incarnation,st.restore_epoch,(p_payload->>'operation_id')::uuid,'ACCEPT',request_digest,preview.id,plan_id,
+  preview.plan_digest,wl_ingestion._canonical_v1(result),n);
+ -- Commit is the financial linearization point; it fences any remaining work.
+ UPDATE wl_ingestion.sets SET state='COMMITTED',revision=revision+1,receipt_id=receipt,cleanup_state='pending'
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+ UPDATE wl_ingestion.members SET state='committed' WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id;
+ UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND set_id=selected.id AND state IN ('offered','active');
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ -- The failed block rolls back every effect; only a fixed code leaves the database.
+ code:=SQLERRM;
+ IF code NOT IN ('import_invalid','import_limit','import_conflict','import_stale','import_mapping_required',
+  'import_evidence_unsupported','import_operation_conflict','import_expired','instance_not_ready') THEN code:='import_invalid'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict');
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $accept$;
+REVOKE ALL ON FUNCTION wl_ingestion.accept_preview_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;
+'''
+
+
 REPLAY_DDL = r'''
 CREATE FUNCTION wl_ingestion._replay_v1(p_tenant uuid,p_portfolio uuid,p_incarnation uuid,
  p_epoch bigint,p_operation uuid,p_kind text,p_request_digest text) RETURNS jsonb

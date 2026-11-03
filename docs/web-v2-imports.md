@@ -131,6 +131,21 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   function, comparing exact row counts, lineage claims, heads, generations and
   events with the literal fixtures. They do not cover the caller-owned receipt
   row, concurrent acceptance or restore.
+  The declared gateway function `accept_preview_v1` takes only `operation_id`,
+  `preview_id` and `preview_digest`. It authenticates through `_guard_user_v1`,
+  then returns an exact earlier receipt before any mutable check. A reused
+  operation ID with a different request returns `import_operation_conflict`. It
+  then locks source lifecycle rows before the ingestion root, set and preview. It
+  marks a set expired once the database clock reaches expiry. It requires a
+  READY set at the previewed revision and the exact Plan digest. It rechecks each
+  member's pinned connection, enablement, catalog availability and wrapper
+  profile, then runs `_references_v1` and `_effects_v1`. Finally it stores the
+  canonical receipt, commits the set and its members, and cancels any live
+  leases. Failures return a fixed code and roll back every effect of the call.
+  Opt-in PostgreSQL tests cover commit, exact replay, a reused operation, a new
+  operation on a committed set, expiry, source and wrapper changes, request
+  shape and a revoked session. Rate admission, grants and the HTTP route are not
+  yet wired.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

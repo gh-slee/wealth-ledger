@@ -123,6 +123,13 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion._effects_v1(uuid,uuid,uuid,uuid) FROM PUBLIC;', effects)
         self.assertEqual(1, effects.count('CREATE FUNCTION'))
         self.assertNotIn('GRANT ', effects)
+        accept = declared['accept_preview_v1']
+        self.assertEqual((['text', 'uuid', 'bigint', 'jsonb', 'text', 'jsonb'], 'jsonb'),
+                         (accept['arguments'], accept['returns']))
+        self.assertIn('accept_preview_v1', schema.GATEWAY)
+        self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.accept_preview_v1(text,uuid,bigint,jsonb,text,jsonb) '
+                      'FROM PUBLIC;', schema.ACCEPT_DDL)
+        self.assertNotIn('GRANT ', schema.ACCEPT_DDL)
         # Acceptance inserts the same entity bodies that Plan validation hashed.
         self.assertIn(schema._ENTITY_BODY_SQL, schema.plan_validator_ddl())
         self.assertIn(schema._ENTITY_BODY_SQL, effects)
@@ -199,7 +206,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + source_schema.ddl() + '\n' + schema.tables_ddl() + '\n' + schema.IMMUTABLE_DDL
                 + '\n' + schema.OUTBOX_GUARD_DDL + '\n' + schema.user_guard_ddl()
                 + '\n' + schema.minimal_validator_ddl() + '\n' + schema.plan_validator_ddl() + '\n' + schema.reference_validator_ddl() + '\n' + schema.REPLAY_DDL
-                + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl())
+                + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl()
+                + '\n' + schema.ACCEPT_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -1660,6 +1668,160 @@ END $test$;
                  'END IF; END $role$;')
         self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
             "'wl_ingestion._effects_v1(uuid,uuid,uuid,uuid)','EXECUTE')"))
+
+    # Authenticated acceptance. Identity, catalog and source rows are rolled-back
+    # synthetic markers like the user-guard test; source rows bypass their own
+    # insert guards because the fixed installation IDs have no descriptor bytes.
+    SESSION = '1' * 64
+
+    def accept_seed(self, *, expires_in_hours=12, availability='ACTIVE'):
+        from copy import deepcopy
+        import datetime
+        from wealth_ledger.ingestion.codec import encode, digest
+        plan = deepcopy(ORACLE['plan-first-use.json'])
+        expires = (datetime.datetime.now(datetime.timezone.utc) +
+                   datetime.timedelta(hours=expires_in_hours)).replace(microsecond=0)
+        plan['expires_at']['token'] = expires.isoformat()
+        pin = plan['pinned_sources'][0]
+        tenant, portfolio = plan['tenant_id'], plan['portfolio_id']
+        catalog = encode({'availability': [{'availability_generation': pin['availability_generation'],
+                                            'installation_id': pin['installation_id'], 'status': availability}]})
+        wrappers = encode([{'installation_id': pin['installation_id'], 'profile_digest': pin['wrapper_profile_digest']}])
+        seed = f"""
+INSERT INTO wl_pg.alembic_version VALUES('0004_ingestion');
+INSERT INTO wl_pg.instance_state VALUES(1,'{self.INCARNATION}',0,true);
+INSERT INTO wl_pg.tenant_roots VALUES('{tenant}','{portfolio}');
+INSERT INTO wl_pg.portfolios(tenant_id,portfolio_id) VALUES('{tenant}','{portfolio}');
+INSERT INTO wl_identity.users(id,portfolio_id,username,username_key,argon_hash,enabled,
+ credential_version,credential_incarnation,credential_epoch,created_at)
+VALUES('{tenant}','{portfolio}','SyntheticAccept','syntheticaccept','synthetic-unused-hash',
+ true,1,'{self.INCARNATION}',0,pg_catalog.clock_timestamp()-interval '2 minutes');
+INSERT INTO wl_identity.instance_auth_state VALUES(1,'{'2' * 64}',
+ pg_catalog.clock_timestamp()-interval '1 minute',true,'{tenant}');
+INSERT INTO wl_identity.sessions
+SELECT '{self.SESSION}','authenticated','{tenant}'::uuid,1,n,n,n+interval '43200 seconds',
+ '{self.INCARNATION}'::uuid,0,false FROM (SELECT pg_catalog.clock_timestamp()-interval '1 minute' AS n) q;
+INSERT INTO wl_sources.catalog_state VALUES(1,0,'{hashlib.sha256(catalog).hexdigest()}',
+ decode('{catalog.hex()}','hex'),pg_catalog.clock_timestamp());
+INSERT INTO wl_ingestion.instance_state VALUES(1,decode('{wrappers.hex()}','hex'),
+ '{hashlib.sha256(wrappers).hexdigest()}','{'3' * 64}',true);
+SET LOCAL session_replication_role=replica;
+INSERT INTO wl_sources.lifecycle_roots VALUES('{tenant}','{portfolio}',1,pg_catalog.clock_timestamp());
+INSERT INTO wl_sources.enablements VALUES('{tenant}','{portfolio}','synthetic.qa','FILE_IMPORT','synthetic.qa',
+ '{pin['installation_id']}',true,1,{pin['enablement_generation']},pg_catalog.clock_timestamp(),pg_catalog.clock_timestamp());
+INSERT INTO wl_pg.connections VALUES('{tenant}','{portfolio}','{pin['connection_id']}','{pin['connection_version']}',
+ '{{}}','synthetic.qa','{hashlib.sha256(b'synthetic.qa').hexdigest()}','FILE_IMPORT',{pin['connection_generation']});
+INSERT INTO wl_sources.connection_lifecycle VALUES('{tenant}','{portfolio}','{pin['connection_id']}',
+ '{pin['connection_version']}','synthetic.qa','synthetic.qa','FILE_IMPORT','{pin['installation_id']}','Synthetic',NULL,
+ true,1,pg_catalog.clock_timestamp(),pg_catalog.clock_timestamp());
+SET LOCAL session_replication_role=origin;
+"""
+        return plan, seed + self._plan_seed(plan) + self._preview_seed(plan), hashlib.sha256(catalog).hexdigest()
+
+    def accept_statement(self, label, payload, catalog_digest, *, session=None):
+        from wealth_ledger.persistence import identity_schema
+        payload_text = json.dumps(payload).replace("'", "''")
+        return ("DO $accept$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
+            "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; "
+            "r:=wl_ingestion.accept_preview_v1('" + (session or self.SESSION) + "','" +
+            ORACLE['plan-first-use.json']['tenant_id'] + "',1," + identity_schema.realm() + ",'" + catalog_digest +
+            "','" + payload_text + "'::jsonb); "
+            "PERFORM pg_catalog.set_config('test." + label + "',r::text,true); END $accept$;"
+            "SELECT '" + label.upper() + " '||pg_catalog.current_setting('test." + label + "');")
+
+    STATE = ("SELECT 'STATE '||pg_catalog.jsonb_build_object('set',(SELECT pg_catalog.jsonb_build_array(state,revision,"
+             "receipt_id,cleanup_state) FROM wl_ingestion.sets),'members',(SELECT pg_catalog.jsonb_agg(state) FROM "
+             "wl_ingestion.members),'receipts',(SELECT count(*) FROM wl_ingestion.receipts),'audit',(SELECT count(*) FROM "
+             "wl_ingestion.audit),'outbox',(SELECT count(*) FROM wl_ingestion.outbox),'revisions',(SELECT count(*) FROM "
+             "wl_ingestion.source_revisions),'generations',(SELECT pg_catalog.jsonb_build_array(accepted_generation,"
+             "mapping_generation) FROM wl_ingestion.roots))::text;")
+
+    def run_labelled(self, script):
+        out = {}
+        for line in self.sql('BEGIN;' + script + 'ROLLBACK;').splitlines():
+            label, _, value = line.partition(' ')
+            if label.isupper() and value.startswith(('{', '[')):
+                out[label] = json.loads(value)
+        return out
+
+    def test_accept_preview_commits_once_and_replays_the_exact_receipt(self):
+        from wealth_ledger.ingestion.codec import digest
+        plan, seed, catalog = self.accept_seed()
+        operation = '50000000-0000-4000-8000-000000000001'
+        payload = {'operation_id': operation, 'preview_id': plan['preview_id'], 'preview_digest': digest(plan)}
+        out = self.run_labelled(seed +
+            self.accept_statement('first', payload, catalog) + self.STATE +
+            self.accept_statement('again', payload, catalog) +
+            self.accept_statement('changed', dict(payload, preview_digest='0' * 64), catalog) +
+            self.accept_statement('fresh', dict(payload, operation_id='50000000-0000-4000-8000-000000000002'), catalog) +
+            self.STATE.replace("'STATE '", "'AFTER '"))
+        first = out['FIRST']
+        self.assertTrue(first['ok'])
+        receipt = first['value']
+        oracle = ORACLE['receipt-first-use.json']
+        for field in ('accepted_generation', 'mapping_generation', 'new_facts', 'historical_facts', 'duplicates',
+                      'no_change', 'kind', 'operation_id', 'preview_id', 'origin_restore_epoch'):
+            self.assertEqual(oracle[field], receipt[field], field)
+        self.assertEqual((digest(plan), self.INCARNATION), (receipt['plan_digest'], receipt['origin_incarnation']))
+        self.assertEqual(('instant', None, 0), (receipt['created_at']['tag'], receipt['created_at']['zone'],
+                                               receipt['created_at']['fractional_digits']))
+        self.assertEqual(first, out['AGAIN'])
+        self.assertEqual({'ok': False, 'code': 'import_operation_conflict'}, out['CHANGED'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['FRESH'])
+        expected = {'set': ['COMMITTED', int(plan['expected_set_revision']) + 1, receipt['id'], 'pending'],
+                    'members': ['committed'], 'receipts': 1, 'audit': 1, 'outbox': 1, 'revisions': 3,
+                    'generations': [1, 1]}
+        self.assertEqual(expected, out['STATE'])
+        self.assertEqual(expected, out['AFTER'])
+
+    def test_accept_preview_rejects_stale_sources_and_requests_without_writing(self):
+        from wealth_ledger.ingestion.codec import digest
+        plan, seed, catalog = self.accept_seed()
+        payload = {'operation_id': '50000000-0000-4000-8000-000000000003', 'preview_id': plan['preview_id'],
+                   'preview_digest': digest(plan)}
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        cases = (
+            ('disabled_connection', replica + 'UPDATE wl_sources.connection_lifecycle SET enabled=false;' + origin, payload, 'source_unavailable'),
+            ('disabled_source', replica + 'UPDATE wl_sources.enablements SET enabled=false;' + origin, payload, 'source_unavailable'),
+            ('enablement_generation', replica + 'UPDATE wl_sources.enablements SET generation=generation+1;' + origin, payload, 'import_stale'),
+            ('connection_generation', replica + 'UPDATE wl_pg.connections SET generation=generation+1;' + origin, payload, 'import_stale'),
+            ('wrapper_removed', "UPDATE wl_ingestion.instance_state SET wrapper_catalog_bytes=pg_catalog.convert_to('[]','UTF8'),"
+                "wrapper_catalog_digest=pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to('[]','UTF8')),'hex');", payload, 'source_unavailable'),
+            ('needs_mapping', "UPDATE wl_ingestion.sets SET state='NEEDS_MAPPING';", payload, 'import_mapping_required'),
+            ('wrong_digest', '', dict(payload, preview_digest='0' * 64), 'import_stale'),
+            ('unknown_preview', '', dict(payload, preview_id='20000000-0000-4000-8000-0000000000ff'), 'not_found'),
+            ('extra_field', '', dict(payload, facts=[]), 'import_invalid'),
+            ('revoked_session', 'UPDATE wl_identity.sessions SET revoked=true;', payload, 'session_changed'),
+        )
+        for name, mutation, request, code in cases:
+            with self.subTest(case=name):
+                out = self.run_labelled(seed + mutation + self.accept_statement('result', request, catalog) + self.STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertEqual((0, 0, 0, [0, 0]), (out['STATE']['receipts'], out['STATE']['revisions'],
+                                                     out['STATE']['outbox'], out['STATE']['generations']))
+                self.assertEqual('READY' if name != 'needs_mapping' else 'NEEDS_MAPPING', out['STATE']['set'][0])
+        # A revoked catalog installation is unavailable even with a valid digest.
+        plan, seed, catalog = self.accept_seed(availability='REVOKED')
+        payload = dict(payload, preview_digest=digest(plan))
+        out = self.run_labelled(seed + self.accept_statement('result', payload, catalog) + self.STATE)
+        self.assertEqual({'ok': False, 'code': 'source_unavailable'}, out['RESULT'])
+
+    def test_accept_preview_expiry_wins_and_fences_the_set(self):
+        from wealth_ledger.ingestion.codec import digest
+        plan, seed, catalog = self.accept_seed(expires_in_hours=-1)
+        payload = {'operation_id': '50000000-0000-4000-8000-000000000004', 'preview_id': plan['preview_id'],
+                   'preview_digest': digest(plan)}
+        out = self.run_labelled(seed + self.accept_statement('result', payload, catalog) + self.STATE)
+        self.assertEqual({'ok': False, 'code': 'import_expired'}, out['RESULT'])
+        self.assertEqual({'set': ['EXPIRED', int(plan['expected_set_revision']), None, 'pending'], 'members': ['expired'],
+                          'receipts': 0, 'audit': 0, 'outbox': 0, 'revisions': 0, 'generations': [0, 0]}, out['STATE'])
+
+    def test_accept_preview_is_not_public(self):
+        self.assertEqual('0', self.sql("SELECT count(*) FROM pg_catalog.pg_proc p CROSS JOIN LATERAL "
+            "pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a WHERE "
+            "p.oid='wl_ingestion.accept_preview_v1(text,uuid,bigint,jsonb,text,jsonb)'::regprocedure "
+            "AND a.grantee=0 AND a.privilege_type='EXECUTE'"))
 
     def test_transition_and_head_guards_have_no_public_execution(self):
         self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
