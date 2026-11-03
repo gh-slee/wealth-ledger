@@ -116,6 +116,21 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   the complete base, a partial one keeps it, and the head cannot move back onto
   an ancestor. Observation order, source authority and economic group binding
   remain `_references_v1` checks; neither guard authenticates a caller.
+  The `_effects_v1(tenant, portfolio, preview, receipt)` renderer is the single
+  accepted write. It revalidates the stored Plan, then copies the exact Plan and
+  any new input bytes, and inserts proposed entities from the same body fragment
+  that Plan validation hashed. It also writes new source revisions, lineage for
+  every planned fact, mappings, authority links, head compare-and-set updates,
+  generation counters, one audit row and at most one outbox event. A mapping is
+  identified by its connection and closed source identity, and a changed target
+  appends a revision. An authority decision appends a revision to the latest link
+  for the same pair. The caller still authenticates, locks, recovers an existing
+  receipt, runs `_references_v1`, inserts the receipt with the returned counts
+  and changes set and member state. Opt-in PostgreSQL tests accept a base Plan
+  and then each branch, authority-only and snapshot-history vector through this
+  function, comparing exact row counts, lineage claims, heads, generations and
+  events with the literal fixtures. They do not cover the caller-owned receipt
+  row, concurrent acceptance or restore.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

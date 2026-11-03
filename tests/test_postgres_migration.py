@@ -114,6 +114,18 @@ class IngestionStorageDDLTests(unittest.TestCase):
                 self.assertEqual(1, ddl.count('CREATE FUNCTION'))
                 for fragment in ('GRANT ', 'CREATE TRIGGER', 'REJECT;', 'CONFLICT;', 'EXPIRED;'):
                     self.assertNotIn(fragment, ddl)
+        declared_effects = declared['_effects_v1']
+        effects = schema.effects_ddl()
+        self.assertEqual((['uuid', 'uuid', 'uuid', 'uuid'], 'jsonb', 'operator_owner_only'),
+            (declared_effects['arguments'], declared_effects['returns'], declared_effects['execute']))
+        self.assertIn('CREATE FUNCTION wl_ingestion._effects_v1(p_tenant uuid,p_portfolio uuid,p_preview uuid,'
+                      'p_receipt uuid)\nRETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp', effects)
+        self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion._effects_v1(uuid,uuid,uuid,uuid) FROM PUBLIC;', effects)
+        self.assertEqual(1, effects.count('CREATE FUNCTION'))
+        self.assertNotIn('GRANT ', effects)
+        # Acceptance inserts the same entity bodies that Plan validation hashed.
+        self.assertIn(schema._ENTITY_BODY_SQL, schema.plan_validator_ddl())
+        self.assertIn(schema._ENTITY_BODY_SQL, effects)
         guarded = {x['table'] for x in schema.inventory()['triggers'] if x['function'] == '_transition_v1'}
         self.assertEqual(guarded, set(re.search(r"TG_TABLE_NAME NOT IN\s*\(([^)]*)\)",
             schema.TRANSITION_DDL).group(1).replace("'", '').replace('\n', '').replace(' ', '').split(',')))
@@ -187,7 +199,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + source_schema.ddl() + '\n' + schema.tables_ddl() + '\n' + schema.IMMUTABLE_DDL
                 + '\n' + schema.OUTBOX_GUARD_DDL + '\n' + schema.user_guard_ddl()
                 + '\n' + schema.minimal_validator_ddl() + '\n' + schema.plan_validator_ddl() + '\n' + schema.reference_validator_ddl() + '\n' + schema.REPLAY_DDL
-                + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL)
+                + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl())
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -1471,6 +1483,183 @@ END $test$;
             "DO $test$ BEGIN IF (SELECT key_digest||':'||latest_revision_id||':'||complete_base_revision_id "
             "FROM wl_ingestion.snapshot_heads)<>'" + effects['head_digest'] + ':' + ids['S4'] + ':' + ids['S3'] +
             "' THEN RAISE EXCEPTION 'unexpected_snapshot_head'; END IF; END $test$;"])
+
+    # Acceptance effects. A base Plan is accepted through _effects_v1 itself,
+    # then the case Plan; each step first passes _references_v1 against the
+    # rows the previous acceptance actually wrote. The caller-owned receipt row
+    # and set/member state changes are outside _effects_v1 and these checks.
+    COUNTED = ('accepted_inputs', 'accepted_plans', 'activity_heads', 'audit', 'authority_links', 'lineage',
+               'mappings', 'outbox', 'snapshot_heads', 'source_revisions')
+    RESULT_FIELDS = ('accepted_generation', 'mapping_generation', 'new_facts', 'historical_facts',
+                     'duplicates', 'no_change', 'plan_digest', 'preview_id')
+
+    @classmethod
+    def effects_call(cls, plan, receipt):
+        return ("wl_ingestion._effects_v1('" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "','" +
+                plan['preview_id'] + "','" + receipt + "')")
+
+    @classmethod
+    def references_call(cls, plan):
+        return ("SELECT wl_ingestion._references_v1('" + plan['tenant_id'] + "','" + plan['portfolio_id'] +
+                "','" + plan['preview_id'] + "');")
+
+    def later_plan_seed(self, plan):
+        # The root already exists, and earlier acceptance may have created the
+        # existing targets; only the case's own set/stage/decision rows are new.
+        lines = [x for x in self._plan_seed(plan).split('\n') if not x.startswith('INSERT INTO wl_ingestion.roots')]
+        return '\n'.join(x[:-1] + ' ON CONFLICT DO NOTHING;' if x.startswith('INSERT INTO wl_pg.') else x
+                         for x in lines) + self._preview_seed(plan)
+
+    def accept_after(self, base, plan, receipt, *, between='', references=True):
+        counts = ("SELECT 'COUNTS '||pg_catalog.jsonb_build_object(" + ','.join(
+            "'" + t + "',(SELECT count(*) FROM wl_ingestion." + t + ')' for t in self.COUNTED) +
+            ",'foundation_accounts',(SELECT count(*) FROM wl_pg.accounts),'foundation_instruments',"
+            "(SELECT count(*) FROM wl_pg.instruments),'foundation_issuers',(SELECT count(*) FROM wl_pg.issuers))::text;")
+        heads = "".join(x for x in ['CREATE TRIGGER ' + t['name'] + ' BEFORE INSERT OR UPDATE OR DELETE ON wl_ingestion.' +
+            t['table'] + ' FOR EACH ROW EXECUTE FUNCTION wl_ingestion._head_v1();'
+            for t in schema.inventory()['triggers'] if t['function'] == '_head_v1'])
+        if base is None:
+            prefix = self._plan_seed(plan) + self._preview_seed(plan) + heads + between
+        else:
+            prefix = (self._plan_seed(base) + self._preview_seed(base) + heads + self.references_call(base) +
+                'SELECT ' + self.effects_call(base, 'b0000000-0000-4000-8000-000000000001') + ';' +
+                self.later_plan_seed(plan) + 'UPDATE wl_ingestion.roots SET control_generation=' +
+                plan['expected_control_generation'] + ';' + between)
+        script = ('BEGIN;' + prefix +
+            (self.references_call(plan) if references else '') + counts +
+            "SELECT 'RESULT '||" + self.effects_call(plan, receipt) + '::text;' + counts +
+            "SELECT 'LINEAGE '||COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('source_revision_id',l.source_revision_id,"
+            "'collection',l.collection,'local_id',l.local_id,'evidence_digest',l.evidence_digest,'input_digest',a.digest,"
+            "'claim',pg_catalog.convert_from(l.source_claim_bytes,'UTF8')) ORDER BY l.collection,l.local_id),'[]')::text "
+            "FROM wl_ingestion.lineage l JOIN wl_ingestion.accepted_inputs a ON a.id=l.input_id AND a.tenant_id=l.tenant_id "
+            "WHERE a.digest='" + plan['inputs'][0]['stage_digest'] + "';"
+            "SELECT 'EVENT '||COALESCE((SELECT pg_catalog.convert_from(payload_bytes,'UTF8') FROM wl_ingestion.outbox "
+            "WHERE receipt_id='" + receipt + "'),'null');"
+            "SELECT 'HEADS '||pg_catalog.jsonb_build_object('activity',(SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array("
+            "economic_group_id,revision_id,active) ORDER BY economic_group_id),'[]') FROM wl_ingestion.activity_heads),"
+            "'snapshot',(SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(key_digest,latest_revision_id,"
+            "complete_base_revision_id) ORDER BY key_digest),'[]') FROM wl_ingestion.snapshot_heads))::text;"
+            "SELECT 'LINKS '||COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(id,revision,decision_kind) "
+            "ORDER BY id,revision) FROM wl_ingestion.authority_links),'[]')::text;"
+            "SELECT 'GENERATIONS '||pg_catalog.jsonb_build_array(accepted_generation,mapping_generation,control_generation)::text "
+            "FROM wl_ingestion.roots;ROLLBACK;")
+        out = {}
+        for line in self.sql(script).splitlines():
+            label, _, value = line.partition(' ')
+            if label in {'COUNTS', 'RESULT', 'LINEAGE', 'EVENT', 'HEADS', 'LINKS', 'GENERATIONS'}:
+                out.setdefault(label, []).append(json.loads(value))
+        before, after = out['COUNTS']
+        delta = {k: after[k] - before[k] for k in after}
+        return out['RESULT'][0], delta, out
+
+    def assert_effects(self, case, result, delta, out, receipt):
+        self.assertEqual({k: receipt[k] for k in self.RESULT_FIELDS}, result)
+        expected = {k: v for k, v in case['inserted_rows'].items() if k != 'receipts'}
+        self.assertEqual(expected, delta)
+        self.assertEqual([receipt['accepted_generation'], receipt['mapping_generation']],
+                         [str(x) for x in out['GENERATIONS'][0][:2]])
+
+    def test_effects_branch_oracles_write_exact_rows_lineage_heads_and_events(self):
+        cases = {x['name']: x for x in ORACLE['effect-oracles.json']['cases']}
+        for name in ('fresh_duplicate_only', 'new_equal_meaning_revision', 'equal_value_explicit_correction',
+                     'mapping_only_existing_issuer'):
+            case = cases[name]
+            plan = ORACLE[case['input_files']['plan']]
+            base = ORACLE[case['prestate']['accepted_plan_file']]
+            receipt = case['expected_receipt']
+            with self.subTest(case=name):
+                result, delta, out = self.accept_after(base, plan, receipt['id'])
+                self.assert_effects(case, result, delta, out, receipt)
+                self.assertEqual(case['new_input_digest'], plan['inputs'][0]['stage_digest'])
+                self.assertEqual([{'source_revision_id': x['source_revision_id'], 'collection': x['collection'],
+                    'local_id': x['local_id'], 'evidence_digest': x['evidence_digest'],
+                    'input_digest': x['input_digest'], 'claim': x['source_claim_bytes_utf8']}
+                    for x in sorted(case['expected_lineage'], key=lambda x: (x['collection'], x['local_id']))],
+                    out['LINEAGE'][0])
+                event = out['EVENT'][0]
+                if case['event'] is None:
+                    self.assertIsNone(event)
+                else:
+                    self.assertEqual({k: v for k, v in case['event'].items() if k != 'accepted_at'},
+                                     {k: v for k, v in event.items() if k != 'accepted_at'})
+                    self.assertEqual(('instant', None, 0), (event['accepted_at']['tag'],
+                        event['accepted_at']['zone'], event['accepted_at']['fractional_digits']))
+                if name == 'equal_value_explicit_correction':
+                    head = plan['heads'][0]
+                    self.assertIn([plan['facts'][0]['economic_group_id'], head['next_revision_id'], True],
+                                  out['HEADS'][0]['activity'])
+
+    def test_effects_authority_only_appends_the_existing_link_revision(self):
+        from wealth_ledger.ingestion.codec import encode, digest
+        case = next(x for x in ORACLE['effect-oracles.json']['cases'] if x['name'] == 'authority_only_explicit_mirror')
+        prestate = ORACLE['authority-only-prestate.json']
+        base, plan = ORACLE[prestate['base_plan']], ORACLE['authority-only-plan.json']
+        peer = prestate['peer_revision']
+        typed = encode(peer['typed'])
+        scope = "'" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "'"
+        # The second accepted stream reuses the base input bytes, so its revision
+        # points at the one retained input row for that digest.
+        between = ("INSERT INTO wl_ingestion.source_revisions(tenant_id,portfolio_id,id,source_key,source_revision,"
+            "financial_digest,source_change,accepted_change,parent_id,input_id,collection,local_id,typed_bytes,typed_digest,"
+            "created_at) SELECT " + scope + ",'" + peer['id'] + "','" + peer['source_key_digest'] + "','r1','" +
+            peer['financial_digest'] + "','original','original',NULL,a.id,'records','0',decode('" + typed.hex() +
+            "','hex'),'" + digest(peer['typed']) + "','2026-02-02T13:00:00+00:00' FROM wl_ingestion.accepted_inputs a;"
+            "INSERT INTO wl_ingestion.activity_heads VALUES(" + scope + ",'" + peer['economic_group_id'] + "','" +
+            peer['id'] + "',true);"
+            "INSERT INTO wl_ingestion.authority_links SELECT " + scope + ",'" + prestate['prior_link_id'] + "',1,'" +
+            prestate['prior_authority']['left']['accepted_revision_id'] + "','" + peer['id'] + "','independent','" +
+            prestate['prior_authority']['evidence_reference'] + "','" + digest(prestate['prior_authority']) +
+            "',p.id FROM wl_ingestion.accepted_plans p;"
+            "UPDATE wl_ingestion.roots SET accepted_generation=2,mapping_generation=2;")
+        receipt = case['expected_receipt']
+        # The peer stream has no accepted Plan of its own, so this case checks the
+        # write path only; reference checks for authority links are covered above.
+        result, delta, out = self.accept_after(base, plan, receipt['id'], between=between, references=False)
+        self.assert_effects(case, result, delta, out, receipt)
+        self.assertEqual([[prestate['prior_link_id'], 1, 'independent'],
+                          [prestate['prior_link_id'], int(case['authority_link_revision']), 'mirror']], out['LINKS'][0])
+        self.assertEqual(sorted([[base['facts'][0]['economic_group_id'], prestate['two_authoritative_head_targets'][0], True],
+            [peer['economic_group_id'], peer['id'], True]]), sorted(out['HEADS'][0]['activity']))
+        self.assertEqual({k: v for k, v in case['event'].items() if k != 'accepted_at'},
+                         {k: v for k, v in out['EVENT'][0].items() if k != 'accepted_at'})
+
+    def test_effects_snapshot_history_keeps_t2_current_and_stores_no_zero_rows(self):
+        effects = ORACLE['snapshot-history-effects.json']
+        seed, history = effects['sequence']
+        base, plan = ORACLE[seed['input_plan']], ORACLE[history['input_plan']]
+        result, delta, out = self.accept_after(base, plan, history['expected_receipt']['id'])
+        self.assert_effects(history, result, delta, out, history['expected_receipt'])
+        self.assertEqual([[effects['head_digest'], history['head_target_after'], history['head_complete_base_after']]],
+                         out['HEADS'][0]['snapshot'])
+        self.assertEqual(['historical_only'], [x[2] for x in out['LINKS'][0]])
+
+    def test_effects_first_use_seeds_entities_mappings_and_one_snapshot_head(self):
+        effects = ORACLE['snapshot-history-effects.json']
+        seed = effects['sequence'][0]
+        plan = ORACLE[seed['input_plan']]
+        result, delta, out = self.accept_after(None, plan, seed['expected_receipt']['id'])
+        self.assert_effects(seed, result, delta, out, seed['expected_receipt'])
+        self.assertEqual([[effects['head_digest'], seed['head_target_after'], seed['head_complete_base_after']]],
+                         out['HEADS'][0]['snapshot'])
+
+    def test_effects_never_applies_an_accepted_plan_twice_and_is_private(self):
+        plan = ORACLE['plan-first-use.json']
+        first = self.effects_call(plan, 'b0000000-0000-4000-8000-000000000001')
+        again = self.effects_call(plan, 'b0000000-0000-4000-8000-0000000000aa')
+        self.sql('BEGIN;' + self._plan_seed(plan) + self._preview_seed(plan) + 'SELECT ' + first + ';' +
+            # The advanced generations make the same Plan stale. If a caller
+            # skipped that check, the retained Plan digest still blocks reuse.
+            self.rejects('PERFORM ' + again, 'import_stale') +
+            'SAVEPOINT forced;UPDATE wl_ingestion.roots SET accepted_generation=0,mapping_generation=0;' +
+            self.rejects('PERFORM ' + again, 'import_conflict') + 'ROLLBACK TO SAVEPOINT forced;' +
+            "DO $test$ BEGIN IF (SELECT count(*) FROM wl_ingestion.accepted_plans)<>1 OR (SELECT count(*) FROM "
+            "wl_ingestion.source_revisions)<>3 OR (SELECT accepted_generation FROM wl_ingestion.roots)<>1 THEN "
+            "RAISE EXCEPTION 'effects_applied_twice'; END IF; END $test$;ROLLBACK;")
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+            "'wl_ingestion._effects_v1(uuid,uuid,uuid,uuid)','EXECUTE')"))
 
     def test_transition_and_head_guards_have_no_public_execution(self):
         self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "

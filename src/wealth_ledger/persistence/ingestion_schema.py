@@ -937,6 +937,30 @@ def _plan_local_relations_sql():
 """
 
 
+# Exact proposed entity body from stored evidence, shared by Plan validation
+# and acceptance so both check and insert the same canonical body.
+_ENTITY_BODY_SQL = r"""
+   identity:=pg_catalog.jsonb_build_object('tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,'kind',kind,'value',target->>'id');
+   issuer:='null'::jsonb;
+   IF kind='instrument' AND source->'issuer_local_id'<>'null'::jsonb THEN
+    issuer:=pg_catalog.jsonb_build_object('tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,
+     'kind','issuer','value',refs->('issuer:'||(source->>'issuer_local_id'))->>'id');
+   END IF;
+   IF kind='account' THEN body:=pg_catalog.jsonb_build_object('id',identity,'category',source->'category','role',source->'role','label',source->'label');
+   ELSIF kind='issuer' THEN body:=pg_catalog.jsonb_build_object('id',identity,'label',source->'label');
+   ELSE
+    body:=source-ARRAY['local_id','identifier','issuer_local_id'];
+    IF source->>'kind' IN ('CASH','SECURITY') THEN body:=body||pg_catalog.jsonb_build_object('symbol',null); END IF;
+    IF source->>'kind'='CRYPTO' AND source->'settlement_identity'='null'::jsonb THEN
+     body:=body||pg_catalog.jsonb_build_object('settlement_identity',source->'network'); END IF;
+    body:=body||pg_catalog.jsonb_build_object('id',identity,'issuer',issuer,'evidence_reference',evidence->'provenance'->'evidence_reference');
+    IF source->'identifier'<>'null'::jsonb AND NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(body->'identifiers') WHERE value->'value'=source->'identifier') THEN
+     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_evidence_unsupported';
+    END IF;
+   END IF;
+""".lstrip('\n')
+
+
 def plan_validator_ddl():
     """Render Plan checks against stored stages, member pins and entity bodies.
 
@@ -1054,25 +1078,7 @@ BEGIN
   FOR mapping IN SELECT value FROM pg_catalog.jsonb_array_elements(payload->'mappings') WHERE value->>'member_id'=member.id::text LOOP
    kind:=mapping->>'entity_kind';local_id:=mapping->>'local_id';target:=mapping->'target';
    source:=evidence->CASE kind WHEN 'account' THEN 'accounts' WHEN 'instrument' THEN 'assets' ELSE 'issuers' END->(local_id::integer);
-   identity:=pg_catalog.jsonb_build_object('tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,'kind',kind,'value',target->>'id');
-   issuer:='null'::jsonb;
-   IF kind='instrument' AND source->'issuer_local_id'<>'null'::jsonb THEN
-    issuer:=pg_catalog.jsonb_build_object('tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,
-     'kind','issuer','value',refs->('issuer:'||(source->>'issuer_local_id'))->>'id');
-   END IF;
-   IF kind='account' THEN body:=pg_catalog.jsonb_build_object('id',identity,'category',source->'category','role',source->'role','label',source->'label');
-   ELSIF kind='issuer' THEN body:=pg_catalog.jsonb_build_object('id',identity,'label',source->'label');
-   ELSE
-    body:=source-ARRAY['local_id','identifier','issuer_local_id'];
-    IF source->>'kind' IN ('CASH','SECURITY') THEN body:=body||pg_catalog.jsonb_build_object('symbol',null); END IF;
-    IF source->>'kind'='CRYPTO' AND source->'settlement_identity'='null'::jsonb THEN
-     body:=body||pg_catalog.jsonb_build_object('settlement_identity',source->'network'); END IF;
-    body:=body||pg_catalog.jsonb_build_object('id',identity,'issuer',issuer,'evidence_reference',evidence->'provenance'->'evidence_reference');
-    IF source->'identifier'<>'null'::jsonb AND NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(body->'identifiers') WHERE value->'value'=source->'identifier') THEN
-     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_evidence_unsupported';
-    END IF;
-   END IF;
-   key:=kind||':'||(target->>'id');
+""" + _ENTITY_BODY_SQL + r"""   key:=kind||':'||(target->>'id');
    IF target->>'mode'='proposed' THEN
     IF pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(body)),'hex')<>target->>'version' OR
      (entity_bodies ? key AND entity_bodies->key<>body) THEN
@@ -1514,6 +1520,270 @@ REVOKE ALL ON FUNCTION wl_ingestion._references_v1(uuid,uuid,uuid) FROM PUBLIC;
 """.replace('ORDER_EXPRESSION', _minimal_order_sql('ref', 'replacement'))
     tail = tail.replace(" FOR claim IN SELECT value FROM pg_catalog.jsonb_array_elements(claims) LOOP", _stream_authority_sql() + "\n FOR claim IN SELECT value FROM pg_catalog.jsonb_array_elements(claims) LOOP")
     return header + _plan_material_sql() + middle + _plan_material_sql() + tail
+
+
+def effects_ddl():
+    """Render the sole accepted mutation for a checked READY preview.
+
+    The caller authenticates, takes the declared locks, recovers an exact
+    receipt first and runs _references_v1 in the same transaction. It then
+    inserts the receipt with the returned result; set and member state are
+    control changes outside this function.
+    """
+    header = r"""
+CREATE FUNCTION wl_ingestion._effects_v1(p_tenant uuid,p_portfolio uuid,p_preview uuid,p_receipt uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $effects$
+DECLARE preview wl_ingestion.previews%ROWTYPE;root wl_ingestion.roots%ROWTYPE;
+ payload jsonb;evidence jsonb;pin jsonb;refs jsonb;mapping jsonb;target jsonb;source jsonb;body jsonb;
+ identity jsonb;issuer jsonb;material jsonb;materials jsonb;source_key jsonb;source_keys jsonb;
+ selector jsonb;children jsonb;ref jsonb;replacement jsonb;effect jsonb;proposal jsonb;item jsonb;event jsonb;
+ staged jsonb:='{}'::jsonb;member_refs jsonb:='{}'::jsonb;inputs jsonb:='{}'::jsonb;inserted jsonb:='{}'::jsonb;
+ key text;local_id text;collection text;kind text;name text;field text;path text[];token text;revision text;
+ edit record;input record;n timestamptz;plan_id uuid;input_id uuid;
+ prior_id uuid;prior_revision bigint;prior_entity uuid;prior_version text;prior_kind text;prior_reference text;
+ left_id uuid;right_id uuid;head_account uuid;head_version text;
+ new_ids text[]:=ARRAY[]::text[];head_keys text[]:=ARRAY[]::text[];
+ new_facts bigint:=0;historical_facts bigint:=0;duplicates bigint:=0;
+ accepted_changed boolean:=false;mapping_changed boolean:=false;after_accepted bigint;after_mapping bigint;
+BEGIN
+ -- Accepted times are whole seconds so the event token keeps exact precision.
+ n:=pg_catalog.date_trunc('second',wl_identity._clock_timestamp_v1());
+ IF p_tenant IS NULL OR p_portfolio IS NULL OR p_preview IS NULL OR p_receipt IS NULL OR NOT pg_catalog.isfinite(n) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ SELECT * INTO preview FROM wl_ingestion.previews WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio AND id=p_preview;
+ IF preview.id IS NULL OR preview.plan_bytes IS NULL OR
+  pg_catalog.encode(pg_catalog.sha256(preview.plan_bytes),'hex') IS DISTINCT FROM preview.plan_digest THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ payload:=wl_ingestion._validate_plan_v1(p_tenant,p_portfolio,preview.set_id,preview.plan_bytes);
+ SELECT * INTO root FROM wl_ingestion.roots WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio FOR UPDATE;
+ IF payload->>'preview_id'<>preview.id::text OR root.tenant_id IS NULL OR
+  payload->>'expected_accepted_generation'<>root.accepted_generation::text OR
+  payload->>'expected_mapping_generation'<>root.mapping_generation::text THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ -- An accepted Plan or receipt is recovered by the caller, never applied twice.
+ IF EXISTS(SELECT 1 FROM wl_ingestion.accepted_plans a WHERE a.tenant_id=p_tenant AND a.portfolio_id=p_portfolio
+   AND (a.digest=preview.plan_digest OR a.receipt_id=p_receipt)) OR
+  EXISTS(SELECT 1 FROM wl_ingestion.receipts r WHERE r.tenant_id=p_tenant AND r.portfolio_id=p_portfolio AND r.id=p_receipt) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+ plan_id:=pg_catalog.gen_random_uuid();
+ INSERT INTO wl_ingestion.accepted_plans(tenant_id,portfolio_id,id,preview_id,codec,canonical_bytes,digest,receipt_id,created_at)
+  VALUES(p_tenant,p_portfolio,plan_id,preview.id,'acceptance-plan-v1',preview.plan_bytes,preview.plan_digest,p_receipt,n);
+ FOR input IN SELECT s.member_id,s.minimal_bytes,s.digest,i.value AS planned FROM wl_ingestion.stages s
+  JOIN pg_catalog.jsonb_array_elements(payload->'inputs') i(value)
+   ON s.member_id=(i.value->>'member_id')::uuid AND s.digest=i.value->>'stage_digest'
+  WHERE s.tenant_id=p_tenant AND s.portfolio_id=p_portfolio AND s.set_id=preview.set_id ORDER BY s.member_id LOOP
+  evidence:=wl_ingestion._validate_minimal_v1(input.minimal_bytes);
+  staged:=pg_catalog.jsonb_set(staged,ARRAY[input.member_id::text],evidence);
+  SELECT value INTO pin FROM pg_catalog.jsonb_array_elements(payload->'pinned_sources') WHERE value->>'member_id'=input.member_id::text;
+  SELECT COALESCE(pg_catalog.jsonb_object_agg((value->>'entity_kind')||':'||(value->>'local_id'),(value->'target')-'mode'),'{}'::jsonb)
+   INTO refs FROM pg_catalog.jsonb_array_elements(payload->'mappings') WHERE value->>'member_id'=input.member_id::text;
+  member_refs:=pg_catalog.jsonb_set(member_refs,ARRAY[input.member_id::text],refs);
+  -- Identical canonical input bytes are retained once per scope.
+  input_id:=NULL;
+  SELECT a.id INTO input_id FROM wl_ingestion.accepted_inputs a WHERE a.tenant_id=p_tenant AND a.portfolio_id=p_portfolio AND a.digest=input.digest;
+  IF input_id IS NULL THEN
+   input_id:=pg_catalog.gen_random_uuid();
+   INSERT INTO wl_ingestion.accepted_inputs(tenant_id,portfolio_id,id,codec,canonical_bytes,digest,raw_digest,
+    discovery_digest,installation_id,created_at) VALUES(p_tenant,p_portfolio,input_id,'minimal-evidence-v1',
+    input.minimal_bytes,input.digest,input.planned->>'raw_digest',input.planned->>'discovery_digest',pin->>'installation_id',n);
+  END IF;
+  inputs:=pg_catalog.jsonb_set(inputs,ARRAY[input.member_id::text],pg_catalog.to_jsonb(input_id::text));
+  FOR mapping IN SELECT value FROM pg_catalog.jsonb_array_elements(payload->'mappings') WHERE value->>'member_id'=input.member_id::text
+   ORDER BY value->>'entity_kind',(value->>'local_id')::integer LOOP
+   kind:=mapping->>'entity_kind';local_id:=mapping->>'local_id';target:=mapping->'target';
+   source:=evidence->CASE kind WHEN 'account' THEN 'accounts' WHEN 'instrument' THEN 'assets' ELSE 'issuers' END->(local_id::integer);
+""" + _ENTITY_BODY_SQL + r"""   key:=kind||':'||(target->>'id');
+   -- Proposed bodies are the exact bodies _validate_plan_v1 hashed.
+   IF target->>'mode'='proposed' AND NOT inserted ? key THEN
+    inserted:=pg_catalog.jsonb_set(inserted,ARRAY[key],body);
+    IF kind='account' THEN
+     INSERT INTO wl_pg.accounts(tenant_id,portfolio_id,id,version,body,category,role,label)
+      VALUES(p_tenant,p_portfolio,(target->>'id')::uuid,target->>'version',body,body->>'category',body->>'role',body->>'label');
+    ELSIF kind='issuer' THEN
+     INSERT INTO wl_pg.issuers(tenant_id,portfolio_id,id,version,body,label)
+      VALUES(p_tenant,p_portfolio,(target->>'id')::uuid,target->>'version',body,body->>'label');
+    ELSE
+     INSERT INTO wl_pg.instruments(tenant_id,portfolio_id,id,version,body,kind,currency,ticker,mic,symbol,network,
+      settlement_identity,issuer_id,issuer_version,identifiers) VALUES(p_tenant,p_portfolio,(target->>'id')::uuid,
+      target->>'version',body,body->>'kind',body->>'currency',body->>'ticker',body->>'mic',body->>'symbol',
+      body->>'network',body->>'settlement_identity',(body->'issuer'->>'value')::uuid,
+      CASE WHEN body->'issuer'='null'::jsonb THEN NULL ELSE refs->('issuer:'||(source->>'issuer_local_id'))->>'version' END,
+      body->'identifiers');
+    END IF;
+   END IF;
+   -- A mapping is identified by its connection and closed source identity.
+   -- An unchanged target appends nothing; a changed target appends a revision.
+   source_key:=pg_catalog.jsonb_build_object('version',1,'tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,
+    'connection_id',pin->>'connection_id','entity_kind',kind,'source_identity',CASE WHEN kind='account'
+     THEN pg_catalog.jsonb_build_object('source_account_key',source->'source_account_key')
+     ELSE source-ARRAY['local_id','issuer_local_id'] END);
+   token:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source_key)),'hex');
+   prior_id:=NULL;prior_revision:=0;prior_entity:=NULL;prior_version:=NULL;
+   SELECT m.id,m.revision,m.entity_id,m.entity_version INTO prior_id,prior_revision,prior_entity,prior_version
+    FROM wl_ingestion.mappings m WHERE m.tenant_id=p_tenant AND m.portfolio_id=p_portfolio AND
+     m.connection_id=(pin->>'connection_id')::uuid AND m.entity_kind=kind AND m.source_key=token
+    ORDER BY m.revision DESC LIMIT 1;
+   IF prior_id IS NULL OR prior_entity<>(target->>'id')::uuid OR prior_version<>target->>'version' THEN
+    INSERT INTO wl_ingestion.mappings(tenant_id,portfolio_id,id,revision,connection_id,source_key,entity_kind,
+     evidence_digest,plan_id,account_id,account_version,instrument_id,instrument_version,issuer_id,issuer_version)
+     VALUES(p_tenant,p_portfolio,COALESCE(prior_id,pg_catalog.gen_random_uuid()),COALESCE(prior_revision,0)+1,
+      (pin->>'connection_id')::uuid,token,kind,
+      pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source)),'hex'),plan_id,
+      CASE WHEN kind='account' THEN (target->>'id')::uuid END,CASE WHEN kind='account' THEN target->>'version' END,
+      CASE WHEN kind='instrument' THEN (target->>'id')::uuid END,CASE WHEN kind='instrument' THEN target->>'version' END,
+      CASE WHEN kind='issuer' THEN (target->>'id')::uuid END,CASE WHEN kind='issuer' THEN target->>'version' END);
+    mapping_changed:=true;
+   END IF;
+  END LOOP;
+"""
+    facts = r"""
+  FOR effect IN SELECT value FROM pg_catalog.jsonb_array_elements(payload->'facts') WHERE value->>'member_id'=input.member_id::text
+   ORDER BY value->>'collection',(value->>'local_id')::integer LOOP
+   collection:=effect->>'collection';local_id:=effect->>'local_id';key:=collection||':'||local_id;
+   source:=CASE WHEN collection='membership' THEN evidence->'membership' ELSE evidence->collection->(local_id::integer) END;
+   source_key:=source_keys->key;material:=materials->key;
+   revision:=CASE WHEN collection='records' THEN source->'identity'->>'revision' ELSE source->>'revision' END;
+   IF source IS NULL OR source='null'::jsonb OR source_key IS NULL OR
+    pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(material)),'hex')<>effect->>'financial_digest' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+   IF effect->>'action'='duplicate' THEN
+    duplicates:=duplicates+1;
+   ELSE
+    -- Source metadata keeps the reported change; accepted_change records lineage.
+    INSERT INTO wl_ingestion.source_revisions(tenant_id,portfolio_id,id,source_key,source_revision,financial_digest,
+     source_change,accepted_change,parent_id,input_id,collection,local_id,typed_bytes,typed_digest,created_at)
+     VALUES(p_tenant,p_portfolio,(effect->>'accepted_revision_id')::uuid,
+      pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source_key)),'hex'),revision,effect->>'financial_digest',
+      CASE WHEN collection='records' THEN source->'identity'->>'change'
+       WHEN source->'parent'<>'null'::jsonb THEN 'correction' ELSE 'original' END,
+      CASE WHEN effect->>'action'='append' THEN 'original' ELSE effect->>'action' END,
+      (effect->>'parent_revision_id')::uuid,(inputs->>input.member_id::text)::uuid,collection,local_id,
+      wl_ingestion._canonical_v1(source),pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source)),'hex'),n);
+    new_facts:=new_facts+1;new_ids:=new_ids||(effect->>'accepted_revision_id');accepted_changed:=true;
+    IF effect->>'action'='historical' THEN historical_facts:=historical_facts+1; END IF;
+   END IF;
+   -- Every planned fact keeps its exact source claim against its target revision.
+   INSERT INTO wl_ingestion.lineage(tenant_id,portfolio_id,source_revision_id,raw_digest,installation_id,
+    evidence_digest,input_id,collection,local_id,source_claim_bytes) VALUES(p_tenant,p_portfolio,
+    (effect->>'accepted_revision_id')::uuid,input.planned->>'raw_digest',pin->>'installation_id',
+    pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(source)),'hex'),(inputs->>input.member_id::text)::uuid,
+    collection,local_id,wl_ingestion._canonical_v1(pg_catalog.jsonb_build_object('version',1,'source',source_key,
+     'revision',revision))) ON CONFLICT DO NOTHING;
+  END LOOP;
+ END LOOP;
+ IF (SELECT count(*) FROM pg_catalog.jsonb_object_keys(inputs))<>pg_catalog.jsonb_array_length(payload->'inputs') THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ -- Head writes are compare-and-set against the prior target named in the Plan.
+ FOR proposal IN SELECT value FROM pg_catalog.jsonb_array_elements(payload->'heads') LOOP
+  SELECT value INTO effect FROM pg_catalog.jsonb_array_elements(payload->'facts')
+   WHERE value->'accepted_revision_id'=proposal->'next_revision_id' AND value->>'action'<>'duplicate';
+  IF proposal->>'kind'='activity' THEN
+   IF proposal->'prior_revision_id'='null'::jsonb THEN
+    INSERT INTO wl_ingestion.activity_heads(tenant_id,portfolio_id,economic_group_id,revision_id,active)
+     VALUES(p_tenant,p_portfolio,(effect->>'economic_group_id')::uuid,(proposal->>'next_revision_id')::uuid,(proposal->>'active')::boolean);
+   ELSE
+    UPDATE wl_ingestion.activity_heads SET revision_id=(proposal->>'next_revision_id')::uuid,active=(proposal->>'active')::boolean
+     WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio AND economic_group_id=(effect->>'economic_group_id')::uuid
+      AND revision_id=(proposal->>'prior_revision_id')::uuid;
+    IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   END IF;
+  ELSE
+   -- Recover the covered account and canonical scope whose key the Plan names.
+   evidence:=staged->(effect->>'member_id');refs:=member_refs->(effect->>'member_id');
+   source:=evidence->'snapshots'->((effect->>'local_id')::integer);
+   head_account:=NULL;replacement:=NULL;
+   FOR selector IN SELECT evidence->'coverage'->((value#>>'{}')::integer)
+    FROM pg_catalog.jsonb_array_elements(source->'coverage_local_ids') LOOP
+    IF selector->>'kind'<>'holdings' THEN CONTINUE; END IF;
+    SELECT COALESCE(pg_catalog.jsonb_agg(refs->('instrument:'||(value#>>'{}'))->'id' ORDER BY
+     refs->('instrument:'||(value#>>'{}'))->>'id' COLLATE "C"),'[]'::jsonb) INTO children
+     FROM pg_catalog.jsonb_array_elements(selector->'instrument_scope'->'asset_local_ids');
+    item:=(selector->'instrument_scope')-'asset_local_ids'||pg_catalog.jsonb_build_object('instrument_ids',children);
+    IF pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(pg_catalog.jsonb_build_object('version',1,
+      'tenant_id',p_tenant::text,'portfolio_id',p_portfolio::text,'account_id',refs->('account:'||(selector->>'account_local_id'))->'id',
+      'record_kind','holdings','instrument_scope',item))),'hex')=proposal->>'key_digest' THEN
+     head_account:=(refs->('account:'||(selector->>'account_local_id'))->>'id')::uuid;
+     head_version:=refs->('account:'||(selector->>'account_local_id'))->>'version';replacement:=item;
+    END IF;
+   END LOOP;
+   IF head_account IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+   IF proposal->'prior_revision_id'='null'::jsonb THEN
+    INSERT INTO wl_ingestion.snapshot_heads(tenant_id,portfolio_id,key_digest,account_id,account_version,fact_kind,
+     scope_bytes,latest_revision_id,complete_base_revision_id) VALUES(p_tenant,p_portfolio,proposal->>'key_digest',
+     head_account,head_version,'holdings',wl_ingestion._canonical_v1(replacement),
+     (proposal->>'next_revision_id')::uuid,(proposal->>'complete_base_id')::uuid);
+   ELSE
+    UPDATE wl_ingestion.snapshot_heads SET latest_revision_id=(proposal->>'next_revision_id')::uuid,
+     complete_base_revision_id=(proposal->>'complete_base_id')::uuid,account_version=head_version
+     WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio AND key_digest=proposal->>'key_digest'
+      AND latest_revision_id=(proposal->>'prior_revision_id')::uuid;
+    IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   END IF;
+  END IF;
+  head_keys:=head_keys||(proposal->>'key_digest');accepted_changed:=true;
+ END LOOP;
+ -- Authority links append a revision to the latest link for the same pair.
+ FOR proposal IN SELECT value FROM pg_catalog.jsonb_array_elements(payload->'authorities') LOOP
+  left_id:=NULL;right_id:=NULL;
+  FOREACH field IN ARRAY ARRAY['left','right'] LOOP
+   ref:=proposal->field;token:=NULL;
+   IF ref='null'::jsonb THEN CONTINUE; END IF;
+   IF ref->>'form'='accepted' THEN token:=ref->>'accepted_revision_id';
+   ELSE SELECT f.value->>'accepted_revision_id' INTO token FROM pg_catalog.jsonb_array_elements(payload->'facts') f(value)
+    WHERE f.value->'member_id'=ref->'member_id' AND f.value->'collection'=ref->'collection' AND f.value->'local_id'=ref->'local_id'; END IF;
+   IF token IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+   IF field='left' THEN left_id:=token::uuid; ELSE right_id:=token::uuid; END IF;
+  END LOOP;
+  prior_id:=NULL;prior_revision:=0;prior_kind:=NULL;prior_reference:=NULL;
+  SELECT a.id,a.revision,a.decision_kind,a.evidence_reference INTO prior_id,prior_revision,prior_kind,prior_reference
+   FROM wl_ingestion.authority_links a WHERE a.tenant_id=p_tenant AND a.portfolio_id=p_portfolio AND
+    ((a.left_revision_id=left_id AND a.right_revision_id IS NOT DISTINCT FROM right_id) OR
+     (right_id IS NOT NULL AND a.left_revision_id=right_id AND a.right_revision_id=left_id))
+   ORDER BY a.revision DESC LIMIT 1;
+  IF prior_id IS NULL OR prior_kind<>proposal->>'kind' OR prior_reference<>proposal->>'evidence_reference' THEN
+   INSERT INTO wl_ingestion.authority_links(tenant_id,portfolio_id,id,revision,left_revision_id,right_revision_id,
+    decision_kind,evidence_reference,evidence_digest,plan_id) VALUES(p_tenant,p_portfolio,
+    COALESCE(prior_id,pg_catalog.gen_random_uuid()),COALESCE(prior_revision,0)+1,left_id,right_id,proposal->>'kind',
+    proposal->>'evidence_reference',pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(proposal)),'hex'),plan_id);
+   mapping_changed:=true;
+  END IF;
+ END LOOP;
+ -- Generations advance once per accepted set, never once per member or row.
+ after_accepted:=root.accepted_generation+CASE WHEN accepted_changed THEN 1 ELSE 0 END;
+ after_mapping:=root.mapping_generation+CASE WHEN mapping_changed THEN 1 ELSE 0 END;
+ UPDATE wl_ingestion.roots SET accepted_generation=after_accepted,mapping_generation=after_mapping
+  WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio;
+ INSERT INTO wl_ingestion.audit(tenant_id,portfolio_id,id,receipt_id,action,before_accepted_generation,
+  after_accepted_generation,before_mapping_generation,after_mapping_generation,created_at)
+  VALUES(p_tenant,p_portfolio,pg_catalog.gen_random_uuid(),p_receipt,
+   CASE WHEN accepted_changed OR mapping_changed THEN 'ACCEPTED' ELSE 'NO_CHANGE' END,
+   root.accepted_generation,after_accepted,root.mapping_generation,after_mapping,n);
+ IF accepted_changed OR mapping_changed THEN
+  event:=pg_catalog.jsonb_build_object('version',1,'type','facts.accepted.v1','tenant_id',p_tenant::text,
+   'portfolio_id',p_portfolio::text,'receipt_id',p_receipt::text,'accepted_generation',after_accepted::text,
+   'mapping_generation',after_mapping::text,'plan_digest',preview.plan_digest,
+   'changed_revision_ids',(SELECT COALESCE(pg_catalog.jsonb_agg(x ORDER BY x COLLATE "C"),'[]'::jsonb) FROM pg_catalog.unnest(new_ids) x),
+   'changed_head_keys',(SELECT COALESCE(pg_catalog.jsonb_agg(DISTINCT x),'[]'::jsonb) FROM pg_catalog.unnest(head_keys) x),
+   'accepted_at',pg_catalog.jsonb_build_object('tag','instant','token',
+    pg_catalog.to_char(n AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS')||'+00:00','zone',null,'fractional_digits',0));
+  INSERT INTO wl_ingestion.outbox(tenant_id,portfolio_id,id,receipt_id,version,type,accepted_generation,plan_digest,
+   payload_bytes,payload_digest,created_at,dispatched_at) VALUES(p_tenant,p_portfolio,pg_catalog.gen_random_uuid(),
+   p_receipt,1,'facts.accepted.v1',after_accepted,preview.plan_digest,wl_ingestion._canonical_v1(event),
+   pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(event)),'hex'),n,NULL);
+ END IF;
+ RETURN pg_catalog.jsonb_build_object('accepted_generation',after_accepted::text,'mapping_generation',after_mapping::text,
+  'new_facts',new_facts::text,'historical_facts',historical_facts::text,'duplicates',duplicates::text,
+  'no_change',NOT (accepted_changed OR mapping_changed),'plan_digest',preview.plan_digest,'preview_id',preview.id::text);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ IF SQLERRM IN ('import_invalid','import_limit','import_conflict','import_stale','import_mapping_required','import_evidence_unsupported') THEN RAISE; END IF;
+ RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
+WHEN unique_violation OR foreign_key_violation THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict';
+WHEN data_exception THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $effects$;
+REVOKE ALL ON FUNCTION wl_ingestion._effects_v1(uuid,uuid,uuid,uuid) FROM PUBLIC;
+"""
+    return header + _plan_material_sql() + facts
 
 
 REPLAY_DDL = r'''
