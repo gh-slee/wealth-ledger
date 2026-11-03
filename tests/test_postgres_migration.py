@@ -1786,7 +1786,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                                                receipt['created_at']['fractional_digits']))
         self.assertEqual(first, out['AGAIN'])
         self.assertEqual({'ok': False, 'code': 'import_operation_conflict'}, out['CHANGED'])
-        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['FRESH'])
+        self.assertEqual(first, out['FRESH'])
         expected = {'set': ['COMMITTED', int(plan['expected_set_revision']) + 1, receipt['id'], 'pending'],
                     'members': ['committed'], 'receipts': 1, 'audit': 1, 'outbox': 1, 'revisions': 3,
                     'generations': [1, 1]}
@@ -1807,6 +1807,10 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             ('connection_generation', replica + 'UPDATE wl_pg.connections SET generation=generation+1;' + origin, payload, 'import_stale'),
             ('wrapper_removed', "UPDATE wl_ingestion.instance_state SET wrapper_catalog_bytes=pg_catalog.convert_to('[]','UTF8'),"
                 "wrapper_catalog_digest=pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to('[]','UTF8')),'hex');", payload, 'source_unavailable'),
+            ('wrapper_not_top_level', "UPDATE wl_ingestion.instance_state i SET wrapper_catalog_bytes=q.b,"
+                "wrapper_catalog_digest=pg_catalog.encode(pg_catalog.sha256(q.b),'hex') FROM (SELECT pg_catalog.convert_to("
+                "'{\"revoked\":'||pg_catalog.convert_from(wrapper_catalog_bytes,'UTF8')||'}','UTF8') AS b "
+                "FROM wl_ingestion.instance_state) q;", payload, 'source_unavailable'),
             ('needs_mapping', "UPDATE wl_ingestion.sets SET state='NEEDS_MAPPING';", payload, 'import_mapping_required'),
             ('wrong_digest', '', dict(payload, preview_digest='0' * 64), 'import_stale'),
             ('unknown_preview', '', dict(payload, preview_id='20000000-0000-4000-8000-0000000000ff'), 'not_found'),

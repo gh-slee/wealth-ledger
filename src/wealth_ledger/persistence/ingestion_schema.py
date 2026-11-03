@@ -1850,15 +1850,29 @@ BEGIN
  PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=preview.set_id ORDER BY id FOR UPDATE;
  PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=preview.set_id ORDER BY id FOR UPDATE;
  SELECT * INTO preview FROM wl_ingestion.previews WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=preview_id FOR SHARE;
- IF preview.id IS NULL OR selected.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
- -- A concurrent attempt may have committed this operation while we waited.
- result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
-  (p_payload->>'operation_id')::uuid,'ACCEPT',request_digest);
+ -- A concurrent attempt may have committed this operation while we waited, even
+ -- if cleanup purged its preview meanwhile; recover that receipt first.
+ BEGIN
+  result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
+   (p_payload->>'operation_id')::uuid,'ACCEPT',request_digest);
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM='import_conflict' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict'); END IF;
+  RAISE;
+ END;
  IF result IS NOT NULL THEN RETURN pg_catalog.jsonb_build_object('ok',true,'value',result); END IF;
+ IF preview.id IS NULL OR selected.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
  n:=wl_identity._clock_timestamp_v1();
  -- The session must still be live at the DB clock after every lock wait.
  SELECT * INTO ss FROM wl_identity.sessions WHERE token_digest=p_digest;
 SESSION_RECHECK
+ -- A committed set is never accepted again; any confirmation reads its original
+ -- receipt (owner decision on the COMMITTED transition).
+ IF selected.state='COMMITTED' THEN
+  SELECT pg_catalog.convert_from(r.result_bytes,'UTF8')::jsonb INTO result FROM wl_ingestion.receipts r
+   WHERE r.tenant_id=tenant AND r.portfolio_id=portfolio AND r.id=selected.receipt_id AND r.operation_kind='ACCEPT';
+  IF result IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict'); END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
+ END IF;
  IF selected.state IN ('RECEIVING','NORMALIZING','RECONCILING','NEEDS_MAPPING','CONFLICT','READY') AND
   (n>=selected.expires_at OR n>=preview.expires_at) THEN
   -- Expiry wins under the set lock; it fences work and accepts nothing.
@@ -1893,8 +1907,11 @@ SESSION_RECHECK
     SELECT 1 FROM pg_catalog.jsonb_array_elements(CASE WHEN pg_catalog.jsonb_typeof(catalog->'availability')='array'
      THEN catalog->'availability' ELSE '[]'::jsonb END) a(value)
     WHERE a.value->>'installation_id'=member.installation_id AND a.value->>'status'='ACTIVE') OR
-   NOT pg_catalog.jsonb_path_exists(wrappers,'$.** ? (@.profile_digest == $digest && @.installation_id == $installation)',
-    pg_catalog.jsonb_build_object('digest',member.wrapper_profile_digest,'installation',member.installation_id)) THEN
+   -- The wrapper catalog is a top-level array of active profiles (owner decision);
+   -- a profile anywhere else, such as a revoked list, does not count.
+   NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(CASE WHEN pg_catalog.jsonb_typeof(wrappers)='array'
+     THEN wrappers ELSE '[]'::jsonb END) w(value) WHERE pg_catalog.jsonb_typeof(w.value)='object' AND
+    w.value->>'profile_digest'=member.wrapper_profile_digest AND w.value->>'installation_id'=member.installation_id) THEN
    RETURN pg_catalog.jsonb_build_object('ok',false,'code','source_unavailable'); END IF;
   SELECT c.generation INTO generation FROM wl_pg.connections c WHERE c.tenant_id=tenant AND c.portfolio_id=portfolio
    AND c.id=member.connection_id AND c.version=member.connection_version;
