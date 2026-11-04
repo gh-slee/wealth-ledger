@@ -46,3 +46,15 @@ confirmation and reusable connections do not import financial facts. Default
 SQLite and the optional `0002` identity profile remain separate. V2 upload/financial
 acceptance, frontend, reporting parity and existing-ledger migration remain later
 stages. The fake offline API is not an available live provider.
+
+## V2 CSV acceptance under implementation
+
+The [ingestion building blocks](web-v2-imports.md) now include strict typed
+evidence, parser2 and native projection, explicit mappings, review verification, bounded
+transport/raw-receive helpers and storage fragments. They also include transition
+and head guards, the single accepted write `_effects_v1` and the authenticated
+confirm function `accept_preview_v1`, with opt-in PostgreSQL tests. They are not
+an operational import service: no migration provider or grant installs them. The
+remaining database functions, authenticated routes, worker/launcher, live native
+admission/preparation integration and recovery acceptance remain unfinished.
+No new financial booking, browser workflow or workspace migration is activated.

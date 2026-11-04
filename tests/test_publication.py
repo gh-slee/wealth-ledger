@@ -106,6 +106,18 @@ class PublicationPolicyTests(unittest.TestCase):
                      'instance-backup.zip', 'instance-backup.zip.part', 'docs/backup.zip'):
             self.assertFalse(guard.path_allowed(path), path)
 
+    def test_ingestion_vectors_do_not_allow_private_neighbors_or_sensitive_contents(self):
+        self.assertTrue(guard.path_allowed('docs/web-v2-imports.md'))
+        self.assertFalse(guard.path_allowed('docs/web-v2-imports.local.md'))
+        for name in ('README.md', 'oracle.json', 'discovery_child.py'):
+            path = 'tests/fixtures/ingestion/' + name
+            self.assertTrue(guard.path_allowed(path), path)
+            self.assertTrue(guard.content_issues(b'PRIVATE_' + b'FINANCIAL_FIXTURE', path))
+            self.assertTrue(guard.content_issues(b'/Users/' + b'example/private.csv', path))
+        for name in ('AGENTS.override.md', 'operator.conninfo', 'wallet.csv', 'orders.csv',
+                     'key.pem', 'extra.json', 'extra.py', 'backups/history.sqlite'):
+            self.assertFalse(guard.path_allowed('tests/fixtures/ingestion/' + name), name)
+
     def test_synthetic_secret_patterns(self):
         secrets = (b'ghp_' + b'a' * 36, b'AKIA' + b'A' * 16,
                    b'-----BEGIN ' + b'PRIVATE KEY-----',

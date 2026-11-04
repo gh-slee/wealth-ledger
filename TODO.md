@@ -23,6 +23,16 @@ Codex or local LibreOffice. See the [manual](docs/user-manual.md) and
 - [x] Official GICS, country/market and region analysis, effective dates and non-company/unclassified reconciliation.
 - [x] **FUT-001 Offline import preview**: optional `--dry-run`/`--json`; no real data, quote, backup, operation or report changes. Missing references remain pending; default parser preparation requires separate exact confirmation. Explicit native compatibility retains the original offline preview.
 
+## V2 backend development
+
+- [ ] **WL-P0-007 V2 CSV acceptance**: evidence, review, transport and storage
+  fragments, the transition and head guards, the single accepted write and the
+  authenticated confirm function have independent review. Still to do: the
+  remaining create/upload/decision/cancel/read and worker functions, quota and
+  purge helpers, the operator `0004` migration and grants, routes, worker and
+  launcher, and recovery/concurrency/containment/restore acceptance.
+  No operational V2 import profile is available yet. See [current boundaries](docs/web-v2-imports.md).
+
 ## Self-hosted web app (browser/API/worker workflow implemented)
 
 React/TypeScript/Vite, FastAPI, a Python worker, SQLite and Docker Compose; one
