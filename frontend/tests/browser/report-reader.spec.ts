@@ -1,6 +1,13 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
+// Interception handlers that call route.fetch() can still be running when the
+// test ends. Assertions are complete by then, so drop them without surfacing
+// "Response has been disposed" from the closing context.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
 async function openReports(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page.getByLabel("Username", { exact: true }).fill("example-owner");
