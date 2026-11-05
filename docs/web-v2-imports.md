@@ -204,8 +204,27 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   An ACCEPT receipt is returned exactly as stored. A control receipt (CANCEL or
   DECISIONS) is rebuilt as the history DTO from its row and audit entry with zero
   fact counts. Receipts from earlier restore realms stay readable but grant
-  nothing. The paged `read_sets_v1` and `read_preview_v1` need signed cursors and
-  are not implemented yet. Rate admission for these calls is left to the caller.
+  nothing. Rate admission for these calls is left to the caller.
+  [Page cursors](../src/wealth_ledger/ingestion/cursors.py) follow the declared
+  token format: canonical cursor JSON and an HMAC-SHA256 over those exact bytes,
+  each unpadded base64url and joined by a dot, at most 1,024 characters. The key
+  is derived from the instance secret for the `wealth-ledger/ingestion-cursor-v1`
+  purpose. The API checks the MAC in constant time before decoding, then rejects
+  noncanonical JSON, open payloads and alternative base64 spellings. A cursor is
+  signed, not encrypted, and holds only opaque IDs, a fixed filter, a position and
+  an expiry. The database never holds the key.
+  `read_sets_v1` and `read_preview_v1` take that already-verified payload and
+  recheck it against live authentication before using its position. The checks
+  cover user, portfolio, the SHA-256 realm digest of the guard's canonical realm,
+  filter, resource, revision, review digest and expiry. A cursor expires no later
+  than the session's absolute or 30-minute idle limit; for previews it also expires
+  no later than the set and preview. `read_sets_v1` lists set views newest first
+  in pages of 1 to 50 with an optional exact state filter. `read_preview_v1` pages
+  the stored review document's rows. It stops before 50 rows or 4 MiB of canonical
+  row bytes and never splits a row. It reports `can_confirm` only for the current
+  READY revision with a complete Plan before expiry. A later set revision leaves an
+  old preview readable but not confirmable. Both return the unsigned next-page
+  payload for the API to sign. No route signs or verifies cursors yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

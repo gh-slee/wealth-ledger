@@ -2500,6 +2500,186 @@ REVOKE ALL ON FUNCTION wl_ingestion.read_receipt_v1(text,uuid,bigint,jsonb,text,
 """.replace('UUID_RE', _UUID_RE).replace('INSTANT', _instant_sql('saved.created_at'))
 
 
+# A verified cursor payload is rechecked against live authority; its MAC was
+# already checked by the API, which alone holds the cursor key. The realm digest
+# is the SHA-256 of the canonical realm object the user guard derives.
+_CURSOR_PRELUDE_SQL = r"""
+ realm:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(guard#>'{value,realm}')),'hex');
+ SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;
+ n:=wl_identity._clock_timestamp_v1();
+ SELECT * INTO ss FROM wl_identity.sessions WHERE token_digest=p_digest;
+SESSION_RECHECK
+ horizon:=LEAST(ss.expires_at,ss.last_activity+interval '1800 seconds');
+ IF p_payload->'cursor'<>'null'::jsonb THEN
+  cur:=p_payload->'cursor';
+  IF pg_catalog.jsonb_typeof(cur)<>'object' OR
+   ARRAY(SELECT pg_catalog.jsonb_object_keys(cur) ORDER BY 1)<>ARRAY['after_key','expires_at','filter',
+    'portfolio_id','realm_digest','resource_id','resource_revision','review_digest','user_id','version']::text[] OR
+   cur->'version'<>'1'::jsonb OR cur->>'user_id' IS DISTINCT FROM tenant::text OR
+   cur->>'portfolio_id' IS DISTINCT FROM portfolio::text OR cur->>'realm_digest' IS DISTINCT FROM realm OR
+   pg_catalog.jsonb_typeof(cur->'after_key')<>'string' OR pg_catalog.jsonb_typeof(cur->'expires_at')<>'string' OR
+   (cur->>'expires_at') COLLATE "C" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}\+00:00$' THEN
+   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
+  -- An expired cursor, or one outliving this session, starts over.
+  IF (cur->>'expires_at')::timestamptz<=n OR (cur->>'expires_at')::timestamptz>horizon THEN
+   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+ END IF;
+"""
+
+
+def _cursor_next_sql(resource, revision, review, filter_, after, horizon):
+    return ("pg_catalog.jsonb_build_object('version',1,'user_id',tenant::text,'portfolio_id',portfolio::text,"
+            "'realm_digest',realm,'resource_id'," + resource + ",'resource_revision'," + revision +
+            ",'review_digest'," + review + ",'filter'," + filter_ + ",'after_key'," + after +
+            ",'expires_at',pg_catalog.to_char((" + horizon + ") AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US')||'+00:00')")
+
+
+_STATES_SQL = "('RECEIVING','NORMALIZING','RECONCILING','NEEDS_MAPPING','CONFLICT','READY','COMMITTED','REJECTED','CANCELLED','EXPIRED')"
+
+READ_SETS_DDL = r"""
+CREATE FUNCTION wl_ingestion.read_sets_v1(p_digest text,p_user uuid,p_version bigint,p_realm jsonb,
+ p_catalog_digest text,p_payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $read_sets$
+DECLARE guard jsonb;st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;
+ tenant uuid;portfolio uuid;realm text;n timestamptz;horizon timestamptz;cur jsonb;
+ page_size integer;wanted text;after_at timestamptz;after_id uuid;items jsonb;last_at timestamptz;last_id uuid;more boolean;
+BEGIN
+ -- Fixed query keys only: cursor (already MAC-verified, or null), limit and an optional state.
+ IF pg_catalog.jsonb_typeof(p_payload) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_payload) ORDER BY 1)<>ARRAY['cursor','limit','state']::text[] OR
+  pg_catalog.jsonb_typeof(p_payload->'limit')<>'string' OR
+  (p_payload->>'limit') COLLATE "C" !~ '^([1-9]|[1-4][0-9]|50)$' OR
+  pg_catalog.jsonb_typeof(p_payload->'state') NOT IN ('string','null') OR
+  (p_payload->'state'<>'null'::jsonb AND p_payload->>'state' NOT IN STATES) THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_user_v1(p_digest,p_user,p_version,p_realm,p_catalog_digest);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ tenant:=(guard#>>'{value,tenant_id}')::uuid;portfolio:=(guard#>>'{value,portfolio_id}')::uuid;
+ page_size:=(p_payload->>'limit')::integer;wanted:=p_payload->>'state';
+CURSOR_PRELUDE
+ IF cur IS NOT NULL THEN
+  -- A list cursor names no resource and keeps the filter it was issued for.
+  IF cur->'resource_id'<>'null'::jsonb OR cur->'resource_revision'<>'null'::jsonb OR
+   cur->'review_digest'<>'null'::jsonb OR cur->>'filter' IS DISTINCT FROM wanted OR
+   (cur->>'after_key') COLLATE "C" !~ '^(0|[1-9][0-9]{0,18}):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
+  after_at:='1970-01-01T00:00:00+00:00'::timestamptz+
+   pg_catalog.split_part(cur->>'after_key',':',1)::bigint*interval '1 microsecond';
+  after_id:=pg_catalog.split_part(cur->>'after_key',':',2)::uuid;
+ END IF;
+ -- Newest first by creation time, then ID; the page reads one row ahead.
+ SELECT COALESCE(pg_catalog.jsonb_agg(q.result ORDER BY q.created_at DESC,q.id DESC) FILTER (WHERE q.position<=page_size),'[]'::jsonb),
+  pg_catalog.max(q.created_at) FILTER (WHERE q.position=page_size),
+  (pg_catalog.array_agg(q.id) FILTER (WHERE q.position=page_size))[1],
+  pg_catalog.count(*)>page_size
+  INTO items,last_at,last_id,more FROM (
+   SELECT SET_RESULT AS result,x.created_at,x.id,
+    pg_catalog.row_number() OVER (ORDER BY x.created_at DESC,x.id DESC) AS position
+   FROM wl_ingestion.sets x WHERE x.tenant_id=tenant AND x.portfolio_id=portfolio AND (wanted IS NULL OR x.state=wanted)
+    AND (after_at IS NULL OR (x.created_at,x.id)<(after_at,after_id))
+   ORDER BY x.created_at DESC,x.id DESC LIMIT page_size+1) q;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('items',items,
+  'next',CASE WHEN more THEN NEXT_CURSOR ELSE NULL END));
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ IF SQLERRM IN ('session_changed','instance_not_ready') THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code',SQLERRM); END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $read_sets$;
+REVOKE ALL ON FUNCTION wl_ingestion.read_sets_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;
+""".replace('CURSOR_PRELUDE', _CURSOR_PRELUDE_SQL).replace('SESSION_RECHECK', _identity.check_session()).replace(
+    'SET_RESULT', _SET_RESULT_SQL).replace('STATES', _STATES_SQL).replace('NEXT_CURSOR', _cursor_next_sql(
+    'NULL', 'NULL', 'NULL', 'wanted',
+    "((EXTRACT(EPOCH FROM last_at)*1000000)::bigint)::text||':'||last_id::text", 'horizon'))
+
+# Rows of one page stop before this many canonical bytes; metadata adds at most
+# 16 KiB, so a page stays within the declared 4 MiB + 16 KiB response bound.
+PREVIEW_PAGE_BYTES = 4194304
+
+READ_PREVIEW_DDL = r"""
+CREATE FUNCTION wl_ingestion.read_preview_v1(p_digest text,p_user uuid,p_version bigint,p_realm jsonb,
+ p_catalog_digest text,p_payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $read_preview$
+DECLARE guard jsonb;st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;
+ preview wl_ingestion.previews%ROWTYPE;selected wl_ingestion.sets%ROWTYPE;
+ tenant uuid;portfolio uuid;realm text;n timestamptz;horizon timestamptz;cur jsonb;
+ page_size integer;start_at integer:=0;total integer;used bigint:=0;rows jsonb:='[]'::jsonb;
+ document jsonb;one jsonb;taken integer:=0;
+BEGIN
+ IF pg_catalog.jsonb_typeof(p_payload) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_payload) ORDER BY 1)<>ARRAY['cursor','limit','preview_id']::text[] OR
+  pg_catalog.jsonb_typeof(p_payload->'preview_id')<>'string' OR (p_payload->>'preview_id') COLLATE "C" !~ 'UUID_RE' OR
+  p_payload->>'preview_id'='00000000-0000-0000-0000-000000000000' OR
+  pg_catalog.jsonb_typeof(p_payload->'limit')<>'string' OR
+  (p_payload->>'limit') COLLATE "C" !~ '^([1-9]|[1-4][0-9]|50)$' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_user_v1(p_digest,p_user,p_version,p_realm,p_catalog_digest);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ tenant:=(guard#>>'{value,tenant_id}')::uuid;portfolio:=(guard#>>'{value,portfolio_id}')::uuid;
+ page_size:=(p_payload->>'limit')::integer;
+CURSOR_PRELUDE
+ SELECT * INTO preview FROM wl_ingestion.previews v WHERE v.tenant_id=tenant AND v.portfolio_id=portfolio
+  AND v.id=(p_payload->>'preview_id')::uuid;
+ IF preview.id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ SELECT * INTO selected FROM wl_ingestion.sets x WHERE x.tenant_id=tenant AND x.portfolio_id=portfolio AND x.id=preview.set_id;
+ IF pg_catalog.encode(pg_catalog.sha256(preview.review_bytes),'hex')<>preview.review_digest OR
+  preview.review_bytes<>wl_ingestion._canonical_v1(pg_catalog.convert_from(preview.review_bytes,'UTF8')::jsonb) THEN
+  RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+ document:=pg_catalog.convert_from(preview.review_bytes,'UTF8')::jsonb;
+ IF pg_catalog.jsonb_typeof(document#>'{content,rows}')<>'array' OR document->>'id' IS DISTINCT FROM preview.id::text THEN
+  RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+ horizon:=LEAST(horizon,selected.expires_at,preview.expires_at);
+ IF cur IS NOT NULL THEN
+  -- A page cursor is tied to this exact preview, revision and review document.
+  IF cur->'filter'<>'null'::jsonb OR cur->>'resource_id' IS DISTINCT FROM preview.id::text OR
+   cur->>'resource_revision' IS DISTINCT FROM preview.set_revision::text OR
+   cur->>'review_digest' IS DISTINCT FROM preview.review_digest OR
+   (cur->>'after_key') COLLATE "C" !~ '^[1-9][0-9]{0,8}$' THEN
+   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+  IF (cur->>'expires_at')::timestamptz>horizon THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+  start_at:=(cur->>'after_key')::integer;
+ END IF;
+ total:=pg_catalog.jsonb_array_length(document#>'{content,rows}');
+ IF start_at>=total THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+ -- Whole rows only: stop before the row or byte bound, never truncate a row.
+ WHILE start_at+taken<total AND taken<page_size LOOP
+  one:=document#>ARRAY['content','rows',(start_at+taken)::text];
+  EXIT WHEN taken>0 AND used+pg_catalog.octet_length(wl_ingestion._canonical_v1(one))>PAGE_BYTES;
+  used:=used+pg_catalog.octet_length(wl_ingestion._canonical_v1(one));
+  rows:=rows||pg_catalog.jsonb_build_array(one);taken:=taken+1;
+ END LOOP;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('page',
+  pg_catalog.jsonb_build_object('id',preview.id::text,'set_id',preview.set_id::text,
+   'set_revision',preview.set_revision::text,'state',selected.state,'preview_digest',preview.plan_digest,
+   'expires_at',INSTANT,'rows',rows,
+   -- Confirmation needs the current READY revision with its complete Plan before expiry.
+   'can_confirm',(selected.state='READY' AND preview.plan_bytes IS NOT NULL AND
+    selected.revision=preview.set_revision AND n<selected.expires_at AND n<preview.expires_at),
+   'review_digest',preview.review_digest,'content_digest',document->>'content_digest',
+   'accepted_generation',preview.expected_accepted_generation::text,
+   'mapping_generation',preview.expected_mapping_generation::text,
+   'control_generation',preview.expected_control_generation::text),
+  'next',CASE WHEN start_at+taken<total AND horizon>n THEN NEXT_CURSOR ELSE NULL END));
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ IF SQLERRM IN ('session_changed','instance_not_ready') THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code',SQLERRM); END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $read_preview$;
+REVOKE ALL ON FUNCTION wl_ingestion.read_preview_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;
+""".replace('CURSOR_PRELUDE', _CURSOR_PRELUDE_SQL).replace('SESSION_RECHECK', _identity.check_session()).replace(
+    'UUID_RE', _UUID_RE).replace('PAGE_BYTES', str(PREVIEW_PAGE_BYTES)).replace(
+    'INSTANT', _instant_sql('preview.expires_at')).replace('NEXT_CURSOR', _cursor_next_sql(
+    'preview.id::text', 'preview.set_revision::text', 'preview.review_digest', 'NULL',
+    '(start_at+taken)::text', 'horizon'))
+
+
 def user_guard_ddl():
     """Render the declared private guard without altering predecessor providers.
 

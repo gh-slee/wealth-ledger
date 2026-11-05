@@ -129,6 +129,21 @@ class IngestionStorageDDLTests(unittest.TestCase):
         for ddl in (schema.READ_SET_DDL, schema.READ_RECEIPT_DDL):
             self.assertNotRegex(ddl, r'\b(INSERT|UPDATE|FOR UPDATE|FOR SHARE)\b')
 
+    def test_paged_reads_match_their_gateway_declarations(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}
+        for name, ddl in (('read_sets_v1', schema.READ_SETS_DDL), ('read_preview_v1', schema.READ_PREVIEW_DDL)):
+            with self.subTest(function=name):
+                self.assertEqual((['text', 'uuid', 'bigint', 'jsonb', 'text', 'jsonb'], 'jsonb', 'identity_source_gateway'),
+                    (declared[name]['arguments'], declared[name]['returns'], declared[name]['execute']))
+                self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.' + name +
+                              '(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;', ddl)
+                self.assertEqual(1, ddl.count('CREATE FUNCTION'))
+                for fragment in ('GRANT ', 'SESSION_RECHECK', 'SET_RESULT', 'CURSOR_PRELUDE', 'NEXT_CURSOR',
+                                 'UUID_RE', 'PAGE_BYTES', 'pg_catalog.least(', 'pg_catalog.extract('):
+                    self.assertNotIn(fragment, ddl)
+                # Reads never write or lock, and SQL never holds the cursor key.
+                self.assertNotRegex(ddl, r'\b(INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|hmac)\b')
+
     def test_quota_and_purge_match_their_private_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl, arguments in (
@@ -257,7 +272,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl()
                 + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.PURGE_DDL
                 + '\n' + schema.CANCEL_DDL + '\n' + schema.DECIDE_DDL
-                + '\n' + schema.READ_SET_DDL + '\n' + schema.READ_RECEIPT_DDL)
+                + '\n' + schema.READ_SET_DDL + '\n' + schema.READ_RECEIPT_DDL
+                + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -2342,6 +2358,130 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                  "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
                  'END IF; END $role$;')
         for name in ('decide_set_v1', 'read_set_v1', 'read_receipt_v1'):
+            with self.subTest(function=name):
+                self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+                    "'wl_ingestion." + name + "(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
+
+    # Paged reads: each call stores its result, and the next call reads the
+    # previous `next` payload as its cursor inside the same transaction. The
+    # API checks the MAC before this point; SQL rechecks every binding.
+    def gateway_expression(self, function, label, payload_sql, catalog_digest, *, session=None):
+        from wealth_ledger.persistence import identity_schema
+        return ("DO $paged$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
+            "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion." + function + "('" +
+            (session or self.SESSION) + "','" + ORACLE['plan-first-use.json']['tenant_id'] + "',1," +
+            identity_schema.realm() + ",'" + catalog_digest + "'," + payload_sql + "); "
+            "PERFORM pg_catalog.set_config('test." + label + "',r::text,true); END $paged$;"
+            "SELECT '" + label.upper() + " '||pg_catalog.current_setting('test." + label + "');")
+
+    @staticmethod
+    def previous(label, path='{value,next}'):
+        return "(pg_catalog.current_setting('test." + label + "')::jsonb#>'" + path + "')"
+
+    def extra_sets(self, plan, count):
+        rows = []
+        for index in range(count):
+            set_id = 'a7000000-0000-4000-8000-0000000000' + format(index, '02d')
+            row = self.set_row(set_id, 'CANCELLED' if index % 2 else 'READY', revision=2, members=1,
+                               created="now()-interval '" + str(index + 1) + " minutes'")
+            rows.append(row.replace("'" + self.T + "'", "'" + plan['tenant_id'] + "'").replace(
+                "'" + self.P + "'", "'" + plan['portfolio_id'] + "'"))
+        return 'SET LOCAL session_replication_role=replica;' + ''.join(rows) + 'SET LOCAL session_replication_role=origin;'
+
+    def test_read_sets_pages_newest_first_and_rechecks_every_cursor_binding(self):
+        plan, seed, catalog = self.accept_seed()
+        seed += self.extra_sets(plan, 4)
+        def page(label, cursor='NULL::jsonb', limit='2', state='null'):
+            return self.gateway_expression('read_sets_v1', label, "pg_catalog.jsonb_build_object('cursor'," + cursor +
+                ",'limit','" + limit + "','state'," + state + "::jsonb)", catalog)
+        def altered(field, value):
+            return "pg_catalog.jsonb_set(" + self.previous('p1') + ",'{" + field + "}','" + value + "'::jsonb)"
+        out = self.run_labelled(seed + page('p1') + page('p2', self.previous('p1')) + page('p3', self.previous('p2')) +
+            page('all', limit='50') + page('cancelled', state="'\"CANCELLED\"'") +
+            page('mixed', self.previous('p1'), state="'\"CANCELLED\"'") +
+            page('realm', altered('realm_digest', '"' + '0' * 64 + '"')) +
+            page('user', altered('user_id', '"10000000-0000-4000-8000-0000000000ff"')) +
+            page('resource', altered('resource_id', '"10000000-0000-4000-8000-0000000000ff"')) +
+            page('expired', altered('expires_at', '"2020-01-01T00:00:00.000000+00:00"')) +
+            page('beyond', altered('expires_at', '"2999-01-01T00:00:00.000000+00:00"')) +
+            page('position', altered('after_key', '"1:x"')) +
+            page('zero', limit='0') + page('big', limit='51') +
+            self.gateway_expression('read_sets_v1', 'extra', "'{\"cursor\":null,\"limit\":\"2\",\"state\":null,\"x\":1}'::jsonb", catalog))
+        ids = [x['id'] for label in ('P1', 'P2', 'P3') for x in out[label]['value']['items']]
+        everything = [x['id'] for x in out['ALL']['value']['items']]
+        self.assertEqual(5, len(everything))
+        self.assertEqual(everything, ids)
+        self.assertEqual([2, 2, 1], [len(out[x]['value']['items']) for x in ('P1', 'P2', 'P3')])
+        self.assertIsNone(out['P3']['value']['next'])
+        self.assertIsNone(out['ALL']['value']['next'])
+        nxt = out['P1']['value']['next']
+        self.assertEqual((1, None, None, None, None), (nxt['version'], nxt['resource_id'], nxt['resource_revision'],
+                                                      nxt['review_digest'], nxt['filter']))
+        self.assertEqual(plan['tenant_id'], nxt['user_id'])
+        self.assertEqual({'CANCELLED'}, {x['state'] for x in out['CANCELLED']['value']['items']})
+        self.assertEqual(2, len(out['CANCELLED']['value']['items']))
+        for label, code in (('MIXED', 'import_invalid'), ('REALM', 'import_invalid'), ('USER', 'import_invalid'),
+                            ('RESOURCE', 'import_invalid'), ('EXPIRED', 'import_stale'), ('BEYOND', 'import_stale'),
+                            ('POSITION', 'import_invalid'), ('ZERO', 'import_invalid'), ('BIG', 'import_invalid'),
+                            ('EXTRA', 'import_invalid')):
+            with self.subTest(case=label):
+                self.assertEqual({'ok': False, 'code': code}, out[label])
+
+    def review_seed(self, plan):
+        from copy import deepcopy
+        from wealth_ledger.ingestion.codec import encode
+        document = deepcopy(ORACLE['mixed-set-review.json'])
+        document.update(id=plan['preview_id'], set_id=plan['set_id'])
+        raw = encode(document)
+        return document, ("UPDATE wl_ingestion.previews SET review_bytes=decode('" + raw.hex() + "','hex'),review_digest='" +
+                          hashlib.sha256(raw).hexdigest() + "';")
+
+    def test_read_preview_pages_whole_review_rows_bound_to_the_exact_document(self):
+        plan, seed, catalog = self.accept_seed()
+        document, review = self.review_seed(plan)
+        seed += review
+        def page(label, cursor='NULL::jsonb', preview=None, limit='10'):
+            return self.gateway_expression('read_preview_v1', label, "pg_catalog.jsonb_build_object('cursor'," + cursor +
+                ",'limit','" + limit + "','preview_id','" + (preview or plan['preview_id']) + "')", catalog)
+        out = self.run_labelled(seed + page('p1') + page('p2', self.previous('p1')) + page('p3', self.previous('p2')) +
+            page('p4', self.previous('p3')) +
+            page('digest', "pg_catalog.jsonb_set(" + self.previous('p1') + ",'{review_digest}','\"" + '0' * 64 + "\"'::jsonb)") +
+            page('revision', "pg_catalog.jsonb_set(" + self.previous('p1') + ",'{resource_revision}','\"99\"'::jsonb)") +
+            page('setcursor', "pg_catalog.jsonb_set(pg_catalog.jsonb_set(pg_catalog.jsonb_set(" + self.previous('p1') +
+                 ",'{resource_id}','null'),'{resource_revision}','null'),'{review_digest}','null')") +
+            page('missing', preview='20000000-0000-4000-8000-0000000000ff') +
+            "SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1;"
+            "SET LOCAL session_replication_role=origin;" + page('stale') + page('oldcursor', self.previous('p1')))
+        rows = [r for label in ('P1', 'P2', 'P3', 'P4') for r in out[label]['value']['page']['rows']]
+        self.assertEqual(document['content']['rows'], rows)
+        self.assertEqual([10, 10, 10, 5], [len(out[x]['value']['page']['rows']) for x in ('P1', 'P2', 'P3', 'P4')])
+        self.assertIsNone(out['P4']['value']['next'])
+        first = out['P1']['value']['page']
+        self.assertEqual((plan['preview_id'], plan['set_id'], plan['expected_set_revision'], 'READY', True,
+                          document['content_digest']),
+                         (first['id'], first['set_id'], first['set_revision'], first['state'], first['can_confirm'],
+                          first['content_digest']))
+        self.assertEqual(sorted(['accepted_generation', 'can_confirm', 'content_digest', 'control_generation', 'expires_at',
+            'id', 'mapping_generation', 'preview_digest', 'review_digest', 'rows', 'set_id', 'set_revision', 'state']),
+            sorted(first))
+        cursor = out['P1']['value']['next']
+        self.assertEqual((plan['preview_id'], plan['expected_set_revision'], '10', None),
+                         (cursor['resource_id'], cursor['resource_revision'], cursor['after_key'], cursor['filter']))
+        self.assertLessEqual(cursor['expires_at'][:19], plan['expires_at']['token'][:19])
+        for label, code in (('DIGEST', 'import_stale'), ('REVISION', 'import_stale'), ('SETCURSOR', 'import_stale'),
+                            ('MISSING', 'not_found')):
+            with self.subTest(case=label):
+                self.assertEqual({'ok': False, 'code': code}, out[label])
+        # A later set revision leaves the old preview readable but not confirmable.
+        self.assertFalse(out['STALE']['value']['page']['can_confirm'])
+        self.assertEqual('RECONCILING', out['STALE']['value']['page']['state'])
+        self.assertTrue(out['OLDCURSOR']['ok'])
+
+    def test_paged_reads_are_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        for name in ('read_sets_v1', 'read_preview_v1'):
             with self.subTest(function=name):
                 self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
                     "'wl_ingestion." + name + "(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
