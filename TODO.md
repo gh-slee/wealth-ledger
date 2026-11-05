@@ -28,9 +28,9 @@ Codex or local LibreOffice. See the [manual](docs/user-manual.md) and
 - [ ] **WL-P0-007 V2 CSV acceptance**: evidence, review, transport and storage
   fragments, the transition and head guards, the single accepted write and the
   authenticated confirm function have independent review. The private quota and
-  transient-purge helpers have developer tests but no independent review yet.
-  Still to do: the remaining create/upload/decision/cancel/read and worker
-  functions, the operator `0004` migration and grants, routes, worker and
+  transient-purge helpers and the cancel function have developer tests but no
+  independent review yet. Still to do: the remaining create/upload/decision/read
+  and worker functions, the operator `0004` migration and grants, routes, worker and
   launcher, and recovery/concurrency/containment/restore acceptance.
   No operational V2 import profile is available yet. See [current boundaries](docs/web-v2-imports.md).
 

@@ -102,6 +102,16 @@ class IngestionStorageDDLTests(unittest.TestCase):
         for row in schema.inventory()['triggers']:
             self.assertIn('EXECUTE FUNCTION wl_ingestion.' + row['function'] + '();', sql)
 
+    def test_cancel_matches_its_gateway_declaration(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}['cancel_set_v1']
+        self.assertEqual((['text', 'uuid', 'bigint', 'jsonb', 'text', 'jsonb'], 'jsonb', 'identity_source_gateway'),
+                         (declared['arguments'], declared['returns'], declared['execute']))
+        self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.cancel_set_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;',
+                      schema.CANCEL_DDL)
+        self.assertEqual(1, schema.CANCEL_DDL.count('CREATE FUNCTION'))
+        for fragment in ('GRANT ', 'SESSION_RECHECK', 'SET_RESULT', 'DELETE ', '_effects_v1', '_quota_v1'):
+            self.assertNotIn(fragment, schema.CANCEL_DDL)
+
     def test_quota_and_purge_match_their_private_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl, arguments in (
@@ -228,7 +238,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.OUTBOX_GUARD_DDL + '\n' + schema.user_guard_ddl()
                 + '\n' + schema.minimal_validator_ddl() + '\n' + schema.plan_validator_ddl() + '\n' + schema.reference_validator_ddl() + '\n' + schema.REPLAY_DDL
                 + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl()
-                + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.PURGE_DDL)
+                + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.PURGE_DDL
+                + '\n' + schema.CANCEL_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -2057,6 +2068,114 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                     "pg_catalog.array_to_string(proconfig,',') FROM pg_catalog.pg_proc WHERE "
                     "oid='wl_ingestion." + signature + "'::regprocedure"))
 
+
+    # cancel_set_v1 runs on the accept fixtures with the real transition guard,
+    # so every set, member and lease change it makes is checked.
+    def cancel_statement(self, label, payload, catalog_digest, *, session=None):
+        return self.accept_statement(label, payload, catalog_digest, session=session).replace(
+            'accept_preview_v1', 'cancel_set_v1').replace('$accept$', '$cancel$')
+
+    TRANSITION_TRIGGERS = ''.join('CREATE TRIGGER ' + x['name'] + ' BEFORE INSERT OR UPDATE OR DELETE ON wl_ingestion.' +
+        x['table'] + ' FOR EACH ROW EXECUTE FUNCTION wl_ingestion._transition_v1();'
+        for x in schema.inventory()['triggers'] if x['function'] == '_transition_v1')
+
+    CANCEL_STATE = ("SELECT 'CSTATE '||pg_catalog.jsonb_build_object('set',(SELECT pg_catalog.jsonb_build_array(state,"
+        "revision,receipt_id,cleanup_state) FROM wl_ingestion.sets),'fences',(SELECT pg_catalog.jsonb_agg("
+        "pg_catalog.jsonb_build_array(state,fence)) FROM wl_ingestion.members),'leases',(SELECT pg_catalog.jsonb_agg(state) "
+        "FROM wl_ingestion.leases),'receipts',(SELECT pg_catalog.jsonb_agg(operation_kind ORDER BY operation_kind) FROM "
+        "wl_ingestion.receipts),'audit',(SELECT pg_catalog.jsonb_agg(action ORDER BY action) FROM wl_ingestion.audit),"
+        "'generations',(SELECT pg_catalog.jsonb_build_array(accepted_generation,mapping_generation,control_generation) "
+        "FROM wl_ingestion.roots))::text;")
+
+    def cancel_seed(self, **kwargs):
+        plan, seed, catalog = self.accept_seed(**kwargs)
+        lease = self.lease_row('a6000000-0000-4000-8000-000000000001', plan['set_id'], None, kind='prepare').replace(
+            "'" + self.T + "'", "'" + plan['tenant_id'] + "'").replace("'" + self.P + "'", "'" + plan['portfolio_id'] + "'")
+        worker = self.row('workers', {'id': self.WORKER, 'login_role': 'wl_worker', 'peer_identity': 'peer-a',
+                                      'enabled': True, 'credential_epoch': 1})
+        return plan, seed + worker + lease + self.TRANSITION_TRIGGERS, catalog
+
+    def test_cancel_wins_once_fences_work_and_replays_its_receipt(self):
+        from wealth_ledger.ingestion.codec import digest
+        plan, seed, catalog = self.cancel_seed()
+        revision = plan['expected_set_revision']
+        payload = {'operation_id': '51000000-0000-4000-8000-000000000001', 'set_id': plan['set_id'],
+                   'expected_set_revision': revision}
+        confirm = {'operation_id': '51000000-0000-4000-8000-000000000002', 'preview_id': plan['preview_id'],
+                   'preview_digest': digest(plan)}
+        out = self.run_labelled(seed + self.cancel_statement('first', payload, catalog) + self.CANCEL_STATE +
+            self.cancel_statement('again', payload, catalog) +
+            self.cancel_statement('reused', dict(payload, expected_set_revision=str(int(revision) + 1)), catalog) +
+            self.cancel_statement('fresh', dict(payload, operation_id='51000000-0000-4000-8000-000000000003'), catalog) +
+            self.accept_statement('confirm', confirm, catalog) + self.CANCEL_STATE.replace("'CSTATE '", "'CAFTER '"))
+        first = out['FIRST']
+        self.assertTrue(first['ok'], first)
+        value = first['value']
+        self.assertEqual(('CANCELLED', str(int(revision) + 1), 'pending', None, plan['set_id']),
+                         (value['state'], value['revision'], value['cleanup_state'], value['receipt_id'], value['id']))
+        self.assertEqual(['cancelled'], [m['state'] for m in value['members']])
+        self.assertEqual(plan['preview_id'], value['preview_id'])
+        self.assertEqual(('instant', 6), (value['expires_at']['tag'], value['expires_at']['fractional_digits']))
+        expected = {'set': ['CANCELLED', int(revision) + 1, None, 'pending'], 'fences': [['cancelled', 2]],
+                    'leases': ['cancelled'], 'receipts': ['CANCEL'], 'audit': ['CANCELLED'],
+                    'generations': [0, 0, int(plan['expected_control_generation']) + 1]}
+        self.assertEqual(expected, out['CSTATE'])
+        self.assertEqual(first, out['AGAIN'])
+        self.assertEqual({'ok': False, 'code': 'import_operation_conflict'}, out['REUSED'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['FRESH'])
+        # A cancellation that won first leaves acceptance nothing to write.
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['CONFIRM'])
+        self.assertEqual(expected, out['CAFTER'])
+
+    def test_cancel_after_acceptance_returns_the_committed_set_unchanged(self):
+        from wealth_ledger.ingestion.codec import digest
+        plan, seed, catalog = self.cancel_seed()
+        confirm = {'operation_id': '51000000-0000-4000-8000-000000000004', 'preview_id': plan['preview_id'],
+                   'preview_digest': digest(plan)}
+        payload = {'operation_id': '51000000-0000-4000-8000-000000000005', 'set_id': plan['set_id'],
+                   'expected_set_revision': plan['expected_set_revision']}
+        out = self.run_labelled(seed + self.accept_statement('confirm', confirm, catalog) +
+                                self.cancel_statement('cancel', payload, catalog) + self.CANCEL_STATE)
+        self.assertTrue(out['CONFIRM']['ok'], out['CONFIRM'])
+        self.assertTrue(out['CANCEL']['ok'], out['CANCEL'])
+        self.assertEqual(('COMMITTED', out['CONFIRM']['value']['id']),
+                         (out['CANCEL']['value']['state'], out['CANCEL']['value']['receipt_id']))
+        self.assertEqual((['ACCEPT'], ['ACCEPTED'], [1, 1, int(plan['expected_control_generation'])]), (out['CSTATE']['receipts'], out['CSTATE']['audit'],
+                                                                 out['CSTATE']['generations']))
+
+    def test_cancel_rejects_stale_expired_and_malformed_requests_without_writing(self):
+        plan, seed, catalog = self.cancel_seed()
+        payload = {'operation_id': '51000000-0000-4000-8000-000000000006', 'set_id': plan['set_id'],
+                   'expected_set_revision': plan['expected_set_revision']}
+        cases = (
+            ('old_revision', dict(payload, expected_set_revision=str(int(plan['expected_set_revision']) - 1)), '', 'import_stale'),
+            ('unknown_set', dict(payload, set_id='20000000-0000-4000-8000-0000000000ff'), '', 'not_found'),
+            ('extra_field', dict(payload, reason='x'), '', 'import_invalid'),
+            ('zero_revision', dict(payload, expected_set_revision='0'), '', 'import_invalid'),
+            ('number_revision', dict(payload, expected_set_revision=int(plan['expected_set_revision'])), '', 'import_invalid'),
+            ('revoked_session', payload, 'UPDATE wl_identity.sessions SET revoked=true;', 'session_changed'),
+        )
+        for name, request, mutation, code in cases:
+            with self.subTest(case=name):
+                out = self.run_labelled(seed + mutation + self.cancel_statement('result', request, catalog) + self.CANCEL_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertEqual({'set': ['READY', int(plan['expected_set_revision']), None, 'not_needed'],
+                                  'fences': [['admitted', 1]], 'leases': ['offered'], 'receipts': None, 'audit': None,
+                                  'generations': [0, 0, int(plan['expected_control_generation'])]}, out['CSTATE'])
+        plan, seed, catalog = self.cancel_seed(expires_in_hours=-1)
+        out = self.run_labelled(seed + self.cancel_statement('result', dict(payload, set_id=plan['set_id']), catalog) +
+                                self.CANCEL_STATE)
+        self.assertEqual({'ok': False, 'code': 'import_expired'}, out['RESULT'])
+        self.assertEqual({'set': ['EXPIRED', int(plan['expected_set_revision']), None, 'pending'],
+                          'fences': [['expired', 2]], 'leases': ['cancelled'], 'receipts': None, 'audit': None,
+                          'generations': [0, 0, int(plan['expected_control_generation'])]}, out['CSTATE'])
+
+    def test_cancel_is_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+            "'wl_ingestion.cancel_set_v1(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
 
 if __name__ == '__main__':
     unittest.main()

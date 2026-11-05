@@ -172,6 +172,21 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   evidence stay. Opt-in PostgreSQL tests cover window reset, user and shared
   instance bounds across portfolios, double release, purge ordering and fail-closed
   rollback. No gateway, worker or cleanup route calls either helper yet.
+  The declared gateway function `cancel_set_v1` takes only `operation_id`,
+  `set_id` and `expected_set_revision`. It authenticates through
+  `_guard_user_v1` and returns an exact earlier CANCEL receipt before any mutable
+  check; a reused operation ID with a different request returns
+  `import_operation_conflict`. It locks the ingestion root, set, members and
+  leases in the same order as acceptance. A set that acceptance already committed
+  is returned unchanged with its acceptance receipt ID. Expiry still wins and
+  fences the set. Otherwise, at the expected revision, the set becomes CANCELLED
+  with one revision and one control-generation step, member attempts and live
+  leases are fenced, cleanup is marked pending, and one CANCEL receipt and one
+  CANCELLED audit row hold the resulting set view. Accepted facts, mappings and
+  quotas are untouched; storage is released later by cleanup. Opt-in PostgreSQL
+  tests run it under the real transition guard, including cancel-then-confirm
+  and confirm-then-cancel orders inside one transaction. They do not race two
+  connections. No HTTP route calls it yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

@@ -2183,6 +2183,132 @@ REVOKE ALL ON FUNCTION wl_ingestion._purge_v1(uuid,uuid,uuid) FROM PUBLIC;
     'BUSY;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy';")
 
 
+def _instant_sql(expression):
+    """A closed Instant for a DB timestamp, keeping its exact microseconds."""
+    return ("pg_catalog.jsonb_build_object('tag','instant','token',pg_catalog.to_char((" + expression +
+            ") AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US')||'+00:00','zone',null,'fractional_digits',6)")
+
+
+# Public SetResult for one locked set; members follow their ordinal.
+_SET_RESULT_SQL = ("pg_catalog.jsonb_build_object('id',x.id::text,'state',x.state,'revision',x.revision::text,"
+    "'created_at'," + _instant_sql('x.created_at') + ",'expires_at'," + _instant_sql('x.expires_at') + ","
+    "'members',COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id',m.id::text,"
+    "'ordinal',m.ordinal,'connection_id',m.connection_id::text,'installation_id',m.installation_id,"
+    "'format_version',m.format_version,'state',m.state,'error_code',m.error_code,'cleanup_state',x.cleanup_state)"
+    " ORDER BY m.ordinal) FROM wl_ingestion.members m WHERE m.tenant_id=x.tenant_id AND "
+    "m.portfolio_id=x.portfolio_id AND m.set_id=x.id),'[]'::jsonb),"
+    "'preview_id',(SELECT v.id::text FROM wl_ingestion.previews v WHERE v.tenant_id=x.tenant_id AND "
+    "v.portfolio_id=x.portfolio_id AND v.set_id=x.id ORDER BY v.set_revision DESC,v.created_at DESC,v.id LIMIT 1),"
+    "'receipt_id',x.receipt_id::text,'cleanup_state',x.cleanup_state)")
+
+CANCEL_DDL = r"""
+CREATE FUNCTION wl_ingestion.cancel_set_v1(p_digest text,p_user uuid,p_version bigint,p_realm jsonb,
+ p_catalog_digest text,p_payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $cancel$
+DECLARE guard jsonb;st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;
+ selected wl_ingestion.sets%ROWTYPE;root wl_ingestion.roots%ROWTYPE;
+ tenant uuid;portfolio uuid;wanted uuid;receipt uuid;n timestamptz;
+ request_digest text;code text;result jsonb;
+BEGIN
+ -- The route supplies the set ID; the body adds only the operation and revision.
+ IF pg_catalog.jsonb_typeof(p_payload) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_payload) ORDER BY 1)<>
+   ARRAY['expected_set_revision','operation_id','set_id']::text[] OR
+  pg_catalog.jsonb_typeof(p_payload->'operation_id')<>'string' OR pg_catalog.jsonb_typeof(p_payload->'set_id')<>'string' OR
+  pg_catalog.jsonb_typeof(p_payload->'expected_set_revision')<>'string' OR
+  (p_payload->>'operation_id') COLLATE "C" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' OR
+  (p_payload->>'set_id') COLLATE "C" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' OR
+  p_payload->>'operation_id'='00000000-0000-0000-0000-000000000000' OR
+  p_payload->>'set_id'='00000000-0000-0000-0000-000000000000' OR
+  (p_payload->>'expected_set_revision') COLLATE "C" !~ '^[1-9][0-9]{0,17}$' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_user_v1(p_digest,p_user,p_version,p_realm,p_catalog_digest);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ tenant:=(guard#>>'{value,tenant_id}')::uuid;portfolio:=(guard#>>'{value,portfolio_id}')::uuid;
+ wanted:=(p_payload->>'set_id')::uuid;
+ SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;
+ request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_payload)),'hex');
+ -- An exact earlier cancellation answers before any mutable check.
+ BEGIN
+  result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
+   (p_payload->>'operation_id')::uuid,'CANCEL',request_digest);
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM='import_conflict' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict'); END IF;
+  RAISE;
+ END;
+ IF result IS NOT NULL THEN RETURN pg_catalog.jsonb_build_object('ok',true,'value',result); END IF;
+ -- Root, set, members and leases in the declared order, the same rows ACCEPT locks.
+ SELECT * INTO root FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
+ SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=wanted FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ -- The same operation may have committed while this call waited for the set.
+ BEGIN
+  result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
+   (p_payload->>'operation_id')::uuid,'CANCEL',request_digest);
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM='import_conflict' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict'); END IF;
+  RAISE;
+ END;
+ IF result IS NOT NULL THEN RETURN pg_catalog.jsonb_build_object('ok',true,'value',result); END IF;
+ IF selected.id IS NULL OR root.tenant_id IS NULL THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ SELECT * INTO ss FROM wl_identity.sessions WHERE token_digest=p_digest;
+SESSION_RECHECK
+ -- Acceptance that won first stays authoritative; cancel reverses nothing.
+ IF selected.state='COMMITTED' THEN
+  SELECT SET_RESULT INTO result FROM wl_ingestion.sets x WHERE x.tenant_id=tenant AND x.portfolio_id=portfolio AND x.id=wanted;
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
+ END IF;
+ IF selected.state='EXPIRED' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_expired'); END IF;
+ IF selected.state IN ('CANCELLED','REJECTED') THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+ IF n>=selected.expires_at THEN
+  -- Expiry wins under the set lock; it fences work and records no cancellation.
+  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+  UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
+   AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
+  UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
+   AND set_id=selected.id AND state IN ('offered','active');
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_expired');
+ END IF;
+ IF selected.revision<>(p_payload->>'expected_set_revision')::bigint THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+ -- A winning cancellation advances the set revision and control generation once,
+ -- fences every member attempt and live lease, and leaves cleanup to the worker.
+ UPDATE wl_ingestion.sets SET state='CANCELLED',revision=revision+1,cleanup_state='pending'
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+ UPDATE wl_ingestion.members SET state='cancelled',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
+ UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND set_id=selected.id AND state IN ('offered','active');
+ UPDATE wl_ingestion.roots SET control_generation=control_generation+1 WHERE tenant_id=tenant AND portfolio_id=portfolio;
+ SELECT SET_RESULT INTO result FROM wl_ingestion.sets x WHERE x.tenant_id=tenant AND x.portfolio_id=portfolio AND x.id=wanted;
+ receipt:=pg_catalog.gen_random_uuid();
+ INSERT INTO wl_ingestion.receipts(tenant_id,portfolio_id,id,incarnation,restore_epoch,operation_id,operation_kind,
+  request_digest,preview_id,accepted_plan_id,plan_digest,result_bytes,created_at) VALUES(tenant,portfolio,receipt,
+  st.incarnation,st.restore_epoch,(p_payload->>'operation_id')::uuid,'CANCEL',request_digest,NULL,NULL,NULL,
+  wl_ingestion._canonical_v1(result),n);
+ INSERT INTO wl_ingestion.audit(tenant_id,portfolio_id,id,receipt_id,action,before_accepted_generation,
+  after_accepted_generation,before_mapping_generation,after_mapping_generation,created_at)
+  VALUES(tenant,portfolio,pg_catalog.gen_random_uuid(),receipt,'CANCELLED',root.accepted_generation,
+   root.accepted_generation,root.mapping_generation,root.mapping_generation,n);
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ -- The failed block rolls back every change; only a fixed code leaves the database.
+ code:=SQLERRM;
+ IF code NOT IN ('import_invalid','import_conflict','import_stale','import_expired','instance_not_ready') THEN
+  code:='import_invalid'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict');
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $cancel$;
+REVOKE ALL ON FUNCTION wl_ingestion.cancel_set_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;
+""".replace('SESSION_RECHECK', _identity.check_session()).replace('SET_RESULT', _SET_RESULT_SQL)
+
+
 def user_guard_ddl():
     """Render the declared private guard without altering predecessor providers.
 
