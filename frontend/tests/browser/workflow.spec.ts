@@ -3,6 +3,14 @@ import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { isLocalResource } from "./request-origin";
+
+// Interception handlers that call route.fetch() can still be running when the
+// test ends. Assertions are complete by then, so drop them without surfacing
+// "Response has been disposed" from the closing context.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
 const root = path.resolve(import.meta.dirname, "../../..");
 async function login(page: import("@playwright/test").Page) {
   await page.goto("/");
@@ -541,6 +549,7 @@ test("frozen source publications preserve partial scope, generic providers and e
   await expect(
     page.locator(".evidence-rail").getByText("Bull Bitcoin", { exact: true }),
   ).toHaveCount(0);
+  // Keep the override scoped to the localized evidence-rail checks below.
   await page.route(/\/reports\/[a-f0-9]{32}\?/, async (route) => {
     const response = await route.fetch();
     const body = await response.json();
@@ -567,6 +576,9 @@ test("frozen source publications preserve partial scope, generic providers and e
       { exact: true },
     ),
   ).toBeVisible();
+  // Let any in-flight intercepted report fetch settle before later navigation
+  // and teardown; otherwise context close can dispose its APIResponse.
+  await page.unrouteAll({ behavior: "wait" });
   await page
     .getByRole("combobox", { name: "介面語言", exact: true })
     .selectOption("en-CA");

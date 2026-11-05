@@ -3,6 +3,14 @@ import AxeBuilder from "@axe-core/playwright";
 import en from "../../src/locales/en-CA.json" with { type: "json" };
 import tw from "../../src/locales/zh-TW.json" with { type: "json" };
 import cn from "../../src/locales/zh-CN.json" with { type: "json" };
+
+// Interception handlers that call route.fetch() can still be running when the
+// test ends. Assertions are complete by then, so drop them without surfacing
+// "Response has been disposed" from the closing context.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
 async function signIn(page: Page) {
   await page.goto("/");
   await page.getByLabel("Username", { exact: true }).fill("example-owner");
