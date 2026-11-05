@@ -225,6 +225,16 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   READY revision with a complete Plan before expiry. A later set revision leaves an
   old preview readable but not confirmable. Both return the unsigned next-page
   payload for the API to sign. No route signs or verifies cursors yet.
+  The private `_guard_worker_v1(worker, token, request)` helper is the first
+  check of every worker function. Worker identity is the actual database login:
+  the registry row named by the worker UUID must belong to `session_user` and be
+  enabled. The request's credential epoch must equal the registry's, and its
+  realm digest must equal the current realm digest. The installed profile version
+  and both instance readiness markers are checked first. The UUID, token and
+  request fields are assertions, never scope authority. The helper returns the
+  SHA-256 of the token's 32 decoded bytes for the caller's lease check. It
+  needs no user session, so cleanup can run after the originating session
+  ends. No worker function calls it yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

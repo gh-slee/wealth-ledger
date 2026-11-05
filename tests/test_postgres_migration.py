@@ -144,6 +144,16 @@ class IngestionStorageDDLTests(unittest.TestCase):
                 # Reads never write or lock, and SQL never holds the cursor key.
                 self.assertNotRegex(ddl, r'\b(INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|hmac)\b')
 
+    def test_worker_guard_matches_its_private_declaration(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}['_guard_worker_v1']
+        ddl = schema.worker_guard_ddl()
+        self.assertEqual((['uuid', 'text', 'jsonb'], 'jsonb', 'operator_owner_only'),
+                         (declared['arguments'], declared['returns'], declared['execute']))
+        self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion._guard_worker_v1(uuid,text,jsonb) FROM PUBLIC;', ddl)
+        self.assertIn('w.login_role IS DISTINCT FROM session_user', ddl)
+        self.assertEqual(1, ddl.count('CREATE FUNCTION'))
+        self.assertNotRegex(ddl, r'\b(GRANT|INSERT|UPDATE|DELETE)\b')
+
     def test_quota_and_purge_match_their_private_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl, arguments in (
@@ -273,7 +283,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.PURGE_DDL
                 + '\n' + schema.CANCEL_DDL + '\n' + schema.DECIDE_DDL
                 + '\n' + schema.READ_SET_DDL + '\n' + schema.READ_RECEIPT_DDL
-                + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL)
+                + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL
+                + '\n' + schema.worker_guard_ddl())
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -2485,6 +2496,61 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             with self.subTest(function=name):
                 self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
                     "'wl_ingestion." + name + "(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
+
+    # The worker guard maps the actual login (postgres in this disposable
+    # container) to an enabled registry row; IDs and epochs are assertions only.
+    WORKER_TOKEN = 'ab' * 32
+
+    def worker_guard_statement(self, label, *, worker=None, token=None, epoch='1', realm=None, extra=''):
+        realm_sql = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" + __import__(
+            'wealth_ledger.persistence.identity_schema', fromlist=['realm']).realm() + ")),'hex')") if realm is None \
+            else "'" + realm + "'"
+        return ("DO $worker$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
+            "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion._guard_worker_v1('" +
+            (worker or self.WORKER) + "','" + (token or self.WORKER_TOKEN) + "',pg_catalog.jsonb_build_object("
+            "'realm_digest'," + realm_sql + ",'credential_epoch','" + epoch + "')" + extra + "); "
+            "PERFORM pg_catalog.set_config('test." + label + "',r::text,true); END $worker$;"
+            "SELECT '" + label.upper() + " '||pg_catalog.current_setting('test." + label + "');")
+
+    def test_worker_guard_maps_the_actual_login_to_an_enabled_registry_row(self):
+        plan, seed, catalog = self.accept_seed()
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1})
+        seed += self.row('workers', {'id': self.DISABLED, 'login_role': 'wl_worker', 'peer_identity': 'peer-b',
+                                     'enabled': True, 'credential_epoch': 1})
+        out = self.run_labelled(seed + self.worker_guard_statement('ok') +
+            self.worker_guard_statement('unknown', worker='c7000000-0000-4000-8000-0000000000ff') +
+            self.worker_guard_statement('otherlogin', worker=self.DISABLED) +
+            self.worker_guard_statement('epoch', epoch='2') +
+            self.worker_guard_statement('realm', realm='0' * 64) +
+            self.worker_guard_statement('token', token='AB' * 32) +
+            self.worker_guard_statement('shorttoken', token='ab') +
+            "UPDATE wl_ingestion.workers SET enabled=false WHERE id='" + self.WORKER + "';" +
+            self.worker_guard_statement('disabled') +
+            "UPDATE wl_ingestion.workers SET enabled=true WHERE id='" + self.WORKER + "';" +
+            'UPDATE wl_ingestion.instance_state SET ready=false;' + self.worker_guard_statement('notready') +
+            'UPDATE wl_ingestion.instance_state SET ready=true;' +
+            "UPDATE wl_pg.alembic_version SET version_num='0003_source_lifecycle';" + self.worker_guard_statement('version'))
+        value = out['OK']['value']
+        self.assertTrue(out['OK']['ok'], out['OK'])
+        self.assertEqual((self.WORKER, '1', self.INCARNATION, '0', hashlib.sha256(bytes.fromhex(self.WORKER_TOKEN)).hexdigest()),
+                         (value['worker_id'], value['credential_epoch'], value['incarnation'], value['restore_epoch'],
+                          value['token_digest']))
+        self.assertRegex(value['realm_digest'], '^[0-9a-f]{64}$')
+        for label, code in (('UNKNOWN', 'authentication_required'), ('OTHERLOGIN', 'authentication_required'),
+                            ('EPOCH', 'credentials_changed'), ('REALM', 'instance_not_ready'),
+                            ('TOKEN', 'import_invalid'), ('SHORTTOKEN', 'import_invalid'),
+                            ('DISABLED', 'credentials_changed'), ('NOTREADY', 'instance_not_ready'),
+                            ('VERSION', 'instance_not_ready')):
+            with self.subTest(case=label):
+                self.assertEqual({'ok': False, 'code': code}, out[label])
+
+    def test_worker_guard_is_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+            "'wl_ingestion._guard_worker_v1(uuid,text,jsonb)','EXECUTE')"))
 
 if __name__ == '__main__':
     unittest.main()

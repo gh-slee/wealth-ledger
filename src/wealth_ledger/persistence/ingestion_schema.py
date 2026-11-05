@@ -2741,6 +2741,60 @@ REVOKE ALL ON FUNCTION wl_ingestion._guard_user_v1(text,uuid,bigint,jsonb,text) 
 """
 
 
+def worker_guard_ddl():
+    """Render the private worker guard every worker function calls first.
+
+    Identity is the actual database login mapped to an enabled registry row. The
+    worker UUID, token and request fields are assertions checked against it; they
+    are never scope authority. Lease, fence and token checks belong to each
+    worker function. Cleanup must not depend on a live user session.
+    """
+    from . import identity_schema as identity
+    return r"""CREATE FUNCTION wl_ingestion._guard_worker_v1(p_worker uuid,p_token text,p_request jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $worker_guard$
+DECLARE st wl_pg.instance_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
+ w wl_ingestion.workers%ROWTYPE;n timestamptz;realm text;
+BEGIN
+ IF p_worker IS NULL OR p_worker='00000000-0000-0000-0000-000000000000'::uuid OR p_token IS NULL OR
+  p_token COLLATE "C" !~ '^[0-9a-f]{64}$' OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
+  pg_catalog.jsonb_typeof(p_request->'realm_digest') IS DISTINCT FROM 'string' OR
+  pg_catalog.jsonb_typeof(p_request->'credential_epoch') IS DISTINCT FROM 'string' OR
+  (p_request->>'realm_digest') COLLATE "C" !~ '^[0-9a-f]{64}$' OR
+  (p_request->>'credential_epoch') COLLATE "C" !~ '^[1-9][0-9]{0,17}$' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ -- Shared instance rows first, as in the declared lock order.
+ SELECT * INTO st FROM wl_pg.instance_state WHERE id=1 FOR SHARE;
+ IF st.id IS NULL OR NOT st.ready OR
+  (SELECT pg_catalog.count(*)<>1 OR pg_catalog.max(version_num) IS DISTINCT FROM '0004_ingestion' FROM wl_pg.alembic_version) THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','instance_not_ready');
+ END IF;
+ SELECT * INTO ingestion_state FROM wl_ingestion.instance_state WHERE id=1 FOR SHARE;
+ IF ingestion_state.id IS NULL OR NOT ingestion_state.ready THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','instance_not_ready');
+ END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ IF n IS NULL OR NOT pg_catalog.isfinite(n) THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','instance_not_ready'); END IF;
+ -- The registry row must belong to the role that actually logged in.
+ SELECT * INTO w FROM wl_ingestion.workers x WHERE x.id=p_worker FOR SHARE;
+ IF w.id IS NULL OR w.login_role IS DISTINCT FROM session_user THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','authentication_required'); END IF;
+ IF NOT w.enabled OR w.credential_epoch::text IS DISTINCT FROM p_request->>'credential_epoch' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','credentials_changed'); END IF;
+ realm:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(""" + identity.realm() + r""")),'hex');
+ IF p_request->>'realm_digest' IS DISTINCT FROM realm THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','instance_not_ready'); END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('worker_id',w.id::text,
+  'credential_epoch',w.credential_epoch::text,'realm_digest',realm,
+  'token_digest',pg_catalog.encode(pg_catalog.sha256(pg_catalog.decode(p_token,'hex')),'hex'),
+  'incarnation',st.incarnation::text,'restore_epoch',st.restore_epoch::text));
+EXCEPTION WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $worker_guard$;
+REVOKE ALL ON FUNCTION wl_ingestion._guard_worker_v1(uuid,text,jsonb) FROM PUBLIC;
+"""
+
 CANONICAL_DDL = r'''
 CREATE FUNCTION wl_ingestion._canonical_v1(p_value jsonb) RETURNS bytea
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $canonical$
