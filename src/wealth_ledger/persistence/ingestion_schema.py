@@ -2024,6 +2024,165 @@ REVOKE ALL ON FUNCTION wl_ingestion._replay_v1(uuid,uuid,uuid,bigint,uuid,text,t
 '''
 
 
+# Selected shared bounds per bucket: (user rate, instance rate) per 300s window,
+# (user, instance) concurrent raw slots and storage sets/bytes. The table checks
+# repeat the held limits; rate limits exist only here.
+QUOTA_LIMITS = {
+    'read': {'rate': (60, 600)},
+    'control': {'rate': (30, 300)},
+    'raw': {'rate': (10, 60), 'leases': (1, 4)},
+    'storage': {'sets': (8, 64), 'bytes': (134217728, 1073741824)},
+}
+SET_RESERVATION_BYTES = 16777216
+
+QUOTA_DDL = r'''
+CREATE FUNCTION wl_ingestion._quota_v1(p_tenant uuid,p_portfolio uuid,p_bucket text,
+ p_count bigint,p_bytes bigint) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $quota$
+DECLARE n timestamptz;ub wl_ingestion.quotas%ROWTYPE;ib wl_ingestion.instance_budgets%ROWTYPE;
+ v_rate bigint:=0;v_leases bigint:=0;v_sets bigint:=0;v_bytes bigint:=0;
+ user_rate bigint;instance_rate bigint;
+BEGIN
+ -- Call only after live authentication has derived scope. A rate unit is one
+ -- admitted attempt; raw +1/-1 also takes/releases one concurrent slot; storage
+ -- +1/-1 reserves/releases one outstanding set with its byte reservation.
+ IF p_tenant IS NULL OR p_portfolio IS NULL OR
+  p_tenant='00000000-0000-0000-0000-000000000000'::uuid OR
+  p_portfolio='00000000-0000-0000-0000-000000000000'::uuid OR p_bucket IS NULL OR
+  p_count IS NULL OR p_bytes IS NULL THEN INVALID; END IF;
+ IF p_bucket IN ('read','control') THEN
+  IF p_count<>1 OR p_bytes<>0 THEN INVALID; END IF;
+  v_rate:=1;
+  user_rate:=CASE p_bucket WHEN 'read' THEN READ_USER ELSE CONTROL_USER END;
+  instance_rate:=CASE p_bucket WHEN 'read' THEN READ_INSTANCE ELSE CONTROL_INSTANCE END;
+ ELSIF p_bucket='raw' THEN
+  IF p_count NOT IN (1,-1) OR p_bytes<>0 THEN INVALID; END IF;
+  v_leases:=p_count; v_rate:=CASE WHEN p_count=1 THEN 1 ELSE 0 END;
+  user_rate:=RAW_USER; instance_rate:=RAW_INSTANCE;
+ ELSIF p_bucket='storage' THEN
+  IF p_count NOT IN (-1,0,1) OR p_bytes NOT BETWEEN -SET_BYTES AND SET_BYTES OR
+   (p_count=0 AND p_bytes=0) OR (p_count=1 AND p_bytes<0) OR (p_count=-1 AND p_bytes>0) THEN INVALID; END IF;
+  v_sets:=p_count; v_bytes:=p_bytes;
+ ELSE INVALID; END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ IF n IS NULL OR NOT pg_catalog.isfinite(n) THEN INVALID; END IF;
+ -- Declared lock order: the instance bucket row precedes the scoped user row.
+ INSERT INTO wl_ingestion.instance_budgets(bucket,window_start,used_count,reserved_bytes,lease_count,
+  outstanding_sets) VALUES(p_bucket,n,0,0,0,0) ON CONFLICT DO NOTHING;
+ SELECT * INTO ib FROM wl_ingestion.instance_budgets b WHERE b.bucket=p_bucket FOR UPDATE;
+ INSERT INTO wl_ingestion.quotas(tenant_id,portfolio_id,bucket,window_start,used_count,reserved_bytes,
+  lease_count,outstanding_sets) VALUES(p_tenant,p_portfolio,p_bucket,n,0,0,0,0) ON CONFLICT DO NOTHING;
+ SELECT * INTO ub FROM wl_ingestion.quotas q WHERE q.tenant_id=p_tenant AND q.portfolio_id=p_portfolio
+  AND q.bucket=p_bucket FOR UPDATE;
+ IF ib.bucket IS NULL OR ub.bucket IS NULL THEN INVALID; END IF;
+ IF v_rate>0 THEN
+  -- Only the attempt count resets; held slots, sets and bytes never do.
+  IF n>=ib.window_start+interval '300 seconds' THEN
+   UPDATE wl_ingestion.instance_budgets SET window_start=n,used_count=0 WHERE bucket=p_bucket
+    RETURNING * INTO ib;
+  END IF;
+  IF n>=ub.window_start+interval '300 seconds' THEN
+   UPDATE wl_ingestion.quotas SET window_start=n,used_count=0 WHERE tenant_id=p_tenant AND
+    portfolio_id=p_portfolio AND bucket=p_bucket RETURNING * INTO ub;
+  END IF;
+  IF ub.used_count+v_rate>user_rate OR ib.used_count+v_rate>instance_rate THEN BUSY; END IF;
+ END IF;
+ -- A release must match an earlier reservation; nothing is released twice.
+ IF ub.lease_count+v_leases<0 OR ib.lease_count+v_leases<0 OR
+  ub.outstanding_sets+v_sets<0 OR ib.outstanding_sets+v_sets<0 OR
+  ub.reserved_bytes+v_bytes<0 OR ib.reserved_bytes+v_bytes<0 THEN INVALID; END IF;
+ IF v_leases>0 AND (ub.lease_count+v_leases>RAW_SLOTS_USER OR ib.lease_count+v_leases>RAW_SLOTS_INSTANCE) THEN
+  BUSY; END IF;
+ IF (v_sets>0 OR v_bytes>0) AND (ub.outstanding_sets+v_sets>SETS_USER OR ib.outstanding_sets+v_sets>SETS_INSTANCE OR
+  ub.reserved_bytes+v_bytes>BYTES_USER OR ib.reserved_bytes+v_bytes>BYTES_INSTANCE) THEN LIMIT; END IF;
+ UPDATE wl_ingestion.instance_budgets SET used_count=used_count+v_rate,lease_count=lease_count+v_leases,
+  outstanding_sets=outstanding_sets+v_sets,reserved_bytes=reserved_bytes+v_bytes WHERE bucket=p_bucket;
+ UPDATE wl_ingestion.quotas SET used_count=used_count+v_rate,lease_count=lease_count+v_leases,
+  outstanding_sets=outstanding_sets+v_sets,reserved_bytes=reserved_bytes+v_bytes
+  WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio AND bucket=p_bucket;
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ IF SQLERRM IN ('import_invalid','import_limit','import_busy') THEN RAISE; END IF;
+ RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN data_exception THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $quota$;
+REVOKE ALL ON FUNCTION wl_ingestion._quota_v1(uuid,uuid,text,bigint,bigint) FROM PUBLIC;
+'''
+for _name, _value in (
+        ('READ_USER', QUOTA_LIMITS['read']['rate'][0]), ('READ_INSTANCE', QUOTA_LIMITS['read']['rate'][1]),
+        ('CONTROL_USER', QUOTA_LIMITS['control']['rate'][0]),
+        ('CONTROL_INSTANCE', QUOTA_LIMITS['control']['rate'][1]),
+        ('RAW_USER', QUOTA_LIMITS['raw']['rate'][0]), ('RAW_INSTANCE', QUOTA_LIMITS['raw']['rate'][1]),
+        ('RAW_SLOTS_USER', QUOTA_LIMITS['raw']['leases'][0]),
+        ('RAW_SLOTS_INSTANCE', QUOTA_LIMITS['raw']['leases'][1]),
+        ('SETS_USER', QUOTA_LIMITS['storage']['sets'][0]), ('SETS_INSTANCE', QUOTA_LIMITS['storage']['sets'][1]),
+        ('BYTES_USER', QUOTA_LIMITS['storage']['bytes'][0]),
+        ('BYTES_INSTANCE', QUOTA_LIMITS['storage']['bytes'][1]), ('SET_BYTES', SET_RESERVATION_BYTES)):
+    QUOTA_DDL = re.sub(r'\b' + _name + r'\b', str(_value), QUOTA_DDL)
+QUOTA_DDL = (QUOTA_DDL.replace('INVALID;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';")
+    .replace('BUSY;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy';")
+    .replace('LIMIT;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_limit';"))
+
+
+# Transient-only cleanup for one terminal set. Accepted inputs, Plans, source
+# revisions, receipts and history are never touched. The caller proves the
+# terminal fence and child absence; live work leases make this fail closed.
+PURGE_DDL = r'''
+CREATE FUNCTION wl_ingestion._purge_v1(p_tenant uuid,p_portfolio uuid,p_set uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $purge$
+DECLARE s wl_ingestion.sets%ROWTYPE;
+BEGIN
+ IF p_tenant IS NULL OR p_portfolio IS NULL OR p_set IS NULL OR
+  p_tenant='00000000-0000-0000-0000-000000000000'::uuid OR
+  p_portfolio='00000000-0000-0000-0000-000000000000'::uuid OR
+  p_set='00000000-0000-0000-0000-000000000000'::uuid THEN INVALID; END IF;
+ -- Quota rows precede the set in the declared lock order.
+ PERFORM 1 FROM wl_ingestion.instance_budgets b WHERE b.bucket='storage' FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.quotas q WHERE q.tenant_id=p_tenant AND q.portfolio_id=p_portfolio
+  AND q.bucket='storage' FOR UPDATE;
+ SELECT * INTO s FROM wl_ingestion.sets x WHERE x.tenant_id=p_tenant AND x.portfolio_id=p_portfolio
+  AND x.id=p_set FOR UPDATE;
+ IF s.id IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='not_found'; END IF;
+ IF s.state NOT IN ('COMMITTED','REJECTED','CANCELLED','EXPIRED') THEN INVALID; END IF;
+ -- Completed cleanup already released the reservation exactly once.
+ IF s.cleanup_state='complete' THEN RETURN; END IF;
+ IF EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=p_tenant AND l.portfolio_id=p_portfolio
+  AND l.set_id=p_set AND l.work_kind<>'cleanup' AND l.state IN ('offered','active')) THEN BUSY; END IF;
+ IF s.cleanup_state<>'pending' THEN
+  UPDATE wl_ingestion.sets SET cleanup_state='pending' WHERE tenant_id=p_tenant AND
+   portfolio_id=p_portfolio AND id=p_set;
+ END IF;
+ DELETE FROM wl_ingestion.previews WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio AND set_id=p_set;
+ DELETE FROM wl_ingestion.decisions WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio AND set_id=p_set;
+ DELETE FROM wl_ingestion.stages WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio AND set_id=p_set;
+ UPDATE wl_ingestion.members SET context_bytes=NULL WHERE tenant_id=p_tenant AND portfolio_id=p_portfolio
+  AND set_id=p_set AND context_bytes IS NOT NULL;
+ -- Release only after the transient rows are proven absent.
+ IF EXISTS(SELECT 1 FROM wl_ingestion.previews v WHERE v.tenant_id=p_tenant AND v.portfolio_id=p_portfolio
+   AND v.set_id=p_set) OR
+  EXISTS(SELECT 1 FROM wl_ingestion.decisions d WHERE d.tenant_id=p_tenant AND d.portfolio_id=p_portfolio
+   AND d.set_id=p_set) OR
+  EXISTS(SELECT 1 FROM wl_ingestion.stages g WHERE g.tenant_id=p_tenant AND g.portfolio_id=p_portfolio
+   AND g.set_id=p_set) OR
+  EXISTS(SELECT 1 FROM wl_ingestion.members m WHERE m.tenant_id=p_tenant AND m.portfolio_id=p_portfolio
+   AND m.set_id=p_set AND m.context_bytes IS NOT NULL) THEN
+  RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+ PERFORM wl_ingestion._quota_v1(p_tenant,p_portfolio,'storage',-1,-s.reserved_bytes);
+ UPDATE wl_ingestion.sets SET cleanup_state='complete' WHERE tenant_id=p_tenant AND
+  portfolio_id=p_portfolio AND id=p_set;
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ IF SQLERRM IN ('import_invalid','import_busy','not_found') THEN RAISE; END IF;
+ RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN data_exception THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $purge$;
+REVOKE ALL ON FUNCTION wl_ingestion._purge_v1(uuid,uuid,uuid) FROM PUBLIC;
+'''.replace('INVALID;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';").replace(
+    'BUSY;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy';")
+
+
 def user_guard_ddl():
     """Render the declared private guard without altering predecessor providers.
 
@@ -2519,8 +2678,11 @@ BEGIN
     NEW.window_start>n THEN REJECT; END IF;
    RETURN NEW;
   ELSIF TG_OP<>'UPDATE' THEN REJECT; END IF;
-  IF NEW.bucket<>OLD.bucket OR (TG_TABLE_NAME='quotas' AND
-   (NEW.tenant_id,NEW.portfolio_id) IS DISTINCT FROM (OLD.tenant_id,OLD.portfolio_id)) THEN REJECT; END IF;
+  IF NEW.bucket<>OLD.bucket THEN REJECT; END IF;
+  -- Instance rows have no scope columns, so read them only for quotas.
+  IF TG_TABLE_NAME='quotas' THEN
+   IF (NEW.tenant_id,NEW.portfolio_id) IS DISTINCT FROM (OLD.tenant_id,OLD.portfolio_id) THEN REJECT; END IF;
+  END IF;
   -- Only the rate count resets with a 300s window; held bytes/leases/sets never do.
   IF NEW.window_start<>OLD.window_start THEN
    IF NEW.window_start<OLD.window_start+interval '300 seconds' OR NEW.window_start>n OR

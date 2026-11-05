@@ -153,6 +153,25 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   operation on a committed set, expiry, source and wrapper changes, request
   shape and a revoked session. Rate admission, grants and the HTTP route are not
   yet wired.
+  The private `_quota_v1(tenant, portfolio, bucket, count, bytes)` helper is the
+  shared PostgreSQL admission and release point. It locks the instance bucket row
+  before the scoped user row. `read` and `control` count one attempt against 300s
+  windows of 60/600 and 30/300 (user/instance). `raw` +1 counts one attempt
+  (10/60) and takes one concurrent slot (1/4); −1 releases the slot only.
+  `storage` ±1 reserves or releases one outstanding set (8/64) with its bytes
+  (128 MiB/1 GiB, at most 16 MiB per call). Only the attempt count resets with a
+  window. A release without a matching reservation fails, so nothing is released
+  twice. Rate and slot exhaustion return `import_busy`; storage exhaustion returns
+  `import_limit`.
+  The private `_purge_v1(tenant, portfolio, set)` helper cleans one terminal set.
+  It takes the storage quota rows before the set, refuses while a non-cleanup
+  lease is still offered or active, and deletes only that set's stages,
+  decisions and previews. It also clears member context bytes. After it proves those rows are gone, it
+  releases the set's storage reservation once and marks cleanup complete; a
+  repeated call changes nothing. Sets, members, leases, receipts and accepted
+  evidence stay. Opt-in PostgreSQL tests cover window reset, user and shared
+  instance bounds across portfolios, double release, purge ordering and fail-closed
+  rollback. No gateway, worker or cleanup route calls either helper yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

@@ -102,6 +102,27 @@ class IngestionStorageDDLTests(unittest.TestCase):
         for row in schema.inventory()['triggers']:
             self.assertIn('EXECUTE FUNCTION wl_ingestion.' + row['function'] + '();', sql)
 
+    def test_quota_and_purge_match_their_private_declarations(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}
+        for name, ddl, arguments in (
+                ('_quota_v1', schema.QUOTA_DDL, 'uuid,uuid,text,bigint,bigint'),
+                ('_purge_v1', schema.PURGE_DDL, 'uuid,uuid,uuid')):
+            with self.subTest(function=name):
+                self.assertEqual((arguments.split(','), 'void', 'operator_owner_only'), (
+                    declared[name]['arguments'], declared[name]['returns'], declared[name]['execute']))
+                self.assertIn('RETURNS void\nLANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp', ddl)
+                self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.' + name + '(' + arguments + ') FROM PUBLIC;', ddl)
+                self.assertEqual(1, ddl.count('CREATE FUNCTION'))
+                for fragment in ('GRANT ', 'INVALID;', 'BUSY;', 'LIMIT;', 'READ_USER', 'SET_BYTES'):
+                    self.assertNotIn(fragment, ddl)
+        # Purge deletes only transient review rows, never accepted evidence or control history.
+        self.assertEqual({'previews', 'decisions', 'stages'},
+                         set(re.findall(r'DELETE FROM wl_ingestion\.(\w+)', schema.PURGE_DDL)))
+        self.assertNotRegex(schema.QUOTA_DDL, r'DELETE|TRUNCATE')
+        self.assertEqual({'read': {'rate': (60, 600)}, 'control': {'rate': (30, 300)},
+                          'raw': {'rate': (10, 60), 'leases': (1, 4)},
+                          'storage': {'sets': (8, 64), 'bytes': (134217728, 1073741824)}}, schema.QUOTA_LIMITS)
+
     def test_transition_and_head_guards_match_their_private_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl in (('_transition_v1', schema.TRANSITION_DDL), ('_head_v1', schema.HEAD_DDL)):
@@ -207,7 +228,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.OUTBOX_GUARD_DDL + '\n' + schema.user_guard_ddl()
                 + '\n' + schema.minimal_validator_ddl() + '\n' + schema.plan_validator_ddl() + '\n' + schema.reference_validator_ddl() + '\n' + schema.REPLAY_DDL
                 + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl()
-                + '\n' + schema.ACCEPT_DDL)
+                + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.PURGE_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -1152,13 +1173,14 @@ END $test$;
                 ','.join(literal(v) for v in values.values()) + ');')
 
     @classmethod
-    def set_row(cls, set_id, state='RECEIVING', revision=1, created='now()', members=2):
+    def set_row(cls, set_id, state='RECEIVING', revision=1, created='now()', members=2, reserved=0,
+                portfolio=None):
         e = cls.Expression
-        return cls.row('sets', {'tenant_id': cls.T, 'portfolio_id': cls.P, 'id': set_id,
+        return cls.row('sets', {'tenant_id': cls.T, 'portfolio_id': portfolio or cls.P, 'id': set_id,
             'actor_user_id': cls.T, 'creation_operation_id': 'c1' + set_id[2:], 'request_digest': 'a' * 64,
             'incarnation': cls.INCARNATION, 'restore_epoch': 0, 'realm_digest': 'b' * 64, 'state': state,
             'revision': revision, 'created_at': e(created), 'expires_at': e(created + "+interval '86400 seconds'"),
-            'member_count': members, 'reserved_bytes': 0, 'receipt_id': None, 'cleanup_state': 'not_needed'})
+            'member_count': members, 'reserved_bytes': reserved, 'receipt_id': None, 'cleanup_state': 'not_needed'})
 
     @classmethod
     def member_row(cls, set_id, member_id, ordinal, state='waiting', fence=1, raw=None, stage=None):
@@ -1388,6 +1410,9 @@ END $test$;
             self.row('instance_budgets', {'bucket': 'raw', 'window_start': e('now()'), 'used_count': 0,
                 'reserved_bytes': 0, 'lease_count': 0, 'outstanding_sets': 0}),
             self.rejects("UPDATE wl_ingestion.instance_budgets SET used_count=0,window_start=window_start-interval '1 second'"),
+            # Instance rows have no scope columns; an ordinary held-count change is allowed.
+            'UPDATE wl_ingestion.instance_budgets SET used_count=1,lease_count=1;',
+            self.rejects("UPDATE wl_ingestion.instance_budgets SET bucket='read'"),
             self.rejects("UPDATE wl_ingestion.instance_state SET runtime_profile_digest='" + 'b' * 64 + "'"),
             'UPDATE wl_ingestion.instance_state SET ready=false;',
             "UPDATE wl_ingestion.instance_state SET runtime_profile_digest='" + 'b' * 64 + "';",
@@ -1906,6 +1931,131 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 self.assertEqual('true|search_path=pg_catalog, pg_temp', self.sql("SELECT prosecdef::text||'|'||"
                     "pg_catalog.array_to_string(proconfig,',') FROM pg_catalog.pg_proc WHERE "
                     "oid='wl_ingestion." + name + "()'::regprocedure"))
+
+    # Quota and purge helpers run inside the same rolled-back guarded
+    # transaction. Seeds precede the triggers, so aged windows need no clock.
+    P2 = '30000000-0000-4000-8000-000000000003'
+
+    def quota_call(self, bucket, count, size=0, portfolio=None):
+        return ("SELECT wl_ingestion._quota_v1('" + self.T + "','" + (portfolio or self.P) + "','" + bucket +
+                "'," + str(count) + ',' + str(size) + ');')
+
+    def quota_state(self, expected, where=''):
+        return ("DO $test$ BEGIN IF (SELECT pg_catalog.string_agg(portfolio_id::text||'/'||bucket||':'||used_count||"
+                "':'||lease_count||':'||outstanding_sets||':'||reserved_bytes,',' ORDER BY portfolio_id,bucket) FROM "
+                "wl_ingestion.quotas " + where + ")IS DISTINCT FROM '" + expected + "' THEN RAISE EXCEPTION "
+                "'unexpected_quotas'; END IF; END $test$;")
+
+    def test_quota_rates_slots_and_storage_are_shared_and_released_once(self):
+        e = self.Expression
+        def aged(table, bucket, used, minutes):
+            values = {'bucket': bucket, 'window_start': e("now()-interval '" + str(minutes) + " minutes'"),
+                'used_count': used, 'reserved_bytes': 0, 'lease_count': 0, 'outstanding_sets': 0}
+            if table == 'quotas':
+                values = {'tenant_id': self.T, 'portfolio_id': self.P, **values}
+            return self.row(table, values)
+        seed = (aged('quotas', 'control', 30, 10) + aged('instance_budgets', 'control', 300, 10) +
+                aged('quotas', 'read', 60, 1) + aged('instance_budgets', 'read', 60, 1))
+        full = schema.SET_RESERVATION_BYTES
+        others = ['30000000-0000-4000-8000-00000000001' + str(x) for x in range(4)]
+        self.guarded(seed, [
+            # An aged window resets only the attempt count; a current one stays exhausted.
+            self.quota_call('control', 1),
+            self.rejects(self.quota_call('read', 1), 'import_busy'),
+            self.rejects(self.quota_call('read', 2)), self.rejects(self.quota_call('control', -1)),
+            self.rejects(self.quota_call('control', 1, 1)), self.rejects(self.quota_call('unknown', 1)),
+            self.rejects(self.quota_call('raw', 0)), self.rejects(self.quota_call('raw', 1, 5)),
+            self.rejects(self.quota_call('storage', 0, 0)), self.rejects(self.quota_call('storage', 1, -1)),
+            self.rejects(self.quota_call('storage', -1, 1)), self.rejects(self.quota_call('storage', 1, full + 1)),
+            self.rejects("SELECT wl_ingestion._quota_v1(NULL,'" + self.P + "','read',1,0)"),
+            # One concurrent raw slot per user; release is once, and attempts stay counted.
+            self.quota_call('raw', 1), self.rejects(self.quota_call('raw', 1), 'import_busy'),
+            self.quota_call('raw', -1), self.rejects(self.quota_call('raw', -1)),
+            *[self.quota_call('raw', x) for x in (1, -1) * 9],
+            self.rejects(self.quota_call('raw', 1), 'import_busy'),
+            # Four instance raw slots are shared across portfolios.
+            *[self.quota_call('raw', 1, portfolio=x) for x in others],
+            self.rejects(self.quota_call('raw', 1, portfolio=self.P2), 'import_busy'),
+            *[self.quota_call('raw', -1, portfolio=x) for x in others],
+            # Eight outstanding sets and their worst-case bytes per user.
+            *[self.quota_call('storage', 1, full) for _ in range(8)],
+            self.rejects(self.quota_call('storage', 1, full), 'import_limit'),
+            self.rejects(self.quota_call('storage', 0, 1), 'import_limit'),
+            self.quota_call('storage', -1, -full),
+            self.rejects(self.quota_call('storage', -1, -full, portfolio=self.P2)),
+            self.quota_state(self.P + '/control:1:0:0:0,' + self.P + '/raw:10:0:0:0,' + self.P + '/read:60:0:0:0,' +
+                             self.P + '/storage:0:0:7:' + str(7 * full), "WHERE portfolio_id='" + self.P + "'"),
+            "DO $test$ BEGIN IF (SELECT pg_catalog.string_agg(bucket||':'||used_count||':'||lease_count||':'||"
+            "outstanding_sets||':'||reserved_bytes,',' ORDER BY bucket) FROM wl_ingestion.instance_budgets)<>"
+            "'control:1:0:0:0,raw:14:0:0:0,read:60:0:0:0,storage:0:0:7:" + str(7 * full) + "' THEN "
+            "RAISE EXCEPTION 'unexpected_instance_budgets'; END IF; END $test$;"])
+
+    def test_quota_instance_storage_bound_spans_portfolios(self):
+        full = schema.SET_RESERVATION_BYTES
+        portfolios = ['30000000-0000-4000-8000-0000000002' + format(x, '02d') for x in range(8)]
+        body = [self.quota_call('storage', 1, full, portfolio=x) for x in portfolios for _ in range(8)]
+        body.append(self.rejects(self.quota_call('storage', 1, full), 'import_limit'))
+        body.append(self.quota_call('storage', -1, -full, portfolio=portfolios[0]))
+        body.append(self.quota_call('storage', 1, full))
+        self.guarded('', body)
+
+    def test_purge_removes_only_transient_rows_and_releases_storage_once(self):
+        live, done, member, other, lease, missing = ('a5000000-0000-4000-8000-00000000000' + x for x in '123456')
+        digest = hashlib.sha256(b'{}').hexdigest()
+        full = schema.SET_RESERVATION_BYTES
+        e = self.Expression
+        def transient(set_id, member_id):
+            return (self.row('stages', {'tenant_id': self.T, 'portfolio_id': self.P, 'set_id': set_id,
+                    'member_id': member_id, 'digest': digest, 'codec': 'minimal-evidence-v1', 'minimal_bytes': b'{}',
+                    'created_at': e('now()'), 'purge_at': e("now()+interval '86400 seconds'")}) +
+                self.row('decisions', {'tenant_id': self.T, 'portfolio_id': self.P, 'set_id': set_id,
+                    'revision': 1, 'request_digest': '9' * 64, 'canonical_bytes': b'{}', 'digest': digest,
+                    'created_at': e('now()'), 'purge_at': e("now()+interval '86400 seconds'")}))
+        seed = (self.row('roots', {'tenant_id': self.T, 'portfolio_id': self.P, 'accepted_generation': 0,
+                    'mapping_generation': 0, 'control_generation': 0}) +
+            self.set_row(live, 'RECONCILING', revision=2, members=1, reserved=full) +
+            self.member_row(live, member, 0, 'admitted', raw='1' * 64, stage=digest) + transient(live, member) +
+            self.lease_row(lease, live, member) +
+            self.set_row(done, 'CANCELLED', revision=2, members=1, reserved=full) +
+            self.member_row(done, other, 0, 'cancelled') + transient(done, other))
+        purge = "SELECT wl_ingestion._purge_v1('" + self.T + "','" + self.P + "','{}');"
+        counts = ("DO $test$ BEGIN IF (SELECT pg_catalog.string_agg(s.id::text||':'||s.cleanup_state||':'||"
+                  "(SELECT count(*) FROM wl_ingestion.stages g WHERE g.set_id=s.id)||':'||(SELECT count(*) FROM "
+                  "wl_ingestion.decisions d WHERE d.set_id=s.id)||':'||(SELECT count(*) FROM wl_ingestion.members m "
+                  "WHERE m.set_id=s.id AND m.context_bytes IS NOT NULL),',' ORDER BY s.id) FROM wl_ingestion.sets s)"
+                  "<>'{}' THEN RAISE EXCEPTION 'unexpected_purge_state'; END IF; END $test$;")
+        self.guarded(seed, [
+            self.quota_call('storage', 1, full),
+            self.rejects(purge.format(live)),
+            self.rejects(purge.format(missing), 'not_found'),
+            "UPDATE wl_ingestion.sets SET state='CANCELLED',revision=3 WHERE id='" + live + "';",
+            "UPDATE wl_ingestion.members SET state='cancelled' WHERE id='" + member + "';",
+            # Live work may still own a child or raw slot; cleanup fails closed.
+            self.rejects(purge.format(live), 'import_busy'),
+            "UPDATE wl_ingestion.leases SET state='cancelled' WHERE id='" + lease + "';",
+            purge.format(live),
+            counts.replace('{}', live + ':complete:0:0:0,' + done + ':not_needed:1:1:1'),
+            self.quota_state(self.P + '/storage:0:0:0:0'),
+            # Repeating a completed purge releases nothing a second time.
+            purge.format(live), self.quota_state(self.P + '/storage:0:0:0:0'),
+            # A set whose reservation is already gone rolls back its whole purge.
+            self.rejects(purge.format(done)),
+            counts.replace('{}', live + ':complete:0:0:0,' + done + ':not_needed:1:1:1'),
+            "DO $test$ BEGIN IF (SELECT count(*) FROM wl_ingestion.sets)<>2 OR (SELECT count(*) FROM "
+            "wl_ingestion.members)<>2 OR (SELECT count(*) FROM wl_ingestion.leases)<>1 THEN "
+            "RAISE EXCEPTION 'purge_removed_control_rows'; END IF; END $test$;"])
+
+    def test_quota_and_purge_have_no_public_execution(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        for signature in ('_quota_v1(uuid,uuid,text,bigint,bigint)', '_purge_v1(uuid,uuid,uuid)'):
+            with self.subTest(function=signature):
+                self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+                    "'wl_ingestion." + signature + "','EXECUTE')"))
+                self.assertEqual('true|search_path=pg_catalog, pg_temp', self.sql("SELECT prosecdef::text||'|'||"
+                    "pg_catalog.array_to_string(proconfig,',') FROM pg_catalog.pg_proc WHERE "
+                    "oid='wl_ingestion." + signature + "'::regprocedure"))
 
 
 if __name__ == '__main__':
