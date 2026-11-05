@@ -187,6 +187,25 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   tests run it under the real transition guard, including cancel-then-confirm
   and confirm-then-cancel orders inside one transaction. They do not race two
   connections. No HTTP route calls it yet.
+  The declared gateway function `decide_set_v1` takes `set_id` and one complete
+  `Decisions` object. SQL checks that object against the closed codec schema,
+  including its 128-entry bounds; references are proven later during
+  preparation and acceptance. It follows the same receipt-first replay, lock order,
+  session recheck and expiry rule as cancel. It accepts only a NEEDS_MAPPING,
+  CONFLICT or READY set at the revision in the request. Retained transient bytes
+  (contexts, stages, decisions and previews) plus the new document must fit the
+  set's fixed reservation, otherwise it returns `import_limit` without writing.
+  On success the set becomes RECONCILING with one revision and one control
+  generation step, the next decision revision is appended, live prepare leases are
+  cancelled, and one DECISIONS receipt and DECIDED audit row are stored. An earlier
+  READY preview can then no longer be confirmed.
+  `read_set_v1` and `read_receipt_v1` authenticate first and read one ID in the
+  caller's scope without locks or writes. A set is reported in its stored state.
+  An ACCEPT receipt is returned exactly as stored. A control receipt (CANCEL or
+  DECISIONS) is rebuilt as the history DTO from its row and audit entry with zero
+  fact counts. Receipts from earlier restore realms stay readable but grant
+  nothing. The paged `read_sets_v1` and `read_preview_v1` need signed cursors and
+  are not implemented yet. Rate admission for these calls is left to the caller.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 
