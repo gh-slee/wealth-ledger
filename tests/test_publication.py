@@ -51,6 +51,13 @@ class PublicationPolicyTests(unittest.TestCase):
                      'docs/getting-started.md', 'docs/product-ux-review.md', 'docs/ui-design-workflow.md'):
             self.assertTrue(guard.path_allowed(path), path)
 
+    def test_ticket_backlog_is_flat_markdown_only(self):
+        for path in ('tickets/README.md', 'tickets/ROADMAP.md', 'tickets/WL-P0-007A.md'):
+            self.assertTrue(guard.path_allowed(path), path)
+        for path in ('tickets/sub/WL-P0-001.md', 'tickets/WL-P0-001.json', 'tickets/AGENTS.override.md',
+                     'tickets/.hidden.md', 'tickets/claim.log'):
+            self.assertFalse(guard.path_allowed(path), path)
+
     def test_only_named_canonical_domain_document_is_public(self):
         self.assertTrue(guard.path_allowed('docs/canonical-domain.md'))
         for path in ('docs/canonical-domain.local.md', 'docs/canonical-domain/AGENTS.override.md',

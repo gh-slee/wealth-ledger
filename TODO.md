@@ -8,6 +8,10 @@ Codex or local LibreOffice. See the [manual](docs/user-manual.md) and
 [development rules](AGENTS.md), [capability baseline](docs/capability-status.md) and
 [spec approval/ownership workflow](docs/spec-development.md).
 
+Open work is now tracked ticket by ticket in [tickets/](tickets/README.md), ordered
+in [the roadmap](tickets/ROADMAP.md). The ticket files are authoritative for status;
+the open items below are kept for history and map to tickets as listed in the roadmap.
+
 ## Available capabilities
 
 - [x] Wealthsimple CSV detection, archiving, deduplication, append-only revisions and SQLite history.
