@@ -153,6 +153,88 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   operation on a committed set, expiry, source and wrapper changes, request
   shape and a revoked session. Rate admission, grants and the HTTP route are not
   yet wired.
+  The private `_quota_v1(tenant, portfolio, bucket, count, bytes)` helper is the
+  shared PostgreSQL admission and release point. It locks the instance bucket row
+  before the scoped user row. `read` and `control` count one attempt against 300s
+  windows of 60/600 and 30/300 (user/instance). `raw` +1 counts one attempt
+  (10/60) and takes one concurrent slot (1/4); −1 releases the slot only.
+  `storage` ±1 reserves or releases one outstanding set (8/64) with its bytes
+  (128 MiB/1 GiB, at most 16 MiB per call). Only the attempt count resets with a
+  window. A release without a matching reservation fails, so nothing is released
+  twice. Rate and slot exhaustion return `import_busy`; storage exhaustion returns
+  `import_limit`.
+  The private `_purge_v1(tenant, portfolio, set)` helper cleans one terminal set.
+  It takes the storage quota rows before the set, refuses while a non-cleanup
+  lease is still offered or active, and deletes only that set's stages,
+  decisions and previews. It also clears member context bytes. After it proves those rows are gone, it
+  releases the set's storage reservation once and marks cleanup complete; a
+  repeated call changes nothing. Sets, members, leases, receipts and accepted
+  evidence stay. Opt-in PostgreSQL tests cover window reset, user and shared
+  instance bounds across portfolios, double release, purge ordering and fail-closed
+  rollback. No gateway, worker or cleanup route calls either helper yet.
+  The declared gateway function `cancel_set_v1` takes only `operation_id`,
+  `set_id` and `expected_set_revision`. It authenticates through
+  `_guard_user_v1` and returns an exact earlier CANCEL receipt before any mutable
+  check; a reused operation ID with a different request returns
+  `import_operation_conflict`. It locks the ingestion root, set, members and
+  leases in the same order as acceptance. A set that acceptance already committed
+  is returned unchanged with its acceptance receipt ID. Expiry still wins and
+  fences the set. Otherwise, at the expected revision, the set becomes CANCELLED
+  with one revision and one control-generation step, member attempts and live
+  leases are fenced, cleanup is marked pending, and one CANCEL receipt and one
+  CANCELLED audit row hold the resulting set view. Accepted facts, mappings and
+  quotas are untouched; storage is released later by cleanup. Opt-in PostgreSQL
+  tests run it under the real transition guard, including cancel-then-confirm
+  and confirm-then-cancel orders inside one transaction. They do not race two
+  connections. No HTTP route calls it yet.
+  The declared gateway function `decide_set_v1` takes `set_id` and one complete
+  `Decisions` object. SQL checks that object against the closed codec schema,
+  including its 128-entry bounds; references are proven later during
+  preparation and acceptance. It follows the same receipt-first replay, lock order,
+  session recheck and expiry rule as cancel. It accepts only a NEEDS_MAPPING,
+  CONFLICT or READY set at the revision in the request. Retained transient bytes
+  (contexts, stages, decisions and previews) plus the new document must fit the
+  set's fixed reservation, otherwise it returns `import_limit` without writing.
+  On success the set becomes RECONCILING with one revision and one control
+  generation step, the next decision revision is appended, live prepare leases are
+  cancelled, and one DECISIONS receipt and DECIDED audit row are stored. An earlier
+  READY preview can then no longer be confirmed.
+  `read_set_v1` and `read_receipt_v1` authenticate first and read one ID in the
+  caller's scope without locks or writes. A set is reported in its stored state.
+  An ACCEPT receipt is returned exactly as stored. A control receipt (CANCEL or
+  DECISIONS) is rebuilt as the history DTO from its row and audit entry with zero
+  fact counts. Receipts from earlier restore realms stay readable but grant
+  nothing. Rate admission for these calls is left to the caller.
+  [Page cursors](../src/wealth_ledger/ingestion/cursors.py) follow the declared
+  token format: canonical cursor JSON and an HMAC-SHA256 over those exact bytes,
+  each unpadded base64url and joined by a dot, at most 1,024 characters. The key
+  is derived from the instance secret for the `wealth-ledger/ingestion-cursor-v1`
+  purpose. The API checks the MAC in constant time before decoding, then rejects
+  noncanonical JSON, open payloads and alternative base64 spellings. A cursor is
+  signed, not encrypted, and holds only opaque IDs, a fixed filter, a position and
+  an expiry. The database never holds the key.
+  `read_sets_v1` and `read_preview_v1` take that already-verified payload and
+  recheck it against live authentication before using its position. The checks
+  cover user, portfolio, the SHA-256 realm digest of the guard's canonical realm,
+  filter, resource, revision, review digest and expiry. A cursor expires no later
+  than the session's absolute or 30-minute idle limit; for previews it also expires
+  no later than the set and preview. `read_sets_v1` lists set views newest first
+  in pages of 1 to 50 with an optional exact state filter. `read_preview_v1` pages
+  the stored review document's rows. It stops before 50 rows or 4 MiB of canonical
+  row bytes and never splits a row. It reports `can_confirm` only for the current
+  READY revision with a complete Plan before expiry. A later set revision leaves an
+  old preview readable but not confirmable. Both return the unsigned next-page
+  payload for the API to sign. No route signs or verifies cursors yet.
+  The private `_guard_worker_v1(worker, token, request)` helper is the first
+  check of every worker function. Worker identity is the actual database login:
+  the registry row named by the worker UUID must belong to `session_user` and be
+  enabled. The request's credential epoch must equal the registry's, and its
+  realm digest must equal the current realm digest. The installed profile version
+  and both instance readiness markers are checked first. The UUID, token and
+  request fields are assertions, never scope authority. The helper returns the
+  SHA-256 of the token's 32 decoded bytes for the caller's lease check. It
+  needs no user session, so cleanup can run after the originating session
+  ends. No worker function calls it yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 
