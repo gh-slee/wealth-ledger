@@ -154,6 +154,9 @@ def path_allowed(path: str) -> bool:
         return len(parts) == 3 and parts[1] == 'templates' and p.name in {'btc_events.csv', 'cash_flows.csv'}
     if parts[0] == 'docs':
         return len(parts) == 2 and p.name in PUBLIC_DOCS
+    if parts[0] == 'tickets':
+        # Tracked agent backlog: flat Markdown only (see tickets/README.md).
+        return len(parts) == 2 and p.suffix == '.md' and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*\.md', p.name) is not None
     if parts[0] == 'config':
         return len(parts) == 2 and p.name in PUBLIC_CONFIG
     if parts[:2] == ('assets', 'readme'):
