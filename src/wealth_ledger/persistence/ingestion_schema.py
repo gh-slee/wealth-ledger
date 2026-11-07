@@ -2780,22 +2780,68 @@ _FINGERPRINT_SQL = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical
     "WHERE p.tenant_id=tenant AND p.portfolio_id=portfolio AND p.set_id=selected.id),'[]'::jsonb))),'hex')")
 
 
-def _lease_ddl(name, claim):
-    """Render claim_member_v1 or renew_member_v1 for normalize leases.
+def _lease_ddl(name, mode):
+    """Render claim_member_v1, renew_member_v1 or admit_stage_v1 for normalize leases.
 
-    Both start with the worker guard, take scope only from the set row, lock in
+    All start with the worker guard, take scope only from the set row, lock in
     the same order as reserve and recheck the member's creation-time pins. Prepare
     and cleanup leases are refused until their claim functions exist.
     """
+    claim, admit = mode == 'claim', mode == 'admit'
+    extra = {'claim': ['context_digest', 'raw_digest'], 'renew': [],
+             'admit': ['discovery_digest', 'payload_bytes', 'raw_digest', 'stage_digest']}[mode]
     keys = ['credential_epoch', 'fence', 'job_id', 'member_id', 'realm_digest', 'request_id', 'set_id', 'version',
-            'work_kind'] + (['context_digest', 'raw_digest'] if claim else [])
-    hashes = ('context_digest', 'raw_digest') if claim else ()
+            'work_kind'] + extra
+    hashes = [k for k in extra if k != 'payload_bytes']
     shape = ''.join(
         " OR pg_catalog.jsonb_typeof(p_request->'" + k + "')<>'string' OR (p_request->>'" + k + "') COLLATE \"C\" !~ 'UUID_RE'"
         " OR p_request->>'" + k + "'='00000000-0000-0000-0000-000000000000'" for k in ('job_id', 'set_id', 'member_id', 'request_id'))
     shape += ''.join(" OR pg_catalog.jsonb_typeof(p_request->'" + k + "')<>'string' OR (p_request->>'" + k +
                      "') COLLATE \"C\" !~ '^[0-9a-f]{64}$'" for k in hashes)
-    if claim:
+    if admit:
+        shape += (" OR pg_catalog.jsonb_typeof(p_request->'payload_bytes')<>'number' OR (p_request->>'payload_bytes')"
+                  " COLLATE \"C\" !~ '^[1-9][0-9]{0,6}$' OR (p_request->>'payload_bytes')::bigint>4194304")
+    if admit:
+        step = r"""
+ IF held.state<>'active' OR mem.state<>'normalizing' OR mem.raw_digest IS DISTINCT FROM p_request->>'raw_digest' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ IF pg_catalog.octet_length(p_bytes)<>(p_request->>'payload_bytes')::bigint OR
+  pg_catalog.encode(pg_catalog.sha256(p_bytes),'hex')<>p_request->>'stage_digest' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ -- A proven identical stage is never parsed or stored twice.
+ IF EXISTS(SELECT 1 FROM wl_ingestion.stages g WHERE g.tenant_id=tenant AND g.portfolio_id=portfolio AND
+   g.set_id=selected.id AND g.member_id=mem.id AND g.digest=p_request->>'stage_digest') THEN
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',STAGE_ACK_AGAIN);
+ END IF;
+ -- One stage per raw attempt: any stage stored since this attempt's offer.
+ IF EXISTS(SELECT 1 FROM wl_ingestion.stages g WHERE g.tenant_id=tenant AND g.portfolio_id=portfolio AND
+   g.set_id=selected.id AND g.member_id=mem.id AND g.created_at>=held.created_at) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+ evidence:=wl_ingestion._validate_minimal_v1(p_bytes);
+ -- The evidence must describe exactly this attempt's bytes, context and pins.
+ context:=pg_catalog.convert_from(mem.context_bytes,'UTF8')::jsonb;
+ IF evidence->'provenance'->>'raw_sha256' IS DISTINCT FROM mem.raw_digest OR
+  evidence->'provenance'->>'discovery_sha256' IS DISTINCT FROM p_request->>'discovery_digest' OR
+  evidence->'provenance'->>'installation_id' IS DISTINCT FROM mem.installation_id OR
+  evidence->'provenance'->>'wrapper_profile_digest' IS DISTINCT FROM mem.wrapper_profile_digest OR
+  evidence->'provenance'->>'format_selection' IS DISTINCT FROM mem.format_version OR
+  evidence->'provenance'->>'image_digest' IS DISTINCT FROM context->>'image_digest' OR
+  -- CASE stays parenthesised: PL/pgSQL ends an IF condition at a bare THEN.
+  evidence->'provenance'->'evidence_reference' IS DISTINCT FROM (CASE context->>'payload_kind'
+   WHEN 'parser_v2' THEN context#>'{parser_context,source_reference}' ELSE context->'evidence_reference' END) OR
+  evidence->'provenance'->'evidence_at' IS DISTINCT FROM (CASE context->>'payload_kind'
+   WHEN 'parser_v2' THEN pg_catalog.jsonb_build_object('tag','instant','token',context#>'{parser_context,evidence_at}',
+    'zone',NULL,'fractional_digits',0) ELSE context->'evidence_at' END) OR
+  evidence->'provenance'->'parser_api' IS DISTINCT FROM (CASE context->>'payload_kind'
+   WHEN 'parser_v2' THEN '2'::jsonb ELSE 'null'::jsonb END) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ -- Retained transient bytes stay within the set's fixed reservation.
+ IF HELD_BYTES+pg_catalog.octet_length(p_bytes)>selected.reserved_bytes THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_limit'; END IF;
+ INSERT INTO wl_ingestion.stages(tenant_id,portfolio_id,set_id,member_id,digest,codec,minimal_bytes,created_at,purge_at)
+  VALUES(tenant,portfolio,selected.id,mem.id,p_request->>'stage_digest','minimal-evidence-v1',p_bytes,n,selected.expires_at);
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',STAGE_ACK_NEW);"""
+    elif claim:
         step = r"""
  IF held.state='active' THEN
   -- A lost acknowledgement: only the same claim request is recognised.
@@ -2837,7 +2883,11 @@ def _lease_ddl(name, claim):
                 "'member_id',mem.id::text,'work_kind','normalize','fence',held.fence::text,'credential_epoch',"
                 "guard#>>'{value,credential_epoch}','expires_at'," + _second_sql(expiry) + ",'outcome','" + outcome +
                 "','source_fingerprint'," + _FINGERPRINT_SQL + ")")
-    step = (step.replace('ACK_HELD', ack('already_claimed', 'held.expires_at'))
+    def stage_ack(outcome):
+        return ("pg_catalog.jsonb_build_object('version',1,'job_id',p_request->>'job_id','fence',held.fence::text,"
+                "'member_id',mem.id::text,'stage_digest',p_request->>'stage_digest','outcome','" + outcome + "')")
+    step = (step.replace('STAGE_ACK_AGAIN', stage_ack('already_admitted')).replace('STAGE_ACK_NEW', stage_ack('admitted'))
+            .replace('HELD_BYTES', _HELD_BYTES_SQL).replace('ACK_HELD', ack('already_claimed', 'held.expires_at'))
             .replace('ACK_CLAIMED', ack('claimed', 'until')).replace('ACK_RENEWED', ack('renewed', 'until')))
     return (r"""
 CREATE FUNCTION wl_ingestion.NAME(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
@@ -2846,10 +2896,10 @@ DECLARE guard jsonb;cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_inges
  cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;
  selected wl_ingestion.sets%ROWTYPE;mem wl_ingestion.members%ROWTYPE;held wl_ingestion.leases%ROWTYPE;
  tenant uuid;portfolio uuid;scopes integer;n timestamptz;until timestamptz;code text;catalog jsonb;wrappers jsonb;
- generation bigint;request_digest text;ack jsonb;
+ generation bigint;request_digest text;ack jsonb;evidence jsonb;context jsonb;
 BEGIN
- -- Lease functions carry no bytes; only normalize leases exist so far.
- IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
+ -- Only stage admission carries bytes; only normalize leases exist so far.
+ IF (p_bytes IS NULL)=BYTES_EXPECTED OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
   ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>ARRAY[KEYS]::text[] OR
   p_request->'version' IS DISTINCT FROM '1'::jsonb OR p_request->'work_kind' IS DISTINCT FROM '"normalize"'::jsonb OR
   pg_catalog.jsonb_typeof(p_request->'fence')<>'string' OR (p_request->>'fence') COLLATE "C" !~ '^[1-9][0-9]{0,17}$'SHAPE THEN
@@ -2895,7 +2945,7 @@ EXCEPTION WHEN SQLSTATE '22023' THEN
  -- Every change above rolls back with this block.
  code:=SQLERRM;
  IF code NOT IN ('import_invalid','import_conflict','import_stale','import_expired','source_unavailable','not_found',
-  'authentication_required') THEN code:='import_invalid'; END IF;
+  'authentication_required','import_limit','import_evidence_unsupported') THEN code:='import_invalid'; END IF;
  RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
 WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
 WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
@@ -2903,13 +2953,16 @@ WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
 END $lease$;
 REVOKE ALL ON FUNCTION wl_ingestion.NAME(uuid,text,jsonb,bytea) FROM PUBLIC;
 """.replace('MEMBER_PINS', _MEMBER_PIN_SQL).replace('STEP', step).replace('SHAPE', shape)
+            .replace('BYTES_EXPECTED', 'true' if admit else 'false')
             .replace('KEYS', ','.join("'" + k + "'" for k in sorted(keys))).replace('UUID_RE', _UUID_RE)
             .replace('NAME', name))
 
 
-# claim turns the bound offer into the active normalize lease; renew extends it.
-CLAIM_DDL = _lease_ddl('claim_member_v1', True)
-RENEW_DDL = _lease_ddl('renew_member_v1', False)
+# claim turns the bound offer into the active normalize lease; renew extends it;
+# admit stores the child's validated minimal evidence for that attempt.
+CLAIM_DDL = _lease_ddl('claim_member_v1', 'claim')
+RENEW_DDL = _lease_ddl('renew_member_v1', 'renew')
+ADMIT_DDL = _lease_ddl('admit_stage_v1', 'admit')
 
 # One-ID reads: live authentication first, then only the caller's own scope.
 # They take no locks, write nothing and never grant authority for a later write.

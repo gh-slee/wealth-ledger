@@ -286,7 +286,22 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   the SHA-256 of the canonical Plan `pinned_sources` entries for the set's
   members in member-ID order. Opt-in PostgreSQL tests cover claim, lost
   acknowledgements, renew replay and every refusal leaving the offer unchanged.
-  No worker process calls them yet.
+  `admit_stage_v1` uses the same lease checks on an active lease and is the only
+  worker function so far that takes bytes: the child's canonical minimal evidence.
+  The bytes must match the request's length and stage digest, and the request's
+  raw digest must be the member's. A stage with the same digest already stored for
+  the member returns `already_admitted` without parsing again. A different stage
+  stored since this attempt's offer returns `import_conflict`, so each raw attempt
+  admits at most one stage. Otherwise `_validate_minimal_v1` checks the document.
+  Its provenance must name the member's raw digest, installation, wrapper profile
+  and format, the request's discovery digest, and the context's image digest,
+  evidence reference, evidence time and parser API; any difference returns
+  `import_invalid`. The stage must also fit the set's reservation with the other
+  retained transient bytes (`import_limit` otherwise). It is then stored until set
+  expiry. The member stays `normalizing` with no stage digest until a finish call
+  admits it. Opt-in PostgreSQL tests cover parser and native evidence, replay, a
+  second stage, each provenance mismatch and the reservation bound, with nothing
+  stored on refusal. No worker process calls it yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 
