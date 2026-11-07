@@ -2428,6 +2428,339 @@ REVOKE ALL ON FUNCTION wl_ingestion.decide_set_v1(text,uuid,bigint,jsonb,text,js
     'HELD_BYTES', _HELD_BYTES_SQL).replace('UUID_RE', _UUID_RE).replace('DECISIONS_SHAPE', _decisions_predicate())
 
 
+# Owner decision (Option A): the database builds each member's exact child
+# context at creation from stored source state and the operator-reviewed wrapper
+# profile. The context fence is the creation fence 1; later raw attempts advance
+# only the member/lease fence. job_id and the evidence reference are fresh per
+# member, evidence time is the DB clock to whole seconds, and native discovery
+# gets a fresh ephemeral namespace, never real tenant or portfolio IDs.
+CREATE_DDL = r"""
+CREATE FUNCTION wl_ingestion.create_set_v1(p_digest text,p_user uuid,p_version bigint,p_realm jsonb,
+ p_catalog_digest text,p_payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $create$
+DECLARE guard jsonb;st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;
+ cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
+ cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;
+ tenant uuid;portfolio uuid;realm text;n timestamptz;new_set uuid;receipt uuid;new_member uuid;
+ request_digest text;code text;result jsonb;catalog jsonb;wrappers jsonb;profile jsonb;pick jsonb;
+ context jsonb;context_raw bytea;evidence text;generation bigint;availability bigint;profiles integer;
+ position integer:=0;
+BEGIN
+ -- Only the operation ID and up to four member selections; no financial values.
+ IF pg_catalog.jsonb_typeof(p_payload) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_payload) ORDER BY 1)<>ARRAY['members','operation_id']::text[] OR
+  pg_catalog.jsonb_typeof(p_payload->'operation_id')<>'string' OR
+  (p_payload->>'operation_id') COLLATE "C" !~ 'UUID_RE' OR
+  p_payload->>'operation_id'='00000000-0000-0000-0000-000000000000' OR
+  pg_catalog.jsonb_typeof(p_payload->'members')<>'array' OR
+  pg_catalog.jsonb_array_length(p_payload->'members') NOT BETWEEN 1 AND 4 OR EXISTS(
+   SELECT 1 FROM pg_catalog.jsonb_array_elements(p_payload->'members') m(value) WHERE
+    pg_catalog.jsonb_typeof(m.value)<>'object' OR
+    ARRAY(SELECT pg_catalog.jsonb_object_keys(m.value) ORDER BY 1)<>
+     ARRAY['connection_id','declared_bytes','format_version','installation_id']::text[] OR
+    pg_catalog.jsonb_typeof(m.value->'connection_id')<>'string' OR
+    (m.value->>'connection_id') COLLATE "C" !~ 'UUID_RE' OR
+    m.value->>'connection_id'='00000000-0000-0000-0000-000000000000' OR
+    pg_catalog.jsonb_typeof(m.value->'installation_id')<>'string' OR
+    (m.value->>'installation_id') COLLATE "C" !~ '^[0-9a-f]{64}$' OR
+    pg_catalog.jsonb_typeof(m.value->'format_version')<>'string' OR
+    pg_catalog.length(m.value->>'format_version') NOT BETWEEN 1 AND 128 OR
+    pg_catalog.translate(m.value->>'format_version',CONTROLS,'')<>m.value->>'format_version' OR
+    (m.value->'declared_bytes'<>'null'::jsonb AND (pg_catalog.jsonb_typeof(m.value->'declared_bytes')<>'number' OR
+     (m.value->>'declared_bytes') COLLATE "C" !~ '^[1-9][0-9]{0,7}$' OR
+     (m.value->>'declared_bytes')::bigint>10485760))) THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_user_v1(p_digest,p_user,p_version,p_realm,p_catalog_digest);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ tenant:=(guard#>>'{value,tenant_id}')::uuid;portfolio:=(guard#>>'{value,portfolio_id}')::uuid;
+ realm:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(guard#>'{value,realm}')),'hex');
+ SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;
+ request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_payload)),'hex');
+ BEGIN
+  result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
+   (p_payload->>'operation_id')::uuid,'CREATE',request_digest);
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM='import_conflict' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict'); END IF;
+  RAISE;
+ END;
+ IF result IS NOT NULL THEN RETURN pg_catalog.jsonb_build_object('ok',true,'value',result); END IF;
+ -- Source lifecycle rows in the declared order; the selection is pinned under them.
+ PERFORM 1 FROM wl_sources.lifecycle_roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR SHARE;
+ PERFORM 1 FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY plugin_id,capability FOR SHARE;
+ PERFORM 1 FROM wl_pg.connections WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id,version FOR SHARE;
+ PERFORM 1 FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id FOR SHARE;
+ -- Reserve the worst-case set capacity once; instance and user storage rows come next.
+ PERFORM wl_ingestion._quota_v1(tenant,portfolio,'storage',1,SET_BYTES);
+ INSERT INTO wl_ingestion.roots(tenant_id,portfolio_id,accepted_generation,mapping_generation,control_generation)
+  VALUES(tenant,portfolio,0,0,0) ON CONFLICT DO NOTHING;
+ PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
+ -- The same operation may have committed while this call waited.
+ BEGIN
+  result:=wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,st.restore_epoch,
+   (p_payload->>'operation_id')::uuid,'CREATE',request_digest);
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM='import_conflict' THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_operation_conflict'; END IF;
+  RAISE;
+ END;
+ IF result IS NOT NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='replay_after_wait'; END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ SELECT * INTO ss FROM wl_identity.sessions WHERE token_digest=p_digest;
+SESSION_RECHECK
+ SELECT * INTO cs FROM wl_sources.catalog_state WHERE id=1;
+ SELECT * INTO ingestion_state FROM wl_ingestion.instance_state WHERE id=1;
+ catalog:=pg_catalog.convert_from(cs.bundle_bytes,'UTF8')::jsonb;
+ wrappers:=pg_catalog.convert_from(ingestion_state.wrapper_catalog_bytes,'UTF8')::jsonb;
+ IF pg_catalog.jsonb_typeof(wrappers)<>'array' THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='source_unavailable'; END IF;
+ evidence:=pg_catalog.to_char(n AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS')||'+00:00';
+ new_set:=pg_catalog.gen_random_uuid();
+ INSERT INTO wl_ingestion.sets(tenant_id,portfolio_id,id,actor_user_id,creation_operation_id,request_digest,incarnation,
+  restore_epoch,realm_digest,state,revision,created_at,expires_at,member_count,reserved_bytes,receipt_id,cleanup_state)
+  VALUES(tenant,portfolio,new_set,tenant,(p_payload->>'operation_id')::uuid,request_digest,st.incarnation,st.restore_epoch,
+   realm,'RECEIVING',1,n,n+interval '86400 seconds',pg_catalog.jsonb_array_length(p_payload->'members'),SET_BYTES,NULL,'not_needed');
+ FOR pick IN SELECT value FROM pg_catalog.jsonb_array_elements(p_payload->'members') LOOP
+  SELECT * INTO cl FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio
+   AND id=(pick->>'connection_id')::uuid;
+  em:=NULL;
+  IF cl.id IS NOT NULL THEN
+   SELECT * INTO em FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND plugin_id=cl.plugin_id AND capability=cl.capability;
+  END IF;
+  SELECT c.generation INTO generation FROM wl_pg.connections c WHERE c.tenant_id=tenant AND c.portfolio_id=portfolio
+   AND c.id=cl.id AND c.version=cl.connection_version;
+  SELECT (a.value->>'availability_generation')::bigint INTO availability FROM pg_catalog.jsonb_array_elements(
+   CASE WHEN pg_catalog.jsonb_typeof(catalog->'availability')='array' THEN catalog->'availability' ELSE '[]'::jsonb END) a(value)
+   WHERE a.value->>'installation_id'=pick->>'installation_id' AND a.value->>'status'='ACTIVE' AND
+    (a.value->>'availability_generation') COLLATE "C" ~ '^[0-9]{1,18}$' LIMIT 1;
+  -- Exactly one reviewed profile must accept this installation and format.
+  SELECT pg_catalog.count(*),(pg_catalog.array_agg(w.value))[1] INTO profiles,profile
+   FROM pg_catalog.jsonb_array_elements(wrappers) w(value) WHERE pg_catalog.jsonb_typeof(w.value)='object' AND
+    w.value->>'installation_id'=pick->>'installation_id' AND
+    pg_catalog.jsonb_typeof(w.value->'format_versions')='array' AND w.value->'format_versions' ? (pick->>'format_version') AND
+    w.value->>'projection' IN ('parser2-minimal-v1','domain1-minimal-v1') AND
+    (w.value->>'profile_digest') COLLATE "C" ~ '^[0-9a-f]{64}$' AND (w.value->>'image_digest') COLLATE "C" ~ '^[0-9a-f]{64}$';
+  IF cl.id IS NULL OR NOT cl.enabled OR cl.capability<>'FILE_IMPORT' OR cl.installation_id<>pick->>'installation_id' OR
+   em.plugin_id IS NULL OR NOT em.enabled OR em.installation_id<>pick->>'installation_id' OR generation IS NULL OR
+   availability IS NULL OR profiles<>1 THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='source_unavailable'; END IF;
+  new_member:=pg_catalog.gen_random_uuid();
+  context:=pg_catalog.jsonb_build_object('version',1,'job_id',pg_catalog.gen_random_uuid()::text,'member_id',new_member::text,
+   'fence','1','installation_id',pick->>'installation_id','wrapper_profile_digest',profile->>'profile_digest',
+   'format_version',pick->>'format_version','image_digest',profile->>'image_digest');
+  IF profile->>'projection'='parser2-minimal-v1' THEN
+   context:=context||pg_catalog.jsonb_build_object('payload_kind','parser_v2','parser_context',
+    pg_catalog.jsonb_build_object('evidence_at',evidence,'source_reference',pg_catalog.gen_random_uuid()::text,
+     'account_alias',cl.parser_source_alias,'source_timezone',NULL,'format_selection',pick->>'format_version',
+     'revisions','[]'::jsonb,'scope_revisions','[]'::jsonb));
+  ELSE
+   context:=context||pg_catalog.jsonb_build_object('payload_kind','native_discovery_v1','provider_id',cl.provider_id,
+    'evidence_reference',pg_catalog.gen_random_uuid()::text,
+    'evidence_at',pg_catalog.jsonb_build_object('tag','instant','token',evidence,'zone',NULL,'fractional_digits',0),
+    'namespace',pg_catalog.jsonb_build_object('tenant_id',pg_catalog.gen_random_uuid()::text,
+     'portfolio_id',pg_catalog.gen_random_uuid()::text,'connection_id',pg_catalog.gen_random_uuid()::text));
+  END IF;
+  context_raw:=wl_ingestion._canonical_v1(context);
+  INSERT INTO wl_ingestion.members(tenant_id,portfolio_id,set_id,id,ordinal,connection_id,connection_version,installation_id,
+   format_version,context_digest,context_bytes,raw_digest,raw_bytes,state,error_code,stage_digest,fence,connection_generation,
+   enablement_generation,availability_generation,wrapper_profile_digest,raw_deadline)
+   VALUES(tenant,portfolio,new_set,new_member,position,cl.id,cl.connection_version,cl.installation_id,pick->>'format_version',
+    pg_catalog.encode(pg_catalog.sha256(context_raw),'hex'),context_raw,NULL,NULL,'waiting',NULL,NULL,1,generation,
+    em.generation,availability,profile->>'profile_digest',NULL);
+  position:=position+1;
+ END LOOP;
+ SELECT SET_RESULT INTO result FROM wl_ingestion.sets x WHERE x.tenant_id=tenant AND x.portfolio_id=portfolio AND x.id=new_set;
+ receipt:=pg_catalog.gen_random_uuid();
+ INSERT INTO wl_ingestion.receipts(tenant_id,portfolio_id,id,incarnation,restore_epoch,operation_id,operation_kind,
+  request_digest,preview_id,accepted_plan_id,plan_digest,result_bytes,created_at) VALUES(tenant,portfolio,receipt,
+  st.incarnation,st.restore_epoch,(p_payload->>'operation_id')::uuid,'CREATE',request_digest,NULL,NULL,NULL,
+  wl_ingestion._canonical_v1(result),n);
+ INSERT INTO wl_ingestion.audit(tenant_id,portfolio_id,id,receipt_id,action,before_accepted_generation,
+  after_accepted_generation,before_mapping_generation,after_mapping_generation,created_at)
+  SELECT tenant,portfolio,pg_catalog.gen_random_uuid(),receipt,'CREATED',r.accepted_generation,r.accepted_generation,
+   r.mapping_generation,r.mapping_generation,n FROM wl_ingestion.roots r WHERE r.tenant_id=tenant AND r.portfolio_id=portfolio;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ -- Every reservation and row above rolls back with this block.
+ code:=SQLERRM;
+ IF code='replay_after_wait' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',wl_ingestion._replay_v1(tenant,portfolio,st.incarnation,
+   st.restore_epoch,(p_payload->>'operation_id')::uuid,'CREATE',request_digest));
+ END IF;
+ IF code NOT IN ('import_invalid','import_limit','import_busy','import_operation_conflict','source_unavailable',
+  'session_changed','instance_not_ready') THEN code:='import_invalid'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_operation_conflict');
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $create$;
+REVOKE ALL ON FUNCTION wl_ingestion.create_set_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;
+""".replace('SESSION_RECHECK', _identity.check_session().replace(
+    "RETURN pg_catalog.jsonb_build_object('ok',false,'code','", "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='")
+    .replace("');", "';")).replace('SET_RESULT', _SET_RESULT_SQL).replace(
+    'UUID_RE', _UUID_RE).replace('SET_BYTES', str(SET_RESERVATION_BYTES)).replace(
+    'CONTROLS', '||'.join('pg_catalog.chr(' + str(c) + ')' for c in range(1, 32)))
+
+# Live recheck of one member's pins captured at creation (raising, so a failed
+# reserve or bind keeps no slot). Same rules as acceptance.
+_MEMBER_PIN_SQL = r"""
+ SELECT * INTO cl FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=mem.connection_id;
+ em:=NULL;
+ IF cl.id IS NOT NULL THEN
+  SELECT * INTO em FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio
+   AND plugin_id=cl.plugin_id AND capability=cl.capability;
+ END IF;
+ SELECT * INTO cs FROM wl_sources.catalog_state WHERE id=1;
+ SELECT * INTO ingestion_state FROM wl_ingestion.instance_state WHERE id=1;
+ catalog:=pg_catalog.convert_from(cs.bundle_bytes,'UTF8')::jsonb;
+ wrappers:=pg_catalog.convert_from(ingestion_state.wrapper_catalog_bytes,'UTF8')::jsonb;
+ IF cl.id IS NULL OR NOT cl.enabled OR em.plugin_id IS NULL OR NOT em.enabled OR NOT EXISTS(
+   SELECT 1 FROM pg_catalog.jsonb_array_elements(CASE WHEN pg_catalog.jsonb_typeof(catalog->'availability')='array'
+    THEN catalog->'availability' ELSE '[]'::jsonb END) a(value)
+   WHERE a.value->>'installation_id'=mem.installation_id AND a.value->>'status'='ACTIVE') OR
+  NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(CASE WHEN pg_catalog.jsonb_typeof(wrappers)='array'
+    THEN wrappers ELSE '[]'::jsonb END) w(value) WHERE pg_catalog.jsonb_typeof(w.value)='object' AND
+   w.value->>'profile_digest'=mem.wrapper_profile_digest AND w.value->>'installation_id'=mem.installation_id) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='source_unavailable'; END IF;
+ SELECT c.generation INTO generation FROM wl_pg.connections c WHERE c.tenant_id=tenant AND c.portfolio_id=portfolio
+  AND c.id=mem.connection_id AND c.version=mem.connection_version;
+ IF cl.connection_version<>mem.connection_version OR cl.installation_id<>mem.installation_id OR
+  em.installation_id<>mem.installation_id OR em.generation<>mem.enablement_generation OR
+  generation IS DISTINCT FROM mem.connection_generation OR NOT EXISTS(
+   SELECT 1 FROM pg_catalog.jsonb_array_elements(catalog->'availability') a(value)
+   WHERE a.value->>'installation_id'=mem.installation_id AND a.value->>'status'='ACTIVE' AND
+    a.value->>'availability_generation'=mem.availability_generation::text) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+"""
+
+# reserve opens one raw attempt; bind fixes its exact bytes once. Neither ever
+# receives raw content: only a hash, a length and the API's handoff-token digest.
+RESERVE_DDL = r"""
+CREATE FUNCTION wl_ingestion.reserve_member_v1(p_digest text,p_user uuid,p_version bigint,p_realm jsonb,
+ p_catalog_digest text,p_payload jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $reserve$
+DECLARE guard jsonb;st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;
+ cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
+ cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;
+ selected wl_ingestion.sets%ROWTYPE;mem wl_ingestion.members%ROWTYPE;offer wl_ingestion.leases%ROWTYPE;
+ tenant uuid;portfolio uuid;n timestamptz;worker uuid;workers_enabled integer;next_fence bigint;
+ attempts bigint;lease uuid;code text;catalog jsonb;wrappers jsonb;generation bigint;deadline timestamptz;
+ offer_until timestamptz;bind boolean;
+BEGIN
+ IF pg_catalog.jsonb_typeof(p_payload) IS DISTINCT FROM 'object' OR pg_catalog.jsonb_typeof(p_payload->'action')<>'string' OR
+  p_payload->>'action' NOT IN ('reserve','bind') THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
+ bind:=p_payload->>'action'='bind';
+ IF ARRAY(SELECT pg_catalog.jsonb_object_keys(p_payload) ORDER BY 1)<>(CASE WHEN bind THEN
+   ARRAY['action','fence','handoff_token_digest','member_id','raw_bytes','raw_sha256','set_id']::text[] ELSE
+   ARRAY['action','expected_set_revision','member_id','set_id']::text[] END) OR
+  pg_catalog.jsonb_typeof(p_payload->'set_id')<>'string' OR (p_payload->>'set_id') COLLATE "C" !~ 'UUID_RE' OR
+  pg_catalog.jsonb_typeof(p_payload->'member_id')<>'string' OR (p_payload->>'member_id') COLLATE "C" !~ 'UUID_RE' OR
+  p_payload->>'set_id'='00000000-0000-0000-0000-000000000000' OR
+  p_payload->>'member_id'='00000000-0000-0000-0000-000000000000' OR
+  (NOT bind AND (pg_catalog.jsonb_typeof(p_payload->'expected_set_revision')<>'string' OR
+   (p_payload->>'expected_set_revision') COLLATE "C" !~ '^[1-9][0-9]{0,17}$')) OR
+  (bind AND (pg_catalog.jsonb_typeof(p_payload->'fence')<>'string' OR (p_payload->>'fence') COLLATE "C" !~ '^[1-9][0-9]{0,17}$' OR
+   pg_catalog.jsonb_typeof(p_payload->'raw_sha256')<>'string' OR (p_payload->>'raw_sha256') COLLATE "C" !~ '^[0-9a-f]{64}$' OR
+   pg_catalog.jsonb_typeof(p_payload->'handoff_token_digest')<>'string' OR
+   (p_payload->>'handoff_token_digest') COLLATE "C" !~ '^[0-9a-f]{64}$' OR
+   pg_catalog.jsonb_typeof(p_payload->'raw_bytes')<>'number' OR (p_payload->>'raw_bytes') COLLATE "C" !~ '^[1-9][0-9]{0,7}$' OR
+   (p_payload->>'raw_bytes')::bigint>10485760)) THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_user_v1(p_digest,p_user,p_version,p_realm,p_catalog_digest);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ tenant:=(guard#>>'{value,tenant_id}')::uuid;portfolio:=(guard#>>'{value,portfolio_id}')::uuid;
+ SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;
+ PERFORM 1 FROM wl_sources.lifecycle_roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR SHARE;
+ PERFORM 1 FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY plugin_id,capability FOR SHARE;
+ PERFORM 1 FROM wl_pg.connections WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id,version FOR SHARE;
+ PERFORM 1 FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id FOR SHARE;
+ -- A new attempt counts against the raw rate and takes one shared concurrent slot.
+ IF NOT bind THEN PERFORM wl_ingestion._quota_v1(tenant,portfolio,'raw',1,0); END IF;
+ PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
+ SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND id=(p_payload->>'set_id')::uuid FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ n:=wl_identity._clock_timestamp_v1();
+ SELECT * INTO ss FROM wl_identity.sessions WHERE token_digest=p_digest;
+SESSION_RECHECK
+ IF selected.id IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='not_found'; END IF;
+ SELECT * INTO mem FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+  AND id=(p_payload->>'member_id')::uuid;
+ IF mem.id IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='not_found'; END IF;
+ IF selected.state='EXPIRED' OR (selected.state NOT IN ('COMMITTED','REJECTED','CANCELLED') AND n>=selected.expires_at) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired'; END IF;
+ IF selected.state<>'RECEIVING' OR (NOT bind AND selected.revision<>(p_payload->>'expected_set_revision')::bigint) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+MEMBER_PINS
+ IF NOT bind THEN
+  -- One live attempt per member; a re-upload starts a new fence with empty raw fields.
+  IF mem.state NOT IN ('waiting','reupload_required') THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  SELECT pg_catalog.count(*),(pg_catalog.array_agg(w.id))[1] INTO workers_enabled,worker FROM wl_ingestion.workers w WHERE w.enabled;
+  IF workers_enabled<>1 THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_runner_unavailable'; END IF;
+  next_fence:=mem.fence+CASE WHEN mem.state='reupload_required' THEN 1 ELSE 0 END;
+  deadline:=n+interval '120 seconds';
+  UPDATE wl_ingestion.members SET state='receiving',fence=next_fence,raw_deadline=deadline,
+   raw_digest=CASE WHEN next_fence<>fence THEN NULL ELSE raw_digest END,
+   raw_bytes=CASE WHEN next_fence<>fence THEN NULL ELSE raw_bytes END
+   WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id AND id=mem.id;
+  SELECT pg_catalog.count(*) INTO attempts FROM wl_ingestion.leases l WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio
+   AND l.set_id=selected.id AND l.member_id=mem.id AND l.work_kind='normalize';
+  lease:=pg_catalog.gen_random_uuid();
+  -- Unbound offer: no worker can claim it until bind adds the token digest.
+  INSERT INTO wl_ingestion.leases(tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,token_digest,
+   session_digest,credential_version,incarnation,restore_epoch,created_at,expires_at,state,claim_request_id,
+   claim_request_digest,last_request_id,last_request_digest,last_result_bytes)
+   VALUES(tenant,portfolio,lease,selected.id,mem.id,'normalize',attempts+1,next_fence,worker,NULL,p_digest,
+    ss.credential_version,st.incarnation,st.restore_epoch,n,n+interval '30 seconds','offered',NULL,NULL,NULL,NULL,NULL);
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('action','reserve',
+   'set_id',selected.id::text,'member_id',mem.id::text,'lease_id',lease::text,'fence',next_fence::text,
+   'raw_deadline',INSTANT_DEADLINE,'offer_expires_at',INSTANT_OFFER));
+ END IF;
+ -- bind: the exact attempt reserved by this same session, before its deadline.
+ IF mem.state<>'receiving' OR mem.fence::text<>p_payload->>'fence' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ IF mem.raw_deadline IS NULL OR n>=mem.raw_deadline THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_reupload_required'; END IF;
+ IF mem.raw_digest IS NOT NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+ SELECT * INTO offer FROM wl_ingestion.leases l WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.set_id=selected.id
+  AND l.member_id=mem.id AND l.work_kind='normalize' AND l.fence=mem.fence AND l.state='offered' AND l.token_digest IS NULL;
+ IF offer.id IS NULL OR offer.session_digest<>p_digest OR n>=offer.expires_at OR
+  NOT EXISTS(SELECT 1 FROM wl_ingestion.workers w WHERE w.id=offer.worker_id AND w.enabled) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_reupload_required'; END IF;
+ offer_until:=LEAST(n+interval '60 seconds',mem.raw_deadline);
+ UPDATE wl_ingestion.members SET raw_digest=p_payload->>'raw_sha256',raw_bytes=(p_payload->>'raw_bytes')::bigint
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id AND id=mem.id;
+ UPDATE wl_ingestion.leases SET token_digest=p_payload->>'handoff_token_digest',expires_at=offer_until
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=offer.id;
+ -- Handoff metadata for the trusted API only; it adds its own plaintext token.
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,
+  'job_id',pg_catalog.convert_from(mem.context_bytes,'UTF8')::jsonb->>'job_id','set_id',selected.id::text,
+  'member_id',mem.id::text,'fence',mem.fence::text,'raw_sha256',p_payload->>'raw_sha256',
+  'raw_bytes',(p_payload->>'raw_bytes')::bigint,'context_sha256',mem.context_digest,
+  'context_bytes',pg_catalog.octet_length(mem.context_bytes),'realm_digest',selected.realm_digest,
+  'expires_at',INSTANT_UNTIL,'raw_deadline',INSTANT_RAW));
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ -- Every reservation and change above rolls back with this block.
+ code:=SQLERRM;
+ IF code NOT IN ('import_invalid','import_busy','import_conflict','import_stale','import_expired','import_reupload_required',
+  'import_runner_unavailable','source_unavailable','not_found','session_changed','instance_not_ready') THEN
+  code:='import_invalid'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $reserve$;
+REVOKE ALL ON FUNCTION wl_ingestion.reserve_member_v1(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;
+""".replace('MEMBER_PINS', _MEMBER_PIN_SQL).replace('SESSION_RECHECK', _identity.check_session().replace(
+    "RETURN pg_catalog.jsonb_build_object('ok',false,'code','", "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='")
+    .replace("');", "';")).replace('UUID_RE', _UUID_RE).replace('INSTANT_DEADLINE', _instant_sql('deadline')).replace(
+    'INSTANT_OFFER', _instant_sql("n+interval '30 seconds'")).replace('INSTANT_UNTIL', _instant_sql('offer_until')).replace(
+    'INSTANT_RAW', _instant_sql('mem.raw_deadline'))
+
 # One-ID reads: live authentication first, then only the caller's own scope.
 # They take no locks, write nothing and never grant authority for a later write.
 READ_SET_DDL = r"""
