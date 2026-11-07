@@ -7,6 +7,21 @@ authorizes implementation. Use ordinary Markdown, Git branches and, when authori
 GitHub Issues/PRs. No scheduler, command-line dispatcher or custom orchestrator is
 installed or required.
 
+## Tracked tickets and parallel agents
+
+The public backlog lives in [tickets/](../tickets/README.md). A ticket file is the
+public-safe record of a spec's status, scope, acceptance, gate approval, branch, PR
+and resumable handoff. `python3 scripts/tickets.py claim` is the serialized
+reservation: it atomically locks the ticket and its exclusive resources in the
+shared Git directory, so concurrent agents in other worktrees or other agent
+products are refused. Detailed private evidence may still live under ignored
+`work/`, referenced from the ticket by relative path only.
+
+A stale heartbeat is evidence that a writer stopped, not a free pass. Before
+`takeover`, confirm that no process still writes in the old worktree, as in
+[Pause, transfer and resume](#pause-transfer-and-resume). The claim records the
+former and new owner.
+
 ## Evidence and roles
 
 A spec records ID, revision, content SHA-256, outcome, scope/non-goals, priority,
