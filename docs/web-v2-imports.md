@@ -302,6 +302,26 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   admits it. Opt-in PostgreSQL tests cover parser and native evidence, replay, a
   second stage, each provenance mismatch and the reservation bound, with nothing
   stored on refusal. No worker process calls it yet.
+  `finish_member_v1` ends an active normalize lease with one outcome and up to
+  three launcher cleanup proofs for the same job and fence. A lost acknowledgement
+  is answered from the finished lease's stored result; any other request on it
+  returns `import_stale`. `stage_admitted` needs no error code, valid source pins
+  and exactly one stage stored during this attempt. The member becomes `admitted`
+  with that stage digest, and when every member is admitted the set moves to
+  NORMALIZING for preparation. `reupload_required` and `rejected` need an error
+  code from the public member result list, and neither depends on the source
+  still being available. A re-upload request makes the member `reupload_required`;
+  the next reserve starts fence 2 and clears the error code. Following the owner's
+  decision, `rejected` rejects the whole set: it becomes REJECTED with cleanup
+  pending, every member is rejected, the finishing member keeps the error code and
+  other live leases are cancelled. No receipt is written because no user operation
+  is involved. Also by owner decision, the user's raw slot is released only when
+  at least one proof was sent and every proof says `absent` or `not_created`.
+  Otherwise the acknowledgement says `cleanup_complete: false` and the slot stays
+  held for a later cleanup call. Proofs are checked for shape only; this
+  function does not store them. Opt-in PostgreSQL tests cover each outcome,
+  replay, slot release and retention, a two-member set and every refusal
+  leaving the attempt unchanged. No worker process calls it yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

@@ -302,7 +302,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL
                 + '\n' + schema.worker_guard_ddl() + '\n' + schema.CREATE_DDL
                 + '\n' + schema.RESERVE_DDL + '\n' + schema.CLAIM_DDL + '\n' + schema.RENEW_DDL
-                + '\n' + schema.ADMIT_DDL)
+                + '\n' + schema.ADMIT_DDL + '\n' + schema.FINISH_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -2730,7 +2730,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             "'wl_ingestion.create_set_v1(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
 
     # reserve_member_v1 runs on a set made by create_set_v1 under the real guard.
-    NEW_MEMBER = "(SELECT m.id::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1)"
+    NEW_MEMBER = "(SELECT m.id::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1)"
     NEW_SET = "(SELECT id::text FROM wl_ingestion.sets WHERE state='RECEIVING' LIMIT 1)"
 
     def reserve_seed(self, *, workers=1):
@@ -2746,7 +2746,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         if action == 'reserve':
             values['expected_set_revision'] = "'1'"
         else:
-            values.update(fence="(SELECT fence::text FROM wl_ingestion.members LIMIT 1)", raw_sha256="'" + '5' * 64 + "'",
+            values.update(fence="(SELECT m.fence::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id "
+                          "WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1)", raw_sha256="'" + '5' * 64 + "'",
                           raw_bytes='1234', handoff_token_digest="'" + '6' * 64 + "'")
         values.update(fields)
         payload = 'pg_catalog.jsonb_build_object(' + ','.join("'" + k + "'," + v for k, v in values.items()) + ')'
@@ -2764,7 +2765,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         plan, pin, seed, catalog = self.reserve_seed()
         context = ("SELECT 'CTX '||pg_catalog.jsonb_build_object('job',pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id',"
                    "'digest',m.context_digest,'length',pg_catalog.octet_length(m.context_bytes),'realm',x.realm_digest)::text "
-                   "FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1;")
+                   "FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1;")
         out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + self.RESERVE_STATE +
             self.reserve_call('again', catalog) + self.RESERVE_STATE.replace("'RSTATE '", "'RAGAIN '") +
             self.reserve_call('wrongfence', catalog, action='bind', fence="'2'") +
@@ -2853,13 +2854,13 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     # claim/renew run under the real worker guard; the disposable container's
     # login (postgres) is the registered worker.
     LEASE_MEMBER = ("(SELECT m.id::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id "
-                    "WHERE x.state='RECEIVING' LIMIT 1)")
+                    "WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1)")
 
-    def claim_seed(self, projection='parser2-minimal-v1'):
+    def claim_seed(self, projection='parser2-minimal-v1', count=1):
         plan, pin, seed, catalog = self.create_seed(projection=projection)
         seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
                                      'enabled': True, 'credential_epoch': 1})
-        seed += self.gateway_statement('create_set_v1', 'create', self.create_payload(pin), catalog)
+        seed += self.gateway_statement('create_set_v1', 'create', self.create_payload(pin, count=count), catalog)
         seed += self.reserve_call('reserve', catalog)
         seed += self.reserve_call('bind', catalog, action='bind', handoff_token_digest="'" + hashlib.sha256(
             bytes.fromhex(self.WORKER_TOKEN)).hexdigest() + "'")
@@ -2872,11 +2873,11 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                                   identity_schema.realm() + ")),'hex')",
                   'credential_epoch': "'1'", 'set_id': self.NEW_SET, 'member_id': self.LEASE_MEMBER, 'fence': "'1'",
                   'job_id': "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' FROM "
-                            "wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1)",
+                            "wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1)",
                   'request_id': "'c0000000-0000-4000-8000-000000000002'"}
         if function == 'claim_member_v1':
             values.update(raw_digest="'" + '5' * 64 + "'", context_digest="(SELECT m.context_digest FROM "
-                          "wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1)")
+                          "wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1)")
         values.update(fields)
         for key in drop:
             values.pop(key)
@@ -2888,7 +2889,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 "SELECT '" + label.upper() + " '||pg_catalog.current_setting('test." + label + "');")
 
     LEASE_STATE = ("SELECT 'LSTATE '||pg_catalog.jsonb_build_object('member',(SELECT pg_catalog.jsonb_build_array(m.state,m.fence) "
-        "FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1),"
+        "FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1),"
         "'leases',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.claim_request_id,l.last_request_id,"
         "l.expires_at=pg_catalog.date_trunc('second',l.expires_at)) ORDER BY l.attempt) FROM wl_ingestion.leases l "
         "WHERE l.work_kind='normalize'),'pins',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('member_id',m.id,"
@@ -2901,7 +2902,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     def test_lease_functions_match_their_worker_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl in (('claim_member_v1', schema.CLAIM_DDL), ('renew_member_v1', schema.RENEW_DDL),
-                          ('admit_stage_v1', schema.ADMIT_DDL)):
+                          ('admit_stage_v1', schema.ADMIT_DDL), ('finish_member_v1', schema.FINISH_DDL)):
             with self.subTest(function=name):
                 self.assertEqual((['uuid', 'text', 'jsonb', 'bytea'], 'jsonb', 'ingestion_worker_only'),
                     (declared[name]['arguments'], declared[name]['returns'], declared[name]['execute']))
@@ -2909,7 +2910,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 self.assertEqual(1, ddl.count('CREATE FUNCTION'))
                 self.assertIn('wl_ingestion._guard_worker_v1(p_worker,p_token,p_request)', ddl)
                 for fragment in ('GRANT ', 'DELETE ', 'MEMBER_PINS', 'UUID_RE', 'ACK_', 'STEP', 'SHAPE', 'KEYS', 'NAME',
-                                 'HELD_BYTES', 'BYTES_EXPECTED'):
+                                 'HELD_BYTES', 'BYTES_EXPECTED', 'PINS', 'REPLAY', 'LIVE_STATES', 'CLEANED',
+                                 'QUOTA_LOCKS', 'CODES', 'FINISH_ACK'):
                     self.assertNotIn(fragment, ddl)
 
     def test_claim_activates_the_bound_offer_once_and_renew_extends_it(self):
@@ -3010,7 +3012,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         from wealth_ledger.ingestion.codec import encode
         source = encode(ORACLE[fixture]).decode()
         assert '$fixture$' not in source
-        member = ("FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1")
+        member = ("FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1")
         prelude = ("SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb INTO ctx " + member + ";"
             "doc:=$fixture$" + source + "$fixture$::jsonb;"
             "doc:=pg_catalog.jsonb_set(doc,'{provenance,raw_sha256}',pg_catalog.to_jsonb('" + '5' * 64 + "'::text));"
@@ -3034,7 +3036,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         "g.codec,g.digest=pg_catalog.encode(pg_catalog.sha256(g.minimal_bytes),'hex'),g.purge_at=x.expires_at)) FROM "
         "wl_ingestion.stages g JOIN wl_ingestion.sets x ON x.id=g.set_id WHERE x.state='RECEIVING'),'member',(SELECT pg_catalog.jsonb_build_array("
         "m.state,m.stage_digest) FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE "
-        "x.state='RECEIVING' LIMIT 1))::text;")
+        "x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1))::text;")
 
     def test_admit_stores_one_validated_stage_per_attempt(self):
         plan, pin, seed, catalog = self.claim_seed()
@@ -3092,11 +3094,137 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
                 self.assertIsNone(out['SSTATE']['stages'])
 
+    # finish_member_v1: the set may leave RECEIVING, so these find it by the
+    # operation that created it.
+    OWN = ("FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE "
+           "x.creation_operation_id='53000000-0000-4000-8000-000000000001' ORDER BY m.ordinal LIMIT 1")
+    PROOF = ("pg_catalog.jsonb_build_object('job_id',(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' "
+             "OWN),'fence','1','state','STATE','launcher_instance_id','c0000000-0000-4000-8000-000000000003','proof_digest','" +
+             '1' * 64 + "','checked_at','{\"tag\":\"instant\",\"token\":\"2026-02-02T13:00:10+00:00\",\"zone\":null,"
+             "\"fractional_digits\":0}'::jsonb)")
+
+    def proofs(self, *states):
+        return 'pg_catalog.jsonb_build_array(' + ','.join(
+            self.PROOF.replace('OWN', self.OWN).replace('STATE', state) for state in states) + ')'
+
+    def finish_call(self, label, *, outcome='stage_admitted', error_code=None, proofs=('absent',), **fields):
+        values = {'set_id': '(SELECT x.id::text ' + self.OWN + ')', 'member_id': '(SELECT m.id::text ' + self.OWN + ')',
+                  'job_id': "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' " + self.OWN + ')',
+                  'outcome': "'" + outcome + "'", 'error_code': 'NULL::text' if error_code is None else "'" + error_code + "'",
+                  'cleanup_proofs': self.proofs(*proofs), 'request_id': "'c0000000-0000-4000-8000-000000000007'"}
+        values.update(fields)
+        return self.lease_call('finish_member_v1', label, **values)
+
+    FINISH_STATE = ("SELECT 'FSTATE '||pg_catalog.jsonb_build_object('set',(SELECT pg_catalog.jsonb_build_array(x.state,"
+        "x.revision,x.cleanup_state) FROM wl_ingestion.sets x WHERE x.creation_operation_id='53000000-0000-4000-8000-000000000001'),"
+        "'members',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(m.state,m.error_code,m.stage_digest IS NOT NULL,"
+        "m.fence) ORDER BY m.ordinal) FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE "
+        "x.creation_operation_id='53000000-0000-4000-8000-000000000001'),'leases',(SELECT pg_catalog.jsonb_agg(l.state "
+        "ORDER BY l.attempt,l.created_at) FROM wl_ingestion.leases l WHERE l.work_kind='normalize'),'raw',(SELECT "
+        "pg_catalog.jsonb_build_array(used_count,lease_count) FROM wl_ingestion.quotas WHERE bucket='raw'))::text;")
+
+    def finish_seed(self, **kwargs):
+        plan, pin, seed, catalog = self.claim_seed(**kwargs)
+        return plan, pin, seed + self.lease_call('claim_member_v1', 'claim') + self.admit_call('admit'), catalog
+
+    def test_finish_admits_the_stage_hands_the_set_on_and_releases_the_proven_slot(self):
+        plan, pin, seed, catalog = self.finish_seed()
+        out = self.run_labelled(seed + self.FINISH_STATE.replace("'FSTATE '", "'BEFORE '") + self.finish_call('finish') +
+            self.FINISH_STATE + self.finish_call('again') +
+            self.finish_call('other', request_id="'c0000000-0000-4000-8000-000000000008'"))
+        self.assertTrue(out['ADMIT']['ok'], out['ADMIT'])
+        self.assertEqual([1, 1], out['BEFORE']['raw'])
+        finished = out['FINISH']
+        self.assertTrue(finished['ok'], finished)
+        self.assertEqual({'version': 1, 'job_id': out['CLAIM']['value']['job_id'], 'fence': '1',
+                          'member_id': out['CLAIM']['value']['member_id'], 'state': 'admitted', 'cleanup_complete': True},
+                         finished['value'])
+        # Upload and preparation hand-offs keep the set revision.
+        self.assertEqual({'set': ['NORMALIZING', 1, 'not_needed'], 'members': [['admitted', None, True, 1]],
+                          'leases': ['finished'], 'raw': [1, 0]}, out['FSTATE'])
+        self.assertEqual(finished, out['AGAIN'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['OTHER'])
+
+    def test_finish_keeps_the_slot_until_cleanup_is_proven_and_waits_for_every_member(self):
+        for label, proofs, raw in (('pending', ('absent', 'pending'), [1, 1]), ('failed', ('failed',), [1, 1]),
+                                   ('none', (), [1, 1]), ('not_created', ('not_created', 'absent'), [1, 0])):
+            with self.subTest(proofs=label):
+                plan, pin, seed, catalog = self.finish_seed()
+                out = self.run_labelled(seed + self.finish_call('finish', proofs=proofs) + self.FINISH_STATE)
+                self.assertEqual(raw == [1, 0], out['FINISH']['value']['cleanup_complete'])
+                self.assertEqual(raw, out['FSTATE']['raw'])
+        plan, pin, seed, catalog = self.finish_seed(count=2)
+        out = self.run_labelled(seed + self.finish_call('finish') + self.FINISH_STATE)
+        self.assertTrue(out['FINISH']['ok'], out['FINISH'])
+        self.assertEqual(['RECEIVING', 1, 'not_needed'], out['FSTATE']['set'])
+        self.assertEqual([['admitted', None, True, 1], ['waiting', None, False, 1]], out['FSTATE']['members'])
+
+    def test_finish_requests_a_reupload_that_starts_a_clean_attempt(self):
+        plan, pin, seed, catalog = self.finish_seed()
+        out = self.run_labelled(seed + self.finish_call('finish', outcome='reupload_required',
+                                                        error_code='import_evidence_unsupported') + self.FINISH_STATE +
+                                self.reserve_call('again', catalog) + self.FINISH_STATE.replace("'FSTATE '", "'AFTER '"))
+        self.assertEqual('reupload_required', out['FINISH']['value']['state'])
+        self.assertEqual({'set': ['RECEIVING', 1, 'not_needed'], 'members': [['reupload_required',
+                          'import_evidence_unsupported', False, 1]], 'leases': ['finished'], 'raw': [1, 0]}, out['FSTATE'])
+        self.assertTrue(out['AGAIN']['ok'], out['AGAIN'])
+        self.assertEqual([['receiving', None, False, 2]], out['AFTER']['members'])
+        self.assertEqual(['finished', 'offered'], out['AFTER']['leases'])
+
+    def test_finish_rejection_rejects_the_whole_set(self):
+        plan, pin, seed, catalog = self.claim_seed(count=2)
+        seed += self.lease_call('claim_member_v1', 'claim')
+        out = self.run_labelled(seed + self.finish_call('finish', outcome='rejected', error_code='import_invalid') +
+                                self.FINISH_STATE + self.finish_call('again', outcome='rejected', error_code='import_invalid'))
+        self.assertTrue(out['FINISH']['ok'], out['FINISH'])
+        self.assertEqual(('rejected', True), (out['FINISH']['value']['state'], out['FINISH']['value']['cleanup_complete']))
+        self.assertEqual({'set': ['REJECTED', 1, 'pending'], 'members': [['rejected', 'import_invalid', False, 1],
+                          ['rejected', None, False, 1]], 'leases': ['finished'], 'raw': [1, 0]}, out['FSTATE'])
+        self.assertEqual(out['FINISH'], out['AGAIN'])
+
+    def test_finish_refuses_without_changing_the_attempt(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        plan, pin, seed, catalog = self.finish_seed()
+        claimed_only = self.claim_seed()[2] + self.lease_call('claim_member_v1', 'claim')
+        disabled = replica + 'UPDATE wl_sources.enablements SET enabled=false;' + origin
+        cases = (
+            ('no_stage', claimed_only, {}, 'import_invalid'),
+            ('admitted_with_code', seed, {'error_code': 'import_invalid'}, 'import_invalid'),
+            ('reupload_without_code', seed, {'outcome': 'reupload_required'}, 'import_invalid'),
+            ('unknown_code', seed, {'outcome': 'rejected', 'error_code': 'made_up'}, 'import_invalid'),
+            ('unknown_outcome', seed, {'outcome': 'committed'}, 'import_invalid'),
+            ('four_proofs', seed, {'proofs': ('absent',) * 4}, 'import_invalid'),
+            ('proof_fence', seed, {'cleanup_proofs': self.proofs('absent').replace("'fence','1'", "'fence','2'")}, 'import_invalid'),
+            ('proof_job', seed, {'cleanup_proofs': self.proofs('absent').replace(
+                "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' " + self.OWN + ")",
+                "'40000000-0000-4000-8000-0000000000ff'")}, 'import_invalid'),
+            ('proof_state', seed, {'proofs': ('gone',)}, 'import_invalid'),
+            ('unclaimed', self.claim_seed()[2], {}, 'import_stale'),
+            ('wrong_token', seed, {'token': 'cd' * 32}, 'authentication_required'),
+            ('old_fence', seed, {'fence': "'2'", 'cleanup_proofs': self.proofs('absent').replace("'fence','1'", "'fence','2'")},
+             'import_stale'),
+            ('disabled_source', seed + disabled, {}, 'source_unavailable'),
+        )
+        for name, prefix, fields, code in cases:
+            with self.subTest(case=name):
+                out = self.run_labelled(prefix + self.finish_call('result', **fields) + self.FINISH_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertEqual(['RECEIVING', 1, 'not_needed'], out['FSTATE']['set'])
+                unclaimed = name == 'unclaimed'
+                self.assertEqual('receiving' if unclaimed else 'normalizing', out['FSTATE']['members'][0][0])
+                self.assertEqual(['offered' if unclaimed else 'active'], out['FSTATE']['leases'])
+                self.assertEqual([1, 1], out['FSTATE']['raw'])
+        # A source change cannot block giving the file back for re-upload.
+        out = self.run_labelled(seed + disabled + self.finish_call('result', outcome='reupload_required',
+                                                                   error_code='source_unavailable') + self.FINISH_STATE)
+        self.assertTrue(out['RESULT']['ok'], out['RESULT'])
+
     def test_lease_functions_are_not_public(self):
         self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
                  "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
                  'END IF; END $role$;')
-        for name in ('claim_member_v1', 'renew_member_v1', 'admit_stage_v1'):
+        for name in ('claim_member_v1', 'renew_member_v1', 'admit_stage_v1', 'finish_member_v1'):
             with self.subTest(function=name):
                 self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
                     "'wl_ingestion." + name + "(uuid,text,jsonb,bytea)','EXECUTE')"))

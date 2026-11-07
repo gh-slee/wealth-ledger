@@ -30,10 +30,10 @@ Codex or local LibreOffice. See the [manual](docs/user-manual.md) and
   authenticated confirm function have independent review. The private quota and
   transient-purge helpers, the cancel and decision functions, and the read
   functions with signed page cursors, the worker guard, the create and raw
-  reserve/bind functions, and the normalize claim, renew and stage-admission
-  worker functions have developer tests but no independent review yet. Still to
-  do: the raw upload transport, the remaining worker functions (finish,
-  preparation and cleanup), the operator `0004` migration and grants, routes, worker and
+  reserve/bind functions, and the normalize claim, renew, stage-admission and
+  finish worker functions have developer tests but no independent review yet.
+  Still to do: the raw upload transport, the preparation and cleanup worker
+  functions, the operator `0004` migration and grants, routes, worker and
   launcher, and recovery/concurrency/containment/restore acceptance.
   No operational V2 import profile is available yet. See [current boundaries](docs/web-v2-imports.md).
 
