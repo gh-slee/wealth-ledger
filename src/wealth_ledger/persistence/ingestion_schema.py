@@ -2761,6 +2761,156 @@ REVOKE ALL ON FUNCTION wl_ingestion.reserve_member_v1(text,uuid,bigint,jsonb,tex
     'INSTANT_OFFER', _instant_sql("n+interval '30 seconds'")).replace('INSTANT_UNTIL', _instant_sql('offer_until')).replace(
     'INSTANT_RAW', _instant_sql('mem.raw_deadline'))
 
+
+# A whole-second Instant; lease deadlines are truncated to seconds when set.
+def _second_sql(expression):
+    return ("pg_catalog.jsonb_build_object('tag','instant','token',pg_catalog.to_char((" + expression +
+            ") AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS')||'+00:00','zone',null,'fractional_digits',0)")
+
+
+# The set's pins as a Plan's pinned_sources entries, in member-ID order (the
+# order acceptance uses), hashed canonically. The worker can compare it with the
+# pins in a later Plan without reading any member row.
+_FINGERPRINT_SQL = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(COALESCE((SELECT "
+    "pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('member_id',p.id::text,'connection_id',p.connection_id::text,"
+    "'connection_version',p.connection_version,'connection_generation',p.connection_generation::text,"
+    "'enablement_generation',p.enablement_generation::text,'availability_generation',p.availability_generation::text,"
+    "'installation_id',p.installation_id,'wrapper_profile_digest',p.wrapper_profile_digest,'format_version',"
+    "p.format_version,'context_digest',p.context_digest) ORDER BY p.id::text COLLATE \"C\") FROM wl_ingestion.members p "
+    "WHERE p.tenant_id=tenant AND p.portfolio_id=portfolio AND p.set_id=selected.id),'[]'::jsonb))),'hex')")
+
+
+def _lease_ddl(name, claim):
+    """Render claim_member_v1 or renew_member_v1 for normalize leases.
+
+    Both start with the worker guard, take scope only from the set row, lock in
+    the same order as reserve and recheck the member's creation-time pins. Prepare
+    and cleanup leases are refused until their claim functions exist.
+    """
+    keys = ['credential_epoch', 'fence', 'job_id', 'member_id', 'realm_digest', 'request_id', 'set_id', 'version',
+            'work_kind'] + (['context_digest', 'raw_digest'] if claim else [])
+    hashes = ('context_digest', 'raw_digest') if claim else ()
+    shape = ''.join(
+        " OR pg_catalog.jsonb_typeof(p_request->'" + k + "')<>'string' OR (p_request->>'" + k + "') COLLATE \"C\" !~ 'UUID_RE'"
+        " OR p_request->>'" + k + "'='00000000-0000-0000-0000-000000000000'" for k in ('job_id', 'set_id', 'member_id', 'request_id'))
+    shape += ''.join(" OR pg_catalog.jsonb_typeof(p_request->'" + k + "')<>'string' OR (p_request->>'" + k +
+                     "') COLLATE \"C\" !~ '^[0-9a-f]{64}$'" for k in hashes)
+    if claim:
+        step = r"""
+ IF held.state='active' THEN
+  -- A lost acknowledgement: only the same claim request is recognised.
+  IF held.claim_request_id IS DISTINCT FROM (p_request->>'request_id')::uuid OR
+   held.claim_request_digest IS DISTINCT FROM request_digest THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  IF mem.state<>'normalizing' THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',ACK_HELD);
+ END IF;
+ -- The bound offer: exact raw bytes and child context from reserve/bind.
+ IF mem.state<>'receiving' OR mem.raw_digest IS DISTINCT FROM p_request->>'raw_digest' OR
+  mem.context_digest<>p_request->>'context_digest' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ UPDATE wl_ingestion.members SET state='normalizing'
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id AND id=mem.id;
+ UPDATE wl_ingestion.leases SET state='active',claim_request_id=(p_request->>'request_id')::uuid,
+  claim_request_digest=request_digest,expires_at=until WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=held.id;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',ACK_CLAIMED);"""
+    else:
+        step = r"""
+ IF held.state<>'active' OR mem.state<>'normalizing' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ -- A lost acknowledgement: the last request gets its exact stored result.
+ IF held.last_request_id=(p_request->>'request_id')::uuid THEN
+  IF held.last_request_digest IS DISTINCT FROM request_digest THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.convert_from(held.last_result_bytes,'UTF8')::jsonb);
+ END IF;
+ -- Never shorten a lease; the trigger keeps it within 60 seconds of now.
+ until:=GREATEST(until,held.expires_at);
+ ack:=ACK_RENEWED;
+ UPDATE wl_ingestion.leases SET expires_at=until,last_request_id=(p_request->>'request_id')::uuid,
+  last_request_digest=request_digest,last_result_bytes=wl_ingestion._canonical_v1(ack)
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=held.id;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',ack);"""
+
+    def ack(outcome, expiry):
+        return ("pg_catalog.jsonb_build_object('version',1,'job_id',p_request->>'job_id','set_id',selected.id::text,"
+                "'member_id',mem.id::text,'work_kind','normalize','fence',held.fence::text,'credential_epoch',"
+                "guard#>>'{value,credential_epoch}','expires_at'," + _second_sql(expiry) + ",'outcome','" + outcome +
+                "','source_fingerprint'," + _FINGERPRINT_SQL + ")")
+    step = (step.replace('ACK_HELD', ack('already_claimed', 'held.expires_at'))
+            .replace('ACK_CLAIMED', ack('claimed', 'until')).replace('ACK_RENEWED', ack('renewed', 'until')))
+    return (r"""
+CREATE FUNCTION wl_ingestion.NAME(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $lease$
+DECLARE guard jsonb;cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
+ cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;
+ selected wl_ingestion.sets%ROWTYPE;mem wl_ingestion.members%ROWTYPE;held wl_ingestion.leases%ROWTYPE;
+ tenant uuid;portfolio uuid;scopes integer;n timestamptz;until timestamptz;code text;catalog jsonb;wrappers jsonb;
+ generation bigint;request_digest text;ack jsonb;
+BEGIN
+ -- Lease functions carry no bytes; only normalize leases exist so far.
+ IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>ARRAY[KEYS]::text[] OR
+  p_request->'version' IS DISTINCT FROM '1'::jsonb OR p_request->'work_kind' IS DISTINCT FROM '"normalize"'::jsonb OR
+  pg_catalog.jsonb_typeof(p_request->'fence')<>'string' OR (p_request->>'fence') COLLATE "C" !~ '^[1-9][0-9]{0,17}$'SHAPE THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
+ -- Scope comes from the stored set, never from the worker.
+ SELECT pg_catalog.count(*),(pg_catalog.array_agg(x.tenant_id))[1],(pg_catalog.array_agg(x.portfolio_id))[1]
+  INTO scopes,tenant,portfolio FROM wl_ingestion.sets x WHERE x.id=(p_request->>'set_id')::uuid;
+ IF scopes<>1 THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ PERFORM 1 FROM wl_sources.lifecycle_roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR SHARE;
+ PERFORM 1 FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY plugin_id,capability FOR SHARE;
+ PERFORM 1 FROM wl_pg.connections WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id,version FOR SHARE;
+ PERFORM 1 FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id FOR SHARE;
+ PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
+ SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND id=(p_request->>'set_id')::uuid FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ n:=wl_identity._clock_timestamp_v1();
+ SELECT * INTO mem FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+  AND id=(p_request->>'member_id')::uuid;
+ IF mem.id IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='not_found'; END IF;
+ IF selected.state='EXPIRED' OR (selected.state NOT IN ('COMMITTED','REJECTED','CANCELLED') AND n>=selected.expires_at) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired'; END IF;
+ -- The one live normalize lease at the requested fence.
+ SELECT * INTO held FROM wl_ingestion.leases l WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.set_id=selected.id
+  AND l.member_id=mem.id AND l.work_kind='normalize' AND l.fence=(p_request->>'fence')::bigint AND l.state IN ('offered','active');
+ IF held.id IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ -- Only the worker the lease names, holding the API's handoff token.
+ IF held.worker_id<>p_worker OR held.token_digest IS NULL OR held.token_digest<>guard#>>'{value,token_digest}' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='authentication_required'; END IF;
+ IF selected.state<>'RECEIVING' OR n>=held.expires_at OR mem.fence<>held.fence OR mem.context_bytes IS NULL OR
+  pg_catalog.convert_from(mem.context_bytes,'UTF8')::jsonb->>'job_id' IS DISTINCT FROM p_request->>'job_id' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+MEMBER_PINS
+ until:=LEAST(pg_catalog.date_trunc('second',n+interval '30 seconds'),pg_catalog.date_trunc('second',selected.expires_at));
+ IF until<=n THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired'; END IF;
+STEP
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ -- Every change above rolls back with this block.
+ code:=SQLERRM;
+ IF code NOT IN ('import_invalid','import_conflict','import_stale','import_expired','source_unavailable','not_found',
+  'authentication_required') THEN code:='import_invalid'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $lease$;
+REVOKE ALL ON FUNCTION wl_ingestion.NAME(uuid,text,jsonb,bytea) FROM PUBLIC;
+""".replace('MEMBER_PINS', _MEMBER_PIN_SQL).replace('STEP', step).replace('SHAPE', shape)
+            .replace('KEYS', ','.join("'" + k + "'" for k in sorted(keys))).replace('UUID_RE', _UUID_RE)
+            .replace('NAME', name))
+
+
+# claim turns the bound offer into the active normalize lease; renew extends it.
+CLAIM_DDL = _lease_ddl('claim_member_v1', True)
+RENEW_DDL = _lease_ddl('renew_member_v1', False)
+
 # One-ID reads: live authentication first, then only the caller's own scope.
 # They take no locks, write nothing and never grant authority for a later write.
 READ_SET_DDL = r"""

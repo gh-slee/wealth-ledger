@@ -301,7 +301,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.READ_SET_DDL + '\n' + schema.READ_RECEIPT_DDL
                 + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL
                 + '\n' + schema.worker_guard_ddl() + '\n' + schema.CREATE_DDL
-                + '\n' + schema.RESERVE_DDL)
+                + '\n' + schema.RESERVE_DDL + '\n' + schema.CLAIM_DDL + '\n' + schema.RENEW_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -2848,6 +2848,167 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                  'END IF; END $role$;')
         self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
             "'wl_ingestion.reserve_member_v1(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
+
+    # claim/renew run under the real worker guard; the disposable container's
+    # login (postgres) is the registered worker.
+    LEASE_MEMBER = ("(SELECT m.id::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id "
+                    "WHERE x.state='RECEIVING' LIMIT 1)")
+
+    def claim_seed(self):
+        plan, pin, seed, catalog = self.create_seed()
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1})
+        seed += self.gateway_statement('create_set_v1', 'create', self.create_payload(pin), catalog)
+        seed += self.reserve_call('reserve', catalog)
+        seed += self.reserve_call('bind', catalog, action='bind', handoff_token_digest="'" + hashlib.sha256(
+            bytes.fromhex(self.WORKER_TOKEN)).hexdigest() + "'")
+        return plan, pin, seed, catalog
+
+    def lease_call(self, function, label, *, token=None, data='NULL', drop=(), **fields):
+        from wealth_ledger.persistence import identity_schema
+        values = {'version': '1', 'work_kind': "'normalize'",
+                  'realm_digest': "pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" +
+                                  identity_schema.realm() + ")),'hex')",
+                  'credential_epoch': "'1'", 'set_id': self.NEW_SET, 'member_id': self.LEASE_MEMBER, 'fence': "'1'",
+                  'job_id': "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' FROM "
+                            "wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1)",
+                  'request_id': "'c0000000-0000-4000-8000-000000000002'"}
+        if function == 'claim_member_v1':
+            values.update(raw_digest="'" + '5' * 64 + "'", context_digest="(SELECT m.context_digest FROM "
+                          "wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1)")
+        values.update(fields)
+        for key in drop:
+            values.pop(key)
+        request = 'pg_catalog.jsonb_build_object(' + ','.join("'" + k + "'," + v for k, v in values.items()) + ')'
+        return ("DO $lease_call$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
+                "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion." + function + "('" + self.WORKER + "','" +
+                (token or self.WORKER_TOKEN) + "'," + request + "," + data + "); "
+                "PERFORM pg_catalog.set_config('test." + label + "',r::text,true); END $lease_call$;"
+                "SELECT '" + label.upper() + " '||pg_catalog.current_setting('test." + label + "');")
+
+    LEASE_STATE = ("SELECT 'LSTATE '||pg_catalog.jsonb_build_object('member',(SELECT pg_catalog.jsonb_build_array(m.state,m.fence) "
+        "FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1),"
+        "'leases',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.claim_request_id,l.last_request_id,"
+        "l.expires_at=pg_catalog.date_trunc('second',l.expires_at)) ORDER BY l.attempt) FROM wl_ingestion.leases l "
+        "WHERE l.work_kind='normalize'),'pins',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('member_id',m.id,"
+        "'connection_id',m.connection_id,'connection_version',m.connection_version,'connection_generation',"
+        "m.connection_generation::text,'enablement_generation',m.enablement_generation::text,'availability_generation',"
+        "m.availability_generation::text,'installation_id',m.installation_id,'wrapper_profile_digest',"
+        "m.wrapper_profile_digest,'format_version',m.format_version,'context_digest',m.context_digest)) "
+        "FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING'))::text;")
+
+    def test_lease_functions_match_their_worker_declarations(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}
+        for name, ddl in (('claim_member_v1', schema.CLAIM_DDL), ('renew_member_v1', schema.RENEW_DDL)):
+            with self.subTest(function=name):
+                self.assertEqual((['uuid', 'text', 'jsonb', 'bytea'], 'jsonb', 'ingestion_worker_only'),
+                    (declared[name]['arguments'], declared[name]['returns'], declared[name]['execute']))
+                self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.' + name + '(uuid,text,jsonb,bytea) FROM PUBLIC;', ddl)
+                self.assertEqual(1, ddl.count('CREATE FUNCTION'))
+                self.assertIn('wl_ingestion._guard_worker_v1(p_worker,p_token,p_request)', ddl)
+                for fragment in ('GRANT ', 'DELETE ', 'MEMBER_PINS', 'UUID_RE', 'ACK_', 'STEP', 'SHAPE', 'KEYS', 'NAME'):
+                    self.assertNotIn(fragment, ddl)
+
+    def test_claim_activates_the_bound_offer_once_and_renew_extends_it(self):
+        from wealth_ledger.ingestion.codec import encode
+        plan, pin, seed, catalog = self.claim_seed()
+        renew_two = "'c0000000-0000-4000-8000-000000000003'"
+        out = self.run_labelled(seed + self.LEASE_STATE.replace("'LSTATE '", "'BEFORE '") +
+            self.lease_call('claim_member_v1', 'claim') + self.LEASE_STATE +
+            self.lease_call('claim_member_v1', 'again') +
+            self.lease_call('claim_member_v1', 'other', request_id="'c0000000-0000-4000-8000-000000000009'") +
+            self.lease_call('renew_member_v1', 'renew') + self.lease_call('renew_member_v1', 'renewagain') +
+            self.lease_call('renew_member_v1', 'renewtwo', request_id=renew_two) +
+            self.LEASE_STATE.replace("'LSTATE '", "'AFTER '"))
+        self.assertTrue(out['BIND']['ok'], out['BIND'])
+        self.assertEqual(['receiving', 1], out['BEFORE']['member'])
+        claim = out['CLAIM']
+        self.assertTrue(claim['ok'], claim)
+        ack = claim['value']
+        self.assertEqual(sorted(['version', 'job_id', 'set_id', 'member_id', 'work_kind', 'fence', 'credential_epoch',
+                                 'expires_at', 'outcome', 'source_fingerprint']), sorted(ack))
+        self.assertEqual((1, 'normalize', '1', '1', 'claimed', 0, None),
+                         (ack['version'], ack['work_kind'], ack['fence'], ack['credential_epoch'], ack['outcome'],
+                          ack['expires_at']['fractional_digits'], ack['expires_at']['zone']))
+        self.assertRegex(ack['expires_at']['token'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$')
+        # The fingerprint is the canonical hash of the Plan pinned_sources entries.
+        self.assertEqual(hashlib.sha256(encode(out['BEFORE']['pins'])).hexdigest(), ack['source_fingerprint'])
+        self.assertEqual((['normalizing', 1], [['active', 'c0000000-0000-4000-8000-000000000002', None, True]]),
+                         (out['LSTATE']['member'], out['LSTATE']['leases']))
+        self.assertEqual(dict(ack, outcome='already_claimed'), out['AGAIN']['value'])
+        self.assertEqual({'ok': False, 'code': 'import_conflict'}, out['OTHER'])
+        renewed = out['RENEW']['value']
+        self.assertEqual('renewed', renewed['outcome'])
+        self.assertGreaterEqual(renewed['expires_at']['token'], ack['expires_at']['token'])
+        self.assertEqual(out['RENEW'], out['RENEWAGAIN'])
+        self.assertTrue(out['RENEWTWO']['ok'], out['RENEWTWO'])
+        self.assertEqual([['active', 'c0000000-0000-4000-8000-000000000002', renew_two.strip("'"), True]],
+                         out['AFTER']['leases'])
+
+    def test_claim_and_renew_refuse_without_changing_the_offer(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        plan, pin, seed, catalog = self.claim_seed()
+        unknown = "'40000000-0000-4000-8000-0000000000ff'"
+        claim = 'claim_member_v1'
+        cases = (
+            ('wrong_token', '', claim, {'token': 'cd' * 32}, 'authentication_required'),
+            ('raw_digest', '', claim, {'raw_digest': "'" + '7' * 64 + "'"}, 'import_stale'),
+            ('context_digest', '', claim, {'context_digest': "'" + '7' * 64 + "'"}, 'import_stale'),
+            ('job_id', '', claim, {'job_id': unknown}, 'import_stale'),
+            ('old_fence', '', claim, {'fence': "'2'"}, 'import_stale'),
+            ('unknown_set', '', claim, {'set_id': unknown}, 'not_found'),
+            ('unknown_member', '', claim, {'member_id': unknown}, 'not_found'),
+            ('extra_field', '', claim, {'note': "'x'"}, 'import_invalid'),
+            ('missing_field', '', claim, {'drop': ('raw_digest',)}, 'import_invalid'),
+            ('bytes', '', claim, {'data': "'\\x00'::bytea"}, 'import_invalid'),
+            ('prepare_kind', '', claim, {'work_kind': "'prepare'"}, 'import_invalid'),
+            ('epoch', '', claim, {'credential_epoch': "'2'"}, 'credentials_changed'),
+            ('disabled_connection', replica + 'UPDATE wl_sources.connection_lifecycle SET enabled=false;' + origin,
+             claim, {}, 'source_unavailable'),
+            ('offer_expired', replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
+             "expires_at=pg_catalog.clock_timestamp()-interval '1 second';"
+             + origin, claim, {}, 'import_stale'),
+            ('set_expired', replica + "UPDATE wl_ingestion.sets SET created_at=created_at-interval '2 days',expires_at=expires_at-"
+             "interval '2 days';" + origin, claim, {}, 'import_expired'),
+            ('renew_unclaimed', '', 'renew_member_v1', {}, 'import_stale'),
+        )
+        for name, mutation, function, fields, code in cases:
+            with self.subTest(case=name):
+                out = self.run_labelled(seed + mutation + self.lease_call(function, 'result', **fields) + self.LEASE_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                if name != 'set_expired':
+                    self.assertEqual(['receiving', 1], out['LSTATE']['member'])
+                    self.assertEqual('offered', out['LSTATE']['leases'][0][0])
+                    self.assertIsNone(out['LSTATE']['leases'][0][1])
+
+    def test_renew_refuses_a_lapsed_or_foreign_lease(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        plan, pin, seed, catalog = self.claim_seed()
+        seed += self.lease_call('claim_member_v1', 'claim')
+        for name, mutation, fields, code in (
+                ('lapsed', replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
+             "expires_at=pg_catalog.clock_timestamp()-interval '1 second';"
+                 + origin, {}, 'import_stale'),
+                ('wrong_token', '', {'token': 'cd' * 32}, 'authentication_required'),
+                ('cancelled', replica + "UPDATE wl_ingestion.leases SET state='cancelled';" + origin, {}, 'import_stale'),
+                ('disabled_source', replica + 'UPDATE wl_sources.enablements SET enabled=false;' + origin, {}, 'source_unavailable')):
+            with self.subTest(case=name):
+                out = self.run_labelled(seed + mutation + self.lease_call('renew_member_v1', 'result', **fields) +
+                                        self.LEASE_STATE)
+                self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertIsNone(out['LSTATE']['leases'][0][2])
+
+    def test_lease_functions_are_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        for name in ('claim_member_v1', 'renew_member_v1'):
+            with self.subTest(function=name):
+                self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+                    "'wl_ingestion." + name + "(uuid,text,jsonb,bytea)','EXECUTE')"))
 
 if __name__ == '__main__':
     unittest.main()

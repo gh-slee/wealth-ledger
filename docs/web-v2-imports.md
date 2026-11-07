@@ -268,6 +268,25 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   native namespace, cancel-then-purge release, reservation rollback on every
   refusal, missing or ambiguous workers and re-upload fencing. No upload route,
   worker claim or raw transport calls them yet.
+  The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
+  leases; prepare and cleanup kinds return `import_invalid` until their own
+  claim functions exist. Both take no bytes and call `_guard_worker_v1` first.
+  Scope comes only from the stored set row, and locks follow the reserve order.
+  The lease must be the member's one live normalize lease at the requested fence,
+  name the calling worker and match the handoff-token digest
+  (`authentication_required` otherwise). The set must still be RECEIVING and
+  unexpired, and the member's creation-time pins are rechecked. `claim` also needs
+  the bound raw digest, the member's context digest and the context's job ID. It
+  moves the member to `normalizing` and the lease to `active`, storing the claim
+  request ID and digest. Repeating that exact claim returns `already_claimed`;
+  another request ID returns `import_conflict`. `renew` extends an active lease,
+  never shortening it, and stores its acknowledgement so that a repeated request
+  gets the same bytes back. Lease deadlines are whole seconds, 30 seconds ahead
+  and never past set expiry. Every acknowledgement carries a `source_fingerprint`:
+  the SHA-256 of the canonical Plan `pinned_sources` entries for the set's
+  members in member-ID order. Opt-in PostgreSQL tests cover claim, lost
+  acknowledgements, renew replay and every refusal leaving the offer unchanged.
+  No worker process calls them yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 
