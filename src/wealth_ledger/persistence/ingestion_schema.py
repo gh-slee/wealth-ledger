@@ -2781,6 +2781,23 @@ _FINGERPRINT_SQL = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical
     "WHERE p.tenant_id=tenant AND p.portfolio_id=portfolio AND p.set_id=selected.id),'[]'::jsonb))),'hex')")
 
 
+def _raising(fragment):
+    return fragment.replace("RETURN pg_catalog.jsonb_build_object('ok',false,'code','",
+                            "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='").replace("');", "';")
+
+
+# r7: normalization keeps the originating user's live authority. The session
+# that reserved the attempt, its user and credential version must still hold.
+_ORIGIN_SQL = (r"""
+ SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;
+ SELECT * INTO ss FROM wl_identity.sessions WHERE token_digest=held.session_digest;
+ SELECT * INTO u FROM wl_identity.users WHERE id=ss.user_id;
+""" + _raising(_identity.check_user(code='session_changed') + _identity.check_session()) + r"""
+ IF ss.user_id<>selected.actor_user_id OR ss.credential_version<>held.credential_version OR
+  u.credential_version<>ss.credential_version THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='session_changed'; END IF;
+""")
+
+
 def _finish_codes():
     """Member error codes a worker may record: exactly the public MemberResult enum."""
     from ..ingestion.contracts import definition
@@ -2835,7 +2852,9 @@ def _lease_ddl(name, mode):
  IF held.state<>'active' OR mem.state<>'normalizing' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
  IF p_request->>'outcome'='stage_admitted' THEN
-  -- Admission needs the source pins still valid and exactly this attempt's stage.
+  -- Admission needs the user's authority and source pins still valid and exactly
+  -- this attempt's stage; a re-upload or rejection needs neither.
+ORIGIN
 MEMBER_PINS
   SELECT pg_catalog.count(*),(pg_catalog.array_agg(g.digest))[1] INTO staged_count,staged FROM wl_ingestion.stages g
    WHERE g.tenant_id=tenant AND g.portfolio_id=portfolio AND g.set_id=selected.id AND g.member_id=mem.id AND
@@ -2983,7 +3002,7 @@ DECLARE guard jsonb;cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_inges
  selected wl_ingestion.sets%ROWTYPE;mem wl_ingestion.members%ROWTYPE;held wl_ingestion.leases%ROWTYPE;
  tenant uuid;portfolio uuid;scopes integer;n timestamptz;until timestamptz;code text;catalog jsonb;wrappers jsonb;
  generation bigint;request_digest text;ack jsonb;evidence jsonb;context jsonb;cleaned boolean;staged text;
- staged_count integer;
+ staged_count integer;st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;u wl_identity.users%ROWTYPE;
 BEGIN
  -- Only stage admission carries bytes; only normalize leases exist so far.
  IF (p_bytes IS NULL)=BYTES_EXPECTED OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
@@ -3028,22 +3047,28 @@ REPLAY
  IF selected.state<>'RECEIVING' OR n>=held.expires_at OR mem.fence<>held.fence OR mem.context_bytes IS NULL OR
   pg_catalog.convert_from(mem.context_bytes,'UTF8')::jsonb->>'job_id' IS DISTINCT FROM p_request->>'job_id' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
-PINS
- until:=LEAST(pg_catalog.date_trunc('second',n+interval '30 seconds'),pg_catalog.date_trunc('second',selected.expires_at));
+SESSION_PINS
+ -- r7: the 120s raw deadline dominates every phase; leases never extend it.
+ IF mem.raw_deadline IS NULL OR n>=pg_catalog.date_trunc('second',mem.raw_deadline) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_reupload_required'; END IF;
+ until:=LEAST(pg_catalog.date_trunc('second',n+interval '30 seconds'),pg_catalog.date_trunc('second',selected.expires_at),
+  pg_catalog.date_trunc('second',mem.raw_deadline));
  IF until<=n THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired'; END IF;
 STEP
 EXCEPTION WHEN SQLSTATE '22023' THEN
  -- Every change above rolls back with this block.
  code:=SQLERRM;
  IF code NOT IN ('import_invalid','import_conflict','import_stale','import_expired','source_unavailable','not_found',
-  'authentication_required','import_limit','import_evidence_unsupported') THEN code:='import_invalid'; END IF;
+  'authentication_required','import_limit','import_evidence_unsupported','import_reupload_required','session_changed',
+  'credentials_changed','instance_not_ready') THEN code:='import_invalid'; END IF;
  RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
 WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
 WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
 WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
 END $lease$;
 REVOKE ALL ON FUNCTION wl_ingestion.NAME(uuid,text,jsonb,bytea) FROM PUBLIC;
-""".replace('PINS', '' if finish else 'MEMBER_PINS').replace('STEP', step).replace('MEMBER_PINS', _MEMBER_PIN_SQL)
+""".replace('SESSION_PINS', '' if finish else 'ORIGIN\nMEMBER_PINS').replace('STEP', step)
+            .replace('ORIGIN', _ORIGIN_SQL).replace('MEMBER_PINS', _MEMBER_PIN_SQL)
             .replace('SHAPE', shape).replace('BYTES_EXPECTED', 'true' if admit else 'false')
             .replace('REPLAY', replay if finish else '')
             .replace('LIVE_STATES', "'offered','active','finished'" if finish else "'offered','active'")

@@ -275,7 +275,11 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   The lease must be the member's one live normalize lease at the requested fence,
   name the calling worker and match the handoff-token digest
   (`authentication_required` otherwise). The set must still be RECEIVING and
-  unexpired, and the member's creation-time pins are rechecked. `claim` also needs
+  unexpired, and the member's creation-time pins are rechecked. As r7 requires,
+  the session that reserved the attempt must still be live, with the same user
+  and credential version (`session_changed` otherwise), and no lease runs past
+  the member's 120-second raw deadline (`import_reupload_required` once it
+  passes). `claim` also needs
   the bound raw digest, the member's context digest and the context's job ID. It
   moves the member to `normalizing` and the lease to `active`, storing the claim
   request ID and digest. Repeating that exact claim returns `already_claimed`;
@@ -305,8 +309,8 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   `finish_member_v1` ends an active normalize lease with one outcome and up to
   three launcher cleanup proofs for the same job and fence. A lost acknowledgement
   is answered from the finished lease's stored result; any other request on it
-  returns `import_stale`. `stage_admitted` needs no error code, valid source pins
-  and exactly one stage stored during this attempt. The member becomes `admitted`
+  returns `import_stale`. `stage_admitted` needs no error code, the uploader's
+  live session, valid source pins and exactly one stage stored during this attempt. The member becomes `admitted`
   with that stage digest, and when every member is admitted the set moves to
   NORMALIZING for preparation. `reupload_required` and `rejected` need an error
   code from the public member result list, and neither depends on the source

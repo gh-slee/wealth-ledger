@@ -3220,6 +3220,38 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                                                                    error_code='source_unavailable') + self.FINISH_STATE)
         self.assertTrue(out['RESULT']['ok'], out['RESULT'])
 
+    def test_normalize_work_keeps_the_uploaders_session_and_the_raw_deadline(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        revoked = 'UPDATE wl_identity.sessions SET revoked=true;'
+        plan, pin, seed, catalog = self.claim_seed()
+        claimed = seed + self.lease_call('claim_member_v1', 'claim')
+        admitted = claimed + self.admit_call('admit')
+        for name, prefix, call, code in (
+                ('claim', seed + revoked, self.lease_call('claim_member_v1', 'result'), 'session_changed'),
+                ('renew', claimed + revoked, self.lease_call('renew_member_v1', 'result'), 'session_changed'),
+                ('admit', claimed + revoked, self.admit_call('result'), 'session_changed'),
+                ('finish', admitted + revoked, self.finish_call('result'), 'session_changed'),
+                ('raw_deadline', seed + replica + "UPDATE wl_ingestion.members SET raw_deadline=pg_catalog.clock_timestamp()"
+                 "-interval '1 second' WHERE state='receiving';" + origin, self.lease_call('claim_member_v1', 'result'),
+                 'import_reupload_required')):
+            with self.subTest(case=name):
+                out = self.run_labelled(prefix + call)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+        # Giving a file back for re-upload needs no live user session.
+        out = self.run_labelled(admitted + revoked + self.finish_call('result', outcome='reupload_required',
+                                                                      error_code='session_changed'))
+        self.assertTrue(out['RESULT']['ok'], out['RESULT'])
+        # A lease never outlives the member's raw deadline.
+        near = (replica + "UPDATE wl_ingestion.members SET raw_deadline=pg_catalog.date_trunc('second',"
+                "pg_catalog.clock_timestamp()+interval '8 seconds') WHERE state='receiving';" + origin)
+        deadline = ("SELECT 'DEADLINE '||pg_catalog.jsonb_build_object('raw',pg_catalog.to_char(m.raw_deadline AT TIME ZONE "
+                    "'UTC','YYYY-MM-DD\"T\"HH24:MI:SS')||'+00:00')::text FROM wl_ingestion.members m WHERE m.state='normalizing';")
+        out = self.run_labelled(seed + near + self.lease_call('claim_member_v1', 'claim') + deadline +
+                                self.lease_call('renew_member_v1', 'renew'))
+        self.assertLessEqual(out['CLAIM']['value']['expires_at']['token'], out['DEADLINE']['raw'])
+        self.assertLessEqual(out['RENEW']['value']['expires_at']['token'], out['DEADLINE']['raw'])
+
     def test_lease_functions_are_not_public(self):
         self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
                  "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
