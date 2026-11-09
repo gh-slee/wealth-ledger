@@ -2569,6 +2569,207 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
             "'wl_ingestion._guard_worker_v1(uuid,text,jsonb)','EXECUTE')"))
 
+    # Independent review of the PR #29 functions (WL-P0-007H). These are
+    # reviewer-written negative cases that the developer tests did not cover.
+    FOREIGN_T, FOREIGN_P = '30000000-0000-4000-8000-0000000000f1', '30000000-0000-4000-8000-0000000000f2'
+    FOREIGN_SET = 'a8000000-0000-4000-8000-000000000001'
+    FOREIGN_RECEIPT = 'a8000000-0000-4000-8000-000000000002'
+
+    def foreign_rows(self):
+        """One set and one control receipt in another tenant and portfolio."""
+        e = self.Expression
+        scoped = self.set_row(self.FOREIGN_SET, 'CANCELLED', revision=2, members=1) + self.row('receipts', {
+            'tenant_id': self.T, 'portfolio_id': self.P, 'id': self.FOREIGN_RECEIPT, 'incarnation': self.INCARNATION,
+            'restore_epoch': 0, 'operation_id': 'a8000000-0000-4000-8000-000000000003', 'operation_kind': 'CANCEL',
+            'request_digest': 'a' * 64, 'preview_id': None, 'accepted_plan_id': None, 'plan_digest': None,
+            'result_bytes': b'{}', 'created_at': e('now()')})
+        scoped = scoped.replace("'" + self.T + "'", "'" + self.FOREIGN_T + "'").replace(
+            "'" + self.P + "'", "'" + self.FOREIGN_P + "'")
+        return 'SET LOCAL session_replication_role=replica;' + scoped + 'SET LOCAL session_replication_role=origin;'
+
+    def internal_error(self, function, payload_sql, catalog):
+        """A gateway call that must fail closed with internal_error, not return data."""
+        from wealth_ledger.persistence import identity_schema
+        return ("DO $failclosed$ DECLARE st wl_pg.instance_state%ROWTYPE; BEGIN "
+            "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; BEGIN PERFORM wl_ingestion." + function + "('" +
+            self.SESSION + "','" + ORACLE['plan-first-use.json']['tenant_id'] + "',1," + identity_schema.realm() +
+            ",'" + catalog + "'," + payload_sql + "); RAISE EXCEPTION 'fail_closed_missing'; "
+            "EXCEPTION WHEN SQLSTATE 'XX000' THEN IF SQLERRM<>'internal_error' THEN RAISE; END IF; END; END $failclosed$;")
+
+    def test_review_reads_and_purge_never_reach_another_scope(self):
+        # read_set_v1, read_sets_v1, read_receipt_v1, read_preview_v1 and _purge_v1.
+        plan, seed, catalog = self.accept_seed()
+        self.assertEqual((self.T, self.P), (plan['tenant_id'], plan['portfolio_id']))
+        seed += self.foreign_rows()
+        out = self.run_labelled(seed +
+            self.gateway_statement('read_set_v1', 'set', {'set_id': self.FOREIGN_SET}, catalog) +
+            self.gateway_expression('read_sets_v1', 'list', "'{\"cursor\":null,\"limit\":\"50\",\"state\":null}'::jsonb",
+                                    catalog) +
+            self.gateway_expression('read_sets_v1', 'cancelled',
+                                    "'{\"cursor\":null,\"limit\":\"50\",\"state\":\"CANCELLED\"}'::jsonb", catalog) +
+            self.gateway_statement('read_receipt_v1', 'receipt', {'receipt_id': self.FOREIGN_RECEIPT}, catalog) +
+            # The same preview moved to another scope is no longer the caller's.
+            "SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.previews SET tenant_id='" + self.FOREIGN_T +
+            "',portfolio_id='" + self.FOREIGN_P + "';SET LOCAL session_replication_role=origin;" +
+            self.gateway_expression('read_preview_v1', 'preview', "pg_catalog.jsonb_build_object('cursor',NULL::jsonb,"
+                                    "'limit','10','preview_id','" + plan['preview_id'] + "')", catalog) +
+            self.rejects("SELECT wl_ingestion._purge_v1('" + self.T + "','" + self.P + "','" + self.FOREIGN_SET + "')",
+                         'not_found') +
+            "SELECT 'FOREIGN '||pg_catalog.jsonb_build_object('cleanup',(SELECT cleanup_state FROM wl_ingestion.sets "
+            "WHERE id='" + self.FOREIGN_SET + "'))::text;")
+        self.assertEqual({'ok': False, 'code': 'not_found'}, out['SET'])
+        self.assertEqual([plan['set_id']], [x['id'] for x in out['LIST']['value']['items']])
+        self.assertEqual([], out['CANCELLED']['value']['items'])
+        self.assertEqual({'ok': False, 'code': 'not_found'}, out['RECEIPT'])
+        self.assertEqual({'ok': False, 'code': 'not_found'}, out['PREVIEW'])
+        self.assertEqual({'cleanup': 'not_needed'}, out['FOREIGN'])
+
+    def test_review_cancel_and_decide_share_one_operation_namespace(self):
+        # cancel_set_v1 and decide_set_v1: one operation ID cannot name two kinds,
+        # and the replay check answers before the terminal-state check.
+        plan, seed, catalog = self.cancel_seed()
+        shared = '53000000-0000-4000-8000-0000000000a1'
+        cancel = {'operation_id': shared, 'set_id': plan['set_id'],
+                  'expected_set_revision': str(int(plan['expected_set_revision']) + 1)}
+        out = self.run_labelled(seed + self.gateway_statement('decide_set_v1', 'decide',
+            self.decide_payload(plan, shared), catalog) + self.CANCEL_STATE.replace("'CSTATE '", "'BEFORE '") +
+            self.cancel_statement('cancel', cancel, catalog) + self.CANCEL_STATE)
+        self.assertTrue(out['DECIDE']['ok'], out['DECIDE'])
+        self.assertEqual({'ok': False, 'code': 'import_operation_conflict'}, out['CANCEL'])
+        self.assertEqual(out['BEFORE'], out['CSTATE'])
+        plan, seed, catalog = self.cancel_seed()
+        cancel = {'operation_id': shared, 'set_id': plan['set_id'], 'expected_set_revision': plan['expected_set_revision']}
+        out = self.run_labelled(seed + self.cancel_statement('cancel', cancel, catalog) +
+            self.gateway_statement('decide_set_v1', 'decide', self.decide_payload(plan, shared), catalog) + self.CANCEL_STATE)
+        self.assertTrue(out['CANCEL']['ok'], out['CANCEL'])
+        self.assertEqual({'ok': False, 'code': 'import_operation_conflict'}, out['DECIDE'])
+        self.assertEqual((['CANCEL'], ['CANCELLED']), (out['CSTATE']['receipts'], out['CSTATE']['audit']))
+
+    def test_review_decide_refuses_sets_that_are_not_yet_reviewed(self):
+        # decide_set_v1 before normalization finishes writes nothing.
+        plan, seed, catalog = self.cancel_seed()
+        for state in ('RECEIVING', 'NORMALIZING'):
+            with self.subTest(state=state):
+                mutation = ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET state='" + state +
+                            "';SET LOCAL session_replication_role=origin;")
+                out = self.run_labelled(seed + mutation + self.DECIDE_STATE.replace("'DSTATE '", "'BEFORE '") +
+                    self.gateway_statement('decide_set_v1', 'result', self.decide_payload(plan), catalog) +
+                    self.DECIDE_STATE)
+                self.assertEqual({'ok': False, 'code': 'import_stale'}, out['RESULT'])
+                self.assertEqual(out['BEFORE'], out['DSTATE'])
+
+    def test_review_reads_fail_closed_on_altered_stored_bytes(self):
+        # read_receipt_v1 and read_preview_v1 never return bytes that fail their own checks.
+        plan, seed, catalog = self.cancel_seed()
+        cancel = {'operation_id': '53000000-0000-4000-8000-0000000000a2', 'set_id': plan['set_id'],
+                  'expected_set_revision': plan['expected_set_revision']}
+        receipt = "pg_catalog.jsonb_build_object('receipt_id',(SELECT id::text FROM wl_ingestion.receipts))"
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        # Table checks already forbid these bytes; dropping a check inside the
+        # rolled-back transaction shows the read rechecks instead of trusting it.
+        # The check is dropped before any deferred write is pending.
+        unchecked = 'ALTER TABLE wl_ingestion.receipts DROP CONSTRAINT receipts_values_ck;'
+        for name, prepare, mutation in (
+                ('noncanonical_result', unchecked, "UPDATE wl_ingestion.receipts SET result_bytes=convert_to('{ }','UTF8');"),
+                ('missing_audit', '', 'DELETE FROM wl_ingestion.audit;')):
+            with self.subTest(case=name):
+                self.sql('BEGIN;' + prepare + seed + self.cancel_statement('cancel', cancel, catalog) + replica + mutation + origin +
+                         self.internal_error('read_receipt_v1', receipt, catalog) + 'ROLLBACK;')
+        document, review = self.review_seed(plan)
+        page = "pg_catalog.jsonb_build_object('cursor',NULL::jsonb,'limit','10','preview_id','" + plan['preview_id'] + "')"
+        for name, prepare, mutation in (
+                ('review_digest', 'ALTER TABLE wl_ingestion.previews DROP CONSTRAINT previews_values_ck;',
+                 "UPDATE wl_ingestion.previews SET review_digest='" + '0' * 64 + "';"),
+                ('other_document_id', '', "UPDATE wl_ingestion.previews SET review_bytes=convert_to(replace(convert_from("
+                 "review_bytes,'UTF8'),'" + plan['preview_id'] + "','" + self.FOREIGN_SET + "'),'UTF8'),review_digest="
+                 "encode(sha256(convert_to(replace(convert_from(review_bytes,'UTF8'),'" + plan['preview_id'] + "','" +
+                 self.FOREIGN_SET + "'),'UTF8')),'hex');")):
+            with self.subTest(case=name):
+                self.sql('BEGIN;' + prepare + seed + replica + review + mutation + origin +
+                         self.internal_error('read_preview_v1', page, catalog) + 'ROLLBACK;')
+
+    def test_review_paged_cursors_reject_other_versions_shapes_and_positions(self):
+        # read_sets_v1 and read_preview_v1 cursor bindings beyond the developer cases.
+        plan, seed, catalog = self.accept_seed()
+        document, review = self.review_seed(plan)
+        seed += self.extra_sets(plan, 4) + review
+        def sets(label, cursor):
+            return self.gateway_expression('read_sets_v1', label, "pg_catalog.jsonb_build_object('cursor'," + cursor +
+                                           ",'limit','2','state',NULL::jsonb)", catalog)
+        def preview(label, cursor):
+            return self.gateway_expression('read_preview_v1', label, "pg_catalog.jsonb_build_object('cursor'," + cursor +
+                                           ",'limit','10','preview_id','" + plan['preview_id'] + "')", catalog)
+        def altered(label, field, value):
+            return "pg_catalog.jsonb_set(" + self.previous(label) + ",'{" + field + "}','" + value + "'::jsonb)"
+        out = self.run_labelled(seed + sets('s1', 'NULL::jsonb') + preview('v1', 'NULL::jsonb') +
+            sets('version', altered('s1', 'version', '2')) +
+            sets('extra', "(" + self.previous('s1') + "||'{\"x\":1}'::jsonb)") +
+            sets('missing', "(" + self.previous('s1') + "-'filter')") +
+            sets('scalar', "'\"opaque\"'::jsonb") +
+            sets('portfolio', altered('s1', 'portfolio_id', '"' + self.P2 + '"')) +
+            sets('previewcursor', self.previous('v1')) +
+            preview('setcursor', self.previous('s1')) +
+            preview('beyond', altered('v1', 'after_key', '"999"')) +
+            preview('zero', altered('v1', 'after_key', '"0"')))
+        self.assertTrue(out['S1']['ok'] and out['V1']['ok'], (out['S1'], out['V1']))
+        for label, code in (('VERSION', 'import_invalid'), ('EXTRA', 'import_invalid'), ('MISSING', 'import_invalid'),
+                            ('SCALAR', 'import_invalid'), ('PORTFOLIO', 'import_invalid'),
+                            ('PREVIEWCURSOR', 'import_invalid'), ('SETCURSOR', 'import_stale'),
+                            ('BEYOND', 'import_stale'), ('ZERO', 'import_stale')):
+            with self.subTest(case=label):
+                self.assertEqual({'ok': False, 'code': code}, out[label])
+
+    @unittest.expectedFailure  # WL-P0-007I: an empty review document cannot be read.
+    def test_review_read_preview_serves_an_empty_review_document(self):
+        # read_preview_v1: ReviewContent.rows has no minimum, so an empty review is a
+        # valid document. Its first page should be empty, not import_stale.
+        from wealth_ledger.ingestion.codec import encode
+        plan, seed, catalog = self.accept_seed()
+        document, _ = self.review_seed(plan)
+        document['content']['rows'] = []
+        raw = encode(document)
+        seed += ("UPDATE wl_ingestion.previews SET review_bytes=decode('" + raw.hex() + "','hex'),review_digest='" +
+                 hashlib.sha256(raw).hexdigest() + "';")
+        out = self.run_labelled(seed + self.gateway_expression('read_preview_v1', 'page',
+            "pg_catalog.jsonb_build_object('cursor',NULL::jsonb,'limit','10','preview_id','" + plan['preview_id'] + "')",
+            catalog))
+        self.assertTrue(out['PAGE']['ok'], out['PAGE'])
+        self.assertEqual(([], None), (out['PAGE']['value']['page']['rows'], out['PAGE']['value']['next']))
+
+    def test_review_quota_refuses_releases_beyond_what_is_held(self):
+        # _quota_v1: a release larger than the reservation, or in another scope,
+        # fails without changing any counter.
+        self.guarded('', [
+            self.quota_call('storage', 1, 1000), self.quota_call('raw', 1),
+            self.rejects(self.quota_call('storage', -1, -2000)),
+            self.rejects(self.quota_call('storage', 0, -1001)),
+            self.rejects(self.quota_call('storage', -1, -1000, portfolio=self.P2)),
+            self.rejects(self.quota_call('raw', -1, portfolio=self.P2)),
+            self.rejects(self.quota_call('RAW', 1)),
+            self.rejects("SELECT wl_ingestion._quota_v1('" + self.T + "','00000000-0000-0000-0000-000000000000','raw',1,0)"),
+            self.quota_state(self.P + '/raw:1:1:0:0,' + self.P + '/storage:0:0:1:1000'),
+            "DO $test$ BEGIN IF (SELECT pg_catalog.string_agg(bucket||':'||used_count||':'||lease_count||':'||"
+            "outstanding_sets||':'||reserved_bytes,',' ORDER BY bucket) FROM wl_ingestion.instance_budgets)<>"
+            "'raw:1:1:0:0,storage:0:0:1:1000' THEN RAISE EXCEPTION 'unexpected_instance_budgets'; END IF; END $test$;"])
+
+    def test_review_worker_guard_rejects_malformed_requests(self):
+        # _guard_worker_v1: request shape is checked before any registry lookup.
+        plan, seed, catalog = self.accept_seed()
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1})
+        out = self.run_labelled(seed +
+            self.worker_guard_statement('noepoch', extra="-'credential_epoch'") +
+            self.worker_guard_statement('numberepoch', extra="||'{\"credential_epoch\":1}'::jsonb") +
+            self.worker_guard_statement('zeroepoch', epoch='0') +
+            self.worker_guard_statement('leadingzero', epoch='01') +
+            self.worker_guard_statement('norealm', extra="-'realm_digest'") +
+            self.worker_guard_statement('upperrealm', realm='A' * 64) +
+            self.worker_guard_statement('zeroworker', worker='00000000-0000-0000-0000-000000000000'))
+        for label in ('NOEPOCH', 'NUMBEREPOCH', 'ZEROEPOCH', 'LEADINGZERO', 'NOREALM', 'UPPERREALM', 'ZEROWORKER'):
+            with self.subTest(case=label):
+                self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label])
+
     # create_set_v1 builds each member context in the database (owner Option A).
     FORMAT = 'synthetic-csv-v1'
     IMAGE_DIGEST = '83125eb1979a26b9249616951138ab5afc27bd21a215bb5b4612b235acd3c34f'
