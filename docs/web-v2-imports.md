@@ -268,6 +268,64 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   native namespace, cancel-then-purge release, reservation rollback on every
   refusal, missing or ambiguous workers and re-upload fencing. No upload route,
   worker claim or raw transport calls them yet.
+  The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
+  leases; prepare and cleanup kinds return `import_invalid` until their own
+  claim functions exist. Both take no bytes and call `_guard_worker_v1` first.
+  Scope comes only from the stored set row, and locks follow the reserve order.
+  The lease must be the member's one live normalize lease at the requested fence,
+  name the calling worker and match the handoff-token digest
+  (`authentication_required` otherwise). The set must still be RECEIVING and
+  unexpired, and the member's creation-time pins are rechecked. As r7 requires,
+  the session that reserved the attempt must still be live, with the same user
+  and credential version (`session_changed` otherwise), and no lease runs past
+  the member's 120-second raw deadline (`import_reupload_required` once it
+  passes). `claim` also needs
+  the bound raw digest, the member's context digest and the context's job ID. It
+  moves the member to `normalizing` and the lease to `active`, storing the claim
+  request ID and digest. Repeating that exact claim returns `already_claimed`;
+  another request ID returns `import_conflict`. `renew` extends an active lease,
+  never shortening it, and stores its acknowledgement so that a repeated request
+  gets the same bytes back. Lease deadlines are whole seconds, 30 seconds ahead
+  and never past set expiry. Every acknowledgement carries a `source_fingerprint`:
+  the SHA-256 of the canonical Plan `pinned_sources` entries for the set's
+  members in member-ID order. Opt-in PostgreSQL tests cover claim, lost
+  acknowledgements, renew replay and every refusal leaving the offer unchanged.
+  `admit_stage_v1` uses the same lease checks on an active lease and is the only
+  worker function so far that takes bytes: the child's canonical minimal evidence.
+  The bytes must match the request's length and stage digest, and the request's
+  raw digest must be the member's. A stage with the same digest already stored for
+  the member returns `already_admitted` without parsing again. A different stage
+  stored since this attempt's offer returns `import_conflict`, so each raw attempt
+  admits at most one stage. Otherwise `_validate_minimal_v1` checks the document.
+  Its provenance must name the member's raw digest, installation, wrapper profile
+  and format, the request's discovery digest, and the context's image digest,
+  evidence reference, evidence time and parser API; any difference returns
+  `import_invalid`. The stage must also fit the set's reservation with the other
+  retained transient bytes (`import_limit` otherwise). It is then stored until set
+  expiry. The member stays `normalizing` with no stage digest until a finish call
+  admits it. Opt-in PostgreSQL tests cover parser and native evidence, replay, a
+  second stage, each provenance mismatch and the reservation bound, with nothing
+  stored on refusal. No worker process calls it yet.
+  `finish_member_v1` ends an active normalize lease with one outcome and up to
+  three launcher cleanup proofs for the same job and fence. A lost acknowledgement
+  is answered from the finished lease's stored result; any other request on it
+  returns `import_stale`. `stage_admitted` needs no error code, the uploader's
+  live session, valid source pins and exactly one stage stored during this attempt. The member becomes `admitted`
+  with that stage digest, and when every member is admitted the set moves to
+  NORMALIZING for preparation. `reupload_required` and `rejected` need an error
+  code from the public member result list, and neither depends on the source
+  still being available. A re-upload request makes the member `reupload_required`;
+  the next reserve starts fence 2 and clears the error code. Following the owner's
+  decision, `rejected` rejects the whole set: it becomes REJECTED with cleanup
+  pending, every member is rejected, the finishing member keeps the error code and
+  other live leases are cancelled. No receipt is written because no user operation
+  is involved. Also by owner decision, the user's raw slot is released only when
+  at least one proof was sent and every proof says `absent` or `not_created`.
+  Otherwise the acknowledgement says `cleanup_complete: false` and the slot stays
+  held for a later cleanup call. Proofs are checked for shape only; this
+  function does not store them. Opt-in PostgreSQL tests cover each outcome,
+  replay, slot release and retention, a two-member set and every refusal
+  leaving the attempt unchanged. No worker process calls it yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

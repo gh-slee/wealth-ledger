@@ -33,9 +33,11 @@ the open items below are kept for history and map to tickets as listed in the ro
   fragments, the transition and head guards, the single accepted write and the
   authenticated confirm function have independent review. The private quota and
   transient-purge helpers, the cancel and decision functions, and the read
-  functions with signed page cursors, the worker guard, and the create and raw
-  reserve/bind functions have developer tests but no independent review yet.
-  Still to do: the raw upload transport, the worker functions, the operator `0004` migration and grants, routes, worker and
+  functions with signed page cursors, the worker guard, the create and raw
+  reserve/bind functions, and the normalize claim, renew, stage-admission and
+  finish worker functions have developer tests but no independent review yet.
+  Still to do: the raw upload transport, the preparation and cleanup worker
+  functions, the operator `0004` migration and grants, routes, worker and
   launcher, and recovery/concurrency/containment/restore acceptance.
   No operational V2 import profile is available yet. See [current boundaries](docs/web-v2-imports.md).
 
