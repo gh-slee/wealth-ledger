@@ -235,6 +235,39 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   SHA-256 of the token's 32 decoded bytes for the caller's lease check. It
   needs no user session, so cleanup can run after the originating session
   ends. No worker function calls it yet.
+  The declared gateway function `create_set_v1` takes only an `operation_id` and
+  one to four member selections. Each selection names a connection, installation,
+  format version and an optional declared size of at most 10 MiB; no financial
+  value is accepted. It follows the same receipt-first replay as cancel, locks the
+  source lifecycle rows, reserves one set's fixed 16 MiB storage capacity through
+  `_quota_v1`, then locks the ingestion root and checks the receipt again. Each
+  member must use an enabled file-import connection and enabled source on the
+  same installation, ACTIVE catalog availability and exactly one reviewed wrapper
+  profile for that installation and format. Any failure returns a fixed code and
+  rolls back the reservation and every row. On success the database builds each
+  member's child context itself, following the owner's Option A decision. The
+  context carries a fresh job ID, member ID, fence 1, the wrapper profile and image
+  digests, and an evidence time from the database clock in whole UTC seconds. A
+  parser-v2 profile gets a fresh source reference; a native discovery profile gets
+  a fresh ephemeral namespace, never real tenant, portfolio or connection IDs. The
+  set starts RECEIVING with a 24-hour expiry, its members start `waiting` with
+  their source pins recorded, and one CREATE receipt and CREATED audit row hold
+  the set view.
+  `reserve_member_v1` opens and binds one raw upload attempt without ever
+  receiving raw content. `reserve` needs a RECEIVING set at the expected revision,
+  rechecks the member's creation-time pins (a changed generation returns
+  `import_stale`), counts one raw attempt and takes the user's one concurrent raw
+  slot. It needs exactly one enabled worker. The member becomes `receiving` with a
+  120-second raw deadline, a re-upload advances the fence and clears old raw
+  fields, and an unbound 30-second offer lease is created that no worker can
+  claim. `bind` accepts the SHA-256, length and handoff-token digest once, from the
+  same session, before the deadline and offer expiry. It extends the offer by up
+  to 60 seconds within the raw deadline and returns handoff metadata only; the
+  trusted API adds its own plaintext token. Opt-in PostgreSQL tests cover
+  replay, a reused operation, quota exhaustion, each unavailable-source case, the
+  native namespace, cancel-then-purge release, reservation rollback on every
+  refusal, missing or ambiguous workers and re-upload fencing. No upload route,
+  worker claim or raw transport calls them yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 
