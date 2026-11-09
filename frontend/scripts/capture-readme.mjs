@@ -40,7 +40,11 @@ const server = spawn(
   {
     cwd: root,
     stdio: "ignore",
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+    env: {
+      ...process.env,
+      PYTHONDONTWRITEBYTECODE: "1",
+      WEALTH_LEDGER_E2E_PORT: new URL(origin).port,
+    },
   },
 );
 let launchError;

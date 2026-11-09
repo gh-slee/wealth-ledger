@@ -602,7 +602,7 @@ test("frozen source publications preserve partial scope, generic providers and e
     .inputValue();
   const csrf = await (await page.request.get("/api/v1/auth/csrf")).json();
   const headers = {
-    Origin: "http://localhost:8765",
+    Origin: new URL(page.url()).origin,
     "X-CSRF-Token": csrf.csrf_token,
   };
   const raw = readFileSync(

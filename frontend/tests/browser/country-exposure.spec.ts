@@ -145,11 +145,12 @@ async function enterCountry(
   selected = rows,
   references?: CountryRow[],
 ) {
+  const origin = test.info().project.use.baseURL;
+  if (!origin) throw new Error("Country browser tests require a baseURL");
   const writes: string[] = [];
   const external: string[] = [];
   page.on("request", (request) => {
-    if (!isLocalResource(request.url(), "http://localhost:8765"))
-      external.push(request.url());
+    if (!isLocalResource(request.url(), origin)) external.push(request.url());
     if (
       request.method() !== "GET" &&
       !new URL(request.url()).pathname.includes("/auth/")

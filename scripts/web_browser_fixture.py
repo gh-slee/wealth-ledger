@@ -12,6 +12,15 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 
 def main():
+    raw_port = os.environ.get("WEALTH_LEDGER_E2E_PORT", "8765")
+    try:
+        port = int(raw_port) if raw_port.isascii() and raw_port.isdecimal() else 0
+    except ValueError:
+        port = 0
+    if not 1 <= port <= 65535:
+        raise SystemExit("WEALTH_LEDGER_E2E_PORT must be an integer from 1 to 65535")
+    origin = "http://localhost" if port == 80 else f"http://localhost:{port}"
+
     import uvicorn
     from examples.demo import run_demo
     from wealth_ledger.web.api import create_app
@@ -22,7 +31,7 @@ def main():
     import json
     import hashlib
     with tempfile.TemporaryDirectory(prefix="wealth-browser-synthetic-") as temporary:
-        settings = WebSettings(Path(temporary) / "instance", "http://localhost:8765")
+        settings = WebSettings(Path(temporary) / "instance", origin)
         prepare_instance(settings)
         store = Store(settings)
         store.set_owner("example-owner", password_hash("example-browser-only-password"))
@@ -112,7 +121,7 @@ def main():
                        "WEALTH_LEDGER_PUBLIC_ORIGIN":settings.public_origin, "PYTHONDONTWRITEBYTECODE":"1"}
         worker = subprocess.Popen([sys.executable, str(ROOT / "scripts/web.py"), "worker"], env=environment)
         try:
-            uvicorn.run(create_app(settings), host="127.0.0.1", port=8765, access_log=False, server_header=False)
+            uvicorn.run(create_app(settings), host="127.0.0.1", port=port, access_log=False, server_header=False)
         finally:
             worker.terminate()
             try:
