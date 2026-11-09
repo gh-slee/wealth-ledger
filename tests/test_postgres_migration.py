@@ -154,6 +154,22 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertEqual(1, ddl.count('CREATE FUNCTION'))
         self.assertNotRegex(ddl, r'\b(GRANT|INSERT|UPDATE|DELETE)\b')
 
+    def test_create_and_reserve_match_their_gateway_declarations(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}
+        for name, ddl in (('create_set_v1', schema.CREATE_DDL), ('reserve_member_v1', schema.RESERVE_DDL)):
+            with self.subTest(function=name):
+                self.assertEqual((['text', 'uuid', 'bigint', 'jsonb', 'text', 'jsonb'], 'jsonb', 'identity_source_gateway'),
+                    (declared[name]['arguments'], declared[name]['returns'], declared[name]['execute']))
+                self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.' + name +
+                              '(text,uuid,bigint,jsonb,text,jsonb) FROM PUBLIC;', ddl)
+                self.assertEqual(1, ddl.count('CREATE FUNCTION'))
+                for fragment in ('GRANT ', 'SESSION_RECHECK', 'SET_RESULT', 'UUID_RE', 'SET_BYTES', 'MEMBER_PINS',
+                                 'INSTANT_', 'CONTROLS', 'DELETE '):
+                    self.assertNotIn(fragment, ddl)
+                # A session failure after a reservation must roll it back, so it raises.
+                self.assertNotIn("RETURN pg_catalog.jsonb_build_object('ok',false,'code','session_changed')", ddl)
+                self.assertIn("MESSAGE='session_changed'", ddl)
+
     def test_quota_and_purge_match_their_private_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl, arguments in (
@@ -284,7 +300,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.CANCEL_DDL + '\n' + schema.DECIDE_DDL
                 + '\n' + schema.READ_SET_DDL + '\n' + schema.READ_RECEIPT_DDL
                 + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL
-                + '\n' + schema.worker_guard_ddl())
+                + '\n' + schema.worker_guard_ddl() + '\n' + schema.CREATE_DDL
+                + '\n' + schema.RESERVE_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -2551,6 +2568,286 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                  'END IF; END $role$;')
         self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
             "'wl_ingestion._guard_worker_v1(uuid,text,jsonb)','EXECUTE')"))
+
+    # create_set_v1 builds each member context in the database (owner Option A).
+    FORMAT = 'synthetic-csv-v1'
+    IMAGE_DIGEST = '83125eb1979a26b9249616951138ab5afc27bd21a215bb5b4612b235acd3c34f'
+
+    def create_seed(self, *, projection='parser2-minimal-v1', profiles=1, formats=None, quota_sets=0, availability='ACTIVE'):
+        from wealth_ledger.ingestion.codec import encode
+        plan, seed, catalog = self.accept_seed(availability=availability)
+        pin = plan['pinned_sources'][0]
+        profile = {'version': 1, 'installation_id': pin['installation_id'], 'image_digest': self.IMAGE_DIGEST,
+                   'distribution': 'synthetic-qa', 'entry_point': 'synthetic_qa.discovery:entry', 'wrapper_sha256': 'c' * 64,
+                   'projection': projection, 'format_versions': formats or [self.FORMAT],
+                   'profile_digest': pin['wrapper_profile_digest'], 'identity_policy': 'provider_scoped_stable'}
+        wrappers = encode([profile] * profiles)
+        seed += ("UPDATE wl_ingestion.instance_state SET wrapper_catalog_bytes=decode('" + wrappers.hex() +
+                 "','hex'),wrapper_catalog_digest='" + hashlib.sha256(wrappers).hexdigest() + "';")
+        if quota_sets:
+            for table, scope in (('instance_budgets', {}), ('quotas', {'tenant_id': plan['tenant_id'],
+                                                                      'portfolio_id': plan['portfolio_id']})):
+                seed += self.row(table, {**scope, 'bucket': 'storage', 'window_start': self.Expression('now()'),
+                    'used_count': 0, 'reserved_bytes': quota_sets * schema.SET_RESERVATION_BYTES, 'lease_count': 0,
+                    'outstanding_sets': quota_sets})
+        return plan, pin, seed + self.TRANSITION_TRIGGERS, catalog
+
+    def create_payload(self, pin, operation='53000000-0000-4000-8000-000000000001', count=1, **member):
+        selection = {'connection_id': pin['connection_id'], 'installation_id': pin['installation_id'],
+                     'format_version': self.FORMAT, 'declared_bytes': None, **member}
+        return {'operation_id': operation, 'members': [selection] * count}
+
+    CREATE_STATE = ("SELECT 'CREATED '||pg_catalog.jsonb_build_object('sets',(SELECT count(*) FROM wl_ingestion.sets),"
+        "'members',(SELECT count(*) FROM wl_ingestion.members),'receipts',(SELECT pg_catalog.jsonb_agg(operation_kind ORDER BY "
+        "operation_kind) FROM wl_ingestion.receipts),'audit',(SELECT pg_catalog.jsonb_agg(action ORDER BY action) FROM "
+        "wl_ingestion.audit),'storage',(SELECT pg_catalog.jsonb_build_array(outstanding_sets,reserved_bytes) FROM "
+        "wl_ingestion.quotas WHERE bucket='storage'),'instance',(SELECT pg_catalog.jsonb_build_array(outstanding_sets,"
+        "reserved_bytes) FROM wl_ingestion.instance_budgets WHERE bucket='storage'))::text;")
+
+    MEMBER_CONTEXT = ("SELECT 'CONTEXT '||pg_catalog.jsonb_build_object('context',pg_catalog.convert_from(m.context_bytes,"
+        "'UTF8')::jsonb,'digest_ok',m.context_digest=pg_catalog.encode(pg_catalog.sha256(m.context_bytes),'hex'),"
+        "'canonical',m.context_bytes=wl_ingestion._canonical_v1(pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb),"
+        "'id',m.id::text,'pins',pg_catalog.jsonb_build_array(m.connection_generation,m.enablement_generation,"
+        "m.availability_generation,m.wrapper_profile_digest,m.fence,m.state),'realm',s.realm_digest,'expiry',"
+        "EXTRACT(EPOCH FROM s.expires_at-s.created_at)::text,'reserved',s.reserved_bytes)::text "
+        "FROM wl_ingestion.members m JOIN wl_ingestion.sets s ON s.id=m.set_id WHERE s.state='RECEIVING' ORDER BY m.ordinal LIMIT 1;")
+
+    def test_create_reserves_once_pins_sources_and_builds_the_parser_context(self):
+        from wealth_ledger.persistence import identity_schema
+        plan, pin, seed, catalog = self.create_seed()
+        payload = self.create_payload(pin)
+        realm = ("DO $realm$ DECLARE st wl_pg.instance_state%ROWTYPE; BEGIN SELECT * INTO st FROM wl_pg.instance_state "
+                 "WHERE id=1; PERFORM pg_catalog.set_config('test.realm',pg_catalog.jsonb_build_object('d',pg_catalog.encode("
+                 "pg_catalog.sha256(wl_ingestion._canonical_v1(" + identity_schema.realm() + ")),'hex'))::text,true); "
+                 "END $realm$;SELECT 'REALM '||pg_catalog.current_setting('test.realm');")
+        out = self.run_labelled(seed + self.gateway_statement('create_set_v1', 'first', payload, catalog) +
+            self.CREATE_STATE + self.MEMBER_CONTEXT + realm +
+            self.gateway_statement('create_set_v1', 'again', payload, catalog) +
+            self.gateway_statement('create_set_v1', 'reused', self.create_payload(pin, count=2), catalog) +
+            self.gateway_statement('create_set_v1', 'second', self.create_payload(
+                pin, '53000000-0000-4000-8000-000000000002', count=2, declared_bytes=10485760), catalog) +
+            self.CREATE_STATE.replace("'CREATED '", "'AFTER '"))
+        first = out['FIRST']
+        self.assertTrue(first['ok'], first)
+        value = first['value']
+        self.assertEqual(('RECEIVING', '1', 'not_needed', None, None), (value['state'], value['revision'],
+            value['cleanup_state'], value['preview_id'], value['receipt_id']))
+        self.assertEqual([('waiting', 0, pin['connection_id'], self.FORMAT)],
+                         [(m['state'], m['ordinal'], m['connection_id'], m['format_version']) for m in value['members']])
+        self.assertEqual({'sets': 2, 'members': 2, 'receipts': ['CREATE'], 'audit': ['CREATED'],
+                          'storage': [1, schema.SET_RESERVATION_BYTES], 'instance': [1, schema.SET_RESERVATION_BYTES]},
+                         out['CREATED'])
+        context = out['CONTEXT']
+        self.assertTrue(context['digest_ok'] and context['canonical'])
+        self.assertEqual([int(pin['connection_generation']), int(pin['enablement_generation']),
+                          int(pin['availability_generation']), pin['wrapper_profile_digest'], 1, 'waiting'], context['pins'])
+        self.assertEqual((out['REALM']['d'], '86400.000000', schema.SET_RESERVATION_BYTES),
+                         (context['realm'], context['expiry'], context['reserved']))
+        child = context['context']
+        self.assertEqual(sorted(['version', 'job_id', 'member_id', 'fence', 'installation_id', 'wrapper_profile_digest',
+                                 'format_version', 'payload_kind', 'parser_context', 'image_digest']), sorted(child))
+        self.assertEqual((1, context['id'], '1', 'parser_v2', self.IMAGE_DIGEST, pin['wrapper_profile_digest']),
+                         (child['version'], child['member_id'], child['fence'], child['payload_kind'], child['image_digest'],
+                          child['wrapper_profile_digest']))
+        parser = child['parser_context']
+        self.assertEqual((None, None, self.FORMAT, [], []), (parser['account_alias'], parser['source_timezone'],
+            parser['format_selection'], parser['revisions'], parser['scope_revisions']))
+        self.assertRegex(parser['evidence_at'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$')
+        self.assertNotEqual(child['job_id'], parser['source_reference'])
+        self.assertEqual(first, out['AGAIN'])
+        self.assertEqual({'ok': False, 'code': 'import_operation_conflict'}, out['REUSED'])
+        self.assertTrue(out['SECOND']['ok'], out['SECOND'])
+        self.assertEqual([2, 2 * schema.SET_RESERVATION_BYTES], out['AFTER']['storage'])
+        self.assertEqual(4, out['AFTER']['members'])
+
+    def test_create_builds_an_ephemeral_native_namespace(self):
+        plan, pin, seed, catalog = self.create_seed(projection='domain1-minimal-v1')
+        out = self.run_labelled(seed + self.gateway_statement('create_set_v1', 'first', self.create_payload(pin), catalog) +
+                                self.MEMBER_CONTEXT)
+        self.assertTrue(out['FIRST']['ok'], out['FIRST'])
+        child = out['CONTEXT']['context']
+        self.assertEqual(('native_discovery_v1', 'synthetic.qa', '1'), (child['payload_kind'], child['provider_id'], child['fence']))
+        self.assertEqual(('instant', None, 0), (child['evidence_at']['tag'], child['evidence_at']['zone'],
+                                               child['evidence_at']['fractional_digits']))
+        real = {plan['tenant_id'], plan['portfolio_id'], pin['connection_id']}
+        self.assertFalse(real & set(child['namespace'].values()))
+        self.assertEqual(3, len(set(child['namespace'].values())))
+
+    def test_create_rejects_unavailable_sources_full_storage_and_bad_shapes_without_writing(self):
+        before = {'sets': 1, 'members': 1, 'receipts': None, 'audit': None, 'storage': None, 'instance': None}
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        plan, pin, seed, catalog = self.create_seed()
+        good = self.create_payload(pin)
+        cases = (
+            ('disabled_connection', replica + 'UPDATE wl_sources.connection_lifecycle SET enabled=false;' + origin, good, 'source_unavailable'),
+            ('disabled_source', replica + 'UPDATE wl_sources.enablements SET enabled=false;' + origin, good, 'source_unavailable'),
+            ('unknown_connection', '', self.create_payload(pin, connection_id='40000000-0000-4000-8000-0000000000ff'), 'source_unavailable'),
+            ('other_installation', '', self.create_payload(pin, installation_id='e' * 64), 'source_unavailable'),
+            ('unreviewed_format', '', self.create_payload(pin, format_version='other-format'), 'source_unavailable'),
+            ('five_members', '', self.create_payload(pin, count=5), 'import_invalid'),
+            ('extra_field', '', dict(good, note='x'), 'import_invalid'),
+            ('member_field', '', self.create_payload(pin, label='x'), 'import_invalid'),
+            ('too_large', '', self.create_payload(pin, declared_bytes=10485761), 'import_invalid'),
+            ('string_size', '', self.create_payload(pin, declared_bytes='5'), 'import_invalid'),
+            ('control_format', '', self.create_payload(pin, format_version='bad\nformat'), 'import_invalid'),
+            ('revoked_session', 'UPDATE wl_identity.sessions SET revoked=true;', good, 'session_changed'),
+        )
+        for name, mutation, request, code in cases:
+            with self.subTest(case=name):
+                out = self.run_labelled(seed + mutation + self.gateway_statement('create_set_v1', 'result', request, catalog) +
+                                        self.CREATE_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertEqual(before, out['CREATED'])
+        for label, kwargs, code, storage in (('two_profiles', {'profiles': 2}, 'source_unavailable', None),
+                                             ('revoked_availability', {'availability': 'REVOKED'}, 'source_unavailable', None),
+                                             ('storage_full', {'quota_sets': 8}, 'import_limit', [8, 8 * schema.SET_RESERVATION_BYTES])):
+            with self.subTest(case=label):
+                plan, pin, seed, catalog = self.create_seed(**kwargs)
+                out = self.run_labelled(seed + self.gateway_statement('create_set_v1', 'result', self.create_payload(pin), catalog)
+                                        + self.CREATE_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertEqual((1, None, storage), (out['CREATED']['sets'], out['CREATED']['receipts'], out['CREATED']['storage']))
+
+    def test_create_then_cancel_and_purge_returns_the_reservation(self):
+        plan, pin, seed, catalog = self.create_seed()
+        cancel = ("pg_catalog.jsonb_build_object('operation_id','53000000-0000-4000-8000-000000000009','set_id',"
+                  "(SELECT id::text FROM wl_ingestion.sets WHERE state='RECEIVING'),'expected_set_revision','1')")
+        purge = ("SELECT wl_ingestion._purge_v1('" + plan['tenant_id'] + "','" + plan['portfolio_id'] +
+                 "',(SELECT id FROM wl_ingestion.sets WHERE state='CANCELLED'));")
+        out = self.run_labelled(seed + self.gateway_statement('create_set_v1', 'create', self.create_payload(pin), catalog) +
+            self.gateway_expression('cancel_set_v1', 'cancel', cancel, catalog) + purge + self.CREATE_STATE)
+        self.assertTrue(out['CREATE']['ok'] and out['CANCEL']['ok'], out)
+        self.assertEqual('CANCELLED', out['CANCEL']['value']['state'])
+        self.assertEqual(([0, 0], [0, 0]), (out['CREATED']['storage'], out['CREATED']['instance']))
+
+    def test_create_is_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+            "'wl_ingestion.create_set_v1(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
+
+    # reserve_member_v1 runs on a set made by create_set_v1 under the real guard.
+    NEW_MEMBER = "(SELECT m.id::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1)"
+    NEW_SET = "(SELECT id::text FROM wl_ingestion.sets WHERE state='RECEIVING' LIMIT 1)"
+
+    def reserve_seed(self, *, workers=1):
+        plan, pin, seed, catalog = self.create_seed()
+        for index in range(workers):
+            seed += self.row('workers', {'id': 'c7100000-0000-4000-8000-00000000000' + str(index), 'login_role': 'wl_worker',
+                                         'peer_identity': 'peer-' + str(index), 'enabled': True, 'credential_epoch': 1})
+        seed += self.gateway_statement('create_set_v1', 'create', self.create_payload(pin), catalog)
+        return plan, pin, seed, catalog
+
+    def reserve_call(self, label, catalog, *, action='reserve', **fields):
+        values = {'action': "'" + action + "'", 'set_id': self.NEW_SET, 'member_id': self.NEW_MEMBER}
+        if action == 'reserve':
+            values['expected_set_revision'] = "'1'"
+        else:
+            values.update(fence="(SELECT fence::text FROM wl_ingestion.members LIMIT 1)", raw_sha256="'" + '5' * 64 + "'",
+                          raw_bytes='1234', handoff_token_digest="'" + '6' * 64 + "'")
+        values.update(fields)
+        payload = 'pg_catalog.jsonb_build_object(' + ','.join("'" + k + "'," + v for k, v in values.items()) + ')'
+        return self.gateway_expression('reserve_member_v1', label, payload, catalog)
+
+    RESERVE_STATE = ("SELECT 'RSTATE '||pg_catalog.jsonb_build_object('member',(SELECT pg_catalog.jsonb_build_array(m.state,"
+        "m.fence,m.raw_digest,m.raw_bytes,m.raw_deadline IS NOT NULL AND m.raw_deadline<=pg_catalog.clock_timestamp()+"
+        "interval '120 seconds') FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' "
+        "LIMIT 1),'leases',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.fence,l.attempt,l.token_digest,"
+        "l.expires_at-l.created_at<=interval '120 seconds') ORDER BY l.attempt) FROM wl_ingestion.leases l WHERE "
+        "l.work_kind='normalize'),'raw',(SELECT pg_catalog.jsonb_build_array(used_count,lease_count) FROM wl_ingestion.quotas "
+        "WHERE bucket='raw'))::text;")
+
+    def test_reserve_then_bind_opens_one_bounded_attempt_and_hands_off_metadata(self):
+        plan, pin, seed, catalog = self.reserve_seed()
+        context = ("SELECT 'CTX '||pg_catalog.jsonb_build_object('job',pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id',"
+                   "'digest',m.context_digest,'length',pg_catalog.octet_length(m.context_bytes),'realm',x.realm_digest)::text "
+                   "FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' LIMIT 1;")
+        out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + self.RESERVE_STATE +
+            self.reserve_call('again', catalog) + self.RESERVE_STATE.replace("'RSTATE '", "'RAGAIN '") +
+            self.reserve_call('wrongfence', catalog, action='bind', fence="'2'") +
+            self.reserve_call('bind', catalog, action='bind') + self.RESERVE_STATE.replace("'RSTATE '", "'BOUND '") +
+            context + self.reserve_call('rebind', catalog, action='bind'))
+        self.assertTrue(out['CREATE']['ok'] and out['RESERVE']['ok'], out)
+        reserved = out['RESERVE']['value']
+        self.assertEqual(('reserve', '1'), (reserved['action'], reserved['fence']))
+        self.assertEqual({'member': ['receiving', 1, None, None, True], 'leases': [['offered', 1, 1, None, True]],
+                          'raw': [1, 1]}, out['RSTATE'])
+        # The live attempt holds the user's only raw slot, so a second reserve is busy
+        # before any member check and keeps no extra slot or attempt.
+        self.assertEqual({'ok': False, 'code': 'import_busy'}, out['AGAIN'])
+        self.assertEqual(out['RSTATE'], out['RAGAIN'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['WRONGFENCE'])
+        handoff = out['BIND']['value']
+        self.assertTrue(out['BIND']['ok'], out['BIND'])
+        self.assertEqual((1, out['CTX']['job'], '1', '5' * 64, 1234, out['CTX']['digest'], out['CTX']['length'], out['CTX']['realm']),
+                         (handoff['version'], handoff['job_id'], handoff['fence'], handoff['raw_sha256'], handoff['raw_bytes'],
+                          handoff['context_sha256'], handoff['context_bytes'], handoff['realm_digest']))
+        self.assertNotIn('handoff_token', handoff)
+        self.assertEqual({'member': ['receiving', 1, '5' * 64, 1234, True], 'leases': [['offered', 1, 1, '6' * 64, True]],
+                          'raw': [1, 1]}, out['BOUND'])
+        self.assertEqual({'ok': False, 'code': 'import_conflict'}, out['REBIND'])
+
+    def test_reupload_advances_the_fence_and_clears_old_raw_fields(self):
+        plan, pin, seed, catalog = self.reserve_seed()
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + self.reserve_call('bind', catalog, action='bind') +
+            replica + "UPDATE wl_ingestion.members SET state='reupload_required';UPDATE wl_ingestion.leases SET state='cancelled';" +
+            origin + "SELECT wl_ingestion._quota_v1('" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "','raw',-1,0);" +
+            self.reserve_call('again', catalog) + self.RESERVE_STATE)
+        self.assertTrue(out['AGAIN']['ok'], out['AGAIN'])
+        self.assertEqual('2', out['AGAIN']['value']['fence'])
+        self.assertEqual({'member': ['receiving', 2, None, None, True],
+                          'leases': [['cancelled', 1, 1, '6' * 64, True], ['offered', 2, 2, None, True]], 'raw': [2, 1]},
+                         out['RSTATE'])
+
+    def test_reserve_and_bind_refuse_without_keeping_a_slot(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        plan, pin, seed, catalog = self.reserve_seed()
+        cases = (
+            ('disabled_connection', replica + 'UPDATE wl_sources.connection_lifecycle SET enabled=false;' + origin, {}, 'source_unavailable'),
+            ('enablement_generation', replica + 'UPDATE wl_sources.enablements SET generation=generation+1;' + origin, {}, 'import_stale'),
+            ('wrong_revision', '', {'expected_set_revision': "'2'"}, 'import_stale'),
+            ('unknown_member', '', {'member_id': "'40000000-0000-4000-8000-0000000000ff'"}, 'not_found'),
+            ('expired', replica + "UPDATE wl_ingestion.sets SET created_at=created_at-interval '2 days',expires_at=expires_at-"
+             "interval '2 days' WHERE state='RECEIVING';" + origin, {}, 'import_expired'),
+            ('extra_field', '', {'note': "'x'"}, 'import_invalid'),
+            ('revoked_session', 'UPDATE wl_identity.sessions SET revoked=true;', {}, 'session_changed'),
+        )
+        for name, mutation, fields, code in cases:
+            with self.subTest(case=name):
+                out = self.run_labelled(seed + mutation + self.reserve_call('result', catalog, **fields) + self.RESERVE_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertIsNone(out['RSTATE']['leases'])
+                self.assertIn(out['RSTATE']['raw'], (None, [0, 0]))
+        for workers in (0, 2):
+            with self.subTest(workers=workers):
+                plan, pin, seed, catalog = self.reserve_seed(workers=workers)
+                out = self.run_labelled(seed + self.reserve_call('result', catalog) + self.RESERVE_STATE)
+                self.assertEqual({'ok': False, 'code': 'import_runner_unavailable'}, out['RESULT'])
+                self.assertIn(out['RSTATE']['raw'], (None, [0, 0]))
+        plan, pin, seed, catalog = self.reserve_seed()
+        late = replica + "UPDATE wl_ingestion.members SET raw_deadline=pg_catalog.clock_timestamp()-interval '1 second';" + origin
+        for name, mutation, fields, code in (
+                ('late', late, {}, 'import_reupload_required'),
+                ('too_big', '', {'raw_bytes': '10485761'}, 'import_invalid'),
+                ('string_size', '', {'raw_bytes': "'12'"}, 'import_invalid'),
+                ('bad_digest', '', {'raw_sha256': "'XYZ'"}, 'import_invalid')):
+            with self.subTest(case=name):
+                out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + mutation +
+                                        self.reserve_call('result', catalog, action='bind', **fields) + self.RESERVE_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertEqual([None, None], out['RSTATE']['member'][2:4])
+
+    def test_reserve_is_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+            "'wl_ingestion.reserve_member_v1(text,uuid,bigint,jsonb,text,jsonb)','EXECUTE')"))
 
 if __name__ == '__main__':
     unittest.main()
