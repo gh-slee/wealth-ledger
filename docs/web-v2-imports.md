@@ -221,7 +221,9 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   no later than the set and preview. `read_sets_v1` lists set views newest first
   in pages of 1 to 50 with an optional exact state filter. `read_preview_v1` pages
   the stored review document's rows. It stops before 50 rows or 4 MiB of canonical
-  row bytes and never splits a row. It reports `can_confirm` only for the current
+  row bytes and never splits a row. A review with no rows has an empty first page
+  and no next cursor; a cursor at or past the last row returns `import_stale`.
+  It reports `can_confirm` only for the current
   READY revision with a complete Plan before expiry. A later set revision leaves an
   old preview readable but not confirmable. Both return the unsigned next-page
   payload for the API to sign. No route signs or verifies cursors yet.

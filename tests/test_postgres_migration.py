@@ -2721,22 +2721,32 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             with self.subTest(case=label):
                 self.assertEqual({'ok': False, 'code': code}, out[label])
 
-    @unittest.expectedFailure  # WL-P0-007I: an empty review document cannot be read.
     def test_review_read_preview_serves_an_empty_review_document(self):
         # read_preview_v1: ReviewContent.rows has no minimum, so an empty review is a
-        # valid document. Its first page should be empty, not import_stale.
+        # valid document. Its first page is empty (WL-P0-007I); a cursor past the
+        # end is still stale.
         from wealth_ledger.ingestion.codec import encode
+        from wealth_ledger.persistence import identity_schema
         plan, seed, catalog = self.accept_seed()
         document, _ = self.review_seed(plan)
         document['content']['rows'] = []
         raw = encode(document)
         seed += ("UPDATE wl_ingestion.previews SET review_bytes=decode('" + raw.hex() + "','hex'),review_digest='" +
                  hashlib.sha256(raw).hexdigest() + "';")
-        out = self.run_labelled(seed + self.gateway_expression('read_preview_v1', 'page',
-            "pg_catalog.jsonb_build_object('cursor',NULL::jsonb,'limit','10','preview_id','" + plan['preview_id'] + "')",
-            catalog))
+        # Every binding matches except the position, which no empty review can reach.
+        cursor = ("pg_catalog.jsonb_build_object('version',1,'user_id','" + plan['tenant_id'] + "','portfolio_id','" +
+                  plan['portfolio_id'] + "','realm_digest',pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" +
+                  identity_schema.realm() + ")),'hex'),'resource_id','" + plan['preview_id'] + "','resource_revision','" +
+                  plan['expected_set_revision'] + "','review_digest','" + hashlib.sha256(raw).hexdigest() +
+                  "','filter',NULL::text,'after_key','1','expires_at',pg_catalog.to_char((pg_catalog.clock_timestamp()+"
+                  "interval '60 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US')||'+00:00')")
+        def page(label, cursor_sql):
+            return self.gateway_expression('read_preview_v1', label, "pg_catalog.jsonb_build_object('cursor'," +
+                cursor_sql + ",'limit','10','preview_id','" + plan['preview_id'] + "')", catalog)
+        out = self.run_labelled(seed + page('page', 'NULL::jsonb') + page('beyond', cursor))
         self.assertTrue(out['PAGE']['ok'], out['PAGE'])
         self.assertEqual(([], None), (out['PAGE']['value']['page']['rows'], out['PAGE']['value']['next']))
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['BEYOND'])
 
     def test_review_quota_refuses_releases_beyond_what_is_held(self):
         # _quota_v1: a release larger than the reservation, or in another scope,

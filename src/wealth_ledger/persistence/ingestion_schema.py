@@ -3307,7 +3307,9 @@ CURSOR_PRELUDE
   start_at:=(cur->>'after_key')::integer;
  END IF;
  total:=pg_catalog.jsonb_array_length(document#>'{content,rows}');
- IF start_at>=total THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
+ -- A review may have no rows; its first page is then empty. Only a cursor can
+ -- point past the end.
+ IF cur IS NOT NULL AND start_at>=total THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
  -- Whole rows only: stop before the row or byte bound, never truncate a row.
  WHILE start_at+taken<total AND taken<page_size LOOP
   one:=document#>ARRAY['content','rows',(start_at+taken)::text];
