@@ -146,6 +146,15 @@ state. `WEALTH_LEDGER_TEST_PYTHON` can select an installed Python environment;
 with a disposable profile. Neither is a production dependency. Test outputs stay
 under ignored `frontend/test-results/`. CI also installs Chromium system dependencies.
 
+`WEALTH_LEDGER_E2E_PORT` sets the fixture port and Playwright's browser origin.
+It defaults to `8765`. For concurrent runs, use separate worktrees for the test
+outputs and assign each run a distinct, unused port. For a ticket worktree,
+use its assigned `port_base`. For example, from the repository root:
+
+```bash
+WEALTH_LEDGER_E2E_PORT=29900 npm --prefix frontend run test:e2e
+```
+
 Tests cover exact decimal/null handling, locale parity, frozen API reads, hashes,
 portfolio authorization, static boundaries, browser charts, locale/currency changes,
 mobile layout, accessibility, downloads, cache isolation and actual worker imports.

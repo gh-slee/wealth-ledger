@@ -79,10 +79,10 @@ script or by review, not by trust.
    `port_base`. Use the isolation ID as a prefix for Docker/Compose project
    names, PostgreSQL test environments (`scripts/postgres.py test-environment
    --output work/pg-tests-<isolation_id>`), temp directories and queues. Use
-   ports from `port_base` to `port_base + 99`. The browser suite's fixed port
-   8765 is a known exception. Until WL-P0-018 makes it configurable, two agents
-   must not run `npm --prefix frontend run test:e2e` at the same time. Check
-   `list` for another live frontend claim first.
+   ports from `port_base` to `port_base + 99`. When running the browser suite
+   in parallel, set `WEALTH_LEDGER_E2E_PORT` to your claim's `port_base` before
+   running `npm --prefix frontend run test:e2e` in your own worktree. The browser
+   suite uses port 8765 when the variable is unset.
 
 Lanes that can usually run in parallel are listed in [ROADMAP.md](ROADMAP.md).
 
