@@ -6,7 +6,7 @@ on-demand exports. The current CLI and Web app stay usable throughout. This page
 orders the work. Each ticket file holds its own scope, acceptance and handoff;
 `python3 scripts/tickets.py list` is the live status.
 
-Updated 2026-11-05. Phases describe sequencing, not approval. Tickets with
+Updated 2026-11-10 (UI/UX backlog pass; see the section at the end). Phases describe sequencing, not approval. Tickets with
 `gate: owner` still need the owner's approval before work starts.
 
 ## Where things stand
@@ -25,9 +25,9 @@ Updated 2026-11-05. Phases describe sequencing, not approval. Tickets with
 | 0. Enable parallel agents | Tracked tickets, claims, isolated test ports, public specs | WL-P0-017, WL-P0-018, WL-P0-016, WL-P1-006 |
 | 1. Import backend | V2 imports work end to end on a synthetic instance | WL-P0-007A → 007B, 007C → 007D → 007E, 007F → 007G; 007H in parallel |
 | 2. Valuation inputs | Positions, quotes, FX, ETF exposure | WL-P0-009 (can start now), WL-P0-008 (after 007), WL-P0-010 |
-| 3. V2 UI | Eight-route app, identity/source/import screens | WL-P0-011A → 011B, 011C (can start now), 011D (after 007E) |
-| 4. Live analysis and exports | Analysis pages on canonical facts, on-demand downloads | WL-P0-012 → WL-P0-013 |
-| 5. Migration and release | Legacy cutover, release gates, docs | WL-P0-014, WL-P0-015 |
+| 3. V2 UI | Eight-route app, identity/source/import/settings screens | WL-P0-011A → 011B, 011C, 011F; 011E and 011G in parallel; 011D (after 007E) |
+| 4. Live analysis and exports | Analysis pages on canonical facts, on-demand downloads | WL-P0-012A → 012B → 012C → 012D, 012E (after 010); WL-P0-013A → 013B |
+| 5. Migration and release | Legacy cutover, archive access, release gates, docs | WL-P0-014, WL-P0-020, WL-P0-015 |
 | 6. P1 growth | First API connector, ETF search, plugin authoring, drilldowns, pull-only install | WL-P1-001 to WL-P1-005, UX-P1-004, UX-P1-005, UX-P1-007 |
 | 7. P2 extensions | More institutions, optional financial modes, brand, locales, scheduling, UX-P2 | WL-P2-001 to WL-P2-005, UX-P1-001 to UX-P1-003, UX-P2-001 to UX-P2-005 |
 
@@ -104,3 +104,43 @@ A sensible split for four agents today:
   UX-P1-007, platform acceptance to WL-P0-015, the formal legacy restore command
   to WL-P0-014, cash-flow items to WL-P2-002, other adapters to WL-P2-001 and
   off-device backups to UX-P2-004.
+
+## UI/UX backlog pass (2026-11-10)
+
+A screen-by-screen inventory of the shipped application and the planned V2
+screens is in [UX_FEATURE_INVENTORY.md](UX_FEATURE_INVENTORY.md). The tickets it
+produced, the tickets it improved and the execution batches are in
+[TICKET_CHANGES.md](TICKET_CHANGES.md). All new tickets are `backlog` until the
+owner releases them.
+
+| Track | Outcome | Tickets |
+|---|---|---|
+| Shipped application | Fix what users meet today, independent of V2 | UX-P1-008 to UX-P1-015; UX-P2-006 to UX-P2-008 |
+| V2 identity and settings | Preferences, Settings and Profile, bundle serving | WL-P0-011E, 011F, 011G |
+| V2 analysis | One read contract and one ticket per page | WL-P0-012A to 012E (WL-P0-012 is now their epic) |
+| V2 exports | Render service and download panel | WL-P0-013A, 013B (WL-P0-013 is now their epic) |
+| V2 archive | Earlier reports readable after cutover | WL-P0-020 |
+| Decisions | Delivery order; time zone contract | WL-P0-019; WL-P1-007 |
+| Workflow and tooling | Board check, owner inbox, lint, demo, import-path retirement | WL-P1-008, WL-P1-009; WL-P2-006 to WL-P2-008 |
+
+```mermaid
+graph LR
+  U9[UX-P1-009 edition/currency] --> U10[UX-P1-010 language] --> U15[UX-P1-015 phone nav] --> U27[UX-P2-007 states]
+  A[011A shell] --> B[011B identity UI]
+  A --> C[011C sources UI]
+  A --> F[011F settings/profile]
+  E[011E preferences] --> F
+  A --> D[011D import UI]
+  R[007E routes] --> D
+  P8[008 positions] --> A12[012A contract]
+  P9[009 quotes/FX] --> A12
+  A12 --> B12[012B stock/bond + toolbar] --> C12[012C crypto] --> D12[012D total + home]
+  A --> B12
+  P10[010 exposure] --> E12[012E exposures]
+  B12 --> E12
+  A12 --> A13[013A export service] --> B13[013B download panel]
+  B12 --> B13
+  M14[014 migration] --> L20[020 archive]
+  A --> L20
+```
+
