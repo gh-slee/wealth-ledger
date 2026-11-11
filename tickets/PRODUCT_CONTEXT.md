@@ -164,7 +164,7 @@ colours or wording are copied.
 | Platforms verified for release | Apple Silicon Mac with Docker Desktop. Linux amd64 through CI only; nothing else is claimed | WL-P0-015 |
 | Post-MVP tickets | Gate A approved for WL-P0-009B to 009E, 010A, 010B, 014 and 015. Refresh: Bitcoin every 5 minutes, securities every 15 minutes in market hours, manual at most once a minute, daily when idle. Currencies: CAD, USD, TWD, EUR, GBP, JPY, AUD, CHF, HKD, SGD, CNY, KRW | Those tickets |
 | Review | Agents review automatically; the owner reviews last on GitHub and merges | Reviews rule in [README.md](README.md); WL-P1-011 adds a reviewer in CI |
-| Project name | Rename everything, old names stop working, done alone before parallel work. The name is not chosen yet | WL-P0-024 |
+| Project name | Kurafolio: kura (the kanji U+8535), the storehouse where a family kept its valuables, plus "folio". Rename everything, old names stop working, done alone before parallel work. The README explains the name | WL-P0-024 |
 | When the MVP is usable | The pull request of WL-P0-021 must say so, with the start command and first-use steps | WL-P0-021 |
 
 ## Still open
@@ -173,10 +173,8 @@ colours or wording are copied.
    spike and approved by the owner.
 2. The official keyed quote provider, to be proposed by the WL-P0-009E spike and
    chosen by the owner.
-3. The new project name (WL-P0-024). Until it is chosen, the rename and every
-   ticket that waits for it are held.
-4. The CI reviewer's service, spending limit and secret (WL-P1-011).
-5. P1 and P2 tickets are refined after the owner has used the MVP.
+3. The CI reviewer's service, spending limit and secret (WL-P1-011).
+4. P1 and P2 tickets are refined after the owner has used the MVP.
 
 Answered on 2026-11-10: WL-P0-007C's six questions (all recommendations accepted,
 WL-P0-007K folded in); WL-P0-007J option (b); one bundle with the shell chosen

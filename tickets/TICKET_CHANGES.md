@@ -208,9 +208,10 @@ They are `ready` and are offered when their dependencies are done.
 
 | Ticket | Change | Why |
 |---|---|---|
-| WL-P0-024 | New, blocked on the name | Owner: rename the project everywhere, no aliases, before parallel work starts |
+| WL-P0-024 | New, ready; the owner chose the name Kurafolio | Owner: rename the project everywhere, no aliases, before parallel work starts |
 | WL-P2-003 | Superseded by WL-P0-024 | The owner made the rename a priority |
 | WL-P0-007C, 007J, 009A, 011A, 011G, 022 | Depend on WL-P0-024 | The rename touches about 290 files and must land first |
 | WL-P1-011 | New, blocked on three owner decisions | A reviewer in CI on every pull request |
+| WL-P1-012 | New | A browser test fails intermittently on unrelated changes |
 | `AGENTS.md`, `tickets/README.md` | Reviews rule | The implementer starts fresh-context QA, Architect and PM review itself; the owner reviews last |
 

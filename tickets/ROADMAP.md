@@ -187,10 +187,10 @@ P1 and P2 tickets are refined after the owner has used the MVP.
 
 ### Rename first (owner decision, 2026-11-11)
 
-WL-P0-024 renames the project in the repository, on GitHub and on the owner's
+WL-P0-024 renames the project to Kurafolio in the repository, on GitHub and on the owner's
 computer. It touches about 290 files, so it is merged before any other V2
 branch is opened: WL-P0-007C, 007J, 009A, 011A, 011G and 022 depend on it. It
-is blocked until the owner chooses the name. One agent works it alone.
+is ready and is the only claimable V2 ticket. One agent works it alone.
 
 Reviews are automatic from 2026-11-11: the implementing agent starts fresh
 QA, Architect and PM reviewers itself ([README.md](README.md), Reviews rule),
