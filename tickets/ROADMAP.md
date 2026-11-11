@@ -171,3 +171,35 @@ Settings and Profile), WL-P0-010 and 012E (Exposures), WL-P0-013A and 013B
 Not needed for the MVP: migrating existing SQLite data. A new V2 account starts
 from the latest holdings file and the full order history file.
 
+### MVP release state and assignment (2026-11-10)
+
+The owner approved Gate A for the eighteen MVP tickets, answered WL-P0-007C's
+six questions and folded WL-P0-007K into it. They are `ready`; `tickets.py next`
+offers each one as soon as its dependencies are done.
+
+Claimable now: WL-P0-007C, WL-P0-009A, WL-P0-011A, WL-P0-011G. They share no
+exclusive resource, so four agents can start at once.
+
+| Lane | Order | Tier | Suggested agent |
+|---|---|---|---|
+| Import SQL (`ingestion-schema-sql`) | 007C, then 007L, then 007D | frontier | one strong agent for the whole lane |
+| Import services | 007E and 007F after 007D | frontier | two agents in parallel |
+| Market data | 009A | frontier | any frontier agent |
+| Bundle serving | 011G | frontier | any frontier agent |
+| Shell and screens | 011A, then 011B and 011C in parallel, 011D after 007E | standard | a standard or frontier agent |
+| Positions and analysis contract | 008 after 007D, then 012A | frontier | one agent |
+| Analysis pages | 012B, 012C, 012D in sequence | standard | one agent, after 011A and 012A |
+| Deployment and acceptance | 021; 007G by a session that implemented none of 007A to 007F | frontier | separate sessions |
+
+Every ticket has `review: independent`: a different agent session reviews each
+diff against the acceptance criteria before the owner merges.
+
+Still blocking part of the MVP:
+
+- WL-P0-007J (where rate limits are admitted) is unanswered and now a recorded
+  dependency of 007D and 007E, as its own text requires.
+- WL-P0-011A and WL-P0-011G carry one shared decision (one bundle with two
+  shells, served by the V2 application); WL-P0-009A needs the owner to approve
+  the named unofficial endpoint before it is coded. Work that does not depend
+  on these answers can start.
+

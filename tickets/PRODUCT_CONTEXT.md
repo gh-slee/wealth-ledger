@@ -158,7 +158,8 @@ colours or wording are copied.
 ## Still open
 
 1. Which unofficial endpoint WL-P0-009A uses, and whether it is off by default.
-3. WL-P0-007C's six cleanup questions and WL-P0-007J's rate-limit placement,
-   which gate the import backend and therefore the MVP.
-4. Gate A approvals for the MVP tickets. The owner's wish for an MVP is not
-   recorded as a gate approval on any ticket.
+3. WL-P0-007J's rate-limit placement, a dependency of WL-P0-007D and 007E.
+4. The shared WL-P0-011A and 011G decision on how the bundle is selected and served.
+
+Answered on 2026-11-10: WL-P0-007C's six questions (all recommendations
+accepted, WL-P0-007K folded in) and Gate A for the eighteen MVP tickets.
