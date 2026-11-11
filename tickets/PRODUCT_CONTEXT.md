@@ -115,6 +115,8 @@ These are decisions. Tickets that contradict them are wrong and must be updated.
 | Cost and gain | Shown where the source provides cost: live market value minus book cost. No cost means a dash, never zero. Bitcoin cost is the sum of purchase spending |
 | Cash | Broker cash is in Total as its own "Cash" line, separate from securities |
 | ETF lookup | Held ETFs: full underlying holdings, refreshed automatically, in P0. Searching an ETF the user does not hold: P1 (WL-P1-002) |
+| Account absent from a newer broker file | Kept unchanged; the import preview asks "keep, or mark closed?". A position missing inside an account the file does cover is sold |
+| Price sources | Bitcoin: Coinbase Exchange public API. FX: Bank of Canada daily rates plus Frankfurter for other currencies. Stocks, ETFs and bonds: pluggable adapter with the operator's own key, provider chosen after the WL-P0-009 spike |
 | Registration | Invite-only by default, with an administrator switch that opens self-registration. The switch is built after the MVP |
 
 ## Price data: what was found, and what is not known
@@ -144,16 +146,18 @@ Reddit thread was retrieved, so this is not a measure of what Reddit prefers):
 Ghostfolio is the usual pick for a free self-hosted tracker; Sharesight for
 performance, dividends and tax reports; Snowball Analytics for dividend income;
 getquin for a broad free tier; Empower for free net-worth tracking in the US.
-The owner has not chosen a reference. Until they do, page tickets use this
-layout: three to five key figures, allocation chart, holdings table, daily value
-line.
+The owner finds Ghostfolio's interface too simple and prefers Wealthsimple's.
+Proposed direction, awaiting confirmation: a consumer-clear top (one large
+value with its change, a wide value chart with range buttons, a short row of
+key figures) followed by denser analyst sections (allocation, holdings table
+with cost and gain, exposure). Layout patterns only; no other product's assets,
+colours or wording are copied.
 
 ## Still open
 
-1. Missing accounts in a newer broker file. Confirmed: a position missing from a
-   newer snapshot is sold. Not yet confirmed: whether that applies when the whole
-   account is absent from the file (the owner asked for an explanation).
-2. A visual reference for the investment pages.
+1. Whether to offer an optional, off-by-default adapter for unofficial market-data
+   endpoints.
+2. Confirmation of the proposed visual direction for the investment pages.
 3. WL-P0-007C's six cleanup questions and WL-P0-007J's rate-limit placement,
    which gate the import backend and therefore the MVP.
 4. Gate A approvals for the MVP tickets. The owner's wish for an MVP is not
