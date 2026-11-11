@@ -77,8 +77,13 @@ agents (any vendor or model) may work at once, one ticket each:
   report that and what `list` shows as blocking; do not invent work.
 - Before a product, UX or analysis ticket, read
   [tickets/PRODUCT_CONTEXT.md](tickets/PRODUCT_CONTEXT.md) for the owner's intent and
-  recorded decisions. A ticket with `review: independent` is reviewed by a different
-  agent session; if asked to review, check the diff against the ticket's criteria.
+  recorded decisions.
+- For a ticket with `review: independent`, start the review yourself before you hand
+  the PR to the owner: launch fresh-context QA (and Architect or PM where the
+  [Reviews rule](tickets/README.md#rules-that-keep-the-board-consistent) says so)
+  with only the ticket, the diff and the repository rules, post the findings on the
+  PR, then fix or answer them. This is an explicit request for those subagents. If
+  you cannot start one, report the review as not run. The owner reviews last.
 - Find work with `python3 scripts/tickets.py next --tier <any|standard|frontier>`;
   claim it with `python3 scripts/tickets.py claim <ID> --agent <tool/model> --worktree`
   and work only in that ticket's worktree and branch. Never take a live claim or a
