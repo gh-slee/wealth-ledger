@@ -104,50 +104,57 @@ These are decisions. Tickets that contradict them are wrong and must be updated.
 | Plugin store name and form | "Parser Plugin Store"; a simple list with enable switches is fine | WL-P0-011A, WL-P0-011C |
 | Who can add plugins | Only official plugins: written by the owner or contributors, reviewed and merged in the repository. Users cannot create, upload or enable their own | The brief's "test your own plugin in the app" is dropped. WL-P1-003 becomes a contributor guide and test harness for pull requests |
 
-## Recommendations awaiting the owner's confirmation
+## Confirmed on 2026-11-10 after discussion
 
-The owner asked for a recommendation on each. None is approved yet.
+| Topic | Decision |
+|---|---|
+| Delivery | Reach a usable V2 MVP as soon as possible. The owner is a real user and will give feedback from daily use. MVP scope and order are in [ROADMAP.md](ROADMAP.md) |
+| Price data | Pluggable provider adapter. Bitcoin near real time from a public exchange API; FX from official daily sources; stocks, ETFs and bonds through an adapter the instance operator configures with their own API key, typically 15 minutes delayed or last close. Every value shows its "as of" time. The provider is chosen after a verification spike in WL-P0-009 |
+| Sales in an exchange file | Tracked quantity is purchases minus sales reported by the same exchange file. Funding rows and withdrawals to the user's own wallet change nothing. A one-line notice appears when sales were counted |
+| Where an asset appears | By asset class, not institution. A Bitcoin ETF is a security (Stock/Bond, and "Bitcoin through ETF" in Exposures). Coins held directly are Crypto. Total counts each holding once |
+| Cost and gain | Shown where the source provides cost: live market value minus book cost. No cost means a dash, never zero. Bitcoin cost is the sum of purchase spending |
+| Cash | Broker cash is in Total as its own "Cash" line, separate from securities |
+| ETF lookup | Held ETFs: full underlying holdings, refreshed automatically, in P0. Searching an ETF the user does not hold: P1 (WL-P1-002) |
+| Registration | Invite-only by default, with an administrator switch that opens self-registration. The switch is built after the MVP |
 
-1. Price data. Free and truly real-time data for arbitrary stocks and ETFs, with
-   the right to serve it to several users, is not generally available. Proposal:
-   Bitcoin near real time from a public exchange API; FX from an official daily
-   source plus a free intraday source where one allows it; stocks, ETFs and bonds
-   through a provider adapter that the instance operator configures with their
-   own free-tier API key, typically 15 minutes delayed or last close. Every value
-   shows its "as of" time. A paid real-time provider can be plugged in later
-   without changing pages. Provider names and current terms must be researched
-   and verified before coding; none is asserted here.
-2. Missing positions. Treat a position as sold only when the newer file covers
-   its account. If a whole account is absent from the file, keep it unchanged and
-   ask at preview "Account X is not in this file: keep it, or mark it closed?",
-   because a file may be exported for one account only.
-3. Sales in an exchange file. The Bull Bitcoin export has an order-type column
-   (the synthetic example holds "Funding" and "Buy Bitcoin"), so it is not
-   buy-only by format, and other exchanges will report sales. Proposal: tracked
-   Bitcoin equals purchases minus sales reported by the same exchange file;
-   funding rows and withdrawals to the user's own wallet change nothing. Still no
-   opening balance, wallet check or income. A one-line notice appears when sales
-   were counted.
-4. Where an asset appears. By asset class, not by institution. A Bitcoin ETF is a
-   security: Stock/Bond, and "Bitcoin through ETF" in Exposures. Coins held
-   directly appear under Crypto, whether the record came from an exchange plugin
-   or a broker plugin. Total counts each holding once.
-5. Cost and gain. Show book cost and unrealized gain where the source provides
-   cost (the Wealthsimple holdings file does), computed as live market value
-   minus book cost. Where a source gives no cost, show a dash, never zero. For
-   Bitcoin, cost is the sum of purchase spending.
-6. Cash. Include broker cash in Total as its own "Cash" line, separate from
-   securities, so Total matches what the broker shows.
-7. ETF lookup. First release: full underlying holdings for every ETF the user
-   holds, refreshed automatically. Searching an ETF the user does not hold stays
-   P1 (WL-P1-002).
-8. Registration. Invite-only by default, with an administrator switch that opens
-   self-registration for instances meant for the public.
+## Price data: what was found, and what is not known
+
+Searched on 2026-11-10; figures come from secondary comparisons that disagree
+with each other, so WL-P0-009 must verify them on the providers' own pages.
+
+- Free tiers of the usual keyed providers are small and licensed for personal
+  use: Alpha Vantage about 25 requests a day; Twelve Data about 800 a day with a
+  delay reported as 15 minutes by one source and four hours by another; Finnhub
+  about 60 calls a minute with disputed "real-time" status.
+- None of the sources confirmed coverage of Toronto-listed securities. This is
+  the first thing to test, because the built-in broker format is Canadian.
+- FX: Frankfurter serves daily rates for many currencies without a key; no
+  keyless source with intraday rates was found. The repository already uses the
+  Bank of Canada Valet API.
+- Bitcoin: the repository already uses the Coinbase Exchange public API.
+- Many self-hosted trackers rely on unofficial market-data endpoints with broad
+  coverage and no key. They can break without notice and their terms are
+  unclear. If offered at all, such an adapter should be optional and off by
+  default; that is an owner decision.
+
+## Reference products for the "professional" look
+
+Review sites consulted on 2026-11-10 (several are affiliate-funded, and no
+Reddit thread was retrieved, so this is not a measure of what Reddit prefers):
+Ghostfolio is the usual pick for a free self-hosted tracker; Sharesight for
+performance, dividends and tax reports; Snowball Analytics for dividend income;
+getquin for a broad free tier; Empower for free net-worth tracking in the US.
+The owner has not chosen a reference. Until they do, page tickets use this
+layout: three to five key figures, allocation chart, holdings table, daily value
+line.
 
 ## Still open
 
-1. How a new user gets an account on a multi-user instance: an invitation from
-   the administrator, open self-registration, or the switch proposed above.
-2. A visual reference for "professional": a product or report whose charts and
-   tables the three investment pages should resemble.
-3. WL-P0-019: build a thin end-to-end V2 slice first, or finish each layer fully.
+1. Missing accounts in a newer broker file. Confirmed: a position missing from a
+   newer snapshot is sold. Not yet confirmed: whether that applies when the whole
+   account is absent from the file (the owner asked for an explanation).
+2. A visual reference for the investment pages.
+3. WL-P0-007C's six cleanup questions and WL-P0-007J's rate-limit placement,
+   which gate the import backend and therefore the MVP.
+4. Gate A approvals for the MVP tickets. The owner's wish for an MVP is not
+   recorded as a gate approval on any ticket.

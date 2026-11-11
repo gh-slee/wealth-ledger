@@ -144,3 +144,29 @@ graph LR
   A --> L20
 ```
 
+## V2 MVP first (owner decision, 2026-11-10)
+
+The owner wants a usable V2 as early as possible and will give feedback from
+real use. The shipped SQLite application is not changed any more. The MVP is the
+shortest path through the owner's flow: sign in, enable plugins, import, see
+securities, crypto and total. Context: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
+
+| Order | Tickets | Note |
+|---|---|---|
+| 1 | WL-P0-007C (with 007K), then 007L, then 007D | Serial SQL lane; waits on the 007C answers |
+| 1 | WL-P0-011G, WL-P0-011A | In parallel with the SQL lane, after Gate A |
+| 2 | WL-P0-007E and WL-P0-007F | In parallel with each other |
+| 2 | WL-P0-011B, WL-P0-011C | In parallel, after 011A |
+| 3 | WL-P0-008 | Positions, with the 2026-11-10 decisions |
+| 3 | WL-P0-011D | After 007E |
+| 4 | WL-P0-012A (first version), then 012B, 012C, 012D | Securities valued from the import's own market values; Bitcoin from the existing live price; CAD, USD and TWD from the existing daily FX |
+| 5 | WL-P0-021, WL-P0-007G | Deployable instance; independent acceptance |
+
+After the MVP, in this order unless feedback changes it: WL-P0-009 (stock and
+ETF quotes, more currencies, daily history), WL-P0-011E and 011F (preferences,
+Settings and Profile), WL-P0-010 and 012E (Exposures), WL-P0-013A and 013B
+(downloads), WL-P0-014 and WL-P0-020 (migration and archive), WL-P0-015.
+
+Not needed for the MVP: migrating existing SQLite data. A new V2 account starts
+from the latest holdings file and the full order history file.
+

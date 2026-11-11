@@ -10,6 +10,8 @@ WL-P0-017 and WL-P0-018 are untouched).
 
 The owner decided to put all effort into V2 and not change the shipped application. The eleven shipped-application tickets (UX-P1-008 to UX-P1-015, UX-P2-006 to UX-P2-008) are now `superseded`; each names the V2 ticket that carries its finding. Batches 1 to 3 below no longer apply. The owner's answers and the recommendations still awaiting confirmation are in [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
 
+Later the same day the owner confirmed the decisions listed in PRODUCT_CONTEXT.md and asked for a V2 MVP first. WL-P0-008, WL-P0-009, WL-P0-011B and WL-P0-012A gained an "Owner decisions" block; WL-P0-021 (one-command V2 MVP deployment) was added, for 30 created tickets and 90 on the board. The MVP order is in ROADMAP.md.
+
 ## Counts
 
 | | P0 | P1 | P2 | Total |
