@@ -12,6 +12,8 @@ The owner decided to put all effort into V2 and not change the shipped applicati
 
 Later the same day the owner confirmed the decisions listed in PRODUCT_CONTEXT.md and asked for a V2 MVP first. WL-P0-008, WL-P0-009, WL-P0-011B and WL-P0-012A gained an "Owner decisions" block; WL-P0-021 (one-command V2 MVP deployment) and WL-P0-009A (quote adapter contract and optional unofficial adapter) were added, for 31 created tickets and 91 on the board. The MVP order is in ROADMAP.md.
 
+A CI and end-to-end review added WL-P0-022, WL-P0-023, WL-P1-010 and WL-P2-009 (see CI_E2E_ASSESSMENT.md), for 35 created tickets and 95 on the board. The owner then answered WL-P0-007J and the WL-P0-011A, 011G and 009A decisions.
+
 ## Counts
 
 | | P0 | P1 | P2 | Total |

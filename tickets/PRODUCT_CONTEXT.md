@@ -157,9 +157,12 @@ colours or wording are copied.
 
 ## Still open
 
-1. Which unofficial endpoint WL-P0-009A uses, and whether it is off by default.
-3. WL-P0-007J's rate-limit placement, a dependency of WL-P0-007D and 007E.
-4. The shared WL-P0-011A and 011G decision on how the bundle is selected and served.
+1. The named unofficial market-data endpoint, to be proposed by the WL-P0-009A
+   spike and approved by the owner.
+2. Post-MVP tickets (WL-P0-009, 010, 014, 015 and P1/P2) are not yet planned in
+   the same detail; they are refined after the owner has used the MVP.
 
-Answered on 2026-11-10: WL-P0-007C's six questions (all recommendations
-accepted, WL-P0-007K folded in) and Gate A for the eighteen MVP tickets.
+Answered on 2026-11-10: WL-P0-007C's six questions (all recommendations accepted,
+WL-P0-007K folded in); WL-P0-007J option (b); one bundle with the shell chosen
+from the API version, served by the V2 application; unofficial adapter off by
+default; Gate A for the eighteen MVP tickets.

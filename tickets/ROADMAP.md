@@ -177,8 +177,9 @@ The owner approved Gate A for the eighteen MVP tickets, answered WL-P0-007C's
 six questions and folded WL-P0-007K into it. They are `ready`; `tickets.py next`
 offers each one as soon as its dependencies are done.
 
-Claimable now: WL-P0-007C, WL-P0-009A, WL-P0-011A, WL-P0-011G. They share no
-exclusive resource, so four agents can start at once.
+Claimable now: WL-P0-007C, WL-P0-007J, WL-P0-009A, WL-P0-011A, WL-P0-011G.
+WL-P0-007C and WL-P0-007J share `ingestion-schema-sql` and run one after the
+other; the rest share nothing, so four agents can start at once.
 
 | Lane | Order | Tier | Suggested agent |
 |---|---|---|---|
@@ -194,12 +195,10 @@ exclusive resource, so four agents can start at once.
 Every ticket has `review: independent`: a different agent session reviews each
 diff against the acceptance criteria before the owner merges.
 
-Still blocking part of the MVP:
+All MVP decisions are answered as of 2026-11-10: WL-P0-007J option (b), one
+bundle served by the V2 application (WL-P0-011A, 011G), and the unofficial
+adapter off by default with its endpoint approved after a spike (WL-P0-009A).
 
-- WL-P0-007J (where rate limits are admitted) is unanswered and now a recorded
-  dependency of 007D and 007E, as its own text requires.
-- WL-P0-011A and WL-P0-011G carry one shared decision (one bundle with two
-  shells, served by the V2 application); WL-P0-009A needs the owner to approve
-  the named unofficial endpoint before it is coded. Work that does not depend
-  on these answers can start.
-
+CI and regression: see [CI_E2E_ASSESSMENT.md](CI_E2E_ASSESSMENT.md). WL-P0-022
+(run the import SQL tests in CI) should merge before the import SQL changes;
+WL-P0-023 adds a real V2 end-to-end suite; WL-P1-010 and WL-P2-009 follow.
