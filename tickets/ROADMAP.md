@@ -159,7 +159,8 @@ securities, crypto and total. Context: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
 | 2 | WL-P0-011B, WL-P0-011C | In parallel, after 011A |
 | 3 | WL-P0-008 | Positions, with the 2026-11-10 decisions |
 | 3 | WL-P0-011D | After 007E |
-| 4 | WL-P0-012A (first version), then 012B, 012C, 012D | Securities valued from the import's own market values; Bitcoin from the existing live price; CAD, USD and TWD from the existing daily FX |
+| 3 | WL-P0-009A | Quote adapter contract and the optional unofficial adapter; parallel with 008 |
+| 4 | WL-P0-012A (first version), then 012B, 012C, 012D | Securities valued from the import's own market values, or live quotes where WL-P0-009A is enabled; Bitcoin from the existing live price; CAD, USD and TWD from the existing daily FX |
 | 5 | WL-P0-021, WL-P0-007G | Deployable instance; independent acceptance |
 
 After the MVP, in this order unless feedback changes it: WL-P0-009 (stock and

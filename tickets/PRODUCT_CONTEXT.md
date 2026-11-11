@@ -117,6 +117,8 @@ These are decisions. Tickets that contradict them are wrong and must be updated.
 | ETF lookup | Held ETFs: full underlying holdings, refreshed automatically, in P0. Searching an ETF the user does not hold: P1 (WL-P1-002) |
 | Account absent from a newer broker file | Kept unchanged; the import preview asks "keep, or mark closed?". A position missing inside an account the file does cover is sold |
 | Price sources | Bitcoin: Coinbase Exchange public API. FX: Bank of Canada daily rates plus Frankfurter for other currencies. Stocks, ETFs and bonds: pluggable adapter with the operator's own key, provider chosen after the WL-P0-009 spike |
+| Unofficial market data | Included in the first V2 release as an optional adapter the operator enables (WL-P0-009A). It can break without notice and its terms of use are the operator's responsibility |
+| Visual direction | Consumer-clear top, analyst depth below: large value with change, full-width chart with range buttons, key figures, allocation, holdings table, deeper analysis. Same skeleton on Stock/Bond, Crypto and Total. Layout patterns only; nothing copied from another product |
 | Registration | Invite-only by default, with an administrator switch that opens self-registration. The switch is built after the MVP |
 
 ## Price data: what was found, and what is not known
@@ -147,7 +149,7 @@ Ghostfolio is the usual pick for a free self-hosted tracker; Sharesight for
 performance, dividends and tax reports; Snowball Analytics for dividend income;
 getquin for a broad free tier; Empower for free net-worth tracking in the US.
 The owner finds Ghostfolio's interface too simple and prefers Wealthsimple's.
-Proposed direction, awaiting confirmation: a consumer-clear top (one large
+Confirmed direction: a consumer-clear top (one large
 value with its change, a wide value chart with range buttons, a short row of
 key figures) followed by denser analyst sections (allocation, holdings table
 with cost and gain, exposure). Layout patterns only; no other product's assets,
@@ -155,9 +157,7 @@ colours or wording are copied.
 
 ## Still open
 
-1. Whether to offer an optional, off-by-default adapter for unofficial market-data
-   endpoints.
-2. Confirmation of the proposed visual direction for the investment pages.
+1. Which unofficial endpoint WL-P0-009A uses, and whether it is off by default.
 3. WL-P0-007C's six cleanup questions and WL-P0-007J's rate-limit placement,
    which gate the import backend and therefore the MVP.
 4. Gate A approvals for the MVP tickets. The owner's wish for an MVP is not
