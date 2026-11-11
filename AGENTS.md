@@ -69,6 +69,16 @@ All planned and in-progress work is tracked in [tickets/](tickets/README.md), on
 Markdown file per ticket; [tickets/ROADMAP.md](tickets/ROADMAP.md) orders it. Several
 agents (any vendor or model) may work at once, one ticket each:
 
+- When the owner asks you to pick up work without naming a ticket, do this without
+  further prompting: `git fetch origin`, run `next` with your own tier (see the
+  [tier table](tickets/README.md#capability-tiers); if unsure, use `standard`), take
+  the first ticket listed, claim it and follow the
+  [quick start](tickets/README.md#quick-start-for-an-agent). If `next` lists nothing,
+  report that and what `list` shows as blocking; do not invent work.
+- Before a product, UX or analysis ticket, read
+  [tickets/PRODUCT_CONTEXT.md](tickets/PRODUCT_CONTEXT.md) for the owner's intent and
+  recorded decisions. A ticket with `review: independent` is reviewed by a different
+  agent session; if asked to review, check the diff against the ticket's criteria.
 - Find work with `python3 scripts/tickets.py next --tier <any|standard|frontier>`;
   claim it with `python3 scripts/tickets.py claim <ID> --agent <tool/model> --worktree`
   and work only in that ticket's worktree and branch. Never take a live claim or a
