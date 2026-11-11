@@ -89,41 +89,65 @@ edition, then read Overview, Holdings, Exposure, History, Bitcoin and the report
 reader, and download ODS, Markdown or PDF. Values are those saved at import; they
 do not refresh. This is the flow V2 replaces.
 
-## Where the tickets and the brief differ
+## Owner answers recorded on 2026-11-10
 
-| Brief | Current plan | Status |
+These are decisions. Tickets that contradict them are wrong and must be updated.
+
+| Topic | Answer | Consequence |
 |---|---|---|
-| "Register a new user" | Invite-only by default; an admin issues an invitation link | Proposed, owner to confirm |
-| "Parser Plugin Store" | Called "Data Sources" in WL-P0-011A and 011C, built as a short list | Naming and form to confirm |
-| Test an unofficial plugin by enabling it | Local developer instance; no code upload in the browser | Proposed for safety, owner to confirm |
-| Search any ETF, live | P1 (WL-P1-002); P0 covers held ETFs | Owner to confirm the priority |
-| More than CAD, USD, TWD | WL-P0-009 currently recommends none until requested | Conflicts with the brief; owner to name currencies |
-| Prices fetched automatically | Blocked on choosing a quote provider (WL-P0-009) | Owner decision |
-| One transactions table | Typed snapshot and event facts | Approved deviation |
+| Who uses an instance | One self-hosted instance serves multiple users | Tenant isolation and per-user data stay P0. How a new user gets an account is still open (below) |
+| Shipped SQLite application | Do not change it. All effort goes into V2; V1 was built before the use case was planned | UX-P1-008 to UX-P1-015 and UX-P2-006 to UX-P2-008 are superseded; their findings are criteria in the V2 tickets |
+| Display currencies | Convert to other popular currencies at the latest exchange rate | WL-P0-009 must deliver a currency list beyond CAD, USD and TWD; its "none until requested" recommendation is withdrawn |
+| Position missing from a newer broker snapshot | Treat as sold | Reconciliation and positions (WL-P0-007, WL-P0-008); see the refinement proposed below |
+| Value history | A daily line revalued with fetched prices, not only import dates | WL-P0-009 needs historical daily prices and FX; WL-P0-012A needs a daily series |
+| Price refresh | The app can refresh any stock, ETF or bond the user holds, close to real time, so values and charts are current | No hard-coded symbol list; WL-P0-009 |
+| Plugin store name and form | "Parser Plugin Store"; a simple list with enable switches is fine | WL-P0-011A, WL-P0-011C |
+| Who can add plugins | Only official plugins: written by the owner or contributors, reviewed and merged in the repository. Users cannot create, upload or enable their own | The brief's "test your own plugin in the app" is dropped. WL-P1-003 becomes a contributor guide and test harness for pull requests |
 
-## Open questions for the owner
+## Recommendations awaiting the owner's confirmation
 
-1. Who will use an instance: only you, your household, or strangers who
-   self-register? This decides invite-only versus open registration and how much
-   abuse protection the first release needs (WL-P0-019, WL-P0-007J).
-2. Should agents still fix the shipped SQLite application (UX-P1-008 to
-   UX-P1-015, UX-P2-006 to 008) while V2 is built, or put everything into V2?
-3. Stock and ETF prices: is a free, delayed source acceptable, or a paid licensed
-   one? How fresh must a price be (end of day, 15 minutes, near real time)?
-4. Which display currencies beyond CAD, USD and TWD?
-5. A Wealthsimple holdings file is a snapshot. When a newer file omits an account
-   or a position, is that position sold (zero), or unchanged since last seen?
-6. Value history: should the chart show only the dates you imported, or a daily
-   line revalued with fetched prices between imports?
-7. Bitcoin: if a file shows a sale or a withdrawal, ignore it (Option A) or warn?
-   Are crypto positions held at the broker, or Bitcoin ETFs, shown under Crypto,
-   under Stock/Bond, or both?
-8. Do you want cost and unrealized gain shown where the import provides cost, and
-   is broker cash part of Total?
-9. Is "Parser Plugin Store" the name you want on screen, and is a simple list
-   with enable switches acceptable while only two plugins exist?
-10. Is testing your own plugin in a separate local developer instance acceptable,
-    or must the running app accept an unofficial plugin?
-11. Is ETF search for funds you do not hold needed in the first V2 release?
-12. What does "professional" look like to you: name one or two products or
-    reports whose charts and tables you want this to resemble.
+The owner asked for a recommendation on each. None is approved yet.
+
+1. Price data. Free and truly real-time data for arbitrary stocks and ETFs, with
+   the right to serve it to several users, is not generally available. Proposal:
+   Bitcoin near real time from a public exchange API; FX from an official daily
+   source plus a free intraday source where one allows it; stocks, ETFs and bonds
+   through a provider adapter that the instance operator configures with their
+   own free-tier API key, typically 15 minutes delayed or last close. Every value
+   shows its "as of" time. A paid real-time provider can be plugged in later
+   without changing pages. Provider names and current terms must be researched
+   and verified before coding; none is asserted here.
+2. Missing positions. Treat a position as sold only when the newer file covers
+   its account. If a whole account is absent from the file, keep it unchanged and
+   ask at preview "Account X is not in this file: keep it, or mark it closed?",
+   because a file may be exported for one account only.
+3. Sales in an exchange file. The Bull Bitcoin export has an order-type column
+   (the synthetic example holds "Funding" and "Buy Bitcoin"), so it is not
+   buy-only by format, and other exchanges will report sales. Proposal: tracked
+   Bitcoin equals purchases minus sales reported by the same exchange file;
+   funding rows and withdrawals to the user's own wallet change nothing. Still no
+   opening balance, wallet check or income. A one-line notice appears when sales
+   were counted.
+4. Where an asset appears. By asset class, not by institution. A Bitcoin ETF is a
+   security: Stock/Bond, and "Bitcoin through ETF" in Exposures. Coins held
+   directly appear under Crypto, whether the record came from an exchange plugin
+   or a broker plugin. Total counts each holding once.
+5. Cost and gain. Show book cost and unrealized gain where the source provides
+   cost (the Wealthsimple holdings file does), computed as live market value
+   minus book cost. Where a source gives no cost, show a dash, never zero. For
+   Bitcoin, cost is the sum of purchase spending.
+6. Cash. Include broker cash in Total as its own "Cash" line, separate from
+   securities, so Total matches what the broker shows.
+7. ETF lookup. First release: full underlying holdings for every ETF the user
+   holds, refreshed automatically. Searching an ETF the user does not hold stays
+   P1 (WL-P1-002).
+8. Registration. Invite-only by default, with an administrator switch that opens
+   self-registration for instances meant for the public.
+
+## Still open
+
+1. How a new user gets an account on a multi-user instance: an invitation from
+   the administrator, open self-registration, or the switch proposed above.
+2. A visual reference for "professional": a product or report whose charts and
+   tables the three investment pages should resemble.
+3. WL-P0-019: build a thin end-to-end V2 slice first, or finish each layer fully.

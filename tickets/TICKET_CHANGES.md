@@ -6,6 +6,10 @@ until the owner releases them. No `gate_approval` was filled in. No done,
 claimed, in-progress or in-review ticket was edited (WL-P1-006, WL-P0-007,
 WL-P0-017 and WL-P0-018 are untouched).
 
+## Update after the owner's answers (same day)
+
+The owner decided to put all effort into V2 and not change the shipped application. The eleven shipped-application tickets (UX-P1-008 to UX-P1-015, UX-P2-006 to UX-P2-008) are now `superseded`; each names the V2 ticket that carries its finding. Batches 1 to 3 below no longer apply. The owner's answers and the recommendations still awaiting confirmation are in [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
+
 ## Counts
 
 | | P0 | P1 | P2 | Total |

@@ -65,7 +65,7 @@ Disposition: KEEP, IMPROVE, SIMPLIFY, CONSOLIDATE, COMPLETE, REMOVE, BUILD.
 | Shell, eight destinations, phone menu, not-found | Find everything | n/a | None | WL-P0-011A | BUILD |
 | First setup, registration by invitation, sign-in | Get an account | Merged (S, `web_v2/api.py:310-346`) | None | WL-P0-011B | BUILD |
 | Invitation management | Admin invites people | Merged (S, `:361-377`) | None | WL-P0-011B | BUILD |
-| Data Sources: enable, connections | Choose my institutions | Merged, explicit profile (S, `:412-437`) | None | WL-P0-011C | BUILD |
+| Parser Plugin Store: enable, connections | Choose my institutions | Merged, explicit profile (S, `:412-437`) | None | WL-P0-011C | BUILD |
 | Import Data: upload, review, confirm, history | Add data | SQL about half merged; no routes (D) | None | WL-P0-007E (routes), WL-P0-011D (UI) | BUILD |
 | Preferences: language, time zone, currency | Same settings on every device | Missing: `Me` has none (S, `schemas.py:109-112`) | None | WL-P0-011E | BUILD |
 | Profile and App Settings pages | Manage my account and defaults | Password change exists (S, `:346`) | None | WL-P0-011F | BUILD |
@@ -79,7 +79,7 @@ Disposition: KEEP, IMPROVE, SIMPLIFY, CONSOLIDATE, COMPLETE, REMOVE, BUILD.
 | Legacy report archive | Read my earlier reports after migration | Not defined | Reader exists in the shipped app | WL-P0-020 | BUILD |
 | ETF search for unheld funds | Look up any ETF | Missing | None | WL-P1-002 | BUILD later |
 | API source connection | Sync without CSV | Missing | None | WL-P1-001 | BUILD later |
-| Plugin authoring guide | Add an institution | SDK exists | Link from Data Sources | WL-P1-003, WL-P0-011C | BUILD later |
+| Plugin authoring guide | Add an institution | SDK exists | Link from the Parser Plugin Store | WL-P1-003, WL-P0-011C | BUILD later |
 | Drill-downs, targets, overlap | Deeper analysis | Missing | None | UX-P1-004, UX-P1-005, WL-P1-004 | BUILD later |
 | Page-level mobile layout, balance privacy | Use on a phone in public | n/a | None | UX-P2-003 | BUILD later |
 | Operations and account security UX | Back up from the app | Host commands | None | UX-P2-004 | BUILD later |
