@@ -26,6 +26,13 @@ class BuildFiles(StaticFiles):
         return await super().get_response(path, scope)
 
 
+def bundle_ready(root=None):
+    """True when a bundle has a regular index.html and a real assets/ directory."""
+    root = Path(root) if root is not None else DEFAULT_ROOT
+    index, assets = root / "index.html", root / "assets"
+    return index.is_file() and not index.is_symlink() and assets.is_dir() and not assets.is_symlink()
+
+
 def install_frontend(app, root=None, *, pages=("/", "/login"), licenses=True):
     """Mount a built bundle; return False, adding no route, when none is present."""
     root = Path(root) if root is not None else DEFAULT_ROOT
@@ -37,7 +44,8 @@ def install_frontend(app, root=None, *, pages=("/", "/login"), licenses=True):
     if licenses and (root / "licenses").is_dir():
         app.mount("/licenses", BuildFiles(directory=root / "licenses", follow_symlink=False), name="frontend-licenses")
 
-    def frontend(page=""):
+    # Async: the markup is in memory, so page reads never occupy the worker thread pool.
+    async def frontend(page=""):
         return HTMLResponse(markup)
     # Explicit SPA paths cannot fall back for /api, /data or arbitrary host files.
     for path in (*pages, "/app", "/app/{page:path}"):

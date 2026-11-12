@@ -184,12 +184,12 @@ class IdentityFrontendHttp(IdentityCase):
     """Same-origin browser bundle routes on the V2 boundary (WL-P0-011G)."""
     MARKUP='<!doctype html><div id="root">synthetic shell</div>'
 
-    def app_for(self,root):
+    def app_for(self,root,origin='http://localhost'):
         from fastapi.testclient import TestClient
         from kurafolio.web_v2.api import create_app
         from kurafolio.web_v2.config import Settings
-        app=create_app(Settings(self.configs['identity'],self.configs['runtime'],self.key,'http://localhost'),frontend_root=root)
-        client=TestClient(app,base_url='http://localhost')
+        app=create_app(Settings(self.configs['identity'],self.configs['runtime'],self.key,origin),frontend_root=root)
+        client=TestClient(app,base_url=origin)
         client.__enter__();self.addCleanup(client.__exit__,None,None,None)
         return app,client
 
@@ -213,6 +213,7 @@ class IdentityFrontendHttp(IdentityCase):
         self.assertEqual(response.headers['x-content-type-options'],'nosniff')
         self.assertEqual(response.headers['referrer-policy'],'no-referrer')
         self.assertEqual(response.headers['x-frame-options'],'DENY')
+        self.assertRegex(response.headers['x-request-id'],r'\A[0-9a-f]{32}\Z')
 
     def assert_refused(self,response,status,code):
         self.assertEqual((response.status_code,response.json()['error']['code']),(status,code),response.text)
@@ -225,6 +226,7 @@ class IdentityFrontendHttp(IdentityCase):
             self.assertEqual(response.status_code,200,path);self.assertEqual(response.text,self.MARKUP)
             self.assertTrue(response.headers['content-type'].startswith('text/html'))
             self.assert_app_headers(response);self.assertNotIn('set-cookie',response.headers)
+            self.assertNotIn('strict-transport-security',response.headers)
         asset=client.get('/assets/app-1a2b3c.js')
         self.assertEqual((asset.status_code,asset.text),(200,'export const synthetic = true;'))
         self.assert_app_headers(asset);self.assertNotIn('set-cookie',asset.headers)
@@ -243,6 +245,11 @@ class IdentityFrontendHttp(IdentityCase):
         self.assertEqual(api.headers['content-security-policy'],"default-src 'none'; frame-ancestors 'none'")
         self.assert_refused(client.get('/api/v2/me'),401,'authentication_required')
         self.assertNotIn('/assets',app.openapi()['paths']);self.assertNotIn('/',app.openapi()['paths'])
+        _,secure=self.app_for(self.bundle(),'https://localhost')
+        for path in ['/','/assets/app-1a2b3c.js']:
+            response=secure.get(path)
+            self.assertEqual(response.status_code,200,path);self.assert_app_headers(response)
+            self.assertEqual(response.headers['strict-transport-security'],'max-age=31536000')
 
     def test_raw_traversal_paths_never_leave_the_asset_directory(self):
         app,client=self.app_for(self.bundle())
@@ -261,14 +268,17 @@ class IdentityFrontendHttp(IdentityCase):
     def test_missing_bundle_keeps_api_and_answers_html_routes_with_json_404(self):
         import tempfile
         holder=tempfile.TemporaryDirectory();self.addCleanup(holder.cleanup)
-        app,client=self.app_for(Path(holder.name)/'absent')
-        for path in ['/','/login','/setup','/register','/app','/app/investments','/assets/app.js']:
-            response=client.get(path)
-            self.assert_refused(response,404,'not_found')
-            self.assertTrue(response.headers['content-type'].startswith('application/json'))
-        self.assertEqual(client.request('POST','/',headers={'Origin':'http://localhost'}).status_code,405)
-        self.assertEqual(client.get('/healthz').json(),{'alive':True})
-        self.assertEqual(client.get('/api/v2/auth/csrf').status_code,200)
+        partial=Path(holder.name).resolve()/'partial';partial.mkdir()
+        (partial/'index.html').write_text(self.MARKUP)
+        for root in [Path(holder.name)/'absent',partial]:
+            app,client=self.app_for(root)
+            for path in ['/','/login','/setup','/register','/app','/app/investments','/assets/app.js']:
+                response=client.get(path)
+                self.assert_refused(response,404,'not_found')
+                self.assertTrue(response.headers['content-type'].startswith('application/json'))
+            self.assert_refused(client.request('POST','/',headers={'Origin':'http://localhost'}),404,'not_found')
+            self.assertEqual(client.get('/healthz').json(),{'alive':True})
+            self.assertEqual(client.get('/api/v2/auth/csrf').status_code,200)
 
     def test_bundle_reads_do_not_consume_identity_admission(self):
         app,client=self.app_for(self.bundle())

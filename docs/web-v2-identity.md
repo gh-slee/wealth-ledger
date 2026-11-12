@@ -151,9 +151,13 @@ Web App does. It reads `frontend/dist` from the code root. `GET` on `/`, `/login
 dotfiles, symlinks and nested paths return 404. These reads need no session, create
 no cookie and skip the eight-request admission limit. They carry the application
 content-security policy and the same `no-store` cache headers as SQLite `/`. Other
-methods on these paths return 405. Host checks still apply. Without a built bundle
-the API starts normally, and the page and asset paths return the JSON `not_found`
-error. The `licenses/` directory is not served.
+methods on these paths, including `HEAD`, return 405 with `Allow: GET`. Host checks
+still apply. Like the SQLite app, these responses also carry `X-Request-ID`, and
+`Strict-Transport-Security` when the origin is HTTPS. Without a built bundle, or
+with one that lacks `assets/`, the API starts normally and every request to the page
+and asset paths returns the JSON `not_found` error. Install the code under a path
+with no symlinked parent folder: the asset guard refuses files below any symlink,
+so assets would return 404 while pages still load. The `licenses/` directory is not served.
 
 Cookies are HttpOnly, SameSite=Lax, Path=/, no Domain; HTTPS uses Secure and the
 `__Host-` prefix. Anonymous lifetime is 600 seconds; authenticated idle/absolute

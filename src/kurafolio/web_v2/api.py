@@ -1,4 +1,4 @@
-"""Opt-in identity API, isolated from legacy routes, workspaces and static files."""
+"""Opt-in identity API, isolated from legacy routes and workspaces; serves only the built browser bundle."""
 from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
@@ -19,7 +19,7 @@ from . import schemas as s
 from kurafolio.persistence.identity import IdentityError
 from kurafolio.data_sources.lifecycle_v1 import SourceError
 from kurafolio.domain.canonical_v1 import DomainBatchV1
-from kurafolio.web.frontend import APP_CONTENT_SECURITY_POLICY, install_frontend
+from kurafolio.web.frontend import APP_CONTENT_SECURITY_POLICY, bundle_ready, install_frontend
 
 SECURITY_HEADERS = {'Cache-Control':'no-store, private', 'Pragma':'no-cache',
  'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer',
@@ -114,6 +114,12 @@ class Boundary:
             if message['type']=='http.response.start':
                 headers=[(k,v) for k,v in message.get('headers',[]) if k.lower() not in {n.lower().encode() for n in security}]
                 headers.extend((k.encode(),v.encode()) for k,v in security.items())
+                if frontend_path:
+                    # Bundle responses mirror the SQLite application's request ID and HSTS headers.
+                    headers=[(k,v) for k,v in headers if k.lower() not in {b'x-request-id',b'strict-transport-security'}]
+                    headers.append((b'x-request-id',request_id.encode()))
+                    if self.settings.secure:
+                        headers.append((b'strict-transport-security',b'max-age=31536000'))
                 message={**message,'headers':headers}
             await send(message)
 
@@ -163,12 +169,12 @@ class Boundary:
             raise RequestError('invalid_headers',400)
         path,method=scope['path'],scope['method']
         if FRONTEND.fullmatch(path):
+            if not self.frontend:
+                raise RequestError('not_found',404)
             if method!='GET':
                 response=error_response(RequestError('method_not_allowed',405),request_id,self.settings)
                 response.headers['Allow']='GET'
                 return await response(scope,receive,send)
-            if not self.frontend:
-                raise RequestError('not_found',404)
             # No cookie is resolved and no session is created for the bundle.
             scope.setdefault('state',{}).update(request_id=request_id,language=scope.get('identity_language','en-CA'))
             return await self.app(scope,receive,send)
@@ -294,7 +300,8 @@ def create_app(settings, *, frontend_root=None):
     app=FastAPI(title='Kurafolio V2 identity API',version='2',docs_url=None,redoc_url=None,
                 openapi_url=None,lifespan=lifespan,redirect_slashes=False)
     app.state.auth=auth
-    frontend=install_frontend(app,frontend_root,pages=FRONTEND_PAGES,licenses=False)
+    # A partial bundle without assets/ is treated as absent so the API still starts.
+    frontend=bundle_ready(frontend_root) and install_frontend(app,frontend_root,pages=FRONTEND_PAGES,licenses=False)
     app.add_middleware(Boundary,settings=settings,auth=auth,frontend=frontend)
     errors={status:{'model':s.Error} for status in [400,401,403,404,405,408,409,413,415,422,429,500,503]}
 
@@ -314,9 +321,9 @@ def create_app(settings, *, frontend_root=None):
 
     @app.exception_handler(StarletteHTTPException)
     async def static_error(request,error):
-        # Bundle misses (unknown, dot, map or symlinked assets) use the bounded envelope.
-        codes={404:'not_found',405:'method_not_allowed'}
-        failure=RequestError(codes[error.status_code],error.status_code) if error.status_code in codes else RequestError('internal_error',500)
+        # Bundle misses (unknown, dot, map, symlinked or unreadable assets) use the bounded envelope.
+        codes={401:'not_found',403:'not_found',404:'not_found',405:'method_not_allowed'}
+        failure=RequestError(codes[error.status_code],405 if error.status_code==405 else 404) if error.status_code in codes else RequestError('internal_error',500)
         return error_response(failure,request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
 
     @app.exception_handler(Exception)
