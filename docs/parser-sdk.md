@@ -106,7 +106,8 @@ Import dataclasses from `kurafolio.source_protocol`; do not vendor copies.
 4. Declare partial/complete scope from actual evidence. Row count does not prove
    completeness. Do not infer contributions from purchases or balances.
 5. Return `AdapterRegistration(ProviderInfo(...), adapter)` from a no-argument factory.
-6. Publish its metadata under entry-point group `wealth_ledger.source_adapters`.
+6. Publish its metadata under entry-point group `wealth_ledger.source_adapters`. The group keeps the project's
+   former name; plugin code imports `kurafolio` and depends on the `kurafolio` distribution.
    Package publication is an independent maintainer action, not performed by the tool.
 
 `check_contract(adapter, raw)` validates detection/metadata/normalization and exact

@@ -257,6 +257,14 @@ create_pr = true
         self.run_git('commit', '-m', 'Synthetic pre-rename secret')
         self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
 
+    def test_old_path_beside_its_renamed_form_fails_history(self):
+        self.assertEqual(guard.current_name('src/wealth_ledger/a.py', {'src/kurafolio/b.py'}), 'src/wealth_ledger/a.py')
+        self.write('src/kurafolio/current.py', '"""Synthetic module."""\n')
+        self.write('src/wealth_ledger/stale.py', '"""Synthetic module."""\n')
+        self.run_git('add', '--', 'src/kurafolio/current.py', 'src/wealth_ledger/stale.py')
+        self.run_git('commit', '-m', 'Synthetic stale reintroduction')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
+
     def test_exact_role_skills_are_public_and_not_ignored(self):
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
         for relative in sorted(guard.PUBLIC_ROLE_SKILLS):

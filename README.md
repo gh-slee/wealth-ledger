@@ -121,14 +121,14 @@ Prebuilt multi-architecture images and a pull-only Compose recipe are planned. C
 
 The project was renamed from Wealth Ledger to Kurafolio. The old names no longer work, so an existing instance needs these changes once. Your data, saved reports and their checksums are not modified.
 
-1. Confirm or discard any open import preview, then make a [private backup](docs/web-backups.md) with the old version. As with every upgrade, a backup restores only into the application version that created it.
+1. Let queued and running jobs finish, confirm or discard any open import preview, then make a [private backup](docs/web-backups.md) with the old version. As with every upgrade, a backup restores only into the application version that created it.
 2. Stop the old services from the old checkout. Do not pass `-v`; that would delete the volume.
 
    ```bash
    docker compose down
    ```
 
-3. Update the checkout. If you keep it in a folder named `wealth-ledger`, you may rename the folder; Compose now uses the fixed project name `kurafolio`, so the folder name no longer matters.
+3. Update the checkout. Compose now uses the fixed project name `kurafolio`, so the checkout folder name no longer matters and you may rename a `wealth-ledger` folder. If you set `COMPOSE_PROJECT_NAME` or pass `-p`, that name still wins; remove it or keep using it consistently below.
 4. Rename these variables wherever you set them (shell profile, `.env` file, service manager or CI):
 
    | Old | New |
@@ -140,26 +140,38 @@ The project was renamed from Wealth Ledger to Kurafolio. The old names no longer
    | `WEALTH_LEDGER_POSTGRES` (build argument) | `KURAFOLIO_POSTGRES` |
 
    Other `WEALTH_LEDGER_*` test switches follow the same pattern.
-5. Build the new image. It is tagged `kurafolio:local` instead of `wealth-ledger:local`.
+5. Build the new image and create the new, empty volume. The image is tagged `kurafolio:local` instead of `wealth-ledger:local`.
 
    ```bash
    python3 scripts/docker_context.py --output work/docker-context
    docker compose build web
    docker compose up --no-start
+   docker volume ls
    ```
 
-6. Copy the data into the new volume. The old Compose project used the checkout folder name, so the old volume is usually `wealth-ledger_wealth-data`; `docker volume ls` shows the exact name. The new volume is `kurafolio_wealth-data`, created empty by the previous step. The copy runs as root only to preserve file ownership and has no network.
+6. Copy the data. The old Compose project used the checkout folder name, so the old volume is usually `wealth-ledger_wealth-data`. The new volume is `kurafolio_wealth-data`, or `<your project name>_wealth-data` if you kept a custom project name; `docker volume ls` shows both. The copy refuses to run unless the new volume is empty. It runs as root only to preserve file ownership, without network, and mounts the old volume read-only.
 
    ```bash
-   docker run --rm --user 0 --network none --entrypoint cp \
+   docker run --rm --user 0 --network none --entrypoint sh \
      -v wealth-ledger_wealth-data:/from:ro -v kurafolio_wealth-data:/to \
-     kurafolio:local -a /from/. /to/
+     kurafolio:local -c 'if [ -n "$(ls -A /to)" ]; then echo "target volume is not empty" >&2; exit 1; fi; cp -a /from/. /to/'
+   ```
+
+   If it reports that the target is not empty (for example after starting the new services too early), run `docker compose down`, remove only the new volume with `docker volume rm kurafolio_wealth-data`, and repeat steps 5 and 6.
+7. Upgrade the instance metadata and start the services, as in the [upgrade runbook](docs/web-release-acceptance.md#upgrade-with-a-recoverable-rollback):
+
+   ```bash
+   docker compose run --rm --no-deps -T web upgrade
    docker compose up -d
    ```
 
-7. Sign in and check your portfolios and reports. Keep the old volume and image until you are satisfied, then remove them yourself with `docker volume rm wealth-ledger_wealth-data` and `docker image rm wealth-ledger:local`.
+8. Sign in and check your portfolios, reports and job history. Keep the old volume and image until you are satisfied, then remove them yourself with `docker volume rm wealth-ledger_wealth-data` and `docker image rm wealth-ledger:local`.
 
-CLI and host installations: run `python -m pip uninstall wealth-ledger`, reinstall from the updated checkout, and use the new console scripts `kurafolio-source-parsers`, `kurafolio-source-ingestion` and `kurafolio-source-reports`. Python imports change from `wealth_ledger` to `kurafolio`. Installed parser plugins keep working: the plugin entry-point group stays `wealth_ledger.source_adapters`. The browser forgets its saved light or dark theme once.
+CLI and host installations: run `python -m pip uninstall wealth-ledger`, reinstall from the updated checkout, and use the new console scripts `kurafolio-source-parsers`, `kurafolio-source-ingestion` and `kurafolio-source-reports`. Python imports change from `wealth_ledger` to `kurafolio`.
+
+Parser plugins built for Wealth Ledger must be rebuilt: change their imports from `wealth_ledger` to `kurafolio` and their dependency from `wealth-ledger` to `kurafolio`, then reinstall them. Only the entry-point group keeps its old name, `wealth_ledger.source_adapters`, so plugin metadata does not change. See the [parser SDK guide](docs/parser-sdk.md).
+
+The browser forgets its saved light or dark theme once.
 
 </details>
 

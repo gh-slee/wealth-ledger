@@ -69,6 +69,8 @@ not a promise against hardware corruption. Keep independent backups.
    frozen artifact downloads. A backup that has not restored is unproven.
 3. Stop both services, leaving the volume intact: `docker compose stop web worker`.
    Keep the same Compose project name and persistent volume for an in-place upgrade.
+   The one exception is the move from Wealth Ledger to Kurafolio, which changes the
+   project name; follow the [README upgrade note](../README.md#quick-start) once.
 4. Select/review the new source version. Prepare a fresh source-only build context;
    existing contexts are never overwritten. For example, after choosing a new suffix:
 

@@ -20,8 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from docker_context import prepare_context
 
-# Last main commit before the rename (merge of PR 39).
+# A main commit from before the rename (merge of PR 39); later pre-rename commits only
+# changed ticket files. Override with KURAFOLIO_RENAME_FROM_REF to test another release.
 BEFORE_REF = os.environ.get("KURAFOLIO_RENAME_FROM_REF", "324d8b47ae5e10ca04e46ceac33eadc4f0cbe6e4")
+# The README note's guarded copy, run verbatim below and checked against README.md.
+COPY_SCRIPT = 'if [ -n "$(ls -A /to)" ]; then echo "target volume is not empty" >&2; exit 1; fi; cp -a /from/. /to/'
 ORIGIN = "http://localhost:8000"
 HARDENING = ["--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
              "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=256m,uid=10001,gid=10001,mode=0700"]
@@ -46,20 +49,23 @@ for _ in range(150):
     except OSError: time.sleep(0.2)
 csrf = call('/api/v1/auth/csrf')['csrf_token']
 csrf = call('/api/v1/auth/login', {'username': 'owner', 'password': args['supplied']}, csrf)['csrf_token']
-if args['mode'] == 'before':
-    portfolio = call('/api/v1/portfolios', {'name': 'Synthetic rename portfolio'}, csrf)['id']
-    call(f'/api/v1/portfolios/{portfolio}/settings', {'locale': 'zh-TW', 'btc_cost_policy': 'actual_only'}, csrf, 'PUT')
+def completed(portfolio, job, status):
+    for _ in range(240):
+        current = call(f'/api/v1/portfolios/{portfolio}/jobs/' + job['id'])
+        if current['status'] == status: return current
+        assert current['status'] not in {'blocked', 'failed', 'needs_review', 'report_failed'}, current
+        time.sleep(0.5)
+    raise AssertionError('job did not complete')
+def import_examples(name):
+    portfolio = call('/api/v1/portfolios', {'name': name}, csrf)['id']
     uploads = [call(f'/api/v1/portfolios/{portfolio}/uploads?kind={kind}&filename=source.csv', raw=base64.b64decode(data),
                     csrf=csrf, ctype='application/octet-stream')['id'] for kind, data in args['files']]
-    def completed(job, status):
-        for _ in range(240):
-            current = call(f'/api/v1/portfolios/{portfolio}/jobs/' + job['id'])
-            if current['status'] == status: return current
-            assert current['status'] not in {'blocked', 'failed', 'needs_review', 'report_failed'}, current
-            time.sleep(0.5)
-        raise AssertionError('job did not complete')
-    preview = completed(call(f'/api/v1/portfolios/{portfolio}/previews', {'upload_ids': uploads}, csrf, idem=True), 'ready')
-    completed(call(f'/api/v1/portfolios/{portfolio}/jobs', {'preview_id': preview['id']}, csrf, idem=True), 'published')
+    preview = completed(portfolio, call(f'/api/v1/portfolios/{portfolio}/previews', {'upload_ids': uploads}, csrf, idem=True), 'ready')
+    job = completed(portfolio, call(f'/api/v1/portfolios/{portfolio}/jobs', {'preview_id': preview['id']}, csrf, idem=True), 'published')
+    return portfolio, job
+if args['mode'] == 'before':
+    portfolio, _ = import_examples('Synthetic rename portfolio')
+    call(f'/api/v1/portfolios/{portfolio}/settings', {'locale': 'zh-TW', 'btc_cost_policy': 'actual_only'}, csrf, 'PUT')
 else:
     portfolio = args['portfolio']
 import hashlib
@@ -72,6 +78,9 @@ state['report_views'] = [call(f'/api/v1/portfolios/{portfolio}/reports/' + item[
 # The server re-hashes every artifact against its recorded SHA-256 before serving it.
 state['downloads'] = {item['id']: hashlib.sha256(call(f'/api/v1/portfolios/{portfolio}/artifacts/' + item['id'], binary=True)).hexdigest()
                       for item in state['artifacts']}
+if args['mode'] == 'after':
+    # A new job in a separate synthetic portfolio proves the renamed worker queue runs.
+    state = {'state': state, 'new_job': import_examples('Synthetic post-upgrade portfolio')[1]['status']}
 print(json.dumps(state, sort_keys=True))
 """
 
@@ -93,8 +102,9 @@ class RenameUpgradeTests(unittest.TestCase):
         docker("info")
         token = "kurafolio-rename-test-" + uuid.uuid4().hex
         old_image, new_image = token + ":before", token + ":after"
-        old_volume, new_volume = token + "-before-data", token + "-after-data"
-        containers = [token + "-before-web", token + "-before-worker", token + "-after-web"]
+        old_volume = token + "-before-data"
+        containers = [token + "-before-web", token + "-before-worker"]
+        compose_created = False
         supplied = secrets.token_urlsafe(32)
         files = [[kind, base64.b64encode((ROOT / "examples/data" / name).read_bytes()).decode()]
                  for kind, name in (("csv", "wealthsimple-holdings.csv"), ("fx", "fx.json"))]
@@ -126,22 +136,72 @@ class RenameUpgradeTests(unittest.TestCase):
             self.assertTrue(before["artifacts"])
             docker("rm", "--force", containers[0], containers[1])
 
-            # After: exactly the README note's copy, then the new image with new variables.
-            docker("volume", "create", new_volume)
-            docker("run", "--rm", "--user", "0", "--network", "none", "--entrypoint", "cp",
-                   "-v", old_volume + ":/from:ro", "-v", new_volume + ":/to", new_image, "-a", "/from/.", "/to/")
-            docker("run", "--detach", "--name", containers[2], *HARDENING,
-                   "--env", "KURAFOLIO_PUBLIC_ORIGIN=" + ORIGIN, "-v", new_volume + ":/data", new_image)
-            after = json.loads(docker("exec", "-i", containers[2], "python", "-c", CLIENT,
-                                      input=json.dumps({"mode": "after", "supplied": supplied,
-                                                        "portfolio": before["portfolio"]}),
-                                      text=True).stdout)
-            self.assertEqual(after, before)
-            self.assertEqual(after["downloads"], {item["id"]: item["sha256"] for item in after["artifacts"]})
+            # After: the README note's steps 5-7 through Compose, under a unique project
+            # name so the owner's real `kurafolio` project and its volume are never touched.
+            readme = (ROOT / "README.md").read_text()
+            self.assertIn(COPY_SCRIPT, readme)
+            self.assertIn("docker compose run --rm --no-deps -T web upgrade", readme)
+            clean_env = {k: v for k, v in os.environ.items()
+                         if k != "COMPOSE_PROJECT_NAME" and not k.startswith(("KURAFOLIO_", "WEALTH_LEDGER_"))}
+            default = json.loads(subprocess.run(["docker", "compose", "--file", str(ROOT / "compose.yaml"), "config",
+                                                 "--format", "json"], check=True, capture_output=True, text=True,
+                                                env=clean_env).stdout)
+            self.assertEqual(default["name"], "kurafolio")
+            self.assertEqual(default["volumes"]["wealth-data"]["name"], "kurafolio_wealth-data")
+            self.assertEqual(default["services"]["web"]["image"], "kurafolio:local")
+            model = json.loads(subprocess.run(["docker", "compose", "--project-name", token, "--file",
+                                               str(ROOT / "compose.yaml"), "config", "--format", "json"],
+                                              check=True, capture_output=True, text=True, env=clean_env).stdout)
+            new_volume = model["volumes"]["wealth-data"]["name"]
+            self.assertEqual(new_volume, token + "_wealth-data")
+            for name, service in model["services"].items():
+                service["image"] = new_image  # Built above from this checkout.
+                service.pop("build", None)
+                service.pop("ports", None)    # The client runs inside the container.
+                service["restart"] = "no"
+                self.assertEqual(service["environment"]["KURAFOLIO_PUBLIC_ORIGIN"], ORIGIN)
+            with tempfile.TemporaryDirectory(prefix="kurafolio-rename-compose-") as temporary:
+                config = Path(temporary) / "compose.json"
+                config.write_text(json.dumps(model))
+                command = ["docker", "compose", "--project-name", token, "--file", str(config)]
+
+                def compose(*arguments, **kwargs):
+                    kwargs.setdefault("capture_output", True)
+                    result = subprocess.run(command + list(arguments), env=clean_env, **kwargs)
+                    if result.returncode:
+                        raise AssertionError(f"compose {arguments[0]} failed: {result.stderr}")
+                    return result
+
+                compose_created = True
+                compose("up", "--no-start")
+                copy = ["run", "--rm", "--user", "0", "--network", "none", "--entrypoint", "sh",
+                        "-v", old_volume + ":/from:ro", "-v", new_volume + ":/to", new_image, "-c", COPY_SCRIPT]
+                docker(*copy)
+                refused = docker(*copy, check=False, text=True)  # A second copy must refuse to merge.
+                self.assertNotEqual(refused.returncode, 0)
+                self.assertIn("target volume is not empty", refused.stderr)
+                compose("run", "--rm", "--no-deps", "-T", "web", "upgrade")
+                compose("up", "--detach", "--wait", "--wait-timeout", "60")
+                after = json.loads(compose("exec", "-T", "web", "python", "-c", CLIENT, text=True,
+                                           input=json.dumps({"mode": "after", "supplied": supplied, "files": files,
+                                                             "portfolio": before["portfolio"]})).stdout)
+                compose("down", "--volumes")  # Removes only this test project's volume.
+                compose_created = False
+            self.assertEqual(after["state"], before)
+            self.assertEqual(after["state"]["downloads"],
+                             {item["id"]: item["sha256"] for item in after["state"]["artifacts"]})
+            self.assertEqual(after["new_job"], "published")
         finally:
             # Every name here was generated by this test; no instance resource is touched.
             docker("rm", "--force", *containers, check=False)
-            docker("volume", "rm", old_volume, new_volume, check=False)
+            if compose_created:
+                label = "label=com.docker.compose.project=" + token
+                for listing, removal in ((("container", "ls", "--all"), ("container", "rm", "--force")),
+                                         (("volume", "ls"), ("volume", "rm", "--force"))):
+                    ids = docker(*listing, "--quiet", "--filter", label, check=False, text=True).stdout.split()
+                    if ids:
+                        docker(*removal, *ids, check=False)
+            docker("volume", "rm", old_volume, check=False)
             docker("image", "rm", old_image, new_image, check=False)
 
 

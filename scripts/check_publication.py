@@ -363,8 +363,10 @@ def scan_staged(root: Path) -> dict:
 
 
 # Commits made before the Kurafolio rename (WL-P0-024) hold the same reviewed files
-# under their old paths. History scans judge such a path by its current name; the
-# worktree and index must use the current names only. File contents are always checked.
+# under their old paths. History scans judge such a path by its current name, but
+# only in a commit that has nothing at the new location yet, so a later commit that
+# reintroduces an old path still fails. The worktree and index must use the current
+# names only. File contents are always checked.
 RENAMED_PREFIXES = (
     ('src/wealth_ledger/', 'src/kurafolio/'),
     ('.agents/skills/wealthledger-', '.agents/skills/kurafolio-'),
@@ -372,9 +374,11 @@ RENAMED_PREFIXES = (
 )
 
 
-def current_name(path: str) -> str:
+def current_name(path: str, tree_paths: frozenset[str] | set[str] = frozenset()) -> str:
     for old, new in RENAMED_PREFIXES:
         if path.startswith(old):
+            if any(other.startswith(new) for other in tree_paths):
+                return path  # Renamed form present: the old path is not pre-rename history.
             return new + path[len(old):]
     return path
 
@@ -391,13 +395,16 @@ def scan_history(root: Path, *, base: str | None = None, head: str = 'HEAD', all
     commits = git(root, 'rev-list', *revisions).decode().splitlines()
     seen: set[tuple[str, str, str]] = set()
     for commit in commits:
-        for mode, oid, path in tree_entries(root, commit):
-            key = (mode, oid, path)
+        entries = tree_entries(root, commit)
+        tree_paths = {path for _, _, path in entries}
+        for mode, oid, path in entries:
+            allowlist_path = current_name(path, tree_paths)
+            key = (mode, oid, path, allowlist_path)
             if key in seen:
                 continue
             seen.add(key)
             data = git(root, 'cat-file', 'blob', oid) if mode in {'100644', '100755', '120000'} else None
-            record(result, path, data, origin=commit, mode=mode, allowlist_path=current_name(path))
+            record(result, path, data, origin=commit, mode=mode, allowlist_path=allowlist_path)
         emails = git(root, 'show', '-s', '--format=%ae%n%ce', commit).decode().splitlines()
         # GitHub web merges use its public system noreply as committer.
         # Authors and locally created commits still require users.noreply identities.

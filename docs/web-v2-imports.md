@@ -38,7 +38,9 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   the complete READY review to its Plan. Recomputed hashes alone cannot establish
   truthful disclosure. Current database authority must still be checked at commit.
 - [Transport helpers](../src/kurafolio/ingestion/runner_client.py) check bounded
-  frames and exact TLS peer identity. The [raw receiver](../src/kurafolio/web_v2/imports.py)
+  frames and exact TLS peer identity. A peer certificate carries exactly one URI
+  SAN, `urn:wealth-ledger:instance:<instance id>:peer:<api|worker|launcher>`; it
+  keeps the project's former name so certificates already issued stay valid. The [raw receiver](../src/kurafolio/web_v2/imports.py)
   enforces Content-Length and receive deadlines without a body spool. It must be
   called only after authentication, CSRF and shared database capacity admission.
 - [Storage fragments](../src/kurafolio/persistence/ingestion_schema.py) define
