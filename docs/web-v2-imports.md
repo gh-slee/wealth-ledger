@@ -200,8 +200,9 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   generation step, the next decision revision is appended, live prepare leases are
   cancelled, and one DECISIONS receipt and DECIDED audit row are stored. An earlier
   READY preview can then no longer be confirmed.
-  `read_set_v1` and `read_receipt_v1` authenticate first and read one ID in the
-  caller's scope without locks or writes. A set is reported in its stored state.
+  `read_set_v1` and `read_receipt_v1` acquire the authentication locks before
+  reading one ID in the caller's scope. The lookup takes no set or receipt row
+  lock and makes no writes. A set is reported in its stored state.
   An ACCEPT receipt is returned exactly as stored. A control receipt (CANCEL or
   DECISIONS) is rebuilt as the history DTO from its row and audit entry with zero
   fact counts. Receipts from earlier restore realms stay readable but grant
