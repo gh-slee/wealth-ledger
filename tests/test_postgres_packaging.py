@@ -26,7 +26,7 @@ class PostgresPackagingTests(unittest.TestCase):
         self.assertIn('requirements-pg.lock',FIXED)
         self.assertNotIn('requirements-pg-test.lock',FIXED)
         self.assertNotIn('scripts/postgres.py',FIXED)
-        text=(ROOT/'Dockerfile').read_text();self.assertIn('ARG WEALTH_LEDGER_POSTGRES=0',text)
+        text=(ROOT/'Dockerfile').read_text();self.assertIn('ARG KURAFOLIO_POSTGRES=0',text)
         self.assertIn('ENTRYPOINT ["python", "/app/scripts/web.py"]',text)
         source=(ROOT/'src/kurafolio/persistence/__init__.py').read_text();self.assertEqual(len(ast.parse(source).body),1)
         compose=(ROOT/'compose.pg-foundation.yaml').read_text();self.assertNotIn('ports:',compose);self.assertNotIn('/data',compose)
@@ -36,7 +36,7 @@ from test_postgres_config import PostgresCase
 import os
 
 
-@unittest.skipUnless(os.environ.get('WEALTH_LEDGER_PG_RUNTIME_IMAGE'),'Explicit optional PG runtime image acceptance')
+@unittest.skipUnless(os.environ.get('KURAFOLIO_PG_RUNTIME_IMAGE'),'Explicit optional PG runtime image acceptance')
 class RuntimeImageTests(PostgresCase):
     def test_nonroot_optional_image_uses_only_runtime_role_and_exact_candidate(self):
         import subprocess
@@ -57,6 +57,6 @@ try:
 finally:database.close()
 print('optional_pg_runtime_roundtrip_ok')
 """
-        result=subprocess.run(['docker','run','--rm','-i','--network',self.settings['network'],'--entrypoint','python',os.environ['WEALTH_LEDGER_PG_RUNTIME_IMAGE'],'-c',program],input=json.dumps(payload).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60)
+        result=subprocess.run(['docker','run','--rm','-i','--network',self.settings['network'],'--entrypoint','python',os.environ['KURAFOLIO_PG_RUNTIME_IMAGE'],'-c',program],input=json.dumps(payload).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60)
         self.assertEqual(result.returncode,0,result.stderr.decode()[-2000:])
         self.assertEqual(result.stdout.strip(),b'optional_pg_runtime_roundtrip_ok')

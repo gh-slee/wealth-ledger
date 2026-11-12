@@ -106,15 +106,15 @@ class SourceLifecycleTests(SourceCase):
             verify_inventory(conn,runtime_role=self.config['runtime_role'],gateway_role=self.config['identity_role'])
 
 
-CONTENT_ENABLED=bool(os.environ.get('WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE') and os.environ.get('WEALTH_LEDGER_SOURCE_ARTIFACT_FILE'))
+CONTENT_ENABLED=bool(os.environ.get('KURAFOLIO_SOURCE_RUNTIME_IMAGE') and os.environ.get('KURAFOLIO_SOURCE_ARTIFACT_FILE'))
 
 
 def installation_fixture():
     from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
     from kurafolio.data_sources.catalog_v1 import verify_installation
-    image=os.environ['WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE']
+    image=os.environ['KURAFOLIO_SOURCE_RUNTIME_IMAGE']
     if not re.fullmatch(r'sha256:[0-9a-f]{64}',image):raise RuntimeError('Immutable synthetic test source image required')
-    artifact=Path(os.environ['WEALTH_LEDGER_SOURCE_ARTIFACT_FILE']).read_bytes()
+    artifact=Path(os.environ['KURAFOLIO_SOURCE_ARTIFACT_FILE']).read_bytes()
     metadata=json.loads(artifact)
     descriptors=builtin_descriptors(package_distribution=metadata['package_distribution'],package_version=metadata['package_version'],
         artifact_sha256=hashlib.sha256(artifact).hexdigest(),execution_image_digest=image[7:],entry_point_target='kurafolio.source_builtin:registrations')
@@ -239,7 +239,7 @@ class ConfiguredSourceLifecycleTests(ConfiguredSourceCase):
         # A new reviewed metadata descriptor is a distinct installation even when
         # the same immutable artifact/image supplies its synthetic code contents.
         new=replace(old,asset_categories=tuple(sorted(set(old.asset_categories)|{'UNSUPPORTED'})))
-        artifact=Path(os.environ['WEALTH_LEDGER_SOURCE_ARTIFACT_FILE']).read_bytes()
+        artifact=Path(os.environ['KURAFOLIO_SOURCE_ARTIFACT_FILE']).read_bytes()
         proof=verify_installation(new,artifact,image_root='/app/src');new_id=installation_id(new)
         entries={x.installation_id:x for x in self.catalog.availability};entries[old_id]=Availability(old_id,'RETIRED','2');entries[new_id]=Availability(new_id,'ACTIVE','1')
         catalog=replace(self.catalog,catalog_revision='2',installations=tuple(sorted(self.catalog.installations+(new,),key=installation_id)),availability=tuple(entries[key] for key in sorted(entries)))
@@ -287,7 +287,7 @@ class SourceOperatorTests(SourceCase):
             new_private(secret,self.configs['migration'].conninfo.encode());new_private(key,self.key)
             new_private(empty,canonical(primitive(self.catalog)));catalog,_=installation_fixture();new_private(full,canonical(primitive(catalog)))
             new_private(proof,canonical({'format':'source-proof-input-v1','installations':[
-                {'installation_id':installation_id(value),'artifact_file':str(Path(os.environ['WEALTH_LEDGER_SOURCE_ARTIFACT_FILE']).resolve()),'image_root':'/app/src'} for value in catalog.installations]}))
+                {'installation_id':installation_id(value),'artifact_file':str(Path(os.environ['KURAFOLIO_SOURCE_ARTIFACT_FILE']).resolve()),'image_root':'/app/src'} for value in catalog.installations]}))
             base=[sys.executable,'-m','kurafolio.web_v2','sources']
             flags=['--secret-file',str(secret),'--key-file',str(key),'--runtime-role',self.config['runtime_role'],'--identity-role',self.config['identity_role']]
             def run(operation,path,extra=()):

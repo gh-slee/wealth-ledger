@@ -49,7 +49,7 @@ class WebSettings:
 
     @classmethod
     def from_environment(cls):
-        root = os.environ.get("WEALTH_LEDGER_DATA_ROOT")
+        root = os.environ.get("KURAFOLIO_DATA_ROOT")
         if not root:
-            raise ValueError("WEALTH_LEDGER_DATA_ROOT is required; no checkout-local Web default")
-        return cls(Path(root), os.environ.get("WEALTH_LEDGER_PUBLIC_ORIGIN", "http://localhost:8000"))
+            raise ValueError("KURAFOLIO_DATA_ROOT is required; no checkout-local Web default")
+        return cls(Path(root), os.environ.get("KURAFOLIO_PUBLIC_ORIGIN", "http://localhost:8000"))

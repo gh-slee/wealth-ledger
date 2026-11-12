@@ -12,13 +12,13 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 
 def main():
-    raw_port = os.environ.get("WEALTH_LEDGER_E2E_PORT", "8765")
+    raw_port = os.environ.get("KURAFOLIO_E2E_PORT", "8765")
     try:
         port = int(raw_port) if raw_port.isascii() and raw_port.isdecimal() else 0
     except ValueError:
         port = 0
     if not 1 <= port <= 65535:
-        raise SystemExit("WEALTH_LEDGER_E2E_PORT must be an integer from 1 to 65535")
+        raise SystemExit("KURAFOLIO_E2E_PORT must be an integer from 1 to 65535")
     origin = "http://localhost" if port == 80 else f"http://localhost:{port}"
 
     import uvicorn
@@ -117,8 +117,8 @@ def main():
         source_job = confirm_preview(store,source_pid,{"preview_id":source_preview["id"],"approval_sha256":approval},uuid.uuid4().hex)
         execute_job(settings,source_job["id"])
         assert jobs.get(source_pid,source_job["id"])["status"] == "published"
-        environment = {**os.environ, "WEALTH_LEDGER_DATA_ROOT":str(settings.data_root),
-                       "WEALTH_LEDGER_PUBLIC_ORIGIN":settings.public_origin, "PYTHONDONTWRITEBYTECODE":"1"}
+        environment = {**os.environ, "KURAFOLIO_DATA_ROOT":str(settings.data_root),
+                       "KURAFOLIO_PUBLIC_ORIGIN":settings.public_origin, "PYTHONDONTWRITEBYTECODE":"1"}
         worker = subprocess.Popen([sys.executable, str(ROOT / "scripts/web.py"), "worker"], env=environment)
         try:
             uvicorn.run(create_app(settings), host="127.0.0.1", port=port, access_log=False, server_header=False)

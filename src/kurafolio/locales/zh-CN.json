@@ -1167,7 +1167,7 @@
     "cli.5c972360bc64": "异动参考编号冲突；请明确修订或关联 {value0}",
     "cli.2793eb81b67c": "重新关联前请先解除既有归属",
     "cli.5aed69186ae1": "修订在并行作业中改变",
-    "cli.005d2d09904f": "请设定 WEALTH_LEDGER_FONT 为可内嵌的中文字型 TTF",
+    "cli.005d2d09904f": "请设定 KURAFOLIO_FONT 为可内嵌的中文字型 TTF",
     "cli.912794dd1c5c": "ODS 缺少预期的工作表、公式或内嵌图表",
     "cli.e94f09d38779": "一份 Wealthsimple 或 Bull CSV，或各一份；自动辨识格式",
     "cli.4e558c50c87d": "CSV 输入别名；自动辨识 Wealthsimple 或 Bull 格式",

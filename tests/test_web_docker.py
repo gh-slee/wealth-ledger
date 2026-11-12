@@ -54,7 +54,7 @@ def free_port():
         return connection.getsockname()[1]
 
 
-@unittest.skipUnless(os.environ.get("WEALTH_LEDGER_DOCKER_TEST") == "1", "Docker runtime acceptance is explicitly opt-in")
+@unittest.skipUnless(os.environ.get("KURAFOLIO_DOCKER_TEST") == "1", "Docker runtime acceptance is explicitly opt-in")
 class DockerRuntimeTests(unittest.TestCase):
     def test_nonroot_readonly_image_and_restart_persistence(self):
         subprocess.run(["docker", "info"], check=True, capture_output=True)
@@ -78,7 +78,7 @@ class DockerRuntimeTests(unittest.TestCase):
             subprocess.run(["docker", "run", "--detach", "--name", container, "--read-only", "--cap-drop=ALL",
                 "--security-opt=no-new-privileges", "--pids-limit=256", "--memory=1g",
                 "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700",
-                "--publish", f"127.0.0.1:{port}:8000", "--env", "WEALTH_LEDGER_PUBLIC_ORIGIN="+origin,
+                "--publish", f"127.0.0.1:{port}:8000", "--env", "KURAFOLIO_PUBLIC_ORIGIN="+origin,
                 "--volume", volume+":/data", image], check=True, capture_output=True)
             wait_ready(origin)
             client = http_client()
@@ -100,7 +100,7 @@ class DockerRuntimeTests(unittest.TestCase):
             platform = subprocess.run(["docker", "exec", container, "python", "-c",
                 "import platform,sys; assert sys.platform=='linux'; assert platform.machine() in ('aarch64','x86_64'); print(platform.machine())"],
                 check=True, capture_output=True, text=True).stdout.strip()
-            expected_platform = os.environ.get("WEALTH_LEDGER_EXPECT_ARCH")
+            expected_platform = os.environ.get("KURAFOLIO_EXPECT_ARCH")
             if expected_platform:
                 self.assertEqual(platform, expected_platform)
             print("Synthetic Docker acceptance architecture: " + platform, flush=True)
@@ -152,11 +152,11 @@ class DockerRuntimeTests(unittest.TestCase):
             web["build"]["context"] = str(context)
             web["ports"] = [{"host_ip": "127.0.0.1", "target": 8000,
                              "published": str(port), "protocol": "tcp"}]
-            web["environment"]["WEALTH_LEDGER_PUBLIC_ORIGIN"] = origin
+            web["environment"]["KURAFOLIO_PUBLIC_ORIGIN"] = origin
             web["restart"] = "no"
             web["healthcheck"].update(interval="1s", start_period="1s")
             model["services"]["worker"]["image"] = image
-            model["services"]["worker"]["environment"]["WEALTH_LEDGER_PUBLIC_ORIGIN"] = origin
+            model["services"]["worker"]["environment"]["KURAFOLIO_PUBLIC_ORIGIN"] = origin
             model["services"]["worker"]["restart"] = "no"
             config = base / "compose.json"
             config.write_text(json.dumps(model))
@@ -532,7 +532,7 @@ print(json.dumps(publications))
                     "--security-opt=no-new-privileges","--pids-limit=256","--memory=1g",
                     "--tmpfs","/tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700",
                     "--volume",restore_volume+":/data","--publish",f"127.0.0.1:{new_port}:8000",
-                    "--env","WEALTH_LEDGER_PUBLIC_ORIGIN="+new_origin,image],check=True,capture_output=True)
+                    "--env","KURAFOLIO_PUBLIC_ORIGIN="+new_origin,image],check=True,capture_output=True)
                 wait_ready(new_origin)
                 try:
                     request_json(client,new_origin,"/api/v1/auth/session")

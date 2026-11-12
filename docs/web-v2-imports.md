@@ -371,7 +371,7 @@ the test uses `--pull never`. It verifies nonce ownership before removing only
 its own container.
 
 ```bash
-WEALTH_LEDGER_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v
+KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v
 ```
 
 This command tests append-only records, immutable event envelopes, closed/rehashed

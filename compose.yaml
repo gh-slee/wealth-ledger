@@ -4,12 +4,12 @@ services:
   web:
     image: kurafolio:local
     build:
-      context: ${WEALTH_LEDGER_BUILD_CONTEXT:-./work/docker-context}
+      context: ${KURAFOLIO_BUILD_CONTEXT:-./work/docker-context}
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      WEALTH_LEDGER_DATA_ROOT: /data
-      WEALTH_LEDGER_PUBLIC_ORIGIN: ${WEALTH_LEDGER_PUBLIC_ORIGIN:-http://localhost:8000}
+      KURAFOLIO_DATA_ROOT: /data
+      KURAFOLIO_PUBLIC_ORIGIN: ${KURAFOLIO_PUBLIC_ORIGIN:-http://localhost:8000}
     volumes:
       - wealth-data:/data
     read_only: true
@@ -27,7 +27,7 @@ services:
         - CMD
         - python
         - -c
-        - "import os,urllib.request; origin=os.environ['WEALTH_LEDGER_PUBLIC_ORIGIN']; request=urllib.request.Request('http://127.0.0.1:8000/healthz',headers={'Host':origin.split('://',1)[1]}); urllib.request.urlopen(request,timeout=3).close()"
+        - "import os,urllib.request; origin=os.environ['KURAFOLIO_PUBLIC_ORIGIN']; request=urllib.request.Request('http://127.0.0.1:8000/healthz',headers={'Host':origin.split('://',1)[1]}); urllib.request.urlopen(request,timeout=3).close()"
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -37,8 +37,8 @@ services:
     pull_policy: never
     command: ["worker"]
     environment:
-      WEALTH_LEDGER_DATA_ROOT: /data
-      WEALTH_LEDGER_PUBLIC_ORIGIN: ${WEALTH_LEDGER_PUBLIC_ORIGIN:-http://localhost:8000}
+      KURAFOLIO_DATA_ROOT: /data
+      KURAFOLIO_PUBLIC_ORIGIN: ${KURAFOLIO_PUBLIC_ORIGIN:-http://localhost:8000}
     volumes:
       - wealth-data:/data
     read_only: true

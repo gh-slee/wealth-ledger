@@ -13,7 +13,7 @@ from kurafolio.persistence.migration import seed_tenant
 from kurafolio.persistence.errors import PersistenceError
 
 EXTRAS=importlib.util.find_spec('sqlalchemy') is not None and importlib.util.find_spec('psycopg') is not None
-CONFIG=os.environ.get('WEALTH_LEDGER_PG_TEST_CONFIG')
+CONFIG=os.environ.get('KURAFOLIO_PG_TEST_CONFIG')
 FIXTURES=Path(__file__).parent/'fixtures/postgres_foundation'
 
 
@@ -40,7 +40,7 @@ class ConfigurationTests(unittest.TestCase):
             with self.assertRaises(PersistenceError):PostgresConfig('dbname=synthetic user=synthetic',pool)
 
 
-@unittest.skipUnless(EXTRAS and CONFIG and os.environ.get('WEALTH_LEDGER_PG_TEST')=='1','Opt-in isolated real PostgreSQL acceptance')
+@unittest.skipUnless(EXTRAS and CONFIG and os.environ.get('KURAFOLIO_PG_TEST')=='1','Opt-in isolated real PostgreSQL acceptance')
 class PostgresCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

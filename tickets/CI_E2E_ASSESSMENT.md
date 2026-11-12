@@ -20,7 +20,7 @@ Deployment is a manual operator action by design; publishing images is UX-P1-007
 
 | # | Finding | Evidence | Effect | Ticket |
 |---|---|---|---|---|
-| 1 | The real-SQL tests for the V2 import functions never run in CI | `tests/test_postgres_migration.py:230` gates 93 tests on `WEALTH_LEDGER_INGESTION_TEST`; the workflow never sets it | The MVP's most critical code can break and stay green | WL-P0-022 |
+| 1 | The real-SQL tests for the V2 import functions never run in CI | `tests/test_postgres_migration.py:230` gates 93 tests on `KURAFOLIO_INGESTION_TEST`; the workflow never sets it | The MVP's most critical code can break and stay green | WL-P0-022 |
 | 2 | A skipped gated suite is silently green | Tests use `skipUnless` on seven variables; no job checks its skip count | Finding 1 went unnoticed; it can recur | WL-P0-022 |
 | 3 | No end-to-end test of V2 | All 25 browser tests use the SQLite fixture; V2 screen tickets use mocked APIs | Nothing proves browser, V2 API, PostgreSQL and worker work together | WL-P0-023 |
 | 4 | The browser fixture is too uniform | One observation per portfolio; a chart defect with one data point passed unnoticed | Regressions in state-dependent views slip through | WL-P0-023 |

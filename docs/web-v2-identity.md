@@ -235,16 +235,16 @@ and services are unaffected. See [current Web backups](web-backups.md).
 
 ```bash
 python scripts/postgres.py test-identity-environment --output work/identity-tests
-WEALTH_LEDGER_IDENTITY_TEST=1 \
-WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
+KURAFOLIO_IDENTITY_TEST=1 \
+KURAFOLIO_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_identity_*.py' -v
-WEALTH_LEDGER_IDENTITY_TEST=1 \
-WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
+KURAFOLIO_IDENTITY_TEST=1 \
+KURAFOLIO_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_v2_api.py' -v
 ```
 
 Build the optional runtime profile using a source-only context, then set
-`WEALTH_LEDGER_IDENTITY_RUNTIME_IMAGE` to that **immutable image ID** and run
+`KURAFOLIO_IDENTITY_RUNTIME_IMAGE` to that **immutable image ID** and run
 `test_web_v2_native.py`. It executes real Linux HTTP with 16 independent API
 processes/transport peers, staged real password hashing, and barriers before SQL
 acquisition; it also checks a nonroot two-user image. Clock overrides and process

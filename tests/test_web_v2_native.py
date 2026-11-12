@@ -107,7 +107,7 @@ finally:
 '''
 
 
-@unittest.skipUnless(os.environ.get('WEALTH_LEDGER_IDENTITY_RUNTIME_IMAGE'),'Explicit optional identity runtime image acceptance')
+@unittest.skipUnless(os.environ.get('KURAFOLIO_IDENTITY_RUNTIME_IMAGE'),'Explicit optional identity runtime image acceptance')
 class IdentityNativeImage(IdentityCase):
     def image(self,payload):
         from psycopg.conninfo import make_conninfo
@@ -115,7 +115,7 @@ class IdentityNativeImage(IdentityCase):
               'financial':make_conninfo(self.configs['runtime'].conninfo,host=self.config['container'],port=5432),
               'key':self.key.hex(),'password':self.password,**payload}
         result=subprocess.run(['docker','run','--rm','-i','--network',self.config['network'],'--entrypoint','python',
-                               os.environ['WEALTH_LEDGER_IDENTITY_RUNTIME_IMAGE'],'-c',PROGRAM],
+                               os.environ['KURAFOLIO_IDENTITY_RUNTIME_IMAGE'],'-c',PROGRAM],
                               input=json.dumps(base).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=180)
         # Do not publish tracebacks that could contain synthetic credential payloads.
         self.assertEqual(result.returncode,0,'Native identity image failed; inspect private bounded logs')
@@ -214,7 +214,7 @@ finally:
 from test_source_lifecycle import ConfiguredSourceCase,CONTENT_ENABLED
 
 
-@unittest.skipUnless(CONTENT_ENABLED and os.environ.get('WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE'),
+@unittest.skipUnless(CONTENT_ENABLED and os.environ.get('KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE'),
                      'Explicit native source image and content proofs required')
 class SourceNativeImage(ConfiguredSourceCase):
     def test_two_native_http_processes_share_actual_database_source_read_budget(self):
@@ -222,7 +222,7 @@ class SourceNativeImage(ConfiguredSourceCase):
         from kurafolio.data_sources.contract_v1 import primitive
         import re
         token,principal=self.bootstrap()
-        image=os.environ['WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE']
+        image=os.environ['KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE']
         self.assertRegex(image,r'^sha256:[0-9a-f]{64}$')
         payload={'identity':make_conninfo(self.configs['identity'].conninfo,host=self.config['container'],port=5432),
             'financial':make_conninfo(self.configs['runtime'].conninfo,host=self.config['container'],port=5432),

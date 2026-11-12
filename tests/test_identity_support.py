@@ -10,7 +10,7 @@ import unittest
 import uuid
 
 EXTRAS=all(importlib.util.find_spec(name) is not None for name in ['sqlalchemy','psycopg','fastapi','pwdlib'])
-ENABLED=EXTRAS and os.environ.get('WEALTH_LEDGER_IDENTITY_TEST')=='1' and bool(os.environ.get('WEALTH_LEDGER_IDENTITY_TEST_CONFIG'))
+ENABLED=EXTRAS and os.environ.get('KURAFOLIO_IDENTITY_TEST')=='1' and bool(os.environ.get('KURAFOLIO_IDENTITY_TEST_CONFIG'))
 
 
 @unittest.skipUnless(ENABLED,'Opt-in isolated PostgreSQL identity acceptance')
@@ -18,7 +18,7 @@ class IdentityCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from psycopg.conninfo import conninfo_to_dict
-        cls.config=json.loads(Path(os.environ['WEALTH_LEDGER_IDENTITY_TEST_CONFIG']).read_text())
+        cls.config=json.loads(Path(os.environ['KURAFOLIO_IDENTITY_TEST_CONFIG']).read_text())
         if cls.config.get('format')!='kurafolio-synthetic-identity-tests':
             raise RuntimeError('Explicit synthetic identity marker required')
         options=conninfo_to_dict(Path(cls.config['migration_secret_file']).read_text())

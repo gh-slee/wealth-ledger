@@ -135,16 +135,16 @@ class Harness:
         return return_value
 
 
-ENABLED=os.environ.get('WEALTH_LEDGER_SOURCE_HARNESS_TEST')=='1'
+ENABLED=os.environ.get('KURAFOLIO_SOURCE_HARNESS_TEST')=='1'
 
 
 @unittest.skipUnless(ENABLED,'Explicit native source harness acceptance required')
 class SourceHarnessTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.base=os.environ['WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE']
+        cls.base=os.environ['KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE']
         if not re.fullmatch('sha256:[0-9a-f]{64}',cls.base):raise RuntimeError('Exact immutable source image required')
-        manifest=json.loads(Path(os.environ['WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT']).read_bytes())
+        manifest=json.loads(Path(os.environ['KURAFOLIO_SOURCE_HARNESS_CONTEXT']).read_bytes())
         files={name[4:]:digest for name,digest in manifest['files'].items() if name.startswith('src/')}
         if not files:raise RuntimeError('Source context manifest required')
         for name,digest in files.items():

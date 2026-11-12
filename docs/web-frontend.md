@@ -141,18 +141,18 @@ npm run test:e2e
 
 The browser fixture creates a new temporary instance outside the checkout, seeds
 invented reports and starts an isolated API/worker. It never reads real financial
-state. `WEALTH_LEDGER_TEST_PYTHON` can select an installed Python environment;
-`WEALTH_LEDGER_BROWSER_CHANNEL=chrome` can use a separately installed Chrome binary
+state. `KURAFOLIO_TEST_PYTHON` can select an installed Python environment;
+`KURAFOLIO_BROWSER_CHANNEL=chrome` can use a separately installed Chrome binary
 with a disposable profile. Neither is a production dependency. Test outputs stay
 under ignored `frontend/test-results/`. CI also installs Chromium system dependencies.
 
-`WEALTH_LEDGER_E2E_PORT` sets the fixture port and Playwright's browser origin.
+`KURAFOLIO_E2E_PORT` sets the fixture port and Playwright's browser origin.
 It defaults to `8765`. For concurrent runs, use separate worktrees for the test
 outputs and assign each run a distinct, unused port. For a ticket worktree,
 use its assigned `port_base`. For example, from the repository root:
 
 ```bash
-WEALTH_LEDGER_E2E_PORT=29900 npm --prefix frontend run test:e2e
+KURAFOLIO_E2E_PORT=29900 npm --prefix frontend run test:e2e
 ```
 
 Tests cover exact decimal/null handling, locale parity, frozen API reads, hashes,

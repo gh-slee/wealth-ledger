@@ -80,7 +80,7 @@ script or by review, not by trust.
    names, PostgreSQL test environments (`scripts/postgres.py test-environment
    --output work/pg-tests-<isolation_id>`), temp directories and queues. Use
    ports from `port_base` to `port_base + 99`. When running the browser suite
-   in parallel, set `WEALTH_LEDGER_E2E_PORT` to your claim's `port_base` before
+   in parallel, set `KURAFOLIO_E2E_PORT` to your claim's `port_base` before
    running `npm --prefix frontend run test:e2e` in your own worktree. The browser
    suite uses port 8765 when the variable is unset.
 

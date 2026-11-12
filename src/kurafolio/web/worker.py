@@ -222,8 +222,8 @@ def execute_record(store, jobs, row, service):
 
 def execute_isolated(settings, job_id):
     # Fixed module/arguments; no user-supplied program, task name, shell or pickle.
-    env = {**os.environ, "WEALTH_LEDGER_DATA_ROOT": str(settings.data_root),
-           "WEALTH_LEDGER_PUBLIC_ORIGIN": settings.public_origin, "PYTHONPATH": str(PACKAGE_ROOT.parent),
+    env = {**os.environ, "KURAFOLIO_DATA_ROOT": str(settings.data_root),
+           "KURAFOLIO_PUBLIC_ORIGIN": settings.public_origin, "PYTHONPATH": str(PACKAGE_ROOT.parent),
            "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run([sys.executable, "-m", "kurafolio.web.worker", job_id], env=env,
                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode

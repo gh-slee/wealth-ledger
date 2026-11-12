@@ -68,7 +68,7 @@ class SourceSecurityTests(SourceCase):
         from kurafolio.data_sources.contract_v1 import canonical,ContractError
         from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
         from kurafolio.data_sources.catalog_v1 import verify_installation
-        image=os.environ['WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE'];artifact=Path(os.environ['WEALTH_LEDGER_SOURCE_ARTIFACT_FILE']).read_bytes();metadata=json.loads(artifact)
+        image=os.environ['KURAFOLIO_SOURCE_RUNTIME_IMAGE'];artifact=Path(os.environ['KURAFOLIO_SOURCE_ARTIFACT_FILE']).read_bytes();metadata=json.loads(artifact)
         descriptor=builtin_descriptors(package_distribution=metadata['package_distribution'],package_version=metadata['package_version'],artifact_sha256=hashlib.sha256(artifact).hexdigest(),execution_image_digest=image[7:],entry_point_target='kurafolio.source_builtin:registrations')[0]
         bad=json.loads(artifact);bad['files'][0]['sha256']='0'*64;changed=canonical(bad)
         with self.assertRaises(ContractError):verify_installation(replace(descriptor,artifact_sha256=hashlib.sha256(changed).hexdigest()),changed,image_root='/app/src')

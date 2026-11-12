@@ -227,7 +227,7 @@ class IngestionStorageDDLTests(unittest.TestCase):
             schema.TRANSITION_DDL).group(1).replace("'", '').replace('\n', '').replace(' ', '').split(',')))
 
 
-@unittest.skipUnless(os.environ.get('WEALTH_LEDGER_INGESTION_TEST') == '1',
+@unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
                      'Opt-in isolated ingestion PostgreSQL fragment acceptance')
 class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     """Real SQL fragment checks; incomplete deferred-parent inserts roll back."""

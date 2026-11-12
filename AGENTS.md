@@ -125,7 +125,7 @@ An existing equivalent virtual environment is fine. For Web changes install
 skip optional API tests. `scripts/web.py` manages trusted host initialization/upgrade/serve/worker.
 `python scripts/docker_context.py --output work/docker-context` prepares a new
 source-only image context. Container acceptance is explicitly opt-in:
-`WEALTH_LEDGER_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v`.
+`KURAFOLIO_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v`.
 It requires a running Docker daemon and uses only unique disposable synthetic resources.
 Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 `npm --prefix frontend run build`, `npm --prefix frontend test`,

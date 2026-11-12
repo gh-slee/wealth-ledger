@@ -75,12 +75,12 @@ def _native_totals(payload: dict) -> dict[str, Decimal]:
 
 
 def _font_path() -> Path:
-    candidates = [os.environ.get("WEALTH_LEDGER_FONT", ""),
+    candidates = [os.environ.get("KURAFOLIO_FONT", ""),
                   str(font_path())]
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return Path(candidate)
-    raise RuntimeError("Set WEALTH_LEDGER_FONT to an embeddable Traditional Chinese TTF font.")
+    raise RuntimeError("Set KURAFOLIO_FONT to an embeddable Traditional Chinese TTF font.")
 
 
 _RENDER_LOCK = RLock()

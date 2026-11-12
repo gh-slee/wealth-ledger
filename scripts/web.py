@@ -17,7 +17,7 @@ sys.path.insert(0, str(CODE_ROOT / "src"))
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, help="Dedicated absolute Web instance directory; or WEALTH_LEDGER_DATA_ROOT")
+    parser.add_argument("--data-root", type=Path, help="Dedicated absolute Web instance directory; or KURAFOLIO_DATA_ROOT")
     parser.add_argument("--public-origin", help="Exact browser origin; default http://localhost:8000")
     commands = parser.add_subparsers(dest="command", required=True)
     create = commands.add_parser("init-owner", help="Initialize a dedicated instance and its sole owner offline")
@@ -54,10 +54,10 @@ def main():
     try:
         from kurafolio.web.config import WebSettings
         from kurafolio.web.storage import WebError
-        root = args.data_root or os.environ.get("WEALTH_LEDGER_DATA_ROOT")
+        root = args.data_root or os.environ.get("KURAFOLIO_DATA_ROOT")
         if not root:
-            raise ValueError("Specify --data-root or WEALTH_LEDGER_DATA_ROOT; no personal-ledger default")
-        settings = WebSettings(Path(root), args.public_origin or os.environ.get("WEALTH_LEDGER_PUBLIC_ORIGIN", "http://localhost:8000"))
+            raise ValueError("Specify --data-root or KURAFOLIO_DATA_ROOT; no personal-ledger default")
+        settings = WebSettings(Path(root), args.public_origin or os.environ.get("KURAFOLIO_PUBLIC_ORIGIN", "http://localhost:8000"))
         if args.command == "adopt-preview":
             from kurafolio.web.adoption import prepare_adoption
             print(json.dumps(prepare_adoption(settings,args.workspace,args.name,args.output,allow_legacy_reports=args.allow_legacy_reports)))
