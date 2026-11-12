@@ -240,6 +240,23 @@ create_pr = true
         self.assertTrue(guard.scan_staged(self.root)['passed'])
         self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
 
+    def test_pre_rename_paths_pass_only_in_history_and_keep_content_checks(self):
+        old = 'src/wealth_ledger/example.py'
+        self.assertFalse(guard.path_allowed(old))
+        self.assertEqual(guard.current_name(old), 'src/kurafolio/example.py')
+        self.assertEqual(guard.current_name('.agents/skills/wealthledger-qa-automation/SKILL.md'),
+                         '.agents/skills/kurafolio-qa-automation/SKILL.md')
+        self.write(old, '"""Synthetic module."""\n')
+        self.run_git('add', '--', old)
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+        self.assertFalse(guard.scan_worktree(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic pre-rename module')
+        self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
+        self.write(old, 'PRIVATE_' + 'FINANCIAL_FIXTURE\n')
+        self.run_git('add', '--', old)
+        self.run_git('commit', '-m', 'Synthetic pre-rename secret')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
+
     def test_exact_role_skills_are_public_and_not_ignored(self):
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
         for relative in sorted(guard.PUBLIC_ROLE_SKILLS):
@@ -849,7 +866,7 @@ class TypedSchemaPrivacyTests(unittest.TestCase):
 class AdoptionPrivacyTests(unittest.TestCase):
     def test_private_adoption_plan_content_is_rejected_even_under_a_public_path(self):
         import json
-        marker='kurafolio-private-'+'adoption'
+        marker='wealth-ledger-private-'+'adoption'
         raw=json.dumps({'format':marker,'source_root':'/example/private-ledger'}).encode()
         self.assertTrue(any('adoption' in message for message in guard.content_issues(raw,'examples/data/fx.json')))
 

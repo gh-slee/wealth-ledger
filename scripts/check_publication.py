@@ -72,7 +72,8 @@ SECRET_PATTERNS = (
     ('GitHub credential', re.compile(rb'\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{30,}\b')),
     ('AWS access key', re.compile(rb'\b(?:AKIA|ASIA)[A-Z0-9]{16}\b')),
     ('credential-bearing URL', re.compile(rb'https?://[^\s/:]+:[^\s/@]+@')),
-    ('private adoption plan', re.compile(rb'"format"\s*:\s*"kurafolio-private-' + rb'adoption"')),
+    # Adoption plans keep their pre-Kurafolio format identifier (src/kurafolio/web/adoption.py).
+    ('private adoption plan', re.compile(rb'"format"\s*:\s*"wealth-ledger-private-' + rb'adoption"')),
     ('explicit private fixture marker', re.compile(rb'\b(?:PRIVATE_' + rb'FINANCIAL_FIXTURE|DO_NOT_PUBLISH_' + rb'PERSONAL_DATA)\b')),
     ('machine-specific home path', re.compile(rb'/(?:Users|home)/[A-Za-z0-9_.-]+/')),
 )
@@ -244,9 +245,10 @@ def new_result(mode: str) -> dict:
             'limitations': ['Pattern checks cannot prove absence of personal data; review the public manifest.']}
 
 
-def record(result: dict, path: str, data: bytes | None, *, origin: str, mode: str = '100644') -> None:
+def record(result: dict, path: str, data: bytes | None, *, origin: str, mode: str = '100644',
+           allowlist_path: str | None = None) -> None:
     errors = []
-    if not path_allowed(path):
+    if not path_allowed(allowlist_path or path):
         errors.append('path is outside the public allowlist')
     if mode not in {'100644', '100755'}:
         errors.append('symlink, submodule, or unsupported Git mode')
@@ -360,6 +362,23 @@ def scan_staged(root: Path) -> dict:
     return finish(result)
 
 
+# Commits made before the Kurafolio rename (WL-P0-024) hold the same reviewed files
+# under their old paths. History scans judge such a path by its current name; the
+# worktree and index must use the current names only. File contents are always checked.
+RENAMED_PREFIXES = (
+    ('src/wealth_ledger/', 'src/kurafolio/'),
+    ('.agents/skills/wealthledger-', '.agents/skills/kurafolio-'),
+    ('assets/readme/wealth-ledger-mark.svg', 'assets/readme/kurafolio-mark.svg'),
+)
+
+
+def current_name(path: str) -> str:
+    for old, new in RENAMED_PREFIXES:
+        if path.startswith(old):
+            return new + path[len(old):]
+    return path
+
+
 def scan_history(root: Path, *, base: str | None = None, head: str = 'HEAD', all_history: bool = False) -> dict:
     result = new_result('outgoing-history')
     if not all_history and not base:
@@ -378,7 +397,7 @@ def scan_history(root: Path, *, base: str | None = None, head: str = 'HEAD', all
                 continue
             seen.add(key)
             data = git(root, 'cat-file', 'blob', oid) if mode in {'100644', '100755', '120000'} else None
-            record(result, path, data, origin=commit, mode=mode)
+            record(result, path, data, origin=commit, mode=mode, allowlist_path=current_name(path))
         emails = git(root, 'show', '-s', '--format=%ae%n%ce', commit).decode().splitlines()
         # GitHub web merges use its public system noreply as committer.
         # Authors and locally created commits still require users.noreply identities.
