@@ -19,9 +19,9 @@ PREDECESSOR = "0003_source_lifecycle"
 
 _TABLES = (
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"accepted_generation","nullable":false,"type":"bigint"},{"name":"mapping_generation","nullable":false,"type":"bigint"},{"name":"control_generation","nullable":false,"type":"bigint"}],"immutable":false,"name":"roots","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
-    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"actor_user_id","nullable":false,"type":"uuid"},{"name":"creation_operation_id","nullable":false,"type":"uuid"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"state","nullable":false,"type":"text"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"member_count","nullable":false,"type":"integer"},{"name":"reserved_bytes","nullable":false,"type":"bigint"},{"name":"receipt_id","nullable":true,"type":"uuid"},{"name":"cleanup_state","nullable":false,"type":"text"}],"immutable":false,"name":"sets","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
+    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"actor_user_id","nullable":false,"type":"uuid"},{"name":"creation_operation_id","nullable":false,"type":"uuid"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"state","nullable":false,"type":"text"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"member_count","nullable":false,"type":"integer"},{"name":"reserved_bytes","nullable":false,"type":"bigint"},{"name":"receipt_id","nullable":true,"type":"uuid"},{"name":"cleanup_state","nullable":false,"type":"text"},{"name":"prepare_session_digest","nullable":true,"type":"text"},{"name":"prepare_credential_version","nullable":true,"type":"bigint"}],"immutable":false,"name":"sets","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"ordinal","nullable":false,"type":"integer"},{"name":"connection_id","nullable":false,"type":"uuid"},{"name":"connection_version","nullable":false,"type":"text"},{"name":"installation_id","nullable":false,"type":"text"},{"name":"format_version","nullable":false,"type":"text"},{"name":"context_digest","nullable":false,"type":"text"},{"name":"context_bytes","nullable":true,"type":"bytea"},{"name":"raw_digest","nullable":true,"type":"text"},{"name":"raw_bytes","nullable":true,"type":"bigint"},{"name":"state","nullable":false,"type":"text"},{"name":"error_code","nullable":true,"type":"text"},{"name":"stage_digest","nullable":true,"type":"text"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"connection_generation","nullable":false,"type":"bigint"},{"name":"enablement_generation","nullable":false,"type":"bigint"},{"name":"availability_generation","nullable":false,"type":"bigint"},{"name":"wrapper_profile_digest","nullable":false,"type":"text"},{"name":"raw_deadline","nullable":true,"type":"timestamptz"}],"immutable":false,"name":"members","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
-    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":true,"type":"uuid"},{"name":"work_kind","nullable":false,"type":"text"},{"name":"attempt","nullable":false,"type":"bigint"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"worker_id","nullable":false,"type":"uuid"},{"name":"token_digest","nullable":true,"type":"text"},{"name":"session_digest","nullable":false,"type":"text"},{"name":"credential_version","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"state","nullable":false,"type":"text"},{"name":"claim_request_id","nullable":true,"type":"uuid"},{"name":"claim_request_digest","nullable":true,"type":"text"},{"name":"last_request_id","nullable":true,"type":"uuid"},{"name":"last_request_digest","nullable":true,"type":"text"},{"name":"last_result_bytes","nullable":true,"type":"bytea"},{"name":"raw_slot","nullable":true,"type":"text"},{"name":"cleanup_proof_bytes","nullable":true,"type":"bytea"}],"immutable":false,"name":"leases","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
+    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":true,"type":"uuid"},{"name":"work_kind","nullable":false,"type":"text"},{"name":"attempt","nullable":false,"type":"bigint"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"worker_id","nullable":false,"type":"uuid"},{"name":"token_digest","nullable":true,"type":"text"},{"name":"session_digest","nullable":false,"type":"text"},{"name":"credential_version","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"state","nullable":false,"type":"text"},{"name":"claim_request_id","nullable":true,"type":"uuid"},{"name":"claim_request_digest","nullable":true,"type":"text"},{"name":"last_request_id","nullable":true,"type":"uuid"},{"name":"last_request_digest","nullable":true,"type":"text"},{"name":"last_result_bytes","nullable":true,"type":"bytea"},{"name":"raw_slot","nullable":true,"type":"text"},{"name":"cleanup_proof_bytes","nullable":true,"type":"bytea"},{"name":"prepare_set_revision","nullable":true,"type":"bigint"},{"name":"prepare_accepted_generation","nullable":true,"type":"bigint"},{"name":"prepare_mapping_generation","nullable":true,"type":"bigint"},{"name":"prepare_control_generation","nullable":true,"type":"bigint"}],"immutable":false,"name":"leases","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":false,"type":"uuid"},{"name":"digest","nullable":false,"type":"text"},{"name":"codec","nullable":false,"type":"text"},{"name":"minimal_bytes","nullable":false,"type":"bytea"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"}],"immutable":false,"name":"stages","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","member_id","digest"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"canonical_bytes","nullable":false,"type":"bytea"},{"name":"digest","nullable":false,"type":"text"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"}],"immutable":false,"name":"decisions","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","revision"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"set_revision","nullable":false,"type":"bigint"},{"name":"decision_revision","nullable":false,"type":"bigint"},{"name":"plan_bytes","nullable":true,"type":"bytea"},{"name":"plan_digest","nullable":true,"type":"text"},{"name":"expected_accepted_generation","nullable":false,"type":"bigint"},{"name":"expected_mapping_generation","nullable":false,"type":"bigint"},{"name":"expected_control_generation","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"},{"name":"review_bytes","nullable":false,"type":"bytea"},{"name":"review_digest","nullable":false,"type":"text"}],"immutable":false,"name":"previews","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
@@ -1898,7 +1898,9 @@ SESSION_RECHECK
   (n>=selected.expires_at OR n>=preview.expires_at) THEN
   -- Expiry wins under the set lock; it fences work and accepts nothing.
   IF n>=selected.expires_at THEN
-   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+    prepare_session_digest=NULL,prepare_credential_version=NULL
+    WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
    UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
     AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
    UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
@@ -2294,7 +2296,9 @@ SESSION_RECHECK
  IF selected.state IN ('CANCELLED','REJECTED') THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
  IF n>=selected.expires_at THEN
   -- Expiry wins under the set lock; it fences work and records no cancellation.
-  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+   prepare_session_digest=NULL,prepare_credential_version=NULL
+   WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
   UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
    AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
   UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
@@ -2305,7 +2309,8 @@ SESSION_RECHECK
   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
  -- A winning cancellation advances the set revision and control generation once,
  -- fences every member attempt and live lease, and leaves cleanup to the worker.
- UPDATE wl_ingestion.sets SET state='CANCELLED',revision=revision+1,cleanup_state='pending'
+ UPDATE wl_ingestion.sets SET state='CANCELLED',revision=revision+1,cleanup_state='pending',
+  prepare_session_digest=NULL,prepare_credential_version=NULL
   WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
  UPDATE wl_ingestion.members SET state='cancelled',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
   AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
@@ -2407,7 +2412,9 @@ SESSION_RECHECK
  IF selected.state='EXPIRED' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_expired'); END IF;
  IF selected.state IN ('COMMITTED','CANCELLED','REJECTED') THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
  IF n>=selected.expires_at THEN
-  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+   prepare_session_digest=NULL,prepare_credential_version=NULL
+   WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
   UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
    AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
   UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
@@ -2424,7 +2431,9 @@ SESSION_RECHECK
   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_limit'); END IF;
  SELECT pg_catalog.max(d.revision) INTO latest FROM wl_ingestion.decisions d
   WHERE d.tenant_id=tenant AND d.portfolio_id=portfolio AND d.set_id=selected.id;
- UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1 WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+ UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1,
+  prepare_session_digest=ss.token_digest,prepare_credential_version=ss.credential_version
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
  INSERT INTO wl_ingestion.decisions(tenant_id,portfolio_id,set_id,revision,request_digest,canonical_bytes,digest,created_at,purge_at)
   VALUES(tenant,portfolio,selected.id,COALESCE(latest,0)+1,request_digest,document,
    pg_catalog.encode(pg_catalog.sha256(document),'hex'),n,selected.expires_at);
@@ -2927,7 +2936,9 @@ MEMBER_PINS
   -- The last admitted member hands the set to preparation.
   IF NOT EXISTS(SELECT 1 FROM wl_ingestion.members m WHERE m.tenant_id=tenant AND m.portfolio_id=portfolio AND
     m.set_id=selected.id AND m.state<>'admitted') THEN
-   UPDATE wl_ingestion.sets SET state='NORMALIZING' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+   UPDATE wl_ingestion.sets SET state='NORMALIZING',
+    prepare_session_digest=held.session_digest,prepare_credential_version=held.credential_version
+    WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
   END IF;
  ELSIF p_request->>'outcome'='reupload_required' THEN
   UPDATE wl_ingestion.members SET state='reupload_required',error_code=p_request->>'error_code'
@@ -3155,15 +3166,124 @@ CLEANUP_SESSION_DIGEST = hashlib.sha256(b'kurafolio.ingestion.cleanup-lease.v1')
 _TERMINAL_SQL = "('COMMITTED','REJECTED','CANCELLED','EXPIRED')"
 
 _WORKER_CODES_SQL = ("('import_invalid','import_conflict','import_stale','import_expired','import_busy','not_found',"
-                     "'authentication_required','credentials_changed','instance_not_ready')")
+                     "'authentication_required','credentials_changed','instance_not_ready','session_changed','source_unavailable')")
 
-# claim_plan_v1 hands out one cleanup lease at a time. Preparation claims are
-# refused until their own worker functions exist (WL-P0-007L).
+_PREPARE_AUTHORITY_LOCKS = (
+    r"""
+ PERFORM 1 FROM wl_identity.instance_auth_state WHERE id=1 AND bootstrap_closed FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='instance_not_ready'; END IF;
+""" + _identity.user_lock('tenant') + _identity.session_lock('origin_digest') + r"""
+ PERFORM 1 FROM wl_sources.catalog_state WHERE id=1 FOR SHARE;
+ PERFORM 1 FROM wl_pg.portfolios WHERE tenant_id=tenant AND portfolio_id=portfolio FOR KEY SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='session_changed'; END IF;
+ PERFORM 1 FROM wl_sources.lifecycle_roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR SHARE;
+ PERFORM 1 FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY plugin_id,capability FOR SHARE;
+ PERFORM 1 FROM wl_pg.connections WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id,version FOR SHARE;
+ PERFORM 1 FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id FOR SHARE;
+""")
+
+_PREPARE_ORIGIN_CHECK = (
+    ' SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;\n'
+    + _raising(_identity.check_user(version='origin_version', code='session_changed') + _identity.check_session())
+    + r"""
+ IF u.portfolio_id IS DISTINCT FROM portfolio OR ss.user_id IS DISTINCT FROM selected.actor_user_id OR
+  ss.credential_version IS DISTINCT FROM origin_version THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='session_changed'; END IF;
+""")
+
+_PREPARE_CLAIM_SQL = r"""
+ -- Candidate reads identify which authority to lock. They do not grant scope.
+ -- A skipped candidate rolls back its subtransaction, releasing the locks it took.
+ FOR candidate IN SELECT x.* FROM wl_ingestion.sets x WHERE
+  (replay AND (x.tenant_id,x.portfolio_id,x.id)=(held.tenant_id,held.portfolio_id,held.set_id)) OR
+  (NOT replay AND x.state IN ('NORMALIZING','RECONCILING') AND x.expires_at>n AND
+   x.realm_digest=guard#>>'{value,realm_digest}' AND NOT EXISTS(
+    SELECT 1 FROM wl_ingestion.leases l WHERE (l.tenant_id,l.portfolio_id,l.set_id)=(x.tenant_id,x.portfolio_id,x.id)
+     AND l.work_kind='prepare' AND l.state IN ('offered','active') AND l.expires_at>n))
+  ORDER BY x.created_at,x.id::text COLLATE "C" LOOP
+  BEGIN
+   tenant:=candidate.tenant_id;portfolio:=candidate.portfolio_id;
+   origin_digest:=candidate.prepare_session_digest;origin_version:=candidate.prepare_credential_version;
+   IF origin_digest IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   PREPARE_AUTHORITY_LOCKS
+   SELECT * INTO root FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE SKIP LOCKED;
+   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy'; END IF;
+   SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND id=candidate.id FOR UPDATE;
+   PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+    ORDER BY id FOR UPDATE;
+   PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+    ORDER BY id FOR UPDATE;
+   n:=wl_identity._clock_timestamp_v1();
+   IF selected.id IS NULL OR selected.state NOT IN ('NORMALIZING','RECONCILING') OR n>=selected.expires_at OR
+    selected.realm_digest IS DISTINCT FROM guard#>>'{value,realm_digest}' OR
+    selected.incarnation::text IS DISTINCT FROM guard#>>'{value,incarnation}' OR
+    selected.restore_epoch::text IS DISTINCT FROM guard#>>'{value,restore_epoch}' OR
+    (selected.prepare_session_digest,selected.prepare_credential_version) IS DISTINCT FROM
+     (origin_digest,origin_version) THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   PREPARE_ORIGIN_CHECK
+   admitted:=0;
+   FOR mem IN SELECT * FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND set_id=selected.id ORDER BY id LOOP
+    IF mem.state<>'admitted' OR NOT EXISTS(SELECT 1 FROM wl_ingestion.stages g
+     WHERE (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)=
+      (tenant,portfolio,selected.id,mem.id,mem.stage_digest)) THEN
+     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+    MEMBER_PINS
+    admitted:=admitted+1;
+   END LOOP;
+   IF admitted<>selected.member_count THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   IF replay THEN
+    SELECT * INTO held FROM wl_ingestion.leases l WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.id=held.id;
+    IF held.id IS NULL OR held.state<>'active' OR n>=held.expires_at OR
+     (held.session_digest,held.credential_version) IS DISTINCT FROM (origin_digest,origin_version) OR
+     (held.prepare_set_revision,held.prepare_accepted_generation,held.prepare_mapping_generation,
+      held.prepare_control_generation) IS DISTINCT FROM
+      (selected.revision,root.accepted_generation,root.mapping_generation,root.control_generation) THEN
+     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+    RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,
+     'outcome','already_claimed','lease',PREPARE_ACK_HELD));
+   END IF;
+   UPDATE wl_ingestion.leases SET state='expired' WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND set_id=selected.id AND work_kind='prepare' AND state IN ('offered','active') AND expires_at<=n;
+   IF EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE (l.tenant_id,l.portfolio_id,l.set_id)=(tenant,portfolio,selected.id)
+    AND l.work_kind='prepare' AND l.state IN ('offered','active')) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy'; END IF;
+   SELECT COALESCE(pg_catalog.max(l.fence),0)+1 INTO next_fence FROM wl_ingestion.leases l
+    WHERE (l.tenant_id,l.portfolio_id,l.set_id)=(tenant,portfolio,selected.id) AND l.work_kind='prepare';
+   until:=pg_catalog.date_trunc('second',LEAST(n+interval '60 seconds',selected.expires_at,ss.expires_at,
+    ss.last_activity+interval '1800 seconds'));
+   IF until<=n THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired'; END IF;
+   INSERT INTO wl_ingestion.leases(tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,
+    token_digest,session_digest,credential_version,incarnation,restore_epoch,created_at,expires_at,state,
+    claim_request_id,claim_request_digest,prepare_set_revision,prepare_accepted_generation,prepare_mapping_generation,
+    prepare_control_generation)
+   VALUES(tenant,portfolio,pg_catalog.gen_random_uuid(),selected.id,NULL,'prepare',next_fence,next_fence,p_worker,
+    guard#>>'{value,token_digest}',origin_digest,origin_version,selected.incarnation,selected.restore_epoch,n,until,'active',
+    (p_request->>'claim_request_id')::uuid,request_digest,selected.revision,root.accepted_generation,
+    root.mapping_generation,root.control_generation) RETURNING * INTO held;
+   RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,
+    'outcome','claimed','lease',PREPARE_ACK_CLAIMED));
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+   IF replay OR SQLERRM NOT IN ('import_busy','import_stale','import_expired','session_changed',
+    'credentials_changed','source_unavailable') THEN RAISE; END IF;
+  END;
+ END LOOP;
+ IF replay THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,
+  'outcome','no_work','lease',NULL));
+"""
+
 CLAIM_PLAN_DDL = r"""
 CREATE FUNCTION wl_ingestion.claim_plan_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $claim_plan$
 DECLARE guard jsonb;selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%ROWTYPE;candidate record;
  n timestamptz;until timestamptz;request_digest text;code text;next_fence bigint;lease uuid;
+ replay boolean;tenant uuid;portfolio uuid;origin_digest text;origin_version bigint;admitted integer;generation bigint;
+ root wl_ingestion.roots%ROWTYPE;mem wl_ingestion.members%ROWTYPE;
+ st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;u wl_identity.users%ROWTYPE;
+ cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
+ cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;catalog jsonb;wrappers jsonb;
 BEGIN
  IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
   ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>
@@ -3176,7 +3296,6 @@ BEGIN
  END IF;
  guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
  IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
- IF p_request->>'work_kind'<>'cleanup' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
  -- The live-lease and selection rechecks rely on READ COMMITTED snapshots.
  IF pg_catalog.current_setting('transaction_isolation')<>'read committed' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
@@ -3185,8 +3304,19 @@ BEGIN
  -- claim request ID this worker already used for other work is a conflict.
  SELECT * INTO held FROM wl_ingestion.leases l WHERE l.worker_id=p_worker AND
   l.claim_request_id=(p_request->>'claim_request_id')::uuid;
- IF held.id IS NOT NULL AND held.work_kind<>'cleanup' THEN
+ IF held.id IS NOT NULL AND held.work_kind<>p_request->>'work_kind' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+ IF p_request->>'work_kind'='prepare' THEN
+  replay:=held.id IS NOT NULL;
+  IF replay THEN
+   IF held.token_digest IS DISTINCT FROM guard#>>'{value,token_digest}' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='authentication_required'; END IF;
+   IF held.claim_request_digest IS DISTINCT FROM request_digest THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  END IF;
+  n:=wl_identity._clock_timestamp_v1();
+  PREPARE_CLAIM
+ END IF;
  IF held.id IS NOT NULL THEN
   PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id FOR UPDATE;
   SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id
@@ -3225,7 +3355,8 @@ BEGIN
   n:=wl_identity._clock_timestamp_v1();
   IF selected.state NOT IN TERMINAL AND n>=selected.expires_at THEN
    -- Expiry wins under the set lock; it fences work and accepts nothing.
-   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=selected.tenant_id AND
+   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+    prepare_session_digest=NULL,prepare_credential_version=NULL WHERE tenant_id=selected.tenant_id AND
     portfolio_id=selected.portfolio_id AND id=selected.id;
    UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=selected.tenant_id AND
     portfolio_id=selected.portfolio_id AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
@@ -3272,15 +3403,22 @@ REVOKE ALL ON FUNCTION wl_ingestion.claim_plan_v1(uuid,text,jsonb,bytea) FROM PU
 """
 
 
-def _cleanup_ack_sql(outcome):
+def _plan_lease_ack_sql(outcome, fingerprint):
     return ("pg_catalog.jsonb_build_object('version',1,'job_id',held.id::text,'set_id',held.set_id::text,'member_id',NULL,"
-            "'work_kind','cleanup','fence',held.fence::text,'credential_epoch',guard#>>'{value,credential_epoch}',"
+            "'work_kind',held.work_kind,'fence',held.fence::text,'credential_epoch',guard#>>'{value,credential_epoch}',"
             "'expires_at'," + _second_sql('held.expires_at') + ",'outcome','" + outcome +
-            "','source_fingerprint',selected.request_digest)")
+            "','source_fingerprint'," + fingerprint + ")")
 
 
-CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('ACK_HELD', _cleanup_ack_sql('already_claimed'))
-                  .replace('ACK_CLAIMED', _cleanup_ack_sql('claimed')).replace('TERMINAL', _TERMINAL_SQL)
+CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('ACK_HELD', _plan_lease_ack_sql('already_claimed', 'selected.request_digest'))
+                  .replace('ACK_CLAIMED', _plan_lease_ack_sql('claimed', 'selected.request_digest'))
+                  .replace('PREPARE_CLAIM', _PREPARE_CLAIM_SQL
+                           .replace('PREPARE_AUTHORITY_LOCKS', _PREPARE_AUTHORITY_LOCKS)
+                           .replace('PREPARE_ORIGIN_CHECK', _PREPARE_ORIGIN_CHECK)
+                           .replace('MEMBER_PINS', _MEMBER_PIN_SQL)
+                           .replace('PREPARE_ACK_HELD', _plan_lease_ack_sql('already_claimed', _FINGERPRINT_SQL))
+                           .replace('PREPARE_ACK_CLAIMED', _plan_lease_ack_sql('claimed', _FINGERPRINT_SQL)))
+                  .replace('TERMINAL', _TERMINAL_SQL)
                   .replace('CLEANUP_SESSION', CLEANUP_SESSION_DIGEST).replace('CODES', _WORKER_CODES_SQL)
                   .replace('UUID_RE', _UUID_RE))
 
@@ -4057,7 +4195,9 @@ BEGIN
    (OLD.tenant_id,OLD.portfolio_id,OLD.id,OLD.actor_user_id,OLD.creation_operation_id,
     OLD.request_digest,OLD.incarnation,OLD.restore_epoch,OLD.realm_digest,OLD.created_at,
     OLD.expires_at,OLD.member_count,OLD.reserved_bytes) OR
-   (OLD.receipt_id IS NOT NULL AND NEW.receipt_id IS DISTINCT FROM OLD.receipt_id) THEN REJECT; END IF;
+   (OLD.receipt_id IS NOT NULL AND NEW.receipt_id IS DISTINCT FROM OLD.receipt_id) OR
+   (NEW.state=OLD.state AND (NEW.prepare_session_digest,NEW.prepare_credential_version) IS DISTINCT FROM
+    (OLD.prepare_session_digest,OLD.prepare_credential_version)) THEN REJECT; END IF;
   IF OLD.state=ANY(terminal) THEN
    -- A terminal set is never revived; only its transient cleanup progresses.
    IF NEW.state<>OLD.state OR NEW.revision<>OLD.revision THEN REJECT; END IF;
@@ -4149,6 +4289,15 @@ BEGIN
    IF member.id IS NULL THEN REJECT; END IF;
   END IF;
   IF TG_OP='INSERT' THEN
+   IF NEW.work_kind='prepare' THEN
+    SELECT * INTO root FROM wl_ingestion.roots r WHERE r.tenant_id=NEW.tenant_id AND r.portfolio_id=NEW.portfolio_id;
+    IF NEW.state<>'active' OR parent.state NOT IN ('NORMALIZING','RECONCILING') OR root.tenant_id IS NULL OR
+     (NEW.session_digest,NEW.credential_version) IS DISTINCT FROM
+      (parent.prepare_session_digest,parent.prepare_credential_version) OR
+     (NEW.prepare_set_revision,NEW.prepare_accepted_generation,NEW.prepare_mapping_generation,
+      NEW.prepare_control_generation) IS DISTINCT FROM
+      (parent.revision,root.accepted_generation,root.mapping_generation,root.control_generation) THEN REJECT; END IF;
+   END IF;
    IF worker.id IS NULL OR NOT worker.enabled OR NEW.state NOT IN ('offered','active') OR
     NEW.created_at>n OR NEW.expires_at<=n OR NEW.incarnation<>parent.incarnation OR
     NEW.restore_epoch<>parent.restore_epoch OR NEW.last_request_id IS NOT NULL OR
@@ -4172,10 +4321,12 @@ BEGIN
   END IF;
   IF (NEW.tenant_id,NEW.portfolio_id,NEW.id,NEW.set_id,NEW.member_id,NEW.work_kind,NEW.attempt,
     NEW.fence,NEW.worker_id,NEW.session_digest,NEW.credential_version,NEW.incarnation,
-    NEW.restore_epoch,NEW.created_at) IS DISTINCT FROM
+    NEW.restore_epoch,NEW.created_at,NEW.prepare_set_revision,NEW.prepare_accepted_generation,
+    NEW.prepare_mapping_generation,NEW.prepare_control_generation) IS DISTINCT FROM
    (OLD.tenant_id,OLD.portfolio_id,OLD.id,OLD.set_id,OLD.member_id,OLD.work_kind,OLD.attempt,
     OLD.fence,OLD.worker_id,OLD.session_digest,OLD.credential_version,OLD.incarnation,
-    OLD.restore_epoch,OLD.created_at) THEN REJECT; END IF;
+    OLD.restore_epoch,OLD.created_at,OLD.prepare_set_revision,OLD.prepare_accepted_generation,
+    OLD.prepare_mapping_generation,OLD.prepare_control_generation) THEN REJECT; END IF;
   -- A raw slot is released once, only by a fenced attempt that was never bound
   -- (and whose fixed 120-second raw deadline from reserve has passed, so the API
   -- holds no raw buffer) or whose recorded proofs for this fence all show no
@@ -4470,6 +4621,9 @@ def _value_rules(table):
             'revision>=1', 'member_count BETWEEN 1 AND 4', 'actor_user_id=tenant_id',
             "expires_at=created_at+interval '86400 seconds'", 'reserved_bytes<=16777216',
             "(state='COMMITTED')=(receipt_id IS NOT NULL)",
+            '(prepare_session_digest IS NULL)=(prepare_credential_version IS NULL)',
+            "(prepare_session_digest IS NOT NULL)=(state IN ('NORMALIZING','RECONCILING'))",
+            'prepare_credential_version>=1',
             _enum('cleanup_state', ('not_needed','pending','complete','failed'))],
         'members': [
             'ordinal BETWEEN 0 AND 3', 'raw_bytes BETWEEN 1 AND 10485760',
@@ -4485,6 +4639,11 @@ def _value_rules(table):
             '(claim_request_id IS NULL)=(claim_request_digest IS NULL)',
             '(last_request_id IS NULL)=(last_request_digest IS NULL)',
             '(last_request_id IS NULL)=(last_result_bytes IS NULL)',
+            "(work_kind='prepare')=(prepare_set_revision IS NOT NULL)",
+            "(work_kind='prepare')=(prepare_accepted_generation IS NOT NULL)",
+            "(work_kind='prepare')=(prepare_mapping_generation IS NOT NULL)",
+            "(work_kind='prepare')=(prepare_control_generation IS NOT NULL)",
+            'prepare_set_revision>=1',
             # Each normalize attempt took one raw slot at reserve; this records
             # whether it still holds it. Proofs belong to normalize attempts only.
             "(work_kind='normalize')=(raw_slot IS NOT NULL)", "raw_slot IN ('held','released')",

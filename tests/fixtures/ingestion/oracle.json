@@ -38303,6 +38303,16 @@
             "name": "cleanup_state",
             "nullable": false,
             "type": "text"
+          },
+          {
+            "name": "prepare_session_digest",
+            "nullable": true,
+            "type": "text"
+          },
+          {
+            "name": "prepare_credential_version",
+            "nullable": true,
+            "type": "bigint"
           }
         ],
         "immutable": false,
@@ -38570,6 +38580,26 @@
             "name": "cleanup_proof_bytes",
             "nullable": true,
             "type": "bytea"
+          },
+          {
+            "name": "prepare_set_revision",
+            "nullable": true,
+            "type": "bigint"
+          },
+          {
+            "name": "prepare_accepted_generation",
+            "nullable": true,
+            "type": "bigint"
+          },
+          {
+            "name": "prepare_mapping_generation",
+            "nullable": true,
+            "type": "bigint"
+          },
+          {
+            "name": "prepare_control_generation",
+            "nullable": true,
+            "type": "bigint"
           }
         ],
         "immutable": false,
