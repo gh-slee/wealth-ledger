@@ -73,7 +73,7 @@ class SourceSecurityTests(SourceCase):
         bad=json.loads(artifact);bad['files'][0]['sha256']='0'*64;changed=canonical(bad)
         with self.assertRaises(ContractError):verify_installation(replace(descriptor,artifact_sha256=hashlib.sha256(changed).hexdigest()),changed,image_root='/app/src')
         folder=Path('work')/('source-content-negative-'+uuid.uuid4().hex);folder.mkdir(parents=True,mode=0o700)
-        suffix=uuid.uuid4().hex;tag='wealth-ledger-proof-base-'+suffix+':test';retained='wealth-ledger-proof-retained-'+suffix+':test'
+        suffix=uuid.uuid4().hex;tag='kurafolio-proof-base-'+suffix+':test';retained='kurafolio-proof-retained-'+suffix+':test'
         def docker(*args):
             value=subprocess.run(['docker',*args],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=120)
             self.assertEqual(value.returncode,0,'Synthetic stopped-image proof setup failed; inspect private Docker diagnostics')

@@ -2,7 +2,7 @@
 
 | Asset | Provenance / captured task |
 |---|---|
-| `wealth-ledger-mark.svg` | Original project artwork under the project MIT license. |
+| `kurafolio-mark.svg` | Original project artwork under the project MIT license. |
 | `report-preview.png` | The invented offline report from `examples/demo.py`. |
 | `web-getting-started.png` | Empty synthetic portfolio; first-observation guidance, no financial records. |
 | `web-login.png` | Blank sign-in form; no entered credentials. |

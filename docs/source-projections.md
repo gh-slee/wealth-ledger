@@ -565,7 +565,7 @@ cutover acceptance remain C3C2.
 Use a disposable synthetic ledger while evaluating this pre-release interface.
 Create its directory first and keep it separate from installation code. The
 checkout command is `python scripts/source_reports.py`; an installed wheel supplies
-`wealth-ledger-source-reports` with the same subcommands. This example assumes
+`kurafolio-source-reports` with the same subcommands. This example assumes
 private `context.json`, `bindings.json`, parser configuration and source CSVs have
 already been prepared using the SDK/B2 formats.
 

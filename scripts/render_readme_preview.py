@@ -37,7 +37,7 @@ def render(output: Path) -> dict:
     draw.text((56, 70), "Holdings, history, and the companies behind your ETFs.", fill=ink, font=font(35))
     draw.rounded_rectangle((1270, 30, 1544, 68), radius=16, fill="#FFF0D1")
     draw.text((1289, 35), "SYNTHETIC DATA ONLY", fill="#875C1B", font=font(18))
-    with tempfile.TemporaryDirectory(prefix="wealth-ledger-readme-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="kurafolio-readme-") as temporary:
         bundle = Path(temporary) / "demo"
         result = module.run_demo(bundle, "actual_only", locale="en-CA")
         if result["data_kind"] != "synthetic_offline_demo_only" or result["input_sha256"] != SYNTHETIC_INPUT_SHA256:

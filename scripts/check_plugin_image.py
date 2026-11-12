@@ -16,11 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def verify(base_image, wheel):
-    image = "wealth-ledger-sdk-test-" + uuid.uuid4().hex + ":derived"
+    image = "kurafolio-sdk-test-" + uuid.uuid4().hex + ":derived"
     if wheel.name != "kurafolio_synthetic_parser-0.1.0-py3-none-any.whl":
         raise ValueError("Supply the reviewed synthetic example wheel")
     try:
-        with tempfile.TemporaryDirectory(prefix="wealth-ledger-plugin-image-") as directory:
+        with tempfile.TemporaryDirectory(prefix="kurafolio-plugin-image-") as directory:
             context = Path(directory)
             shutil.copyfile(wheel, context / wheel.name)
             (context / "Dockerfile").write_text('''ARG BASE_IMAGE

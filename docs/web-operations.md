@@ -22,8 +22,8 @@ install the separate locked dependency set, using Python 3.12+ from a source che
 
 ```bash
 python -m pip install -r requirements-web.lock
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" init-owner
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" serve
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" init-owner
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" serve
 ```
 
 `init-owner` requires a new empty dedicated directory (created if missing) or an
@@ -155,7 +155,7 @@ codes through its three-locale presentation layer. No account data is placed in 
 ## Password reset and session storage
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" reset-password
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" reset-password
 ```
 
 A reset prompts on the host and revokes all sessions. `--password-stdin` is available

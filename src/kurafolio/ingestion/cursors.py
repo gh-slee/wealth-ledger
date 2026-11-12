@@ -16,6 +16,7 @@ import re
 
 from .codec import IngestionError, _load, encode
 
+# Kept from the pre-Kurafolio name: HMAC purpose; changing it would invalidate ingestion cursors already issued.
 PURPOSE = b'wealth-ledger/ingestion-cursor-v1'
 MAX_TOKEN = 1024
 _UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.ASCII)

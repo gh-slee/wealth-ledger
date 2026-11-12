@@ -2,9 +2,9 @@
 
 This is a source baseline, not a deployment receipt or permission to implement the
 roadmap. The current integration ancestry includes merge
-[`0b62a8a` (PR #13)](https://github.com/gh-slee/wealth-ledger/pull/13), which contains
+[`0b62a8a` (PR #13)](https://github.com/gh-slee/kurafolio/pull/13), which contains
 the three UX-P0 slices. Domain contracts and development governance also include
-[PR #16](https://github.com/gh-slee/wealth-ledger/pull/16). Later unmerged work is not treated as shipped. Tests linked
+[PR #16](https://github.com/gh-slee/kurafolio/pull/16). Later unmerged work is not treated as shipped. Tests linked
 below describe executable coverage; this page does not claim they were all rerun
 for a documentation change. See [TODO](../TODO.md) for remaining work and
 [spec development](spec-development.md) for approval/ownership gates.
@@ -20,7 +20,7 @@ for a documentation change. See [TODO](../TODO.md) for remaining work and
 | UX-P0 | First-use guidance, evidence status/actions and staged import/recovery merged through PR #13: [onboarding tests](../frontend/tests/browser/onboarding.spec.ts), [status tests](../frontend/tests/browser/evidence-status.spec.ts), [import tests](../frontend/tests/browser/import-review.spec.ts), [ticket index](product-ux-review.md). | These bounded slices do not complete the whole UX redesign, numeric BTC-gap/coverage models or every future source-capability view. Deployment is a separate operator action. |
 | Operations/distribution | Source-built Docker context, isolated jobs, full backup/empty-target restore and trusted-host adoption: [context helper](../scripts/docker_context.py), [backup tests](../tests/test_web_backups.py), [operations acceptance](web-release-acceptance.md). | Public prebuilt multi-architecture images/pull-only distribution (WEB-008) remain planned. A source build or local smoke check is not a public registry release or real-instance upgrade. |
 | Optional PG foundation | Explicit candidate repositories, SQL precision/RLS/FKs, atomic receipt/outbox, leases/fencing and operator migrations: [contract](postgres-foundation.md), [repositories](../src/kurafolio/persistence/repositories.py), [tests](../tests/test_postgres_migrations.py). | Opt-in development infrastructure. Current Web/CLI remain SQLite; no authenticated registration, financial booking/valuation, provider cursor, full app recovery or personal migration is activated. Real-PG tests require explicit isolated configuration; skipped tests are not acceptance. |
-| Optional V2 identity | Protected setup/invitation/authentication backend and own-scope candidate/job reads, merged through [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19): [operator/API contract](web-v2-identity.md), [SQL tests](../tests/test_identity_transactions.py), [HTTP tests](../tests/test_web_v2_api.py). | Opt-in backend; the existing Web/CLI remain on SQLite. Setup/invitation UI remains WL-P0-011. No financial import/export service or existing-data migration is activated. |
+| Optional V2 identity | Protected setup/invitation/authentication backend and own-scope candidate/job reads, merged through [PR #19](https://github.com/gh-slee/kurafolio/pull/19): [operator/API contract](web-v2-identity.md), [SQL tests](../tests/test_identity_transactions.py), [HTTP tests](../tests/test_web_v2_api.py). | Opt-in backend; the existing Web/CLI remain on SQLite. Setup/invitation UI remains WL-P0-011. No financial import/export service or existing-data migration is activated. |
 | Development roles | Four repository role skills and human-operated [SDD workflow](spec-development.md); [discovery/privacy guide](agent-development.md). | Skills are optional development guidance, never runtime dependencies. Adoption/discovery does not dispatch agents, approve another spec, or prove independent QA. |
 
 Current supported data includes normalized cash-flow CSVs and optional dated BTC
@@ -33,14 +33,14 @@ acquisition costs. See [the manual](user-manual.md) for supported daily operatio
 
 ## Optional V2 source lifecycle
 
-WL-P0-006, merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22),
+WL-P0-006, merged through [PR #22](https://github.com/gh-slee/kurafolio/pull/22),
 adds the explicit `0003` sources backend profile:
 [operator/API guide](web-v2-sources.md), [contract](../src/kurafolio/data_sources/contract_v1.py),
 [lifecycle SQL](../src/kurafolio/persistence/source_schema.py),
 [SQL tests](../tests/test_source_lifecycle.py), [HTTP tests](../tests/test_web_v2_sources.py)
 and [native test-only harness](../tests/test_source_harness.py). Independent
 implementation review is accepted; all seven
-[merged-main CI jobs](https://github.com/gh-slee/wealth-ledger/actions/runs/40914248281)
+[merged-main CI jobs](https://github.com/gh-slee/kurafolio/actions/runs/40914248281)
 passed on `4867f02`. This source baseline does not establish deployment or a data migration. Inert catalogs, user-version
 confirmation and reusable connections do not import financial facts. Default
 SQLite and the optional `0002` identity profile remain separate. V2 upload/financial

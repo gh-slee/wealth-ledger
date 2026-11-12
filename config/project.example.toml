@@ -2,7 +2,7 @@
 # This file contains no account numbers or financial values.
 
 [project]
-name = "wealth-ledger"
+name = "kurafolio"
 report_language = "en-CA" # Reference only; actual setting is reporting.locale in local.toml
 timezone = "America/Toronto"
 

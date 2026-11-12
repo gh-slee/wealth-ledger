@@ -72,7 +72,7 @@ SECRET_PATTERNS = (
     ('GitHub credential', re.compile(rb'\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{30,}\b')),
     ('AWS access key', re.compile(rb'\b(?:AKIA|ASIA)[A-Z0-9]{16}\b')),
     ('credential-bearing URL', re.compile(rb'https?://[^\s/:]+:[^\s/@]+@')),
-    ('private adoption plan', re.compile(rb'"format"\s*:\s*"wealth-ledger-private-' + rb'adoption"')),
+    ('private adoption plan', re.compile(rb'"format"\s*:\s*"kurafolio-private-' + rb'adoption"')),
     ('explicit private fixture marker', re.compile(rb'\b(?:PRIVATE_' + rb'FINANCIAL_FIXTURE|DO_NOT_PUBLISH_' + rb'PERSONAL_DATA)\b')),
     ('machine-specific home path', re.compile(rb'/(?:Users|home)/[A-Za-z0-9_.-]+/')),
 )
@@ -160,7 +160,7 @@ def path_allowed(path: str) -> bool:
     if parts[0] == 'config':
         return len(parts) == 2 and p.name in PUBLIC_CONFIG
     if parts[:2] == ('assets', 'readme'):
-        return len(parts) == 3 and (p.name in {'wealth-ledger-mark.svg', 'README.md'} or path in PUBLIC_README_PNGS)
+        return len(parts) == 3 and (p.name in {'kurafolio-mark.svg', 'README.md'} or path in PUBLIC_README_PNGS)
     if parts[:2] == ('assets', 'fonts'):
         return len(parts) == 3 and p.name in {'NotoSansTC-Regular.ttf', 'NotoSansSC-Regular.ttf', 'NotoSansSC-provenance.json', 'OFL.txt', 'OFL-SC.txt', 'README.md'}
     if parts[0] == '.githooks':

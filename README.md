@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/wealth-ledger-mark.svg" width="76" height="76" alt="Wealth Ledger icon">
+  <img src="assets/readme/kurafolio-mark.svg" width="76" height="76" alt="Wealth Ledger icon">
 </p>
 
 <h1 align="center">Wealth Ledger</h1>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml"><img src="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
+  <a href="https://github.com/gh-slee/kurafolio/actions/workflows/ci.yml"><img src="https://github.com/gh-slee/kurafolio/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
   <a href="https://github.com/sponsors/gh-slee"><img src="https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?style=flat-square&amp;logo=githubsponsors&amp;logoColor=white" alt="Sponsor gh-slee on GitHub"></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-149ECA?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React and TypeScript frontend"></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12 or newer"></a>
@@ -91,8 +91,8 @@ exports to public issues.
 Prerequisites: **Git**, **Python 3.12+** for the source-context helper, and **Docker with Compose v2**. The helper uses Python's standard library; it does not require the financial dependencies. Docker builds the frontend and installs the server dependencies inside the image.
 
 ```bash
-git clone https://github.com/gh-slee/wealth-ledger.git
-cd wealth-ledger
+git clone https://github.com/gh-slee/kurafolio.git
+cd kurafolio
 
 # Prepare a source-only build context; private workspaces are excluded.
 python3 scripts/docker_context.py --output work/docker-context
@@ -384,7 +384,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md) and opt-in [legacy report evidence](docs/web-legacy-reports.md); actual private migration is explicit |
 | Extensible financial CSV sources | Two real built-ins; installable SDK/trusted registry, v1 nonbooking previews and default v2 CLI/browser approved reports implemented. Personal adoption and additional real formats remain: [SRC-004](TODO.md) |
-| Optional V2 source lifecycle | Merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22): [catalog/enablement/connections](docs/web-v2-sources.md); optional PostgreSQL backend only, no production V2 upload or current-data migration |
+| Optional V2 source lifecycle | Merged through [PR #22](https://github.com/gh-slee/kurafolio/pull/22): [catalog/enablement/connections](docs/web-v2-sources.md); optional PostgreSQL backend only, no production V2 upload or current-data migration |
 | Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |
@@ -405,7 +405,7 @@ Current imports support the documented Wealthsimple holdings and Bull Bitcoin or
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) · [Agent setup](docs/agent-development.md) | Reproducible development, checks, shared instructions, and private guidance. |
 | [Capability status](docs/capability-status.md) · [Spec development](docs/spec-development.md) | Current source versus planned work; exact-revision approval, role handoffs and ownership. |
 
-For help, [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with a minimal **synthetic** reproduction. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+For help, [open an issue](https://github.com/gh-slee/kurafolio/issues) with a minimal **synthetic** reproduction. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## Development
 
@@ -413,7 +413,7 @@ An [optional PostgreSQL foundation](docs/postgres-foundation.md) provides candid
 repositories, transactional receipts/outbox and leased jobs for future services.
 It uses PostgreSQL 18, SQLAlchemy Core, psycopg and operator-only Alembic. The current
 Web/CLI still use SQLite. The separate [V2 identity backend](docs/web-v2-identity.md),
-merged in [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19), provides protected
+merged in [PR #19](https://github.com/gh-slee/kurafolio/pull/19), provides protected
 first setup, invitation registration and own-scope read APIs. It is explicitly
 opt-in, has no new UI and is not a financial import/export service or existing-data
 migration path.
@@ -427,7 +427,7 @@ I want Wealth Ledger to be a tool you can understand and run for yourself. If it
 
 [❤️ Sponsor on GitHub](https://github.com/sponsors/gh-slee)
 
-You can also help with a [star](https://github.com/gh-slee/wealth-ledger/stargazers), a [bug report](https://github.com/gh-slee/wealth-ledger/issues) or a [contribution](CONTRIBUTING.md). Thank you!
+You can also help with a [star](https://github.com/gh-slee/kurafolio/stargazers), a [bug report](https://github.com/gh-slee/kurafolio/issues) or a [contribution](CONTRIBUTING.md). Thank you!
 
 Sponsorship is entirely optional. All features remain free and open source.
 

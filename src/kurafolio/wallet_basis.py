@@ -36,6 +36,7 @@ def declaration_basis(project, as_of):
         return {"expected_btc": asset["quantity_btc"], "wallet": model["wallet"],
                 "history_start": asset["history_start"],
                 "acquisition_history_known": asset["acquisition_history_known"] or asset["opening"] is not None,
+                # Kept from the pre-Kurafolio name: stored format identifier; saved declarations carry it.
                 "calculation_basis": {"format": "wealth-ledger-compatible-declaration", "schema_version": 1,
                                       "projection_sha256": model["projection_sha256"], "state_sha256": model["state_sha256"]}}
     from . import wallet

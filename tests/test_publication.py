@@ -33,7 +33,7 @@ class PublicationPolicyTests(unittest.TestCase):
                      'src/kurafolio/locales/zh-CN.json', 'src/kurafolio/locales/legacy.json',
                      'assets/fonts/NotoSansSC-Regular.ttf', 'assets/fonts/OFL-SC.txt',
                      'assets/fonts/NotoSansSC-provenance.json',
-                     'assets/readme/wealth-ledger-mark.svg', 'assets/readme/report-preview.png',
+                     'assets/readme/kurafolio-mark.svg', 'assets/readme/report-preview.png',
                      'assets/readme/README.md', 'frontend/package-lock.json', 'frontend/src/App.tsx',
                      'frontend/src/locales/zh-TW.json', 'docs/web-frontend.md',
                      'frontend/scripts/capture-readme.mjs', 'assets/readme/web-overview.png',
@@ -849,7 +849,7 @@ class TypedSchemaPrivacyTests(unittest.TestCase):
 class AdoptionPrivacyTests(unittest.TestCase):
     def test_private_adoption_plan_content_is_rejected_even_under_a_public_path(self):
         import json
-        marker='wealth-ledger-private-'+'adoption'
+        marker='kurafolio-private-'+'adoption'
         raw=json.dumps({'format':marker,'source_root':'/example/private-ledger'}).encode()
         self.assertTrue(any('adoption' in message for message in guard.content_issues(raw,'examples/data/fx.json')))
 

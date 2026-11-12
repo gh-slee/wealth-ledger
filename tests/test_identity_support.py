@@ -19,12 +19,12 @@ class IdentityCase(unittest.TestCase):
     def setUpClass(cls):
         from psycopg.conninfo import conninfo_to_dict
         cls.config=json.loads(Path(os.environ['WEALTH_LEDGER_IDENTITY_TEST_CONFIG']).read_text())
-        if cls.config.get('format')!='wealth-ledger-synthetic-identity-tests':
+        if cls.config.get('format')!='kurafolio-synthetic-identity-tests':
             raise RuntimeError('Explicit synthetic identity marker required')
         options=conninfo_to_dict(Path(cls.config['migration_secret_file']).read_text())
-        if not options.get('dbname','').startswith('wl_test_') or not cls.config['container'].startswith('wealth-ledger-pg-test-'):
+        if not options.get('dbname','').startswith('wl_test_') or not cls.config['container'].startswith('kurafolio-pg-test-'):
             raise RuntimeError('Synthetic resource names required')
-        label=subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "wealth-ledger.test"}}',cls.config['container']],text=True).strip()
+        label=subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "kurafolio.test"}}',cls.config['container']],text=True).strip()
         if label!='pg-foundation':raise RuntimeError('Synthetic Docker label required')
         cls.key=Path(cls.config['key_file']).read_bytes()
         from pwdlib import PasswordHash

@@ -66,7 +66,7 @@ def stage_source(root, destination):
 def _build_tree():
     from setuptools import build_meta
     previous = Path.cwd()
-    with tempfile.TemporaryDirectory(prefix="wealth-ledger-public-build-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="kurafolio-public-build-") as temporary:
         staged = Path(temporary)
         stage_source(ROOT, staged)
         try:

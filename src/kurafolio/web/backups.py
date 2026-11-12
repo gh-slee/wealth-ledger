@@ -240,6 +240,7 @@ def backup_instance(settings, output, *, timeout=30, internal=False):
                                 databases[name] = snapshot_database(source, selected)
                             hashes[name] = {"sha256": file_hash(selected), "bytes": selected.stat().st_size}
                             archive.write(selected, "instance/" + name)
+                        # Kept from the pre-Kurafolio name: backup manifest format; existing backups must still restore.
                         manifest = {"format": "wealth-ledger-private-instance", "version": VERSION,
                             "web_schema": SCHEMA_VERSION, "engine": engine_fingerprint(),
                             "created_at": datetime.now(timezone.utc).isoformat(), "source_root": str(root),

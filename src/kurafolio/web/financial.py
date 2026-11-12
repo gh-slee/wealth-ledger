@@ -210,7 +210,7 @@ def declaration_upload(store, row):
 
 def preview_declaration(project, request, *, upload_path=None, now=None):
     from ..preflight import _snapshot
-    with tempfile.TemporaryDirectory(prefix='wealth-ledger-record-preview-') as directory:
+    with tempfile.TemporaryDirectory(prefix='kurafolio-record-preview-') as directory:
         stage = Path(directory)/'project';_snapshot(project,stage)
         result = apply_declaration(stage,request,upload_path=upload_path,now=now)
         return {'status':'ready','declaration':request,'result':safe_record(result) or result,

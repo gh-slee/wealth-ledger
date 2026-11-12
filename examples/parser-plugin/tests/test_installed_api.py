@@ -40,7 +40,7 @@ class InstalledApiTests(unittest.TestCase):
             supplied = secrets.token_urlsafe(32)
             store.set_owner("owner", password_hash(supplied))
             config = settings.data_root / "admin/source-parsers.json"
-            config.write_text(json.dumps({"schema_version":1, "enabled":[{"distribution":"wealth-ledger-synthetic-parser",
+            config.write_text(json.dumps({"schema_version":1, "enabled":[{"distribution":"kurafolio-synthetic-parser",
                 "version":"0.1.0", "entry_point":"synthetic", "adapter_id":"synthetic.holdings"}], "bindings":[]}))
             raw = fixture()
             source = root / "invented.csv"; source.write_bytes(raw)
@@ -112,12 +112,12 @@ class InstalledV2ReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="synthetic-v2-reports-") as temporary:
             root=Path(temporary).resolve();ledger=root/"ledger";ledger.mkdir()
             source=root/"invented.csv";source.write_bytes(fixture(format=VERSION))
-            config=root/"parsers.json";config.write_text(json.dumps({"schema_version":1,"enabled":[{"distribution":"wealth-ledger-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
+            config=root/"parsers.json";config.write_text(json.dumps({"schema_version":1,"enabled":[{"distribution":"kurafolio-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
             context=root/"context.json";context.write_text(json.dumps({"schema_version":1,"inputs":[{"evidence_at":"2024-02-01T12:00:00+00:00","source_reference":"synthetic-independent-export","format_selection":VERSION}]}))
             valuation=root/"valuation.json";valuation.write_text(json.dumps({"as_of":"2024-03-01T00:00:00Z","period_start":"2024-01-01T00:00:00Z","generated_at":"2024-03-01T00:00:00Z","report_locale":"en-CA","fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-02-29","usd_twd_date":"2024-02-29","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}))
             binding=root/"bindings.json";binding.write_text(json.dumps({"schema_version":1,"bindings":[{"provider":"synthetic","source_account_id":"demo-account","target_kind":"new"}]}))
             plan=root/"plan"
-            console=Path(sys.executable).parent/("wealth-ledger-source-reports.exe" if sys.platform=="win32" else "wealth-ledger-source-reports")
+            console=Path(sys.executable).parent/("kurafolio-source-reports.exe" if sys.platform=="win32" else "kurafolio-source-reports")
             from kurafolio.workspace import SOURCE_CHECKOUT
             if not SOURCE_CHECKOUT:self.assertTrue(console.is_file())
             command=[str(console)] if console.is_file() else [sys.executable,"-m","kurafolio.source_report_cli"]
@@ -163,7 +163,7 @@ class InstalledV2ReportTests(unittest.TestCase):
             store = Store(settings); supplied = secrets.token_urlsafe(32)
             store.set_owner("owner", password_hash(supplied))
             (settings.data_root / "admin/source-parsers.json").write_text(json.dumps({"schema_version":1,
-                "enabled":[{"distribution":"wealth-ledger-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
+                "enabled":[{"distribution":"kurafolio-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
             client = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
             def request(path, *, body=None, headers=None, binary=False):
                 encoded = body if isinstance(body, bytes) else json.dumps(body).encode() if body is not None else None

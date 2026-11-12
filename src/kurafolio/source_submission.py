@@ -22,6 +22,7 @@ from .source_pipeline import CONFIG_BYTES, INPUT_BYTES, NORMALIZED_BYTES, _json,
 from .workspace import resolve_workspace
 
 MANIFEST_BYTES = 256 * 1024
+# Kept from the pre-Kurafolio name: stored format identifier; frozen submissions carry it.
 FORMAT = "wealth-ledger-frozen-source-submission"
 SHA = re.compile(r"[a-f0-9]{64}")
 OP = re.compile(r"OP-[a-f0-9]{32}")

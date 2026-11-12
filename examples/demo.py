@@ -54,7 +54,7 @@ def run_demo(output: Path, btc_cost_policy: str, locale="en-CA") -> dict:
     fx = json.loads((data / "fx.json").read_text(encoding="utf-8"))
     quote_path = data / "btc-price.json"
     quote = json.loads(quote_path.read_text(encoding="utf-8"))
-    with tempfile.TemporaryDirectory(prefix="wealth-ledger-synthetic-demo-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="kurafolio-synthetic-demo-") as temporary:
         ledger = Path(temporary) / "ledger"
         (ledger / "config").mkdir(parents=True)
         shutil.copyfile(PROJECT / "config/company-aliases.json", ledger / "config/company-aliases.json")

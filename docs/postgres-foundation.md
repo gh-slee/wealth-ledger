@@ -89,7 +89,7 @@ behavior. To verify the optional PG runtime dependencies explicitly:
 ```bash
 python scripts/docker_context.py --output work/pg-image-context
 docker build --build-arg WEALTH_LEDGER_POSTGRES=1 \
-  --tag wealth-ledger:pg-foundation work/pg-image-context
+  --tag kurafolio:pg-foundation work/pg-image-context
 ```
 
 The default build argument is zero. The PG runtime lock contains SQLAlchemy and

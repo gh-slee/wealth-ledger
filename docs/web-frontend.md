@@ -21,10 +21,10 @@ For native development, install Python Web dependencies and Node 24 LTS (or Node
 python -m pip install -r requirements-web-test.lock
 npm --prefix frontend ci --ignore-scripts
 npm --prefix frontend run build
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" init-owner
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" serve
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" init-owner
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" serve
 # In another terminal, with the same dedicated instance:
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" worker
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" worker
 ```
 
 Use a new, empty dedicated directory for first initialization. An existing initialized

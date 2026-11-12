@@ -25,8 +25,8 @@ Install `requirements-web.lock`, initialize the owner once, then run these in
 separate host processes with the same explicit dedicated root:
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" serve
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" worker
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" serve
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" worker
 ```
 
 For a prepared Docker context/initialized volume:
@@ -199,7 +199,7 @@ For an existing API v1 instance, stop Web and worker processes, keep a complete
 private backup, install the new image/dependencies, then run:
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" upgrade
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" upgrade
 ```
 
 Or, after rebuilding the inspected Docker context, with services stopped:

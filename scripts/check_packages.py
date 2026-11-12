@@ -141,7 +141,7 @@ def verify_installed(python):
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "MPLBACKEND": "Agg"}
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
-    with tempfile.TemporaryDirectory(prefix="wealth-ledger-sdk-acceptance-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="kurafolio-sdk-acceptance-") as temporary:
         base = Path(temporary)
         check = '''
 import json
@@ -173,11 +173,11 @@ print(json.dumps({"package": str(PACKAGE_ROOT)}))
         raw = run([str(python), "-I", "-c", f"import sys; sys.path.insert(0, {str(tests)!r}); from test_synthetic_parser import fixture; print(fixture().decode(), end='')"], base, env)
         source = base / "synthetic.csv"; source.write_text(raw, encoding="utf-8")
         config = base / "parsers.json"
-        config.write_text(json.dumps({"schema_version": 1, "enabled": [{"distribution":"wealth-ledger-synthetic-parser",
+        config.write_text(json.dumps({"schema_version": 1, "enabled": [{"distribution":"kurafolio-synthetic-parser",
             "version":"0.1.0", "entry_point":"synthetic", "adapter_id":"synthetic.holdings"}], "bindings": []}))
-        console = python.parent / ("wealth-ledger-source-parsers.exe" if os.name == "nt" else "wealth-ledger-source-parsers")
+        console = python.parent / ("kurafolio-source-parsers.exe" if os.name == "nt" else "kurafolio-source-parsers")
         command = [str(console), str(source), "--config", str(config)]
-        submission_console=python.parent / ("wealth-ledger-source-ingestion.exe" if os.name=="nt" else "wealth-ledger-source-ingestion")
+        submission_console=python.parent / ("kurafolio-source-ingestion.exe" if os.name=="nt" else "kurafolio-source-ingestion")
         run([str(submission_console),"--help"],base,env)
         plan = json.loads(run(command, base, env))
         assert plan["ingestible"] is False and plan["booking_blocker"] == "protocol_v1_not_bookable"

@@ -45,7 +45,7 @@ class PostgresCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.settings=json.loads(Path(CONFIG).read_text())
-        if cls.settings.get('format')!='wealth-ledger-synthetic-pg-tests':raise RuntimeError('Synthetic test config required')
+        if cls.settings.get('format')!='kurafolio-synthetic-pg-tests':raise RuntimeError('Synthetic test config required')
         from psycopg.conninfo import conninfo_to_dict
         options=conninfo_to_dict(Path(cls.settings['migration_secret_file']).read_text())
         if not options.get('dbname','').startswith(('wl_test_','wl004_')):raise RuntimeError('Synthetic database name required')

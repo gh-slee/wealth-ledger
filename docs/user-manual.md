@@ -44,8 +44,8 @@ An OpenDocument spreadsheet reader can open ODS; generation needs no office proc
 Install Python 3.12+ first, then:
 
 ```bash
-git clone https://github.com/gh-slee/wealth-ledger.git
-cd wealth-ledger
+git clone https://github.com/gh-slee/kurafolio.git
+cd kurafolio
 python3 -m venv .venv-portable
 .venv-portable/bin/python -m pip install -r requirements.lock
 ```
@@ -70,16 +70,16 @@ continue using the original checkout-local ledger; existing files are not moved.
 Choose a dedicated existing empty directory for a new portfolio:
 
 ```bash
-mkdir -p "$HOME/.local/share/wealth-ledger/household"
-python scripts/update.py --native-import --workspace "$HOME/.local/share/wealth-ledger/household" \
+mkdir -p "$HOME/.local/share/kurafolio/household"
+python scripts/update.py --native-import --workspace "$HOME/.local/share/kurafolio/household" \
   /path/to/holdings.csv --kind baseline
-python scripts/update.py --native-import --workspace "$HOME/.local/share/wealth-ledger/household" \
+python scripts/update.py --native-import --workspace "$HOME/.local/share/kurafolio/household" \
   /path/to/orders.csv --bull-opening-file /path/to/private-opening.json --dry-run
-python scripts/update.py --native-import --workspace "$HOME/.local/share/wealth-ledger/household" --list-operations
-python scripts/btc_balances.py list --workspace "$HOME/.local/share/wealth-ledger/household"
-python scripts/btc_events.py list --workspace "$HOME/.local/share/wealth-ledger/household"
-python scripts/cash_flows.py accounts --workspace "$HOME/.local/share/wealth-ledger/household"
-python scripts/crypto_opening.py show --workspace "$HOME/.local/share/wealth-ledger/household"
+python scripts/update.py --native-import --workspace "$HOME/.local/share/kurafolio/household" --list-operations
+python scripts/btc_balances.py list --workspace "$HOME/.local/share/kurafolio/household"
+python scripts/btc_events.py list --workspace "$HOME/.local/share/kurafolio/household"
+python scripts/cash_flows.py accounts --workspace "$HOME/.local/share/kurafolio/household"
+python scripts/crypto_opening.py show --workspace "$HOME/.local/share/kurafolio/household"
 ```
 
 Use the same option for every later import, coverage declaration, balance/event
@@ -140,7 +140,7 @@ is preserved; choosing a new default does not migrate a personal workspace.
 Formal monthly snapshot:
 
 ```bash
-cd wealth-ledger
+cd kurafolio
 .venv-portable/bin/python scripts/update.py --native-import \
   --input ~/Downloads/holdings-report-YYYY-MM-DD.csv --kind monthly
 ```
@@ -861,7 +861,7 @@ Synthetic example files must not be imported unchanged. Import backs up, archive
 JSON and appends a SQLite revision, then report:
 
 ```bash
-cd wealth-ledger
+cd kurafolio
 .venv-portable/bin/python scripts/crypto_opening.py import /path/to/private-opening.json
 .venv-portable/bin/python scripts/update.py
 ```
@@ -890,7 +890,7 @@ Inception funding still requires reliable historical trades/transfers/flows, not
 ## 19. BTC balances, events and reconciliation
 
 Implemented Python commands need no LLM, wallet login or LibreOffice. Start in
-wealth-ledger. Replace all synthetic IDs/quantities/times; future times reject.
+kurafolio. Replace all synthetic IDs/quantities/times; future times reject.
 Input is BTC quantity, not CAD/USD value.
 
 ### 19.1 Optional total without CSV
@@ -1114,7 +1114,7 @@ operation or latest report and generates no ODS/MD/PDF/PNG.
 ### 20.1 One/two CSVs, balance-only or no input
 
 ```bash
-cd wealth-ledger
+cd kurafolio
 
 # Either CSV
 .venv-portable/bin/python scripts/update.py --native-import /path/to/holdings.csv --dry-run
@@ -1316,7 +1316,7 @@ editions retain actual dates/quotes and explicit unknown costs/contributions.
 
 ## Advanced source-report CLI (opt-in)
 
-An installed core provides `wealth-ledger-source-reports`; a checkout provides
+An installed core provides `kurafolio-source-reports`; a checkout provides
 `python scripts/source_reports.py`. The commands are `preview`, `inspect`, `confirm`
 and `resume`. They consume explicit v2 contexts/mappings and valuation JSON, or
 verified saved facts without a new CSV. Follow [the full synthetic examples and

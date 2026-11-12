@@ -282,7 +282,7 @@ class SourceOperatorTests(SourceCase):
         import tempfile
         from kurafolio.data_sources.contract_v1 import canonical,primitive
         from kurafolio.web_v2.operator import new_private
-        with tempfile.TemporaryDirectory(prefix='wealth-ledger-source-cli-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='kurafolio-source-cli-') as temporary:
             folder=Path(temporary);secret=folder/'operator.conninfo';key=folder/'identity.key';empty=folder/'empty.json';full=folder/'full.json';proof=folder/'proof.json'
             new_private(secret,self.configs['migration'].conninfo.encode());new_private(key,self.key)
             new_private(empty,canonical(primitive(self.catalog)));catalog,_=installation_fixture();new_private(full,canonical(primitive(catalog)))

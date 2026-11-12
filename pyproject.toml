@@ -4,7 +4,7 @@ build-backend = "build_backend"
 backend-path = ["."]
 
 [project]
-name = "wealth-ledger"
+name = "kurafolio"
 version = "0.1.0"
 description = "Local, reproducible holdings and Bitcoin ledger with ODS, Markdown and PDF reports"
 readme = "README.md"
@@ -18,9 +18,9 @@ postgres = ["SQLAlchemy==2.1.6", "psycopg[binary]==3.3.6"]
 web = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1", "pwdlib[argon2]>=0.2,<1", "huey>=3.4,<4"]
 
 [project.scripts]
-wealth-ledger-source-parsers = "kurafolio.source_cli:main"
-wealth-ledger-source-ingestion = "kurafolio.source_submission_cli:main"
-wealth-ledger-source-reports = "kurafolio.source_report_cli:main"
+kurafolio-source-parsers = "kurafolio.source_cli:main"
+kurafolio-source-ingestion = "kurafolio.source_submission_cli:main"
+kurafolio-source-reports = "kurafolio.source_report_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

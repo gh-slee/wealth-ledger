@@ -197,9 +197,9 @@ Pull-only multi-architecture distribution remains WEB-008; no image release is i
 - [x] Public `actual_only` default, explicit `bull_average_proxy` configuration and regression checks.
 - [x] MIT/font notices, CI and feature-branch/PR tooling connected to the public GitHub repository.
 - [x] Fresh locked dependency install from official PyPI and offline tests/reports on macOS/Python 3.12.
-- [x] Initial GitHub Linux/Python 3.12 acceptance: 263 tests, offline default/proxy and three-locale reports ([CI record](https://github.com/gh-slee/wealth-ledger/actions/runs/38828304491)).
+- [x] Initial GitHub Linux/Python 3.12 acceptance: 263 tests, offline default/proxy and three-locale reports ([CI record](https://github.com/gh-slee/kurafolio/actions/runs/38828304491)).
 - [ ] Additional platform acceptance; macOS/Linux success is not all-platform acceptance.
-- [x] First public [gh-slee/wealth-ledger](https://github.com/gh-slee/wealth-ledger) push after manifest/history review and explicit approval.
+- [x] First public [gh-slee/kurafolio](https://github.com/gh-slee/kurafolio) push after manifest/history review and explicit approval.
 
 Follow [publication procedures](docs/publishing.md); do not label unverified work as
 published. Daily financial imports never commit or push source code.
@@ -217,15 +217,15 @@ published. Daily financial imports never commit or push source code.
   This does not switch the current app backend or complete the full product V2.
 - [x] **WL-P0-005 — optional V2 identity backend**: protected
   first setup, single administrator, invitation lifecycle, isolated sessions and
-  restore quarantine, merged through [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19).
+  restore quarantine, merged through [PR #19](https://github.com/gh-slee/kurafolio/pull/19).
   [Operator/API scope](docs/web-v2-identity.md). Merged-main CI passed. Backend only; setup/invitation UI
   remains WL-P0-011. Existing Web/CLI stay on SQLite; no financial cutover is activated.
 - [x] **WL-P0-006 — optional V2 source capabilities**: independently accepted
-  implementation merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22):
+  implementation merged through [PR #22](https://github.com/gh-slee/kurafolio/pull/22):
   inert reviewed catalogs, per-user exact-version enablement, reusable FILE_IMPORT
   connections, restricted SQL functions, nonbooking transport and test-only native
   isolation. See [source operator/API scope](docs/web-v2-sources.md). All seven
-  [merged-main CI jobs](https://github.com/gh-slee/wealth-ledger/actions/runs/40914248281)
+  [merged-main CI jobs](https://github.com/gh-slee/kurafolio/actions/runs/40914248281)
   passed. Deployment is separate;
   production V2 upload/financial acceptance belongs to subsequent stages.
 - [ ] Authenticated tenant services, financial accepted source heads, source

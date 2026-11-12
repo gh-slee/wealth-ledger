@@ -600,6 +600,7 @@ def project_compatible_sources(project, *, as_of, period_start, fx=None, btc_pri
         if btc_price is not None:
             if quantity is not None and not reconciliation["valuation_blocked"]:
                 valuation = _values(quantity * D(btc_price["close"]), "USD", model["fx"])
+        # Kept from the pre-Kurafolio name: stored format identifier; saved projections carry it.
         model.update(format="wealth-ledger-compatible-projection", schema_version=1,
                      legacy_merge_ready=True, history_replay_ready=False,
                      legacy_overlap={"holdings": holdings_overlap, "orders": order_overlap},

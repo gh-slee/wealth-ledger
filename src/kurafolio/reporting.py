@@ -93,7 +93,7 @@ def _with_render_cache(function):
         with _RENDER_LOCK:
             cache = _CACHE.get()
             if cache is None:
-                with tempfile.TemporaryDirectory(prefix="wealth-ledger-chart-cache-") as temporary:
+                with tempfile.TemporaryDirectory(prefix="kurafolio-chart-cache-") as temporary:
                     return _cached_render(function, Path(temporary), args, kwargs)
             return _cached_render(function, Path(cache), args, kwargs)
     return render

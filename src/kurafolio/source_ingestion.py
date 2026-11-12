@@ -137,6 +137,7 @@ def _archive_path(project, relative):
 
 
 def _binding_document(row):
+    # Kept from the pre-Kurafolio name: stored format identifier; saved bindings carry it.
     return _json({"format":"wealth-ledger-source-binding", "schema_version":1, "policy":POLICY,
                   **{key:row[key] for key in ("provider","source_account","ledger_account","target_kind","identity_json")}}).encode()
 

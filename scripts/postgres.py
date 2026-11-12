@@ -31,7 +31,7 @@ def test_environment(output, *, identity=False):
     output=Path(output).resolve()
     if output.exists():raise ValueError('invalid_config')
     output.mkdir(parents=True,mode=0o700)
-    suffix=uuid.uuid4().hex[:12];prefix='wealth-ledger-pg-test-'+suffix
+    suffix=uuid.uuid4().hex[:12];prefix='kurafolio-pg-test-'+suffix
     resources={'container':prefix,'volume':prefix,'network':prefix,'database':'wl_test_'+suffix,
                'migration_role':'wl_test_'+suffix+'_operator','runtime_role':'wl_test_'+suffix+'_runtime','image':PG_IMAGE}
     if identity:resources['identity_role']='wl_test_'+suffix+'_identity'
@@ -39,14 +39,14 @@ def test_environment(output, *, identity=False):
     bootstrap=secrets.token_urlsafe(32);_private(output/'bootstrap.secret',bootstrap)
     for kind in ['volume','network']:
         if subprocess.run(['docker',kind,'inspect',resources[kind]],capture_output=True).returncode==0:raise ValueError('invalid_config')
-        subprocess.run(['docker',kind,'create','--label','wealth-ledger.test=pg-foundation',resources[kind]],check=True,stdout=subprocess.DEVNULL)
+        subprocess.run(['docker',kind,'create','--label','kurafolio.test=pg-foundation',resources[kind]],check=True,stdout=subprocess.DEVNULL)
     # Persist an OS-selected random binding in Docker's configuration. A blank
     # HostPort is reallocated on restart, invalidating the explicit secret files.
     # A bind race fails safely; no alternate/fixed service port is adopted.
     import socket
     with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as probe:
         probe.bind(('127.0.0.1',0));selected_port=probe.getsockname()[1]
-    subprocess.run(['docker','run','--detach','--name',prefix,'--label','wealth-ledger.test=pg-foundation',
+    subprocess.run(['docker','run','--detach','--name',prefix,'--label','kurafolio.test=pg-foundation',
         '--network',prefix,'--publish','127.0.0.1:'+str(selected_port)+':5432','--env','POSTGRES_PASSWORD_FILE=/run/secrets/bootstrap',
         '--mount','type=bind,src='+str(output/'bootstrap.secret')+',dst=/run/secrets/bootstrap,readonly',
         '--mount','type=volume,src='+prefix+',dst=/var/lib/postgresql',PG_IMAGE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -74,7 +74,7 @@ def test_environment(output, *, identity=False):
             status=migrate_identity(operator,resources['runtime_role'],resources['identity_role'],hashlib.sha256(key).hexdigest())
         else:status=migrate(operator,resources['runtime_role'])
     finally:operator.close()
-    configuration={'format':'wealth-ledger-synthetic-identity-tests' if identity else 'wealth-ledger-synthetic-pg-tests',**resources,
+    configuration={'format':'kurafolio-synthetic-identity-tests' if identity else 'kurafolio-synthetic-pg-tests',**resources,
                    'migration_secret_file':str(output/'migration.conninfo'),'runtime_secret_file':str(output/'runtime.conninfo')}
     if identity:configuration.update(identity_secret_file=str(output/'identity.conninfo'),key_file=str(output/'identity.key'))
     _private(output/'test-config.json',json.dumps(configuration,indent=2)+'\n')
@@ -83,15 +83,15 @@ def test_environment(output, *, identity=False):
 
 def cleanup_environment(path):
     configuration=json.loads(Path(path).read_text())
-    if configuration.get('format') not in {'wealth-ledger-synthetic-pg-tests','wealth-ledger-synthetic-identity-tests'}:raise ValueError('invalid_config')
+    if configuration.get('format') not in {'kurafolio-synthetic-pg-tests','kurafolio-synthetic-identity-tests'}:raise ValueError('invalid_config')
     prefix=configuration['container']
-    if not prefix.startswith('wealth-ledger-pg-test-') or any(configuration[k]!=prefix for k in ['network','volume']):raise ValueError('invalid_config')
+    if not prefix.startswith('kurafolio-pg-test-') or any(configuration[k]!=prefix for k in ['network','volume']):raise ValueError('invalid_config')
     for kind in ['container','volume','network']:
         result=subprocess.run(['docker',kind,'inspect',prefix],capture_output=True,text=True)
         if result.returncode:continue
         item=json.loads(result.stdout)[0]
         labels=item.get('Config',{}).get('Labels',{}) if kind=='container' else item.get('Labels',{})
-        if labels.get('wealth-ledger.test')!='pg-foundation':raise ValueError('invalid_config')
+        if labels.get('kurafolio.test')!='pg-foundation':raise ValueError('invalid_config')
     subprocess.run(['docker','container','rm','--force',prefix],check=True,stdout=subprocess.DEVNULL)
     subprocess.run(['docker','volume','rm',prefix],check=True,stdout=subprocess.DEVNULL)
     subprocess.run(['docker','network','rm',prefix],check=True,stdout=subprocess.DEVNULL)

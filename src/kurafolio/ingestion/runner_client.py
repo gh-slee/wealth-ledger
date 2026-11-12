@@ -169,6 +169,7 @@ class PeerTLS:
 
     def verify_peer(self, connection):
         """After the verified TLS handshake, require the exact DNS and URI peer."""
+        # Kept from the pre-Kurafolio name: URI SAN in runner certificates operators have already issued.
         uri = f'urn:wealth-ledger:instance:{self.instance_id}:peer:{self.peer_role}'
         try:
             if connection.version() != 'TLSv1.3':

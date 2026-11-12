@@ -248,7 +248,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     @classmethod
     def remove_owned_container(cls):
         listing = cls.command(['docker', 'container', 'ls', '-a', '--filter',
-            'name=' + cls.container, '--format', '{{.Names}} {{.Label "wealth-ledger.test-owner"}}'])
+            'name=' + cls.container, '--format', '{{.Names}} {{.Label "kurafolio.test-owner"}}'])
         if listing.returncode:
             raise AssertionError('Owned synthetic PostgreSQL cleanup could not be verified')
         exact = [line.split() for line in listing.stdout.decode().splitlines()
@@ -274,8 +274,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         cls.container = 'wl007-test-append-only-' + cls.owner[:12]
         cls.addClassCleanup(cls.remove_owned_container)
         result = cls.command(['docker', 'run', '-d', '--pull', 'never', '--name', cls.container,
-            '--label', 'wealth-ledger.test=ingestion-append-only',
-            '--label', 'wealth-ledger.test-owner=' + cls.owner, '--network', 'none',
+            '--label', 'kurafolio.test=ingestion-append-only',
+            '--label', 'kurafolio.test-owner=' + cls.owner, '--network', 'none',
             '--memory', '512m', '--cpus', '1', '--pids-limit', '128',
             '--tmpfs', '/var/lib/postgresql:rw,nosuid,nodev,size=512m',
             '--mount', 'type=bind,source=' + str(secret) + ',target=/run/secrets/bootstrap,readonly',

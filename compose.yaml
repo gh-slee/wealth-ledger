@@ -1,6 +1,8 @@
+# A fixed project name keeps volume names independent of the checkout folder name.
+name: kurafolio
 services:
   web:
-    image: wealth-ledger:local
+    image: kurafolio:local
     build:
       context: ${WEALTH_LEDGER_BUILD_CONTEXT:-./work/docker-context}
     ports:
@@ -31,7 +33,7 @@ services:
       start_period: 10s
       retries: 3
   worker:
-    image: wealth-ledger:local
+    image: kurafolio:local
     pull_policy: never
     command: ["worker"]
     environment:

@@ -119,7 +119,7 @@ class IdentityRestore(IdentityCase):
         new_key=secrets.token_bytes(32);key_path=evidence/'new-instance.key';new_private(key_path,new_key)
         key_digest=hashlib.sha256(new_key).hexdigest()
         finalized=finalize_identity_restore(operator.database,self.config['runtime_role'],self.config['identity_role'],key_digest,replace_missing_key=True)
-        manifest={'format':'wealth-ledger-synthetic-key-recovery','dump_sha256':hashlib.sha256(dump).hexdigest(),
+        manifest={'format':'kurafolio-synthetic-key-recovery','dump_sha256':hashlib.sha256(dump).hexdigest(),
                   'old_key_sha256':source_key,'new_key_sha256':key_digest,'key_mode':key_path.stat().st_mode&0o777,'old_key_supplied_to_recovery':False,
                   'target_incarnation':finalized['incarnation'],'target_epoch':finalized['restore_epoch']}
         new_private(evidence/'manifest.json',json.dumps(manifest,indent=2).encode())

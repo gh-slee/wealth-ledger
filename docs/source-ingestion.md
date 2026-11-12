@@ -255,7 +255,7 @@ to the input at the same position. External enablement still follows the strict
 python scripts/source_parsers.py examples/data/wealthsimple-holdings.csv examples/data/bull-orders.csv --config work/parsers.json --context work/source-context.json
 ```
 
-An installed wheel uses `wealth-ledger-source-parsers` with the same arguments.
+An installed wheel uses `kurafolio-source-parsers` with the same arguments.
 Either single input is accepted with exactly one corresponding context; Bull still
 requires its alias. `--select 1=wealthsimple.holdings` resolves explicit selection.
 `--verify work/saved-plan.json` checks a saved summary and rejects any changed
@@ -339,7 +339,7 @@ remain rejected; this does not broaden current format support or complete cutove
 ### CLI: inspect, freeze, confirm and recover
 
 The checkout command is `python scripts/source_ingestion.py`; the installed console
-is `wealth-ledger-source-ingestion`. All subcommands require an explicit existing
+is `kurafolio-source-ingestion`. All subcommands require an explicit existing
 `--workspace`. They never fall back to an installation or the maintainer's workspace.
 The following example uses only the public synthetic Bull fixture.
 

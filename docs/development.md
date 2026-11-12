@@ -80,7 +80,7 @@ Normal dependency downloads may occur during build.
 
 Every invocation calls `docker build`; Docker layer caching remains enabled. Even
 when runtime inputs are unchanged by a documentation edit, a fresh candidate tag
-records the current commit. Tags use `wealth-ledger:pr-<commit>-<unique-suffix>` and
+records the current commit. Tags use `kurafolio:pr-<commit>-<unique-suffix>` and
 never replace a service tag. The receipt binds the exact commit, context hash and
 immutable image ID. Source/HEAD changes during the check invalidate success.
 
@@ -465,7 +465,7 @@ SQLite service, existing portfolios and ports are never test targets.
 python scripts/postgres.py test-identity-environment --output work/source-test
 python scripts/docker_context.py --output work/source-runtime-context
 docker build --build-arg WEALTH_LEDGER_POSTGRES=1 \
-  --tag wealth-ledger-source-test:local --iidfile work/source-image-id work/source-runtime-context
+  --tag kurafolio-source-test:local --iidfile work/source-image-id work/source-runtime-context
 export WEALTH_LEDGER_IDENTITY_TEST=1
 export WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/source-test/test-config.json
 export WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE="$(cat work/source-image-id)"

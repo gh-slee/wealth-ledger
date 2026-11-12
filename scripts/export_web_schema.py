@@ -17,7 +17,7 @@ def main():
     from kurafolio.web.api import create_app
     from kurafolio.web.config import WebSettings
     from kurafolio.web.storage import prepare_instance, Store
-    with tempfile.TemporaryDirectory(prefix="wealth-ledger-schema-") as directory:
+    with tempfile.TemporaryDirectory(prefix="kurafolio-schema-") as directory:
         settings = WebSettings(Path(directory)/"instance")
         prepare_instance(settings)
         # The schema factory only requires an owner record; no login is attempted.

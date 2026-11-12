@@ -213,7 +213,7 @@ def verify_installation(descriptor, artifact_bytes, *, image_root):
     if module+'.py' not in expected and module+'/__init__.py' not in expected:
         raise ContractError()
     image='sha256:'+descriptor.execution_image_digest
-    name='wealth-ledger-source-proof-'+uuid.uuid4().hex
+    name='kurafolio-source-proof-'+uuid.uuid4().hex
     created=False
     observed={}
     try:
@@ -224,7 +224,7 @@ def verify_installation(descriptor, artifact_bytes, *, image_root):
         info=load_json(checked.stdout.strip(),limit=65536)
         if info!={'id':image,'volumes':None}:
             raise ContractError()
-        subprocess.run(['docker','create','--name',name,'--label','wealth-ledger.test=source-content-proof',
+        subprocess.run(['docker','create','--name',name,'--label','kurafolio.test=source-content-proof',
             '--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges',
             '--user','10001:10001','--memory','256m','--memory-swap','256m','--cpus','1','--pids-limit','16',
             '--entrypoint','/usr/local/bin/python',image,'-I','-S','-c','pass'],check=True,capture_output=True,timeout=10)

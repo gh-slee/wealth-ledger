@@ -25,6 +25,7 @@ from .source_report import make_source_payload
 from .source_valuation import freeze_valuation, read_source_valuation
 from .workspace import resolve_workspace
 
+# Kept from the pre-Kurafolio name: stored format identifier; saved previews carry it.
 FORMAT = "wealth-ledger-source-report-preview"
 MAX_MANIFEST = 512 * 1024
 MAX_PAYLOAD = 64 * 1024 * 1024

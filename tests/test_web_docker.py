@@ -58,12 +58,12 @@ def free_port():
 class DockerRuntimeTests(unittest.TestCase):
     def test_nonroot_readonly_image_and_restart_persistence(self):
         subprocess.run(["docker", "info"], check=True, capture_output=True)
-        token = "wealth-ledger-test-" + uuid.uuid4().hex
+        token = "kurafolio-test-" + uuid.uuid4().hex
         volume, container, image = token + "-data", token + "-web", token + ":test"
         volume_created = False
         port = free_port(); origin = f"http://localhost:{port}"
         try:
-            with tempfile.TemporaryDirectory(prefix="wealth-ledger-context-") as temporary:
+            with tempfile.TemporaryDirectory(prefix="kurafolio-context-") as temporary:
                 context = Path(temporary) / "context"
                 manifest = prepare_context(ROOT, context)
                 self.assertTrue(all(not p.startswith(("data/", "private/", "reports/")) for p in manifest["files"]))
@@ -132,10 +132,10 @@ class DockerRuntimeTests(unittest.TestCase):
 
     def test_compose_health_and_container_replacement_preserve_state(self):
         subprocess.run(["docker", "info"], check=True, capture_output=True)
-        token = "wealth-ledger-test-" + uuid.uuid4().hex
+        token = "kurafolio-test-" + uuid.uuid4().hex
         image = token + ":compose"
         port = free_port(); origin = f"http://localhost:{port}"
-        with tempfile.TemporaryDirectory(prefix="wealth-ledger-compose-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="kurafolio-compose-") as temporary:
             base = Path(temporary)
             context = base / "context"
             prepare_context(ROOT, context)

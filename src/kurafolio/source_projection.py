@@ -391,6 +391,7 @@ def project_sources(project, *, as_of, period_start, fx=None):
         movements = _movements(heads, effects, bindings, cutoff)
         has_observation = any(account["role"] != "funding" and account["observation_id"] is not None for account in accounts)
         observed = _sum_values(positions, "market_values") if positions or has_observation else {unit: None for unit in CURRENCIES}
+        # Kept from the pre-Kurafolio name: stored format identifier; saved projections carry it.
         model = {"format": "wealth-ledger-source-projection", "schema_version": 1, "as_of": cutoff,
                  "state_sha256": before, "revision_basis": "current_recorded_revisions_at_economic_cutoff",
                  "report_projection_ready": False, "report_published": False, "review_only": True,

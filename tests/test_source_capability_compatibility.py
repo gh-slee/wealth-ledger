@@ -18,7 +18,7 @@ class SourceCapabilityCompatibilityTests(unittest.TestCase):
             accepted=bridge_parser_v2(raw,archive,binding)
             self.assertEqual(accepted.blockers,())
             descriptor=s.Descriptor(1,original.adapter.provider_id,original.adapter.provider_id,original.adapter.adapter_id,
-                "wealth-ledger","1.0.0",original.adapter.adapter_id,"kurafolio.source_builtin:registrations",
+                "kurafolio","1.0.0",original.adapter.adapter_id,"kurafolio.source_builtin:registrations",
                 "a"*64,"b"*64,1,1,2,"parser_v2",("FILE_IMPORT",),original.adapter.export_versions,
                 ("CASH","CRYPTO","SECURITY"),"required" if original.adapter.provider_id=="bullbitcoin" else "forbidden","reviewed-file-v1")
             context=s.SourceContextV1(1,s.InternalRealm("synthetic_db","101",None,None,"44444444-4444-4444-8444-444444444444","0"),
@@ -43,7 +43,7 @@ class SourceCapabilityCompatibilityTests(unittest.TestCase):
             self.assertEqual((result.status,result.diagnostics[0].code),("BLOCKED","source_reference_mismatch"))
 
     def test_builtin_metadata_uses_implemented_grammar_and_explicit_content_binding(self):
-        descriptors=builtin_descriptors(package_distribution="wealth-ledger",package_version="1.0.0",artifact_sha256="a"*64,
+        descriptors=builtin_descriptors(package_distribution="kurafolio",package_version="1.0.0",artifact_sha256="a"*64,
             execution_image_digest="b"*64,entry_point_target="kurafolio.source_builtin:registrations")
         self.assertEqual([(x.provider_id,x.adapter_id,x.parser_api_version,x.format_versions,x.alias_policy) for x in descriptors],
             [("wealthsimple","wealthsimple.holdings",2,("wealthsimple-holdings-footer-v1",),"forbidden"),

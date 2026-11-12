@@ -208,7 +208,7 @@ def plan_sources(paths, *, config_path=None, selections=None, previous=None, exp
     config_raw = host_config(config_path)
     if previous is not None:
         validate_receipt(previous)
-    with tempfile.TemporaryDirectory(prefix="wealth-ledger-source-plan-") as directory:
+    with tempfile.TemporaryDirectory(prefix="kurafolio-source-plan-") as directory:
         root = Path(directory)
         root.chmod(0o700)
         for index, raw in enumerate(inputs):

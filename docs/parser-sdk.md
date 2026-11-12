@@ -137,7 +137,7 @@ create a private host JSON file (for example `work/example-parser-host.json`):
 {
   "schema_version": 1,
   "enabled": [{
-    "distribution": "wealth-ledger-synthetic-parser",
+    "distribution": "kurafolio-synthetic-parser",
     "version": "0.1.0",
     "entry_point": "synthetic",
     "adapter_id": "synthetic.holdings"
@@ -154,11 +154,11 @@ synthetic-holdings-v1,demo-account,position-001,r1,,original,2024-01-31T16:00:00
 ```
 
 ```bash
-.venv-sdk/bin/wealth-ledger-source-parsers work/sdk-input.csv --config work/example-parser-host.json > work/sdk-plan.json
-.venv-sdk/bin/wealth-ledger-source-parsers work/sdk-input.csv --config work/example-parser-host.json --verify work/sdk-plan.json
+.venv-sdk/bin/kurafolio-source-parsers work/sdk-input.csv --config work/example-parser-host.json > work/sdk-plan.json
+.venv-sdk/bin/kurafolio-source-parsers work/sdk-input.csv --config work/example-parser-host.json --verify work/sdk-plan.json
 ```
 
-Windows uses `Scripts\wealth-ledger-source-parsers.exe`. The equivalent checkout
+Windows uses `Scripts\kurafolio-source-parsers.exe`. The equivalent checkout
 wrapper remains `python scripts/source_parsers.py`. Keep receipts private. For Web,
 the host administrator writes `<instance>/admin/source-parsers.json`; the API never
 enables Python packages from browser uploads. Stop API/worker before changing the
@@ -193,8 +193,8 @@ To verify the source image and example together using disposable synthetic state
 
 ```bash
 python scripts/docker_context.py --output work/sdk-image-context
-docker build --tag wealth-ledger-sdk-base:test work/sdk-image-context
-python scripts/check_plugin_image.py --base-image wealth-ledger-sdk-base:test --wheel work/sdk-dist/kurafolio_synthetic_parser-0.1.0-py3-none-any.whl
+docker build --tag kurafolio-sdk-base:test work/sdk-image-context
+python scripts/check_plugin_image.py --base-image kurafolio-sdk-base:test --wheel work/sdk-dist/kurafolio_synthetic_parser-0.1.0-py3-none-any.whl
 ```
 
 This creates/removes only a uniquely named derived test image, runs seven example
@@ -224,7 +224,7 @@ checkout. It exercises 35 canonical foundation tests, 29 built-in/context tests,
 the independent v1 plugin tests, real child/CLI/API paths and three report locales.
 Build artifacts remain subject to source/member audits before any publication.
 
-The installed core also exposes `wealth-ledger-source-ingestion` for explicit frozen
+The installed core also exposes `kurafolio-source-ingestion` for explicit frozen
 preview/confirmation and receipt-only recovery. Its [B2 guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2)
 requires exact account mapping review and the no-report acknowledgement. This does
 not change the v1 example plugin's nonbooking contract. Installed acceptance invokes

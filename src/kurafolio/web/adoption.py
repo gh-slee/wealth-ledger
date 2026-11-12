@@ -127,6 +127,7 @@ def prepare_adoption(settings, workspace, name, output, *, allow_legacy_reports=
     with source_guard(source):
         if (source/'work/update.lock').exists():raise ValueError('Stop source writes and review its update lock first')
         snapshot=inventory(source);bundles=verify_portfolio(source,allow_legacy_reports=allow_legacy_reports)
+        # Kept from the pre-Kurafolio name: stored format identifier; saved adoption plans carry it.
         plan={'format':'wealth-ledger-private-adoption','version':1,'engine':engine_fingerprint(),'source_root':str(source),'target_root':str(store.root),
               'allow_legacy_reports':allow_legacy_reports,'portfolio_id':uuid.uuid4().hex,'name':name.strip(),'created_at':datetime.now(timezone.utc).isoformat(),
               'snapshot':snapshot,'bundles':bundles,'excluded':['code and agent instructions','non-financial config including publication authorization',

@@ -88,7 +88,7 @@ def preview_update(project, request, *, now=None):
         identified = identify_inputs(request.get("paths", []))
         if request.get("wealthsimple_only") and "bullbitcoin" in identified:
             raise ValueError("Brokerage-only mode cannot include a Bull CSV")
-        with tempfile.TemporaryDirectory(prefix="wealth-ledger-preview-") as directory:
+        with tempfile.TemporaryDirectory(prefix="kurafolio-preview-") as directory:
             stage = Path(directory) / "project"
             _snapshot(project, stage)
             input_hashes = {}

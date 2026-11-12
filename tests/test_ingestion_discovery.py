@@ -88,7 +88,7 @@ class IngestionDiscoveryTests(unittest.TestCase):
             self.admit(data=data)
 
     def builtin(self, provider):
-        descriptors = builtin_descriptors(package_distribution='wealth-ledger',
+        descriptors = builtin_descriptors(package_distribution='kurafolio',
             package_version='0.1.0', artifact_sha256='1' * 64,
             execution_image_digest='2' * 64, entry_point_target='kurafolio.source_builtin:registrations')
         desc = next(d for d in descriptors if d.provider_id == provider)
@@ -100,7 +100,7 @@ class IngestionDiscoveryTests(unittest.TestCase):
             format_selection=selected)
         profile = {'version': 1, 'installation_id': installation_id(desc),
             'image_digest': desc.execution_image_digest, 'wrapper_sha256': '3' * 64,
-            'distribution': 'wealth-ledger', 'entry_point': 'kurafolio.ingestion.runner_child:main',
+            'distribution': 'kurafolio', 'entry_point': 'kurafolio.ingestion.runner_child:main',
             'projection': 'parser2-minimal-v1', 'format_versions': [selected],
             'identity_policy': 'provider_scoped_stable' if provider == 'bullbitcoin' else 'snapshot_semantic'}
         profile['profile_digest'] = digest(profile)

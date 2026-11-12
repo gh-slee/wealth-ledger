@@ -227,12 +227,12 @@ class SourceNativeImage(ConfiguredSourceCase):
         payload={'identity':make_conninfo(self.configs['identity'].conninfo,host=self.config['container'],port=5432),
             'financial':make_conninfo(self.configs['runtime'].conninfo,host=self.config['container'],port=5432),
             'key':self.key.hex(),'token':token,'catalog':primitive(self.catalog)}
-        name='wealth-ledger-source-http-'+__import__('uuid').uuid4().hex
+        name='kurafolio-source-http-'+__import__('uuid').uuid4().hex
         process=None;owned=False
         try:
             # This integration container intentionally joins ONLY the separately
             # marked synthetic PG network. It is not the network-none parser child.
-            created=subprocess.run(['docker','create','--name',name,'--label','wealth-ledger.test=source-http','-i',
+            created=subprocess.run(['docker','create','--name',name,'--label','kurafolio.test=source-http','-i',
                 '--network',self.config['network'],'--user','10001:10001','--read-only','--cap-drop','ALL',
                 '--security-opt','no-new-privileges','--entrypoint','python',image,'-c',SOURCE_PROGRAM],
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30)

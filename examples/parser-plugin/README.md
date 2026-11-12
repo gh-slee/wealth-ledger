@@ -51,7 +51,7 @@ The trusted configuration selection is:
 {
   "schema_version": 1,
   "enabled": [{
-    "distribution": "wealth-ledger-synthetic-parser",
+    "distribution": "kurafolio-synthetic-parser",
     "version": "0.1.0",
     "entry_point": "synthetic_v2",
     "adapter_id": "synthetic.holdings-v2"
@@ -60,7 +60,7 @@ The trusted configuration selection is:
 }
 ```
 
-Use the core's advanced `wealth-ledger-source-reports` preview/confirm/resume
+Use the core's advanced `kurafolio-source-reports` preview/confirm/resume
 workflow with explicit context, per-portfolio mapping and valuation JSON. See the
 repository's [complete examples](../../docs/source-projections.md#frozen-source-report-publication-src-004c3c1).
 The installed acceptance test generates all three report formats through the real

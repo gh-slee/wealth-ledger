@@ -76,7 +76,7 @@ inheritance or expose private data in a public/remote agent context.
 ## Fresh-session verification
 
 1. Open this repository as the project and start a **new** Codex session. For the
-   CLI, `codex --cd /path/to/wealth-ledger` selects the intended repository.
+   CLI, `codex --cd /path/to/kurafolio` selects the intended repository.
 2. Before editing, ask the following (do not request the full private file):
 
    > Without modifying files or accessing financial data, list the instruction

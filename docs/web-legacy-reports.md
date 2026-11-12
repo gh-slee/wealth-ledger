@@ -14,11 +14,11 @@ financial schema and all ordinary evidence/lock/size checks still apply. Preview
 one additional option:
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" adopt-preview \
-  --workspace "$HOME/.local/share/wealth-ledger/cli-workspace" \
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" adopt-preview \
+  --workspace "$HOME/.local/share/kurafolio/cli-workspace" \
   --name "Investment ledger" \
   --allow-legacy-reports \
-  --output "$HOME/.local/state/wealth-ledger/adoption/legacy.adoption.json"
+  --output "$HOME/.local/state/kurafolio/adoption/legacy.adoption.json"
 ```
 
 Create the private output directory first, as in [the adoption guide](web-adoption.md).
@@ -28,8 +28,8 @@ artifact hashes, report cutoffs/snapshot IDs, and the `migration_capture` basis.
 Only then confirm its exact canonical digest:
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" adopt-confirm \
-  --plan "$HOME/.local/state/wealth-ledger/adoption/legacy.adoption.json" \
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" adopt-confirm \
+  --plan "$HOME/.local/state/kurafolio/adoption/legacy.adoption.json" \
   --plan-sha256 '<plan_sha256 returned by adopt-preview>'
 ```
 

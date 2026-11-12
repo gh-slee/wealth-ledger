@@ -44,7 +44,7 @@ def probe(name,paths=None):
         return {'denied':denied,'interfaces':[list(value) for value in socket.if_nameindex()],
                 'ipv4_routes':open('/proc/net/route').read().splitlines()[1:]}
     if name=='files':
-        if type(paths) is not list or len(paths)!=2 or any(type(p) is not str or len(p)>1024 or 'wealth-ledger-source-host-' not in p for p in paths):raise ValueError('Invalid invented host paths')
+        if type(paths) is not list or len(paths)!=2 or any(type(p) is not str or len(p)>1024 or 'kurafolio-source-host-' not in p for p in paths):raise ValueError('Invalid invented host paths')
         denied=[]
         try:
             with open(paths[0],'rb'):denied.append(False)

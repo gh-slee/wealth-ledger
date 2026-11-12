@@ -164,7 +164,7 @@ def parse_sources(paths, *, contexts, config_path=None, selections=None, previou
     config = host_config(config_path)
     if previous is not None:
         validate_receipt(previous)
-    with tempfile.TemporaryDirectory(prefix="wealth-ledger-source-context-") as directory:
+    with tempfile.TemporaryDirectory(prefix="kurafolio-source-context-") as directory:
         root = Path(directory); root.chmod(0o700)
         for index, raw in enumerate(inputs):
             target = root / (str(index) + ".csv"); target.write_bytes(raw); target.chmod(0o400)
