@@ -225,7 +225,7 @@ function ShellLayout() {
   );
 }
 
-export function V2Shell() {
+export default function V2Shell() {
   const [locale, updateLocale] = useState<Locale>(preferredLocale);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   QueryClient,
@@ -13,10 +13,11 @@ import App from "./App";
 import { LocaleContext, useI18n } from "./lib/i18n";
 import { Button } from "./components/ui/button";
 import { detectBackendVersion } from "./v2/backend-version";
-import { V2Shell } from "./v2/shell";
 import type { Locale } from "./lib/api";
 import "./styles.css";
 import { ThemeProvider } from "./lib/theme";
+const V2Shell = lazy(() => import("./v2/shell"));
+
 const client = new QueryClient({
   defaultOptions: {
     queries: {
@@ -35,13 +36,12 @@ function Application() {
     queryFn: ({ signal }) => detectBackendVersion(signal),
     staleTime: Infinity,
   });
-  if (backend.isPending) {
-    return (
-      <main className="workbench" role="status">
-        {t("loading")}
-      </main>
-    );
-  }
+  const loading = (
+    <main className="workbench" role="status">
+      {t("loading")}
+    </main>
+  );
+  if (backend.isPending) return loading;
   if (backend.isError) {
     return (
       <main className="workbench">
@@ -50,7 +50,13 @@ function Application() {
       </main>
     );
   }
-  return backend.data === "v2" ? <V2Shell /> : <App />;
+  return backend.data === "v2" ? (
+    <Suspense fallback={loading}>
+      <V2Shell />
+    </Suspense>
+  ) : (
+    <App />
+  );
 }
 
 function Root() {

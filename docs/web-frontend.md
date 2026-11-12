@@ -42,7 +42,8 @@ New users should start with [the first-portfolio guide](getting-started.md). Emp
 The same frontend bundle selects its shell at startup. A successful V2
 `GET /api/v2/auth/csrf` response selects the V2 shell. The SQLite API returns
 404 for that route and the existing frontend runs its normal session check.
-If the probe fails for another reason, the app offers a retry.
+If the probe fails for another reason, the app offers a retry. The V2 shell and its
+styles load only after the probe selects V2.
 
 The V2 shell tests use the synthetic browser fixture and intercept the V2
 probe with Playwright. They exercise the eight destinations, the Stock/Bond
