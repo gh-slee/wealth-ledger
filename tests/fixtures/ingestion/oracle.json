@@ -38545,6 +38545,16 @@
             "name": "last_result_bytes",
             "nullable": true,
             "type": "bytea"
+          },
+          {
+            "name": "raw_slot",
+            "nullable": true,
+            "type": "text"
+          },
+          {
+            "name": "cleanup_proof_bytes",
+            "nullable": true,
+            "type": "bytea"
           }
         ],
         "immutable": false,
