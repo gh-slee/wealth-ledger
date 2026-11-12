@@ -8518,7 +8518,8 @@
               "mappings",
               "revisions",
               "heads",
-              "authorities"
+              "authorities",
+              "decisions"
             ]
           },
           "set_revision": {
@@ -8573,7 +8574,8 @@
               "mappings",
               "revisions",
               "heads",
-              "authorities"
+              "authorities",
+              "decisions"
             ]
           },
           "rows": {
@@ -8721,6 +8723,197 @@
             "required": [
               "kind",
               "authority"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "counts": {
+                "additionalProperties": false,
+                "properties": {
+                  "authorities": {
+                    "maximum": 128,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "mappings": {
+                    "maximum": 128,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "new_entities": {
+                    "maximum": 128,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "parents": {
+                    "maximum": 128,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "authorities",
+                  "mappings",
+                  "new_entities",
+                  "parents"
+                ],
+                "type": "object"
+              },
+              "decision_revision": {
+                "maxLength": 19,
+                "pattern": "^([1-9][0-9]{0,17}|[1-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6]|9223372036854775807)$",
+                "type": "string"
+              },
+              "digest": {
+                "$ref": "codec-schema.json#/$defs/Hash"
+              },
+              "expected_set_revision": {
+                "$ref": "codec-schema.json#/$defs/Counter"
+              },
+              "kind": {
+                "enum": [
+                  "decisions_header"
+                ]
+              },
+              "operation_id": {
+                "$ref": "codec-schema.json#/$defs/UUID"
+              },
+              "version": {
+                "enum": [
+                  1
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "decision_revision",
+              "digest",
+              "version",
+              "operation_id",
+              "expected_set_revision",
+              "counts"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "collection": {
+                "enum": [
+                  "authorities"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "decision_item"
+                ]
+              },
+              "ordinal": {
+                "maximum": 127,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "value": {
+                "$ref": "codec-schema.json#/$defs/AuthorityDecision"
+              }
+            },
+            "required": [
+              "kind",
+              "collection",
+              "ordinal",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "collection": {
+                "enum": [
+                  "mappings"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "decision_item"
+                ]
+              },
+              "ordinal": {
+                "maximum": 127,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "value": {
+                "$ref": "codec-schema.json#/$defs/Mapping"
+              }
+            },
+            "required": [
+              "kind",
+              "collection",
+              "ordinal",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "collection": {
+                "enum": [
+                  "new_entities"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "decision_item"
+                ]
+              },
+              "ordinal": {
+                "maximum": 127,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "value": {
+                "$ref": "codec-schema.json#/$defs/EntityProposal"
+              }
+            },
+            "required": [
+              "kind",
+              "collection",
+              "ordinal",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "collection": {
+                "enum": [
+                  "parents"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "decision_item"
+                ]
+              },
+              "ordinal": {
+                "maximum": 127,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "value": {
+                "$ref": "codec-schema.json#/$defs/ParentDecision"
+              }
+            },
+            "required": [
+              "kind",
+              "collection",
+              "ordinal",
+              "value"
             ],
             "type": "object"
           }
@@ -10841,7 +11034,8 @@
               "mappings",
               "revisions",
               "heads",
-              "authorities"
+              "authorities",
+              "decisions"
             ]
           },
           "set_id": {

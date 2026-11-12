@@ -332,7 +332,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.worker_guard_ddl() + '\n' + schema.CREATE_DDL
                 + '\n' + schema.RESERVE_DDL + '\n' + schema.CLAIM_DDL + '\n' + schema.RENEW_DDL
                 + '\n' + schema.ADMIT_DDL + '\n' + schema.FINISH_DDL
-                + '\n' + schema.CLAIM_PLAN_DDL + '\n' + schema.CLEANUP_SET_DDL)
+                + '\n' + schema.CLAIM_PLAN_DDL + '\n' + schema.CLEANUP_SET_DDL
+                + '\n' + schema.read_plan_basis_ddl() + '\n' + schema.prepare_preview_ddl())
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -3650,6 +3651,219 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                     + "SELECT 'LEASES '||jsonb_build_array(count(*))::text FROM wl_ingestion.leases WHERE work_kind='prepare';")
                 self.assertEqual(self.NO_WORK, out['CLAIM'])
                 self.assertEqual([0], out['LEASES'])
+
+    def basis_call(self, label, claim='claim', *, resource='inputs', limit=50, cursor='NULL::jsonb', **fields):
+        lease = "pg_catalog.current_setting('test." + claim + "')::jsonb#>>'{value,lease,"
+        values = {'version': '1', 'work_kind': "'prepare'", 'realm_digest': self.worker_realm(),
+                  'credential_epoch': "'1'", 'job_id': '(' + lease + "job_id}')", 'set_id': self.OWN_SET,
+                  'member_id': 'NULL::text', 'fence': '(' + lease + "fence}')",
+                  'request_id': "'c1000000-0000-4000-8000-00000000000a'", 'resource': repr(resource),
+                  'limit': str(limit), 'cursor': cursor}
+        values.update(fields)
+        return self.worker_call('read_plan_basis_v1', label, values)
+
+    def test_prepare_basis_inputs_and_decisions_replay_without_lease_writes(self):
+        from kurafolio.ingestion.codec import digest, validate
+        _, _, seed, catalog = self.claim_seed()
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        prepare = {'work_kind': "'prepare'"}
+        decision = ORACLE['decisions-first-use.json']
+        payload = ("pg_catalog.jsonb_build_object('set_id'," + self.OWN_SET +
+                   ",'decisions','" + json.dumps(decision).replace("'", "''") + "'::jsonb)")
+        def next_page(label):
+            return self.previous(label, '{value,next_cursor}')
+        single_rows = ['one_' + str(i) for i in range(9)]
+        single_calls = ''.join(self.basis_call(label, resource='decisions', limit=1,
+            cursor=next_page(single_rows[i-1]) if i else 'NULL::jsonb') for i, label in enumerate(single_rows))
+        out = self.run_labelled(seed + self.plan_claim('initial', **prepare)
+            + self.basis_call('inputs', 'initial')
+            + self.basis_call('empty', 'initial', resource='decisions')
+            + "UPDATE wl_ingestion.leases SET state='cancelled' WHERE work_kind='prepare';"
+            + "UPDATE wl_ingestion.sets SET state='NEEDS_MAPPING'," + self.CLEAR_PREPARE_ORIGIN + " WHERE state='NORMALIZING';"
+            + self.gateway_expression('decide_set_v1', 'decide', payload, catalog)
+            + self.plan_claim('claim', request='c1000000-0000-4000-8000-000000000002', **prepare)
+            + self.basis_call('first', resource='decisions', limit=3)
+            + self.basis_call('replay', resource='decisions', limit=3)
+            + self.basis_call('second', resource='decisions', limit=3, cursor=next_page('first'))
+            + self.basis_call('third', resource='decisions', limit=3, cursor=next_page('second'))
+            + self.basis_call('all', resource='decisions')
+            + single_calls
+            + self.basis_call('badkey', resource='decisions', cursor="pg_catalog.jsonb_set(" +
+                              next_page('first') + ",'{after_key}','\"2:127\"')")
+            + "SELECT 'CACHE '||jsonb_build_array(count(*))::text FROM wl_ingestion.leases WHERE work_kind='prepare' "
+              "AND (last_request_id IS NOT NULL OR last_request_digest IS NOT NULL OR last_result_bytes IS NOT NULL);"
+            + "UPDATE wl_ingestion.roots SET control_generation=control_generation+1;"
+            + self.basis_call('stale', resource='decisions'))
+        self.assertTrue(out['INPUTS']['ok'], out)
+        inputs = validate(out['INPUTS']['value'], 'BasisPage')
+        self.assertEqual(1, len(inputs['rows']))
+        self.assertEqual([], out['EMPTY']['value']['rows'])
+        self.assertEqual(out['FIRST'], out['REPLAY'])
+        rows = [row for page in ('FIRST','SECOND','THIRD')
+                for row in validate(out[page]['value'], 'BasisPage')['rows']]
+        header, *items = rows
+        self.assertEqual(rows, out['ALL']['value']['rows'])
+        self.assertEqual(rows, [out[label.upper()]['value']['rows'][0] for label in single_rows])
+        self.assertEqual((9, 'decisions_header', digest(decision)), (len(rows), header['kind'], header['digest']))
+        reconstructed = {key: header[key] for key in ('version','operation_id','expected_set_revision')}
+        reconstructed.update({key: [item['value'] for item in items if item['collection']==key]
+                              for key in header['counts']})
+        self.assertEqual(decision, reconstructed)
+        self.assertIsNone(out['THIRD']['value']['next_cursor'])
+        self.assertEqual([0], out['CACHE'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['BADKEY'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['STALE'])
+
+    def test_prepare_basis_projects_the_scoped_accepted_rows(self):
+        from kurafolio.ingestion.codec import digest, validate
+        plan, _, seed, catalog = self.claim_seed()
+        confirm = {'operation_id': '50000000-0000-4000-8000-000000000001',
+                   'preview_id': plan['preview_id'], 'preview_digest': digest(plan)}
+        seed += self.accept_statement('accept', confirm, catalog)
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        resources = ('entities', 'mappings', 'revisions', 'heads', 'authorities')
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+                               + ''.join(self.basis_call(resource, resource=resource) for resource in resources))
+        self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
+        pages = {name: validate(out[name.upper()]['value'], 'BasisPage')['rows'] for name in resources}
+        self.assertEqual((4, 3, 1, 0), tuple(len(pages[name]) for name in resources[1:]))
+        self.assertTrue(pages['entities'])
+        self.assertEqual(plan['heads'][0], pages['heads'][0]['head'])
+        self.assertEqual({effect['accepted_revision_id'] for effect in plan['facts']},
+                         {row['revision']['id'] for row in pages['revisions']})
+
+    def test_prepare_basis_large_literal_page_is_exact(self):
+        from kurafolio.ingestion.codec import encode
+        plan, seed, _ = self.accept_seed()
+        page = ORACLE['large-basis-page.json']
+        literal = page['rows'][0]
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,"
+                 "realm_digest='" + realm + "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;"
+                 "UPDATE wl_ingestion.members SET id='" + literal['id'] + "',stage_digest='" + literal['digest'] + "';"
+                 "UPDATE wl_ingestion.stages SET member_id='" + literal['id'] + "',digest='" + literal['digest'] +
+                 "',minimal_bytes=decode('" + encode(literal['minimal']).hex() + "','hex');")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        seed += self.row('leases', {'tenant_id': plan['tenant_id'], 'portfolio_id': plan['portfolio_id'],
+            'id': page['job_id'], 'set_id': plan['set_id'], 'work_kind': 'prepare', 'attempt': 1, 'fence': 1,
+            'worker_id': self.WORKER, 'token_digest': hashlib.sha256(bytes.fromhex(self.CLEANUP_TOKEN)).hexdigest(),
+            'session_digest': self.SESSION, 'credential_version': 1, 'incarnation': self.INCARNATION, 'restore_epoch': 0,
+            'created_at': self.Expression('clock_timestamp()'),
+            'expires_at': self.Expression("date_trunc('second',clock_timestamp()+interval '30 seconds')"),
+            'state': 'active', 'claim_request_id': 'c1000000-0000-4000-8000-000000000001', 'claim_request_digest': 'a'*64,
+            'prepare_set_revision': 2, 'prepare_accepted_generation': 0, 'prepare_mapping_generation': 0,
+            'prepare_control_generation': 1})
+        fields = {'job_id': repr(page['job_id']), 'set_id': repr(plan['set_id']), 'fence': "'1'"}
+        out = self.run_labelled(seed + self.basis_call('first', **fields) + self.basis_call('again', **fields))
+        self.assertEqual(encode(page), encode(out['FIRST']['value']))
+        self.assertEqual(out['FIRST'], out['AGAIN'])
+
+    def test_prepare_basis_reads_only_the_current_decision_with_all_item_types(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, validate
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        for empty in (False, True):
+            with self.subTest(empty=empty):
+                plan, seed, catalog = self.accept_seed()
+                decisions = deepcopy(ORACLE['decisions-first-use.json'])
+                decisions.update({'expected_set_revision': plan['expected_set_revision'],
+                                  'operation_id': '50000000-0000-4000-8000-00000000000a'})
+                groups = ('authorities','mappings','new_entities','parents')
+                if empty:
+                    decisions.update({group: [] for group in groups})
+                else:
+                    decisions['authorities'] = [{
+                        'kind': 'historical_only', 'evidence_reference': 'Synthetic retained evidence',
+                        'left': {'form': 'incoming', 'member_id': plan['inputs'][0]['member_id'],
+                                 'collection': 'records', 'local_id': '0'}, 'right': None,
+                    }]
+                    decisions['parents'] = [{
+                        'member_id': plan['inputs'][0]['member_id'], 'collection': 'records', 'local_id': '0',
+                        'parent_revision_id': plan['facts'][0]['accepted_revision_id'], 'reason': 'Synthetic parent',
+                    }]
+                seed += "UPDATE wl_ingestion.sets SET realm_digest='" + realm + "';"
+                seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                             'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+                out = self.run_labelled(seed + self.gateway_statement('decide_set_v1', 'decision',
+                    {'set_id': plan['set_id'], 'decisions': decisions}, catalog)
+                    + self.plan_claim('claim', work_kind="'prepare'")
+                    + self.basis_call('page', resource='decisions', set_id=repr(plan['set_id'])))
+                self.assertTrue(out['DECISION']['ok'], out['DECISION'])
+                rows = validate(out['PAGE']['value'], 'BasisPage')['rows']
+                header, *items = rows
+                self.assertEqual(digest(decisions), header['digest'])
+                self.assertEqual({group: len(decisions[group]) for group in groups}, header['counts'])
+                self.assertEqual([(group, ordinal, value) for group in groups
+                                  for ordinal, value in enumerate(decisions[group])],
+                                 [(item['collection'],item['ordinal'],item['value']) for item in items])
+
+    def prepare_preview_call(self, label, bundle, *, ready):
+        from kurafolio.ingestion.codec import encode, sha256
+        encoded = encode(bundle)
+        lease = "pg_catalog.current_setting('test.claim')::jsonb#>>'{value,lease,"
+        return self.worker_call('prepare_preview_v1', label, {
+            'version': '1', 'work_kind': "'prepare'", 'realm_digest': self.worker_realm(), 'credential_epoch': "'1'",
+            'job_id': '(' + lease + "job_id}')", 'set_id': '(' + lease + "set_id}')", 'member_id': 'NULL::text',
+            'fence': '(' + lease + "fence}')", 'request_id': "'c1000000-0000-4000-8000-00000000000a'",
+            'bundle_digest': repr(sha256(encoded)), 'payload_bytes': str(len(encoded)),
+            'expected_set_revision': "'2'" if ready else "'1'", 'accepted_generation': "'0'",
+            'mapping_generation': "'0'", 'control_generation': "'1'" if ready else "'0'",
+        }, data="pg_catalog.decode('" + encoded.hex() + "','hex')")
+
+    def test_prepare_preview_checks_initial_and_ready_bundles_and_replays(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, validate
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        for ready in (False, True):
+            with self.subTest(ready=ready):
+                plan, seed, catalog = self.accept_seed()
+                name = 'review-bundle-first-use.json' if ready else 'review-bundle-initial.json'
+                bundle = deepcopy(ORACLE[name])
+                bundle['review']['expires_at'] = plan['expires_at']
+                if ready:
+                    bundle['plan']['expires_at'] = plan['expires_at']
+                    bundle['plan']['realm_digest'] = realm
+                    bundle['review']['plan_digest'] = digest(bundle['plan'])
+                invalid = deepcopy(bundle)
+                row = next(row for row in invalid['review']['content']['rows'] if row['type']=='source_entity')
+                row['source']['label'] += ' altered'
+                invalid['review']['content_digest'] = digest(invalid['review']['content'])
+                seed += 'DELETE FROM wl_ingestion.previews;'
+                if not ready:
+                    seed += 'DELETE FROM wl_ingestion.decisions;UPDATE wl_ingestion.roots SET control_generation=0;'
+                else:
+                    seed += 'UPDATE wl_ingestion.decisions SET revision=1;'
+                state = 'RECONCILING' if ready else 'NORMALIZING'
+                seed += ("UPDATE wl_ingestion.sets SET state='" + state + "',revision=" + ('2' if ready else '1') +
+                         ",realm_digest='" + realm + "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+                seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                             'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+                accept = self.accept_statement('accept', {
+                    'operation_id': '50000000-0000-4000-8000-000000000001',
+                    'preview_id': bundle['review']['id'], 'preview_digest': bundle['review']['plan_digest'],
+                }, catalog) if ready else ''
+                out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+                    + self.prepare_preview_call('bad', invalid, ready=ready)
+                    + "SELECT 'BEFORE '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
+                    + self.prepare_preview_call('prepared', bundle, ready=ready)
+                    + self.prepare_preview_call('replay', bundle, ready=ready)
+                    + "SELECT 'AFTER '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
+                    + "SELECT 'FACTS '||jsonb_build_array(count(*))::text FROM wl_ingestion.source_revisions;"
+                    + accept)
+                self.assertEqual({'ok': False, 'code': 'import_invalid'}, out['BAD'])
+                self.assertEqual([0], out['BEFORE'])
+                self.assertTrue(out['PREPARED']['ok'], out)
+                ack = validate(out['PREPARED']['value'], 'PreviewAck')
+                self.assertEqual(bundle['review']['state'], ack['state'])
+                self.assertEqual(dict(ack, outcome='already_prepared'), out['REPLAY']['value'])
+                self.assertEqual([1], out['AFTER'])
+                self.assertEqual([0], out['FACTS'])
+                if ready:
+                    self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
 
     def cleanup_call(self, label, claim='claim', *, proofs=(), request='c1000000-0000-4000-8000-0000000000a1',
                      token=None, data='NULL', drop=(), **fields):

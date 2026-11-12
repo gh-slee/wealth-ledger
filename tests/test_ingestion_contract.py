@@ -39,6 +39,19 @@ class IngestionContractTests(unittest.TestCase):
                     altered.clear()
                     self.assertEqual(expected, definition(name, namespace))
 
+    def test_decisions_basis_rows_keep_collection_types_and_positive_revision(self):
+        decisions = fixture('decisions-first-use.json')
+        header = {'kind': 'decisions_header', 'decision_revision': '1', 'digest': digest(decisions),
+                  'version': 1, 'operation_id': decisions['operation_id'], 'expected_set_revision': '1',
+                  'counts': {'authorities': 0, 'mappings': 4, 'new_entities': 4, 'parents': 0}}
+        self.assertEqual(header, validate(header, 'BasisRow'))
+        item = {'kind': 'decision_item', 'collection': 'mappings', 'ordinal': 0, 'value': decisions['mappings'][0]}
+        self.assertEqual(item, validate(item, 'BasisRow'))
+        for bad in (dict(item, collection='parents'), dict(item, ordinal=128), dict(item, extra=True),
+                    dict(header, decision_revision='0'), dict(header, decision_revision='9223372036854775808')):
+            with self.subTest(row=bad['kind']):
+                self.assert_blocked(bad, name='BasisRow', code='import_invalid')
+
     def test_key_preimages_match_literal_bytes_and_hashes(self):
         for row in fixture('key-preimages.json')['vectors']:
             with self.subTest(name=row['name']):
