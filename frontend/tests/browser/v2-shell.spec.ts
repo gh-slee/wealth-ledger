@@ -49,6 +49,40 @@ test("V2 routes preserve the eight destinations and nested Exposures", async ({
   }
   expect(legacyRequests).toEqual([]);
 
+  for (const path of [
+    "/app/investments",
+    "/app/investments/exposures",
+    "/app/crypto",
+  ]) {
+    await page.goto(path);
+    await page.getByRole("link", { name: "Enable a source" }).click();
+    await expect(page).toHaveURL(/\/app\/sources$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Parser Plugin Store",
+    );
+  }
+  for (const path of ["/app", "/app/total", "/app/settings"]) {
+    await page.goto(path);
+    await expect(
+      page.getByRole("link", { name: "Enable a source" }),
+    ).toHaveCount(0);
+  }
+
+  // WL-P0-011 bans these shipped concepts from the V2 shell and Home.
+  // Home content itself is WL-P0-012D, which repeats this check per locale.
+  await page.goto("/app");
+  const shell = page.locator("body");
+  for (const banned of [
+    /portfolio/i,
+    /edition/i,
+    /financial records/i,
+    /next steps/i,
+    /saved evidence/i,
+    /recorded cash flows/i,
+  ]) {
+    await expect(shell).not.toContainText(banned);
+  }
+
   await page.goto("/app/missing/nested");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Page not found",
@@ -140,6 +174,7 @@ test("a failed V2 probe can retry without opening the SQLite shell", async ({
   });
   await page.goto("/app");
   await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("navigation")).toHaveCount(0);
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Home");
   expect(attempts).toBe(2);

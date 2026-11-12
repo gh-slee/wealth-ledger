@@ -6,9 +6,9 @@ import "@fontsource/atkinson-hyperlegible/latin-400.css";
 import "@fontsource/atkinson-hyperlegible/latin-700.css";
 import "@fontsource/ibm-plex-sans-condensed/latin-600.css";
 import App from "./App";
-import { LocaleContext, useI18n } from "./lib/i18n";
-import { Button } from "./components/ui/button";
+import { LocaleContext } from "./lib/i18n";
 import { detectBackendVersion } from "./v2/backend-version";
+import { PageError, PageLoading } from "./v2/page-state";
 import type { Locale } from "./lib/api";
 import "./styles.css";
 import { ThemeProvider } from "./lib/theme";
@@ -26,7 +26,6 @@ const client = new QueryClient({
   },
 });
 function Application() {
-  const { t } = useI18n();
   const [backend, setBackend] = useState<"pending" | "v1" | "v2" | "error">(
     "pending",
   );
@@ -46,23 +45,20 @@ function Application() {
     return () => controller.abort();
   }, [attempt]);
   const loading = (
-    <main className="workbench" role="status">
-      {t("loading")}
+    <main className="workbench">
+      <PageLoading />
     </main>
   );
   if (backend === "pending") return loading;
   if (backend === "error") {
     return (
       <main className="workbench">
-        <p role="alert">{t("failed")}</p>
-        <Button
-          onClick={() => {
+        <PageError
+          onRetry={() => {
             setBackend("pending");
             setAttempt((count) => count + 1);
           }}
-        >
-          {t("retry")}
-        </Button>
+        />
       </main>
     );
   }

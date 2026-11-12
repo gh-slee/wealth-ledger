@@ -17,6 +17,7 @@ import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import type { Locale } from "../lib/api";
 import { catalogs, LocaleContext, useI18n, type Message } from "../lib/i18n";
+import { PageEmpty } from "./page-state";
 import "./shell.css";
 
 const destinations = [
@@ -25,13 +26,20 @@ const destinations = [
     path: "/app/investments",
     label: "wlP0011a.investments",
     Icon: Landmark,
+    sourceLed: true,
     child: {
       path: "/app/investments/exposures",
       label: "wlP0011a.exposures",
       Icon: Layers,
+      sourceLed: true,
     },
   },
-  { path: "/app/crypto", label: "wlP0011a.crypto", Icon: Bitcoin },
+  {
+    path: "/app/crypto",
+    label: "wlP0011a.crypto",
+    Icon: Bitcoin,
+    sourceLed: true,
+  },
   { path: "/app/total", label: "wlP0011a.total", Icon: ChartNoAxesCombined },
   { path: "/app/import", label: "wlP0011a.import", Icon: Upload },
   { path: "/app/sources", label: "wlP0011a.sources", Icon: Plug },
@@ -135,11 +143,25 @@ function ShellLayout() {
     setMenuOpen(false);
   }
 
-  function placeholder(label: Message) {
+  // Until WL-P0-008 provides the positions read contract, the shell has no
+  // holdings to show. Source-led pages therefore always offer to enable a
+  // source; the navigation keeps them reachable either way.
+  function placeholder(label: Message, sourceLed: boolean) {
     return (
       <>
         <h1 tabIndex={-1}>{t(label)}</h1>
-        <p className="v2-placeholder">{t("wlP0011a.placeholder")}</p>
+        {sourceLed ? (
+          <PageEmpty
+            message={t("wlP0011a.noSourceData")}
+            action={
+              <Button asChild>
+                <Link to="/app/sources">{t("wlP0011a.enableSource")}</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <PageEmpty message={t("wlP0011a.placeholder")} />
+        )}
       </>
     );
   }
@@ -204,8 +226,12 @@ function ShellLayout() {
             ("child" in destination
               ? [destination, destination.child]
               : [destination]
-            ).map(({ path, label }) => (
-              <Route key={path} path={path} element={placeholder(label)} />
+            ).map((page) => (
+              <Route
+                key={page.path}
+                path={page.path}
+                element={placeholder(page.label, "sourceLed" in page)}
+              />
             )),
           )}
           <Route
@@ -213,9 +239,14 @@ function ShellLayout() {
             element={
               <>
                 <h1 tabIndex={-1}>{t("wlP0011a.notFound")}</h1>
-                <Button className="v2-placeholder" variant="secondary" asChild>
-                  <Link to="/app">{t("wlP0011a.backHome")}</Link>
-                </Button>
+                <PageEmpty
+                  message={t("wlP0011a.notFoundHint")}
+                  action={
+                    <Button variant="secondary" asChild>
+                      <Link to="/app">{t("wlP0011a.backHome")}</Link>
+                    </Button>
+                  }
+                />
               </>
             }
           />

@@ -511,5 +511,8 @@
   "wlP0011a.menu": "Menu",
   "wlP0011a.placeholder": "This page is under development.",
   "wlP0011a.notFound": "Page not found",
-  "wlP0011a.backHome": "Back to Home"
+  "wlP0011a.backHome": "Back to Home",
+  "wlP0011a.noSourceData": "No holdings yet. Enable a source and import a file to see them here.",
+  "wlP0011a.enableSource": "Enable a source",
+  "wlP0011a.notFoundHint": "This address does not match any page."
 }

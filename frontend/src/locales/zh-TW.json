@@ -511,5 +511,8 @@
   "wlP0011a.menu": "選單",
   "wlP0011a.placeholder": "此頁面仍在開發中。",
   "wlP0011a.notFound": "找不到頁面",
-  "wlP0011a.backHome": "返回首頁"
+  "wlP0011a.backHome": "返回首頁",
+  "wlP0011a.noSourceData": "尚無持倉。請啟用資料來源並匯入檔案，即可在此查看。",
+  "wlP0011a.enableSource": "啟用資料來源",
+  "wlP0011a.notFoundHint": "此網址沒有對應的頁面。"
 }

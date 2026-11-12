@@ -511,5 +511,8 @@
   "wlP0011a.menu": "菜单",
   "wlP0011a.placeholder": "此页面仍在开发中。",
   "wlP0011a.notFound": "找不到页面",
-  "wlP0011a.backHome": "返回首页"
+  "wlP0011a.backHome": "返回首页",
+  "wlP0011a.noSourceData": "暂无持仓。请启用数据来源并导入文件，即可在此查看。",
+  "wlP0011a.enableSource": "启用数据来源",
+  "wlP0011a.notFoundHint": "此网址没有对应的页面。"
 }
