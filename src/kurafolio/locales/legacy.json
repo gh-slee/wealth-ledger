@@ -1167,7 +1167,7 @@
     "Event reference conflict; explicitly revise or link {value0}": "cli.5c972360bc64",
     "Unlink the existing attribution before relinking": "cli.2793eb81b67c",
     "Revision changed concurrently": "cli.5aed69186ae1",
-    "Set WEALTH_LEDGER_FONT to an embeddable Traditional Chinese TTF font.": "cli.005d2d09904f",
+    "Set KURAFOLIO_FONT to an embeddable Traditional Chinese TTF font.": "cli.005d2d09904f",
     "ODS workbook is missing expected worksheets, formulas, or embedded charts": "cli.912794dd1c5c",
     "One Wealthsimple or Bull CSV, or one of each; formats are detected automatically": "cli.e94f09d38779",
     "CSV input alias; Wealthsimple or Bull format is detected automatically": "cli.4e558c50c87d",
