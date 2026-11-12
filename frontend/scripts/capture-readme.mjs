@@ -83,13 +83,7 @@ try {
       : {},
   );
   const page = await browser.newPage({
-    viewport: v2ShellOnly ? null : { width: 1440, height: 1200 },
-    v2_viewports: files.includes("web-v2-shell.png")
-      ? [
-          { width: 1440, height: 900 },
-          { width: 375, height: 812 },
-        ]
-      : [],
+    viewport: { width: 1440, height: 1200 },
     deviceScaleFactor: 1,
     reducedMotion: "reduce",
     colorScheme: "light",

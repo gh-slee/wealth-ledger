@@ -45,7 +45,10 @@ test("V2 routes preserve the eight destinations and nested Exposures", async ({
     await link.click();
     expect(new URL(page.url()).pathname).toBe(path);
     await expect(link).toHaveAttribute("aria-current", "page");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+    const heading = page.getByRole("heading", { level: 1 });
+    await expect(heading).toHaveText(name);
+    await expect(heading).toBeFocused();
+    await expect(page).toHaveTitle(`${name} · Kurafolio`);
   }
   expect(legacyRequests).toEqual([]);
 
@@ -69,7 +72,7 @@ test("V2 routes preserve the eight destinations and nested Exposures", async ({
   }
 
   // WL-P0-011 bans these shipped concepts from the V2 shell and Home.
-  // Home content itself is WL-P0-012D, which repeats this check per locale.
+  // Home content itself is WL-P0-012D, which owns the per-locale check.
   await page.goto("/app");
   const shell = page.locator("body");
   for (const banned of [
@@ -79,6 +82,9 @@ test("V2 routes preserve the eight destinations and nested Exposures", async ({
     /next steps/i,
     /saved evidence/i,
     /recorded cash flows/i,
+    /partial source scope/i,
+    /carried forward/i,
+    /report edition/i,
   ]) {
     await expect(shell).not.toContainText(banned);
   }
@@ -178,6 +184,34 @@ test("a failed V2 probe can retry without opening the SQLite shell", async ({
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Home");
   expect(attempts).toBe(2);
+});
+
+test("the startup probe explains maintenance in the remembered language", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("kurafolio-v2-locale", "zh-TW"),
+  );
+  let attempts = 0;
+  await page.route("**/api/v2/auth/csrf", (route) => {
+    attempts++;
+    return attempts === 1
+      ? route.fulfill({
+          status: 503,
+          json: {
+            error: { code: "maintenance", message: "", request_id: "x" },
+          },
+        })
+      : route.fulfill({
+          json: { authenticated: true, csrf_token: "a".repeat(64) },
+        });
+  });
+  await page.goto("/app");
+  await expect(page.getByRole("alert")).toHaveText(
+    "系統正在維護，請稍候一分鐘再試。",
+  );
+  await page.getByRole("button", { name: "重試" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("首頁");
 });
 
 test("SQLite session cache clears do not restart shell selection", async ({

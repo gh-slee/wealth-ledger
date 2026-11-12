@@ -502,7 +502,7 @@
   "wlP0011a.investments": "股票／債券",
   "wlP0011a.exposures": "曝險",
   "wlP0011a.crypto": "加密資產",
-  "wlP0011a.total": "總覽",
+  "wlP0011a.total": "總投資",
   "wlP0011a.import": "匯入資料",
   "wlP0011a.sources": "解析器外掛商店",
   "wlP0011a.settings": "應用程式設定",
@@ -512,7 +512,8 @@
   "wlP0011a.placeholder": "此頁面仍在開發中。",
   "wlP0011a.notFound": "找不到頁面",
   "wlP0011a.backHome": "返回首頁",
-  "wlP0011a.noSourceData": "尚無持倉。請啟用資料來源並匯入檔案，即可在此查看。",
+  "wlP0011a.noSourceData": "啟用資料來源並匯入檔案後，持倉會顯示在這裡。",
   "wlP0011a.enableSource": "啟用資料來源",
-  "wlP0011a.notFoundHint": "此網址沒有對應的頁面。"
+  "wlP0011a.notFoundHint": "此網址沒有對應的頁面。",
+  "wlP0011a.maintenance": "系統正在維護，請稍候一分鐘再試。"
 }

@@ -13,10 +13,18 @@ import {
   Upload,
   UserRound,
 } from "lucide-react";
-import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import { Button } from "../components/ui/button";
 import type { Locale } from "../lib/api";
-import { catalogs, LocaleContext, useI18n, type Message } from "../lib/i18n";
+import { LocaleContext, useI18n, type Message } from "../lib/i18n";
+import { preferredLocale, rememberLocale } from "./locale";
 import { PageEmpty } from "./page-state";
 import "./shell.css";
 
@@ -46,18 +54,6 @@ const destinations = [
   { path: "/app/settings", label: "wlP0011a.settings", Icon: Settings },
   { path: "/app/profile", label: "wlP0011a.profile", Icon: UserRound },
 ] as const;
-
-const LOCALE_KEY = "kurafolio-v2-locale";
-
-function preferredLocale() {
-  try {
-    const value = localStorage.getItem(LOCALE_KEY);
-    if (value && Object.hasOwn(catalogs, value)) return value as Locale;
-  } catch {
-    // Preference storage can be unavailable in private browsing.
-  }
-  return "en-CA";
-}
 
 function Language() {
   const { locale, setLocale, t } = useI18n();
@@ -125,10 +121,38 @@ function Brand() {
 }
 
 function ShellLayout() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const main = useRef<HTMLElement>(null);
   const focusDestination = useRef(false);
+  const focusAfterNavigation = useRef(false);
+  const { pathname } = useLocation();
+
+  // Announce route changes: name the document after the page heading and,
+  // after a sidebar choice, move focus to that heading.
+  useEffect(() => {
+    const heading = main.current?.querySelector("h1");
+    if (heading?.textContent)
+      document.title = `${heading.textContent} · Kurafolio`;
+    if (focusAfterNavigation.current) {
+      focusAfterNavigation.current = false;
+      heading?.focus();
+    }
+  }, [pathname, locale]);
+
+  function navigateFromSidebar(event: MouseEvent<HTMLAnchorElement>) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    if (new URL(event.currentTarget.href).pathname === pathname)
+      main.current?.querySelector("h1")?.focus();
+    else focusAfterNavigation.current = true;
+  }
 
   function navigateFromMenu(event: MouseEvent<HTMLAnchorElement>) {
     if (
@@ -173,7 +197,7 @@ function ShellLayout() {
       </a>
       <aside className="sidebar v2-desktop-nav">
         <Brand />
-        <Navigation />
+        <Navigation onNavigate={navigateFromSidebar} />
         <div className="sidebar-bottom">
           <Language />
         </div>
@@ -265,11 +289,7 @@ export default function V2Shell() {
 
   function setLocale(value: Locale) {
     updateLocale(value);
-    try {
-      localStorage.setItem(LOCALE_KEY, value);
-    } catch {
-      // The in-memory preference still applies for this page.
-    }
+    rememberLocale(value);
   }
 
   return (

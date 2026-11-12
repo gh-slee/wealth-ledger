@@ -368,7 +368,8 @@ reports and saved PNG charts keep their publication styling.
 The V2 application is in development and not yet the default. Its shell has eight
 destinations, with Exposures under Stock/Bond. On a phone, one compact bar opens a
 menu with every destination. These pages are placeholders: the screenshots contain
-no finance data, and Stock/Bond offers to enable a source until holdings exist.
+no finance data. Stock/Bond, Exposures and Crypto always offer to enable a source until
+the positions read contract (WL-P0-008) lets the shell detect holdings.
 The same bundle opens this shell only when the server is a V2 instance.
 
 </details>
