@@ -1,4 +1,4 @@
-"""Opt-in identity API, isolated from legacy routes, workspaces and static files."""
+"""Opt-in identity API, isolated from legacy routes and workspaces; serves only the built browser bundle."""
 from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
@@ -11,6 +11,7 @@ import uuid
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse
 
 from .auth import Auth, RequestError, TOKEN, HEX, digest
@@ -18,6 +19,7 @@ from . import schemas as s
 from kurafolio.persistence.identity import IdentityError
 from kurafolio.data_sources.lifecycle_v1 import SourceError
 from kurafolio.domain.canonical_v1 import DomainBatchV1
+from kurafolio.web.frontend import APP_CONTENT_SECURITY_POLICY, bundle_ready, install_frontend
 
 SECURITY_HEADERS = {'Cache-Control':'no-store, private', 'Pragma':'no-cache',
  'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer',
@@ -36,6 +38,10 @@ SOURCE_ROUTES = {'/api/v2/sources':('GET',),'/api/v2/source-connections':('GET',
 SOURCE_DYNAMIC = ((re.compile(r'/api/v2/sources/[^/]+/capabilities/[^/]+\Z'),('PUT',)),
                   (re.compile(r'/api/v2/source-connections/[^/]+\Z'),('GET','PUT')))
 ANONYMOUS = {'/api/v2/auth/login','/api/v2/auth/register','/api/v2/auth/setup'}
+# Anonymous GET-only browser bundle paths; they never reach identity or finance code.
+FRONTEND_PAGES = ('/','/login','/setup','/register')
+FRONTEND = re.compile(r'(?:/|/login|/setup|/register|/app|/app/.*|/assets/[^/]+)\Z')
+FRONTEND_HEADERS = {**SECURITY_HEADERS,'Content-Security-Policy':APP_CONTENT_SECURITY_POLICY}
 
 
 def set_cookie(response, settings, token=None, *, authenticated=False):
@@ -82,8 +88,8 @@ def query(scope):
 
 class Boundary:
     """Bound admitted work even when an ASGI caller cancels a blocking operation."""
-    def __init__(self, app, *, settings, auth):
-        self.app, self.settings, self.auth = app, settings, auth
+    def __init__(self, app, *, settings, auth, frontend=False):
+        self.app, self.settings, self.auth, self.frontend = app, settings, auth, frontend
         self.active = 0
         self.ready_task = None
         self.tasks = set()
@@ -101,11 +107,19 @@ class Boundary:
                 language=first
 
         scope['identity_language']=language
+        frontend_path=FRONTEND.fullmatch(scope.get('path',''))
+        security=FRONTEND_HEADERS if frontend_path else SECURITY_HEADERS
 
         async def protected_send(message):
             if message['type']=='http.response.start':
-                headers=[(k,v) for k,v in message.get('headers',[]) if k.lower() not in {n.lower().encode() for n in SECURITY_HEADERS}]
-                headers.extend((k.encode(),v.encode()) for k,v in SECURITY_HEADERS.items())
+                headers=[(k,v) for k,v in message.get('headers',[]) if k.lower() not in {n.lower().encode() for n in security}]
+                headers.extend((k.encode(),v.encode()) for k,v in security.items())
+                if frontend_path:
+                    # Bundle responses mirror the SQLite application's request ID and HSTS headers.
+                    headers=[(k,v) for k,v in headers if k.lower() not in {b'x-request-id',b'strict-transport-security'}]
+                    headers.append((b'x-request-id',request_id.encode()))
+                    if self.settings.secure:
+                        headers.append((b'strict-transport-security',b'max-age=31536000'))
                 message={**message,'headers':headers}
             await send(message)
 
@@ -117,7 +131,8 @@ class Boundary:
             except Exception:
                 await error_response(RequestError('internal_error',500),request_id,self.settings,language=language)(scope,receive,protected_send)
 
-        if scope.get('path') in {'/healthz','/readyz'}:
+        # Probes and static bundle reads do no identity work, so they skip the admission bound.
+        if scope.get('path') in {'/healthz','/readyz'} or frontend_path:
             return await run()
         if self.active>=8:
             return await error_response(RequestError('authentication_busy',429),request_id,self.settings)(scope,receive,protected_send)
@@ -153,6 +168,16 @@ class Boundary:
         if len(cookies)>1:
             raise RequestError('invalid_headers',400)
         path,method=scope['path'],scope['method']
+        if FRONTEND.fullmatch(path):
+            if not self.frontend:
+                raise RequestError('not_found',404)
+            if method!='GET':
+                response=error_response(RequestError('method_not_allowed',405),request_id,self.settings)
+                response.headers['Allow']='GET'
+                return await response(scope,receive,send)
+            # No cookie is resolved and no session is created for the bundle.
+            scope.setdefault('state',{}).update(request_id=request_id,language=scope.get('identity_language','en-CA'))
+            return await self.app(scope,receive,send)
         methods=ROUTES.get(path)
         if methods is None:
             methods=next((m for pattern,m in DYNAMIC if pattern.fullmatch(path)),None)
@@ -266,7 +291,7 @@ def checked_uuid(value):
         raise RequestError('invalid_input',422) from None
 
 
-def create_app(settings):
+def create_app(settings, *, frontend_root=None):
     auth=Auth(settings)
     @asynccontextmanager
     async def lifespan(app):
@@ -275,7 +300,9 @@ def create_app(settings):
     app=FastAPI(title='Kurafolio V2 identity API',version='2',docs_url=None,redoc_url=None,
                 openapi_url=None,lifespan=lifespan,redirect_slashes=False)
     app.state.auth=auth
-    app.add_middleware(Boundary,settings=settings,auth=auth)
+    # A partial bundle without assets/ is treated as absent so the API still starts.
+    frontend=bundle_ready(frontend_root) and install_frontend(app,frontend_root,pages=FRONTEND_PAGES,licenses=False)
+    app.add_middleware(Boundary,settings=settings,auth=auth,frontend=frontend)
     errors={status:{'model':s.Error} for status in [400,401,403,404,405,408,409,413,415,422,429,500,503]}
 
     @app.exception_handler(RequestValidationError)
@@ -291,6 +318,13 @@ def create_app(settings):
     @app.exception_handler(SourceError)
     async def bounded_error(request,error):
         return error_response(error,request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
+
+    @app.exception_handler(StarletteHTTPException)
+    async def static_error(request,error):
+        # Bundle misses (unknown, dot, map, symlinked or unreadable assets) use the bounded envelope.
+        codes={401:'not_found',403:'not_found',404:'not_found',405:'method_not_allowed'}
+        failure=RequestError(codes[error.status_code],405 if error.status_code==405 else 404) if error.status_code in codes else RequestError('internal_error',500)
+        return error_response(failure,request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
 
     @app.exception_handler(Exception)
     async def unexpected_error(request,error):
