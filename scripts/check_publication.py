@@ -54,10 +54,10 @@ PUBLIC_README_PNGS = {
     'assets/readme/web-report-reader.png',
 }
 PUBLIC_ROLE_SKILLS = frozenset({
-    '.agents/skills/wealthledger-fintech-pm/SKILL.md',
-    '.agents/skills/wealthledger-software-architect/SKILL.md',
-    '.agents/skills/wealthledger-fullstack-developer/SKILL.md',
-    '.agents/skills/wealthledger-qa-automation/SKILL.md',
+    '.agents/skills/kurafolio-fintech-pm/SKILL.md',
+    '.agents/skills/kurafolio-software-architect/SKILL.md',
+    '.agents/skills/kurafolio-fullstack-developer/SKILL.md',
+    '.agents/skills/kurafolio-qa-automation/SKILL.md',
 })
 PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {

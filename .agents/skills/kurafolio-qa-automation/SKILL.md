@@ -1,5 +1,5 @@
 ---
-name: wealthledger-qa-automation
+name: kurafolio-qa-automation
 description: "Use when explicitly assigned the Kurafolio independent QA role or verification stage of an authorized spec workflow to verify acceptance and failure boundaries."
 ---
 

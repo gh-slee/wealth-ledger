@@ -105,10 +105,10 @@ perform the corresponding check when that session/worktree is actually created.
 ## Repository role skills
 
 The four reviewed public skills are
-[PM](../.agents/skills/wealthledger-fintech-pm/SKILL.md),
-[Architect](../.agents/skills/wealthledger-software-architect/SKILL.md),
-[Developer](../.agents/skills/wealthledger-fullstack-developer/SKILL.md) and
-[QA](../.agents/skills/wealthledger-qa-automation/SKILL.md).
+[PM](../.agents/skills/kurafolio-fintech-pm/SKILL.md),
+[Architect](../.agents/skills/kurafolio-software-architect/SKILL.md),
+[Developer](../.agents/skills/kurafolio-fullstack-developer/SKILL.md) and
+[QA](../.agents/skills/kurafolio-qa-automation/SKILL.md).
 Each references the single shared AGENTS.md and the canonical
 [spec workflow](spec-development.md). Select an explicitly assigned role or an
 authorized SDD stage. Discovery is availability, not approval to implement,

@@ -1,5 +1,5 @@
 ---
-name: wealthledger-software-architect
+name: kurafolio-software-architect
 description: "Use when explicitly assigned the Kurafolio Architect role or the architecture stage of an authorized spec workflow to review contracts and technical risk."
 ---
 

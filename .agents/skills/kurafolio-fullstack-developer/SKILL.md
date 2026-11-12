@@ -1,5 +1,5 @@
 ---
-name: wealthledger-fullstack-developer
+name: kurafolio-fullstack-developer
 description: "Use when explicitly assigned the Kurafolio Developer role or implementation stage of an authorized spec workflow with an exact human-approved revision and exclusive claim."
 ---
 

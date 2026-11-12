@@ -182,12 +182,12 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   1. Start a reviewer with a fresh context (a subagent or a separate session).
      Give it the ticket file, the diff against the base branch and the repository
      rules. Do not give it your conversation or your reasoning.
-  2. The reviewer follows `.agents/skills/wealthledger-qa-automation/SKILL.md` on
+  2. The reviewer follows `.agents/skills/kurafolio-qa-automation/SKILL.md` on
      every ticket. For `risk: high` or `critical`, a second reviewer follows
-     `.agents/skills/wealthledger-software-architect/SKILL.md`. For a ticket that
+     `.agents/skills/kurafolio-software-architect/SKILL.md`. For a ticket that
      changes a page or user-facing wording, one reviewer also checks it against
      [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md) with
-     `.agents/skills/wealthledger-fintech-pm/SKILL.md`.
+     `.agents/skills/kurafolio-fintech-pm/SKILL.md`.
   3. The reviewer gives a verdict for each acceptance criterion, runs the Verify
      commands it can, and lists what it could not check. It does not edit the
      branch. Its findings go on the PR as a comment and in one ticket Log line.

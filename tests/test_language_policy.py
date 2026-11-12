@@ -57,7 +57,7 @@ class LanguagePolicyTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('# English role\n', encoding='utf-8')
             for relative in ('.agents/private.md', '.agents/skills/extra/SKILL.md',
-                             '.agents/skills/wealthledger-fintech-pm/AGENTS.override.md',
+                             '.agents/skills/kurafolio-fintech-pm/AGENTS.override.md',
                              '.codex/skills/private/SKILL.md'):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,7 +75,7 @@ class LanguagePolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'README.md').write_text('# Guide\n', encoding='utf-8')
-            parts = Path('.agents/skills/wealthledger-fintech-pm/SKILL.md').parts
+            parts = Path('.agents/skills/kurafolio-fintech-pm/SKILL.md').parts
             for length in range(1, len(parts) + 1):
                 for dangling in (False, True):
                     with self.subTest(component=length, dangling=dangling):

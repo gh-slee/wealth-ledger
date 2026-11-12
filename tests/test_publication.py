@@ -259,12 +259,12 @@ create_pr = true
         # Test exact patterns independent of macOS Git's case-folding option.
         self.run_git('config', 'core.ignorecase', 'false')
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
-        role = '.agents/skills/wealthledger-fullstack-developer/'
+        role = '.agents/skills/kurafolio-fullstack-developer/'
         paths = ('.agents/notes.md', '.agents/skills/extra-role/SKILL.md',
                  role + 'nested/SKILL.md', role + 'skill.md', role + 'SKILL.md.backup',
                  role + 'AGENTS.override.md', role + 'agents/openai.yaml',
-                 '.agents/skills/wealthledger-fullstack-developer-copy/SKILL.md',
-                 '.codex/skills/wealthledger-fullstack-developer/SKILL.md',
+                 '.agents/skills/kurafolio-fullstack-developer-copy/SKILL.md',
+                 '.codex/skills/kurafolio-fullstack-developer/SKILL.md',
                  'docs/specs/wealth-ledger-v2/workflow/notes.md',
                  'planning-input/notes.md')
         for relative in paths:
@@ -314,11 +314,11 @@ create_pr = true
 
     def test_casefolding_git_cannot_publish_a_role_lookalike(self):
         self.run_git('config', 'core.ignorecase', 'true')
-        relative = '.agents/skills/wealthledger-fintech-pm/skill.md'
+        relative = '.agents/skills/kurafolio-fintech-pm/skill.md'
         self.write(relative, '# Synthetic case-only lookalike\n')
         result = guard.scan_worktree(self.root)
         self.assertNotIn(relative, {row['path'] for row in result['files']})
-        approved = '.agents/skills/wealthledger-fintech-pm/SKILL.md'
+        approved = '.agents/skills/kurafolio-fintech-pm/SKILL.md'
         self.assertNotIn(approved, {row['path'] for row in result['files']})
         self.run_git('add', '-f', '--', relative)
         self.assertFalse(guard.scan_staged(self.root)['passed'])
@@ -341,7 +341,7 @@ create_pr = true
         self.assertTrue(guard.PUBLIC_ROLE_SKILLS <= {row['path'] for row in result['violations']})
 
     def test_role_and_ancestor_symlinks_are_rejected_before_any_target_read(self):
-        relative = '.agents/skills/wealthledger-fullstack-developer/SKILL.md'
+        relative = '.agents/skills/kurafolio-fullstack-developer/SKILL.md'
         parts = Path(relative).parts
         read_bytes = Path.read_bytes
         for length in range(1, len(parts) + 1):
@@ -374,7 +374,7 @@ create_pr = true
                     self.assertNotIn(relative, {row['path'] for row in result['files']})
 
     def test_nonregular_role_candidates_and_file_ancestors_fail_closed(self):
-        role = '.agents/skills/wealthledger-fullstack-developer'
+        role = '.agents/skills/kurafolio-fullstack-developer'
         self.write(role, 'Synthetic non-directory ancestor')
         self.assertFalse(guard.scan_worktree(self.root)['passed'])
         (self.root / role).unlink()
@@ -385,8 +385,8 @@ create_pr = true
         self.assertFalse(guard.scan_worktree(self.root)['passed'])
 
     def test_force_staged_role_symlink_and_ancestor_symlink_fail_history(self):
-        for relative in ('.agents/skills/wealthledger-fintech-pm/SKILL.md',
-                         '.agents/skills/wealthledger-software-architect'):
+        for relative in ('.agents/skills/kurafolio-fintech-pm/SKILL.md',
+                         '.agents/skills/kurafolio-software-architect'):
             link = self.root / relative
             link.parent.mkdir(parents=True, exist_ok=True)
             link.symlink_to(self.root / 'private/missing')

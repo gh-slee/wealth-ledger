@@ -1,5 +1,5 @@
 ---
-name: wealthledger-fintech-pm
+name: kurafolio-fintech-pm
 description: "Use when explicitly assigned the Kurafolio PM role or the PM stage of an authorized spec workflow to define outcomes, scope and business acceptance."
 ---
 
