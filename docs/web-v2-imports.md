@@ -173,7 +173,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   repeated call changes nothing. Sets, members, leases, receipts and accepted
   evidence stay. Opt-in PostgreSQL tests cover window reset, user and shared
   instance bounds across portfolios, double release, purge ordering and fail-closed
-  rollback. No gateway, worker or cleanup route calls either helper yet.
+  rollback. `cleanup_set_v1` is the only caller of `_purge_v1`.
   The declared gateway function `cancel_set_v1` takes only `operation_id`,
   `set_id` and `expected_set_revision`. It authenticates through
   `_guard_user_v1` and returns an exact earlier CANCEL receipt before any mutable
@@ -273,8 +273,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   refusal, missing or ambiguous workers and re-upload fencing. No upload route,
   worker claim or raw transport calls them yet.
   The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
-  leases; prepare and cleanup kinds return `import_invalid` until their own
-  claim functions exist. Both take no bytes and call `_guard_worker_v1` first.
+  leases; the prepare and cleanup kinds return `import_invalid` here. Both take no bytes and call `_guard_worker_v1` first.
   Scope comes only from the stored set row, and locks follow the reserve order.
   The lease must be the member's one live normalize lease at the requested fence,
   name the calling worker and match the handoff-token digest
@@ -326,10 +325,42 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   is involved. Also by owner decision, the user's raw slot is released only when
   at least one proof was sent and every proof says `absent` or `not_created`.
   Otherwise the acknowledgement says `cleanup_complete: false` and the slot stays
-  held for a later cleanup call. Proofs are checked for shape only; this
-  function does not store them. Opt-in PostgreSQL tests cover each outcome,
+  held for a later cleanup call. Proofs are checked for shape and stored on the
+  attempt's lease. Each normalize lease records whether its attempt still holds
+  the raw slot that reserve took (`raw_slot`), so a slot is released at most once
+  by finish or cleanup, never by both. Opt-in PostgreSQL tests cover each outcome,
   replay, slot release and retention, a two-member set and every refusal
   leaving the attempt unchanged. No worker process calls it yet.
+  `claim_plan_v1` and `cleanup_set_v1` give terminal sets back their capacity
+  after the originating session has ended. `claim_plan_v1` with
+  `work_kind: cleanup` takes a fresh worker token and picks the oldest set that
+  is terminal with cleanup `pending` or `failed` and has no live cleanup lease. A
+  set past its expiry is first expired under its lock, exactly as a user call
+  would expire it. The claim stores the token's digest on a 30-second cleanup
+  lease. Following the owner's decisions, the lease carries a fixed cleanup
+  session marker instead of a user session, its fence is 1 plus the set's earlier
+  cleanup leases, and its acknowledgement's `source_fingerprint` is the set's
+  creation request digest. Repeating the same claim request returns
+  `already_claimed`; with nothing eligible the result is `no_work`. A lapsed
+  cleanup lease is closed as expired before the set is handed out again. Prepare
+  claims return `import_invalid` until WL-P0-007L adds them.
+  `cleanup_set_v1` takes the lease's job ID and fence, the same token, and up to
+  twelve proofs. Each proof must name a normalize attempt of this set that was
+  bound to the launcher, at most three times. It locks the raw and storage quota
+  rows before the set. Every raw slot still held by a fenced attempt is then
+  handled once. An attempt that was never bound releases its slot without a
+  proof. A bound attempt releases it only when its proofs all say `absent` or
+  `not_created`, and the proofs are stored on that attempt. When no slot is left
+  held, `_purge_v1` removes the transient rows and releases the storage
+  reservation (`purged`). Otherwise, by owner decision, the proofs are kept, the
+  set stays `failed` with its storage held, and the next claim retries it
+  (`cleanup_pending`). The finished lease stores its acknowledgement for replay.
+  The lease trigger enforces the same rules: a slot moves only from `held` to
+  `released`, a recorded proof is never removed, and a closed attempt can change
+  nothing else. Opt-in PostgreSQL tests cover cancel during reception, cancel
+  before claim, expiry before claim, a slot already released by finish, pending
+  and failed proofs, oldest-first selection, replay and every refusal leaving
+  the lease and slot unchanged. No worker process calls them yet.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 
