@@ -68,24 +68,46 @@ class QuoteService:
         self._last_valid = _Bounded(max_entries)  # Listing -> Quote
         self._history = _Bounded(max_entries)     # (Listing, start, end) -> HistoryResult
         self._last_history = _Bounded(max_entries)
+        self._inflight = {}          # Listing -> Event, while one caller fetches it
+        self._inflight_history = {}  # (Listing, start, end) -> Event
 
     @property
     def enabled(self):
         return self.provider is not None
 
     def latest(self, listings):
-        """Return ``{listing: QuoteResult}`` for the distinct listings requested."""
+        """Return ``{listing: QuoteResult}`` for the distinct listings requested.
+
+        Each due listing is fetched by one caller at a time; other callers wait
+        for that request instead of sending their own. The lock guards only the
+        cache, so cache hits never wait for upstream I/O."""
         unique = list(dict.fromkeys(listings))
         if self.provider is None:
             return {item: QuoteResult(item, QuoteStatus.NO_PROVIDER, None, reason="no_provider")
                     for item in unique}
+        mine, waits = [], []
         with self._lock:
             now = self.clock()
-            due = [item for item in unique if not self._cached(self._checks.get(item), now)]
+            for item in unique:
+                if self._cached(self._checks.get(item), now):
+                    continue
+                if item in self._inflight:
+                    waits.append(self._inflight[item])
+                else:
+                    self._inflight[item] = threading.Event()
+                    mine.append(item)
+        try:
             size = max(1, int(self.provider.max_batch_size))
-            for offset in range(0, len(due), size):
-                self._refresh(due[offset:offset + size], now)
-            return {item: self._checks.get(item) or self._fallback(item, now, "rate_limited")
+            for offset in range(0, len(mine), size):
+                self._refresh(mine[offset:offset + size])
+        finally:
+            with self._lock:
+                for item in mine:
+                    self._inflight.pop(item).set()
+        for event in waits:
+            event.wait()
+        with self._lock:
+            return {item: self._current(self._checks.get(item), now) or self._fallback(item, now, "rate_limited")
                     for item in unique}
 
     def history(self, listing, start, end):
@@ -95,50 +117,79 @@ class QuoteService:
         if self.provider is None:
             return HistoryResult(listing, start, end, QuoteStatus.NO_PROVIDER, None, reason="no_provider")
         key = (listing, start, end)
-        with self._lock:
-            now = self.clock()
-            cached = self._history.get(key)
-            if self._cached(cached, now):
-                return cached
-            if not self.limiter.try_acquire(now):
-                return self._history_fallback(key, now, "rate_limited")
+        while True:
+            with self._lock:
+                now = self.clock()
+                cached = self._history.get(key)
+                if self._current(cached, now):
+                    return cached
+                event = self._inflight_history.get(key)
+                if event is None:
+                    if not self.limiter.try_acquire(now):
+                        self._log(listing, "rate_limited")
+                        return self._history_fallback(key, now, "rate_limited")
+                    self._inflight_history[key] = threading.Event()
+                    break
+            event.wait()
+            with self._lock:
+                result = self._history.get(key)
+                if self._current(result, now):
+                    return result
+        try:
             try:
                 answer = validate_history(listing, start, end, self.provider.fetch_history(listing, start, end))
             except Exception as error:
                 answer = NoData(self._failure_code(error))
-            if isinstance(answer, NoData):
-                self._log(listing, answer.reason)
-                result = self._history_fallback(key, now, answer.reason)
-            else:
-                result = HistoryResult(listing, start, end, QuoteStatus.FRESH, now, answer)
-                self._last_history.put(key, result)
-            self._history.put(key, result)
-            return result
+            with self._lock:
+                stored = self.clock()
+                if isinstance(answer, NoData):
+                    self._log(listing, answer.reason)
+                    result = self._history_fallback(key, stored, answer.reason)
+                else:
+                    result = HistoryResult(listing, start, end, QuoteStatus.FRESH, stored, answer)
+                    self._last_history.put(key, result)
+                self._history.put(key, result)
+                return result
+        finally:
+            with self._lock:
+                self._inflight_history.pop(key).set()
 
     def _cached(self, result, now):
         return result is not None and result.checked_at is not None and now - result.checked_at < self.cache_window
 
-    def _refresh(self, batch, now):
-        if not self.limiter.try_acquire(now):
-            for item in batch:  # not cached, so the next request retries
+    def _current(self, result, now):
+        """A result checked inside the cache window or after ``now`` (by a
+        request this caller waited for); anything older is not reused."""
+        if result is not None and result.checked_at is not None and (
+                result.checked_at >= now or self._cached(result, now)):
+            return result
+        return None
+
+    def _refresh(self, batch):
+        with self._lock:
+            allowed = self.limiter.try_acquire(self.clock())
+        if not allowed:
+            for item in batch:  # nothing is cached, so the next request retries
                 self._log(item, "rate_limited")
             return
         try:
-            answer = validate_latest(batch, self.provider.fetch_latest(batch), now)
+            answer = validate_latest(batch, self.provider.fetch_latest(batch), self.clock())
         except Exception as error:
             code = self._failure_code(error)
             answer = {item: NoData(code) for item in batch}
-        for item in batch:
-            outcome = answer[item]
-            if isinstance(outcome, Quote):
-                previous = self._last_valid.get(item)
-                if previous is None or outcome.as_of >= previous.as_of:
-                    self._last_valid.put(item, outcome)
-                result = QuoteResult(item, QuoteStatus.FRESH, now, self._last_valid[item])
-            else:
-                self._log(item, outcome.reason)
-                result = self._fallback(item, now, outcome.reason)
-            self._checks.put(item, result)
+        with self._lock:
+            stored = self.clock()
+            for item in batch:
+                outcome = answer[item]
+                if isinstance(outcome, Quote):
+                    previous = self._last_valid.get(item)
+                    if previous is None or outcome.as_of >= previous.as_of:
+                        self._last_valid.put(item, outcome)
+                    result = QuoteResult(item, QuoteStatus.FRESH, stored, self._last_valid[item])
+                else:
+                    self._log(item, outcome.reason)
+                    result = self._fallback(item, stored, outcome.reason)
+                self._checks.put(item, result)
 
     def _fallback(self, listing, now, reason):
         last = self._last_valid.get(listing)
@@ -162,6 +213,6 @@ class QuoteService:
         return "provider_error"
 
     def _log(self, listing, reason):
-        name = getattr(self.provider, "name", "unknown")
+        name = getattr(self.provider, "key", None) or getattr(self.provider, "name", "unknown")
         self.logger.warning("market quote check failed provider=%s listing=%s reason=%s",
                             name, listing.key(), reason)

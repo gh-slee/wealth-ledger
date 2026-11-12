@@ -14,7 +14,7 @@ from kurafolio.market import (DelayClass, Listing, MarketSettings, NoData, Provi
                               build_quote_service)
 from kurafolio.market import unofficial_yahoo
 from kurafolio.market.unofficial_yahoo import YahooChartProvider, yahoo_symbol
-from test_market_quotes import Clock, OfflineTestCase
+from test_market_quotes import Clock, NetworkBlocked, OfflineTestCase
 
 TORONTO = Listing("XTSE", "VEQT")
 NEW_YORK = Listing("ARCX", "VTI")
@@ -57,6 +57,11 @@ def provider(*responses):
     return YahooChartProvider(transport, clock=lambda: NOW), transport
 
 
+def after_close():
+    # The first moment of 2026-11-07 in Toronto: every bar through 2026-11-06 is final.
+    return datetime(2026, 11, 7, 5, 0, tzinfo=timezone.utc)
+
+
 class SymbolTests(OfflineTestCase):
     def test_exchange_suffixes_and_class_shares(self):
         self.assertEqual(yahoo_symbol(TORONTO), "VEQT.TO")
@@ -93,6 +98,7 @@ class SuccessTests(OfflineTestCase):
     def test_history_rounds_float_noise_skips_gaps_and_uses_exchange_days(self):
         closes = [Decimal("40.900001525878906"), None, Decimal("41.119998931884766"), Decimal("41.27")]
         source, transport = provider((200, chart("VEQT.TO", closes=closes)))
+        source.clock = after_close
         bars = source.fetch_history(TORONTO, date(2026, 11, 3), date(2026, 11, 6))
         self.assertEqual([(bar.day, bar.close, bar.currency, bar.delay_class) for bar in bars],
                          [(date(2026, 11, 3), Decimal("40.90"), "CAD", DelayClass.END_OF_DAY),
@@ -106,8 +112,16 @@ class SuccessTests(OfflineTestCase):
     def test_history_drops_bars_outside_the_requested_days(self):
         source, _ = provider((200, chart("VEQT.TO", closes=[Decimal("40.9"), Decimal("41.05"),
                                                              Decimal("41.12"), Decimal("41.27")])))
+        source.clock = after_close
         bars = source.fetch_history(TORONTO, date(2026, 11, 4), date(2026, 11, 5))
         self.assertEqual([bar.day for bar in bars], [date(2026, 11, 4), date(2026, 11, 5)])
+
+    def test_history_leaves_out_todays_unfinished_bar(self):
+        source, _ = provider((200, chart("VEQT.TO", closes=[Decimal("40.9"), Decimal("41.05"),
+                                                             Decimal("41.12"), Decimal("41.31")])))
+        # NOW is 2026-11-06 16:05 in Toronto, during trading: the 2026-11-06 bar is live.
+        bars = source.fetch_history(TORONTO, date(2026, 11, 3), date(2026, 11, 6))
+        self.assertEqual([bar.day for bar in bars], [date(2026, 11, 3), date(2026, 11, 4), date(2026, 11, 5)])
 
 
 class FailureShapeTests(OfflineTestCase):
@@ -168,21 +182,29 @@ class TransportTests(OfflineTestCase):
 
         seen = {}
 
-        def fake_urlopen(request, timeout, context):
+        def fake_open(request, timeout):
             seen["agent"] = request.get_header("User-agent")
             seen["timeout"] = timeout
             return Response(b"{}")
 
-        with patch.object(unofficial_yahoo, "urlopen", fake_urlopen):
+        with patch.object(unofficial_yahoo, "_open", fake_open):
             self.assertEqual(unofficial_yahoo.urllib_transport("https://example.test/x", 15), (200, b"{}"))
         self.assertEqual(seen, {"agent": "Kurafolio/0.1", "timeout": 15})
         not_found = HTTPError("https://example.test/x", 404, "Not Found", {}, BytesIO(b'{"chart":{}}'))
-        with patch.object(unofficial_yahoo, "urlopen", side_effect=not_found):
+        with patch.object(unofficial_yahoo, "_open", side_effect=not_found):
             self.assertEqual(unofficial_yahoo.urllib_transport("https://example.test/x", 15), (404, b'{"chart":{}}'))
         for error in (URLError("down"), TimeoutError("slow"), ConnectionResetError()):
-            with patch.object(unofficial_yahoo, "urlopen", side_effect=error), self.assertRaises(ProviderError) as caught:
+            with patch.object(unofficial_yahoo, "_open", side_effect=error), self.assertRaises(ProviderError) as caught:
                 unofficial_yahoo.urllib_transport("https://example.test/x", 15)
             self.assertEqual(caught.exception.code, "network_error")
+
+    def test_redirects_are_refused(self):
+        from urllib.error import HTTPError
+        handler = unofficial_yahoo._NoRedirect()
+        self.assertIsNone(handler.redirect_request(None, None, 302, "Found", {}, "https://elsewhere.test/"))
+        moved = HTTPError("https://example.test/x", 302, "Found", {}, None)
+        with patch.object(unofficial_yahoo, "_open", side_effect=moved):
+            self.assertEqual(unofficial_yahoo.urllib_transport("https://example.test/x", 15), (302, b""))
 
 
 class IntegrationTests(OfflineTestCase):
@@ -201,15 +223,13 @@ class IntegrationTests(OfflineTestCase):
             quotes = build_quote_service()
             self.assertEqual(quotes.latest([TORONTO])[TORONTO].status, QuoteStatus.NO_PROVIDER)
 
-    def test_real_transport_is_blocked_in_tests(self):
+    def test_real_transport_is_stopped_by_the_network_guard(self):
         quotes = build_quote_service(MarketSettings(provider="unofficial-yahoo-chart", accept_unofficial_terms=True),
                                      clock=Clock(NOW))
-        with self.assertLogs("kurafolio.market", "WARNING") as logs:
-            result = quotes.latest([TORONTO])[TORONTO]
-        # The socket guard refuses the connection; the service reports a failure, never a price.
-        self.assertEqual((result.status, result.reason, result.quote),
-                         (QuoteStatus.UNAVAILABLE, "provider_error", None))
-        self.assertNotIn("yahoo", "\n".join(logs.output).lower().replace("yahoo finance unofficial", ""))
+        with self.assertRaises(NetworkBlocked):
+            quotes.latest([TORONTO])
+        self.assertTrue(self.network_attempts)
+        self.network_attempts.clear()
 
     def test_two_users_in_the_cache_window_cause_one_request(self):
         transport, clock = Transport((200, chart("VEQT.TO"))), Clock(NOW)

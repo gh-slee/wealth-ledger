@@ -53,7 +53,8 @@ price.
 The instance keeps one quote service. It caches each listing's latest check for
 the cache window, so when several users hold the same listing, the instance
 makes one upstream request for it per window. Concurrent requests wait for the
-one already in flight. Requests are grouped into batches as large as the
+one already in flight for that listing, while requests for cached listings
+answer at once. Requests are grouped into batches as large as the
 provider accepts.
 
 A per-instance rate limit caps upstream requests per minute. When the limit is
@@ -109,7 +110,8 @@ What it does:
   older.
 - Daily history uses the endpoint's closing prices, which include split
   adjustments but not dividend adjustments. Days the endpoint leaves empty are
-  skipped, never filled.
+  skipped, never filled. Today's bar is left out until the exchange's day has
+  ended, because during trading the endpoint fills it with the live price.
 - Prices are read as exact decimals and rounded to the precision the endpoint
   reports for the listing, which removes floating-point noise in its history.
 - Bond coverage was not tested. A bond with no listing on a supported exchange
@@ -146,11 +148,15 @@ To disable it, set `provider` back to `none`.
 
 ## What leaves the instance
 
-A market-data request contains only the exchange and symbol of a listing and a
-date range. It never contains a user, account, quantity or value.
+A market-data request contains only the provider's symbol for a listing (for
+the unofficial adapter, for example `VEQT.TO`) and a date range. It never
+contains a user, account, quantity or value. Like any HTTP request, it also
+shows the provider the instance's IP address and the client name
+`Kurafolio/0.1`. The adapter does not follow redirects, so a request never
+moves to another host.
 
 Failures are logged at warning level under the `kurafolio.market` logger with
-the provider name, the listing and a short fixed reason code such as
+the provider's registered name, the listing and a short fixed reason code such as
 `http_error`, `upstream_rate_limited`, `network_error`, `unexpected_shape`,
 `no_data` or `rate_limited`. URLs, API keys,
 response bodies and exception messages are never logged.
@@ -159,8 +165,10 @@ response bodies and exception messages are never logged.
 
 Tests use the deterministic fake provider in `src/kurafolio/market/fake.py`
 and recorded synthetic responses for the unofficial adapter. They never call
-the network: the market test modules block socket connections and DNS lookups
-for every test, so a test that tries to reach the network fails.
+the network. Every test in the market test modules blocks socket connections
+and DNS lookups and records each attempt. A test that tries to connect fails,
+even when the code under test catches the error. The guard covers these two
+modules only, not the whole test suite.
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_market_*.py' -v

@@ -15,7 +15,7 @@ import hashlib
 import json
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote as url_quote, urlencode
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .contract import DailyBar, DelayClass, NoData, ProviderError, Quote
@@ -44,12 +44,24 @@ def yahoo_symbol(listing):
     return listing.symbol.replace(".", "-") + suffix
 
 
+class _NoRedirect(HTTPRedirectHandler):
+    """Refuse redirects so a request never follows the endpoint to another host;
+    the 3xx answer surfaces as an HTTP error."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open(request, timeout):
+    from kurafolio.prices import tls_context
+    return build_opener(HTTPSHandler(context=tls_context()), _NoRedirect).open(request, timeout=timeout)
+
+
 def urllib_transport(url, timeout):
     """GET ``url``; return ``(status, body)`` with the body bounded."""
-    from kurafolio.prices import tls_context
     request = Request(url, headers={"User-Agent": CLIENT_NAME, "Accept": "application/json"})
     try:
-        with urlopen(request, timeout=timeout, context=tls_context()) as response:
+        with _open(request, timeout) as response:
             return response.status, response.read(MAX_RESPONSE_BYTES + 1)
     except HTTPError as error:
         try:
@@ -64,6 +76,7 @@ def urllib_transport(url, timeout):
 
 
 class YahooChartProvider:
+    key = NAME  # the registry name, used in logs
     name = SOURCE
     delay_class = DelayClass.DELAYED
     max_batch_size = 1  # the multi-symbol endpoint needs a session; one symbol per request
@@ -100,12 +113,15 @@ class YahooChartProvider:
         if not isinstance(stamps, list) or not isinstance(closes, list) or len(stamps) != len(closes):
             raise ProviderError("unexpected_shape")
         hint = _price_hint(meta)
+        # During trading the endpoint fills today's bar with the live price. Only
+        # days before today in the exchange's zone have an official close.
+        today = self.clock().astimezone(zone).date()
         bars = {}
         for stamp, close in zip(stamps, closes):
             if close is None:  # the endpoint leaves holidays and gaps empty
                 continue
             day = _instant(stamp).astimezone(zone).date()
-            if start <= day <= end:
+            if start <= day <= end and day < today:
                 bars[day] = DailyBar(listing, day, _decimal(close, hint), currency, SOURCE)
         if not bars:
             return NoData("no_data")

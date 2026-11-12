@@ -22,23 +22,33 @@ NOW = datetime(2026, 11, 6, 21, 5, tzinfo=timezone.utc)
 UNKNOWN = Listing("XTSE", "NOPE")
 
 
-class NetworkBlocked(AssertionError):
-    pass
-
-
-def _refuse(*args, **kwargs):
-    raise NetworkBlocked("Tests must not open network connections")
+class NetworkBlocked(BaseException):
+    """A BaseException, so code that catches Exception cannot swallow it."""
 
 
 class OfflineTestCase(unittest.TestCase):
-    """Blocks socket connections and DNS lookups for the duration of each test."""
+    """Blocks socket connections and DNS lookups for the duration of each test.
+
+    Every attempt is recorded, and the test fails at cleanup if any was made,
+    even when the code under test caught the error."""
 
     def setUp(self):
+        self.network_attempts = []
+
+        def refuse(*args, **kwargs):
+            self.network_attempts.append(args[1:2] or args[:1])
+            raise NetworkBlocked("Tests must not open network connections")
+
         for target in ("socket.socket.connect", "socket.socket.connect_ex",
                        "socket.create_connection", "socket.getaddrinfo"):
-            patcher = patch(target, _refuse)
+            patcher = patch(target, refuse)
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.addCleanup(self.assert_no_network_attempts)
+
+    def assert_no_network_attempts(self):
+        if self.network_attempts:
+            self.fail(f"Test attempted {len(self.network_attempts)} network connection(s)")
 
 
 class Clock:
@@ -64,6 +74,18 @@ class NetworkGuardTests(OfflineTestCase):
             socket.getaddrinfo("example.test", 443)
         with socket.socket() as raw, self.assertRaises(NetworkBlocked):
             raw.connect(("192.0.2.1", 443))
+        self.assertEqual(len(self.network_attempts), 3)
+        with self.assertRaises(AssertionError):
+            self.assert_no_network_attempts()
+        self.network_attempts.clear()
+
+    def test_guard_cannot_be_swallowed_by_the_service(self):
+        class Leaky(FakeQuoteProvider):
+            def fetch_latest(self, listings):
+                socket.create_connection(("example.test", 443))
+        with self.assertRaises(NetworkBlocked):
+            service(Leaky()).latest([TORONTO])
+        self.network_attempts.clear()
 
 
 class ContractTests(OfflineTestCase):
@@ -213,6 +235,56 @@ class CacheAndRateLimitTests(OfflineTestCase):
                          (QuoteStatus.UNAVAILABLE, "rate_limited", None))
         clock.advance(60)
         self.assertEqual(quotes.latest([NEW_YORK])[NEW_YORK].status, QuoteStatus.FRESH)
+
+    def test_rate_limited_listing_with_an_expired_check_is_stale_not_fresh(self):
+        provider, clock = FakeQuoteProvider(), Clock()
+        quotes = service(provider, clock, cache_seconds=60, max_requests=1, per_seconds=3600)
+        quotes.latest([TORONTO])
+        clock.advance(300)
+        with self.assertLogs("kurafolio.market", "WARNING"):
+            result = quotes.latest([TORONTO])[TORONTO]
+        self.assertEqual((result.status, result.reason, result.checked_at),
+                         (QuoteStatus.STALE, "rate_limited", clock.now))
+        self.assertEqual(result.quote.price, Decimal("41.27"))
+        self.assertEqual(len(provider.latest_calls), 1)
+
+    def test_rate_limited_history_is_not_reported_fresh(self):
+        provider, clock = FakeQuoteProvider(), Clock()
+        quotes = service(provider, clock, cache_seconds=60, max_requests=1, per_seconds=3600)
+        quotes.history(TORONTO, date(2026, 11, 3), date(2026, 11, 6))
+        clock.advance(300)
+        with self.assertLogs("kurafolio.market", "WARNING"):
+            result = quotes.history(TORONTO, date(2026, 11, 3), date(2026, 11, 6))
+        self.assertEqual((result.status, result.reason, len(result.bars)), (QuoteStatus.STALE, "rate_limited", 4))
+
+    def test_zero_cache_window_still_returns_this_requests_answer(self):
+        result = service(FakeQuoteProvider(), cache_seconds=0).latest([TORONTO])[TORONTO]
+        self.assertEqual(result.status, QuoteStatus.FRESH)
+
+    def test_cache_hits_do_not_wait_for_a_slow_upstream_request(self):
+        started, release = threading.Event(), threading.Event()
+
+        class Slow(FakeQuoteProvider):
+            def fetch_latest(self, listings):
+                if TORONTO in listings:
+                    started.set()
+                    release.wait(5)
+                return super().fetch_latest(listings)
+
+        provider = Slow(max_batch_size=1)
+        quotes = service(provider)
+        quotes.latest([NEW_YORK])
+        worker = threading.Thread(target=quotes.latest, args=([TORONTO],))
+        worker.start()
+        self.assertTrue(started.wait(5))
+        try:
+            hit = quotes.latest([NEW_YORK])[NEW_YORK]  # must not block on the Toronto request
+            self.assertEqual(hit.status, QuoteStatus.FRESH)
+            self.assertTrue(worker.is_alive())
+        finally:
+            release.set()
+            worker.join(5)
+        self.assertEqual(provider.latest_calls, [(NEW_YORK,), (TORONTO,)])
 
 
 class FailureTests(OfflineTestCase):
