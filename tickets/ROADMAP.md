@@ -27,7 +27,7 @@ Updated 2026-11-10 (UI/UX backlog pass; see the section at the end). Phases desc
 | 2. Valuation inputs | Positions, quotes, FX, ETF exposure | WL-P0-009 (can start now), WL-P0-008 (after 007), WL-P0-010 |
 | 3. V2 UI | Eight-route app, identity/source/import/settings screens | WL-P0-011A → 011B, 011C, 011F; 011E and 011G in parallel; 011D (after 007E) |
 | 4. Live analysis and exports | Analysis pages on canonical facts, on-demand downloads | WL-P0-012A → 012B → 012C → 012D, 012E (after 010); WL-P0-013A → 013B |
-| 5. Migration and release | Legacy cutover, archive access, release gates, docs | WL-P0-014, WL-P0-020, WL-P0-015 |
+| 5. Move and release | Fresh-start guide, release gates, docs | WL-P0-014, WL-P0-015 |
 | 6. P1 growth | First API connector, ETF search, plugin authoring, drilldowns, pull-only install | WL-P1-001 to WL-P1-005, UX-P1-004, UX-P1-005, UX-P1-007 |
 | 7. P2 extensions | More institutions, optional financial modes, brand, locales, scheduling, UX-P2 | WL-P2-001 to WL-P2-005, UX-P1-001 to UX-P1-003, UX-P2-001 to UX-P2-005 |
 
@@ -163,13 +163,38 @@ securities, crypto and total. Context: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
 | 4 | WL-P0-012A (first version), then 012B, 012C, 012D | Securities valued from the import's own market values, or live quotes where WL-P0-009A is enabled; Bitcoin from the existing live price; CAD, USD and TWD from the existing daily FX |
 | 5 | WL-P0-021, WL-P0-007G | Deployable instance; independent acceptance |
 
-After the MVP, in this order unless feedback changes it: WL-P0-009 (stock and
-ETF quotes, more currencies, daily history), WL-P0-011E and 011F (preferences,
-Settings and Profile), WL-P0-010 and 012E (Exposures), WL-P0-013A and 013B
-(downloads), WL-P0-014 and WL-P0-020 (migration and archive), WL-P0-015.
+After the MVP, planned in detail and approved by the owner on 2026-11-11:
 
-Not needed for the MVP: migrating existing SQLite data. A new V2 account starts
-from the latest holdings file and the full order history file.
+| Order | Tickets | Note |
+|---|---|---|
+| 1 | WL-P0-009B | Market store, refresh process, Refresh route. After 009A and 012A |
+| 1 | WL-P0-009E | Official provider spike and adapter. Parallel with everything else in this table |
+| 1 | WL-P0-011E, then 011F | Preferences, Settings and Profile |
+| 2 | WL-P0-009C | Currency list and daily FX. After 009B |
+| 2 | WL-P0-010A | Fund holdings store. After 009B; parallel with 009C |
+| 3 | WL-P0-009D | Daily value curve. After 009B and 009C |
+| 3 | WL-P0-010B, then 012E | Exposure endpoint, then the page |
+| 3 | WL-P0-013A, then 013B | Downloads |
+| 4 | WL-P0-014 | Fresh-start guide and its test |
+| 5 | WL-P0-015 | Release acceptance on an Apple Silicon Mac with Docker Desktop |
+
+Owner decisions of 2026-11-11: existing SQLite data is not migrated. A V2 account
+starts empty and the user imports their files again; the old application stays
+untouched for old reports, so WL-P0-020 is P2. The daily curve carries the
+previous import's quantities forward and marks those days as estimates.
+
+P1 and P2 tickets are refined after the owner has used the MVP.
+
+### Rename first (owner decision, 2026-11-11)
+
+WL-P0-024 renames the project to Kurafolio in the repository, on GitHub and on the owner's
+computer. It touches about 290 files, so it is merged before any other V2
+branch is opened: WL-P0-007C, 007J, 009A, 011A, 011G and 022 depend on it. It
+is ready and is the only claimable V2 ticket. One agent works it alone.
+
+Reviews are automatic from 2026-11-11: the implementing agent starts fresh
+QA, Architect and PM reviewers itself ([README.md](README.md), Reviews rule),
+and the owner reviews last. WL-P1-011 adds a reviewer in CI.
 
 ### MVP release state and assignment (2026-11-10)
 
@@ -177,7 +202,7 @@ The owner approved Gate A for the eighteen MVP tickets, answered WL-P0-007C's
 six questions and folded WL-P0-007K into it. They are `ready`; `tickets.py next`
 offers each one as soon as its dependencies are done.
 
-Claimable now: WL-P0-007C, WL-P0-007J, WL-P0-009A, WL-P0-011A, WL-P0-011G.
+Claimable after WL-P0-024 is merged: WL-P0-007C, WL-P0-007J, WL-P0-009A, WL-P0-011A, WL-P0-011G, WL-P0-022.
 WL-P0-007C and WL-P0-007J share `ingestion-schema-sql` and run one after the
 other; the rest share nothing, so four agents can start at once.
 

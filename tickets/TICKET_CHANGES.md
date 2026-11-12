@@ -180,3 +180,38 @@ names are free text in the schema.
   cite the nearest shipped page and its observed defects.
 - Criteria that need a browser were written from observation, but the Playwright
   suite itself was not run during this pass.
+
+## Post-MVP planning pass (2026-11-11)
+
+Written after the owner asked for the post-MVP P0 tickets to be planned to the
+same depth as the MVP tickets, and answered three questions.
+
+| Ticket | Change | Why |
+|---|---|---|
+| WL-P0-009 | Became an epic | Too large for one agent; its provider decision blocked work that does not depend on it |
+| WL-P0-009B | New | Market store, refresh process, refresh and status routes |
+| WL-P0-009C | New | Display currency list and daily FX |
+| WL-P0-009D | New | Daily value curve with carried-forward quantities marked as estimates |
+| WL-P0-009E | New | Official keyed provider: spike, owner choice, adapter |
+| WL-P0-010 | Became an epic | Reference data and the exposure calculation can be built separately |
+| WL-P0-010A | New | Fund holdings in PostgreSQL, refreshed for held funds |
+| WL-P0-010B | New | Exposure endpoint |
+| WL-P0-012E | Dependency WL-P0-010 replaced by WL-P0-010B | Follows the split |
+| WL-P0-014 | Rewritten, L and critical to S and medium | Owner: no data migration; import files again |
+| WL-P0-015 | Detailed; one verified platform; depends on WL-P0-023 | Owner: Apple Silicon Mac with Docker Desktop |
+| WL-P0-020 | P0 to P2, no longer depends on WL-P0-014 | Owner: old reports are read in the old application |
+| WL-P0-021 | New criterion | Its pull request tells the owner when the MVP is usable |
+
+The owner approved Gate A for WL-P0-009B to 009E, 010A, 010B, 014 and 015 on
+2026-11-11, with the refresh intervals in 009B and the twelve currencies in 009C.
+They are `ready` and are offered when their dependencies are done.
+
+| Ticket | Change | Why |
+|---|---|---|
+| WL-P0-024 | New, ready; the owner chose the name Kurafolio | Owner: rename the project everywhere, no aliases, before parallel work starts |
+| WL-P2-003 | Superseded by WL-P0-024 | The owner made the rename a priority |
+| WL-P0-007C, 007J, 009A, 011A, 011G, 022 | Depend on WL-P0-024 | The rename touches about 290 files and must land first |
+| WL-P1-011 | New, blocked on three owner decisions | A reviewer in CI on every pull request |
+| WL-P1-012 | New | A browser test fails intermittently on unrelated changes |
+| `AGENTS.md`, `tickets/README.md` | Reviews rule | The implementer starts fresh-context QA, Architect and PM review itself; the owner reviews last |
+

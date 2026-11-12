@@ -175,10 +175,28 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   owner grants it, in conversation with an agent, and the agent records the date and
   scope. Never infer approval from priority, a roadmap or a passed test.
 - **Reviews:** `review: independent` means a different agent session than the
-  implementer reviews the diff against the acceptance criteria. The reviewer records
-  findings in the ticket Log, or in a linked `review` ticket. The same session
+  implementer reviews the diff against the acceptance criteria. The same session
   cannot self-certify. Using a different model is welcome but does not by itself
-  count as independence.
+  count as independence. The implementer starts this review itself, without
+  being asked, once the work is pushed and before it hands the PR to the owner:
+  1. Start a reviewer with a fresh context (a subagent or a separate session).
+     Give it the ticket file, the diff against the base branch and the repository
+     rules. Do not give it your conversation or your reasoning.
+  2. The reviewer follows `.agents/skills/wealthledger-qa-automation/SKILL.md` on
+     every ticket. For `risk: high` or `critical`, a second reviewer follows
+     `.agents/skills/wealthledger-software-architect/SKILL.md`. For a ticket that
+     changes a page or user-facing wording, one reviewer also checks it against
+     [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md) with
+     `.agents/skills/wealthledger-fintech-pm/SKILL.md`.
+  3. The reviewer gives a verdict for each acceptance criterion, runs the Verify
+     commands it can, and lists what it could not check. It does not edit the
+     branch. Its findings go on the PR as a comment and in one ticket Log line.
+  4. The implementer fixes or answers every finding and reports the result under
+     "Independent QA / Architecture Review" in the PR description. Open findings
+     are listed there, not hidden.
+  5. If the tool cannot start a reviewer, write "NOT RUN" with the reason in the
+     PR and the Handoff. Never describe your own checks as independent review.
+  The owner reviews last, on GitHub, and is the only one who merges.
 - **Public repository:** ticket text is public. Never write credentials, financial
   data, account names, personal paths or private approval transcripts. Detailed
   private evidence stays under ignored `work/`; reference it only by a relative path.
