@@ -1,0 +1,70 @@
+.v2-navigation,
+.v2-navigation ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.v2-navigation ul {
+  padding-inline-start: 1.5rem;
+  margin-block-start: 0.25rem;
+}
+.v2-navigation .nav-item {
+  min-height: 42px;
+  overflow-wrap: anywhere;
+}
+.v2-navigation .nav-item svg {
+  flex: none;
+}
+.v2-mobile-bar {
+  display: none;
+}
+.v2-placeholder {
+  margin-block-start: 0.75rem;
+}
+p.v2-placeholder {
+  color: var(--muted);
+}
+
+@media (max-width: 700px) {
+  .v2-shell .v2-desktop-nav {
+    display: none;
+  }
+  .v2-mobile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper);
+  }
+  .v2-workbench {
+    padding-block-start: 1.25rem;
+  }
+  .v2-workbench h1 {
+    font-size: 2rem;
+  }
+}
+.v2-menu {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: 1rem;
+}
+.v2-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-end: 0.75rem;
+}
+.v2-menu .v2-menu-header h2 {
+  margin: 0;
+}
+.v2-menu .v2-navigation {
+  padding-inline: 0.25rem;
+}
+.v2-menu > label {
+  margin-block-start: 1rem;
+}

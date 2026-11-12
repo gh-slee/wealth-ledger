@@ -37,6 +37,24 @@ keep the backend on port 8000 but configure its public origin as
 
 New users should start with [the first-portfolio guide](getting-started.md). Empty analysis pages explain the first observation without loading demo finances or assuming a zero balance. See [the UX review](product-ux-review.md) for remaining prioritized work.
 
+## V2 shell development
+
+The same frontend bundle selects its shell at startup. A successful V2
+`GET /api/v2/auth/csrf` response selects the V2 shell. The SQLite API returns
+404 for that route and the existing frontend runs its normal session check.
+If the probe fails for another reason, the app offers a retry.
+
+The V2 shell tests use the synthetic browser fixture and intercept the V2
+probe with Playwright. They exercise the eight destinations, the Stock/Bond
+Exposures route, the phone menu and the three interface locales. The routes
+are placeholders. Backend asset serving is tracked in WL-P0-011G, and
+source-aware navigation needs the WL-P0-008 positions contract.
+
+```bash
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e -- v2-shell.spec.ts
+```
+
 ## Daily use
 
 1. Sign in with the owner initialized on the host. Create or select an independent

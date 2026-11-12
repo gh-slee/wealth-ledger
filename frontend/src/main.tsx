@@ -1,12 +1,19 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import "@fontsource/atkinson-hyperlegible/latin-400.css";
 import "@fontsource/atkinson-hyperlegible/latin-700.css";
 import "@fontsource/ibm-plex-sans-condensed/latin-600.css";
 import App from "./App";
-import { LocaleContext } from "./lib/i18n";
+import { LocaleContext, useI18n } from "./lib/i18n";
+import { Button } from "./components/ui/button";
+import { detectBackendVersion } from "./v2/backend-version";
+import { V2Shell } from "./v2/shell";
 import type { Locale } from "./lib/api";
 import "./styles.css";
 import { ThemeProvider } from "./lib/theme";
@@ -21,6 +28,31 @@ const client = new QueryClient({
     mutations: { retry: false, gcTime: 0 },
   },
 });
+function Application() {
+  const { t } = useI18n();
+  const backend = useQuery({
+    queryKey: ["backend-version"],
+    queryFn: ({ signal }) => detectBackendVersion(signal),
+    staleTime: Infinity,
+  });
+  if (backend.isPending) {
+    return (
+      <main className="workbench" role="status">
+        {t("loading")}
+      </main>
+    );
+  }
+  if (backend.isError) {
+    return (
+      <main className="workbench">
+        <p role="alert">{t("failed")}</p>
+        <Button onClick={() => void backend.refetch()}>{t("retry")}</Button>
+      </main>
+    );
+  }
+  return backend.data === "v2" ? <V2Shell /> : <App />;
+}
+
 function Root() {
   const [locale, setLocale] = useState<Locale>("en-CA");
   useEffect(() => {
@@ -30,7 +62,7 @@ function Root() {
     <LocaleContext.Provider value={{ locale, setLocale }}>
       <QueryClientProvider client={client}>
         <BrowserRouter>
-          <App />
+          <Application />
         </BrowserRouter>
       </QueryClientProvider>
     </LocaleContext.Provider>

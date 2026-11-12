@@ -497,5 +497,19 @@
   "importJobKind": "工作類型",
   "importSelectedJobHint": "此面板顯示先前保存的工作；上方新草稿不會改變其結果。",
   "chartScrollHint": "捲動可查看所有國家。鍵盤操作：將焦點移至圖表，再使用方向鍵、Page Up／Down 或 Home／End。下方「查看圖表資料」提供精確數值。",
-  "chartUnavailable": "無法顯示圖表。請展開下方「查看圖表資料」查看完整分布。"
+  "chartUnavailable": "無法顯示圖表。請展開下方「查看圖表資料」查看完整分布。",
+  "wlP0011a.home": "首頁",
+  "wlP0011a.investments": "股票／債券",
+  "wlP0011a.exposures": "曝險",
+  "wlP0011a.crypto": "加密資產",
+  "wlP0011a.total": "總覽",
+  "wlP0011a.import": "匯入資料",
+  "wlP0011a.sources": "解析器外掛商店",
+  "wlP0011a.settings": "應用程式設定",
+  "wlP0011a.profile": "個人資料",
+  "wlP0011a.navigation": "主要導覽",
+  "wlP0011a.menu": "選單",
+  "wlP0011a.placeholder": "此頁面仍在開發中。",
+  "wlP0011a.notFound": "找不到頁面",
+  "wlP0011a.backHome": "返回首頁"
 }
