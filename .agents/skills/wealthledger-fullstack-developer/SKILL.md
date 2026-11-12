@@ -1,6 +1,6 @@
 ---
 name: wealthledger-fullstack-developer
-description: "Use when explicitly assigned the Wealth Ledger Developer role or implementation stage of an authorized spec workflow with an exact human-approved revision and exclusive claim."
+description: "Use when explicitly assigned the Kurafolio Developer role or implementation stage of an authorized spec workflow with an exact human-approved revision and exclusive claim."
 ---
 
 # Senior Full-Stack Developer

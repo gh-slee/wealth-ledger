@@ -1,6 +1,6 @@
 # Source adapters and user-defined parsers
 
-Wealth Ledger is intended as a shared investment ledger for bank, brokerage,
+Kurafolio is intended as a shared investment ledger for bank, brokerage,
 Bitcoin broker and exchange exports, rather than an application tied to a single
 institution. Source-specific parsers normalize supported formats while shared
 services own validation, evidence, history and reports. Wealthsimple holdings and

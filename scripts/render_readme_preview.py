@@ -33,7 +33,7 @@ def render(output: Path) -> dict:
     ink, muted, teal = "#18384B", "#536B7B", "#208C8A"
     canvas = Image.new("RGB", (1600, 1060), "#F1F5F7")
     draw = ImageDraw.Draw(canvas)
-    draw.text((56, 34), "WEALTH LEDGER  /  REPORT PREVIEW", fill=muted, font=font(18))
+    draw.text((56, 34), "KURAFOLIO  /  REPORT PREVIEW", fill=muted, font=font(18))
     draw.text((56, 70), "Holdings, history, and the companies behind your ETFs.", fill=ink, font=font(35))
     draw.rounded_rectangle((1270, 30, 1544, 68), radius=16, fill="#FFF0D1")
     draw.text((1289, 35), "SYNTHETIC DATA ONLY", fill="#875C1B", font=font(18))
@@ -65,7 +65,7 @@ def render(output: Path) -> dict:
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     metadata = PngImagePlugin.PngInfo()
-    metadata.add_text("Description", "Wealth Ledger offline synthetic demonstration; invented data only.")
+    metadata.add_text("Description", "Kurafolio offline synthetic demonstration; invented data only.")
     canvas.save(output, pnginfo=metadata, optimize=True)
     return {"output": str(output), "data_kind": "synthetic_offline_demo_only", "dimensions": list(canvas.size), "sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
 

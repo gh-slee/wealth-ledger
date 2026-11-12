@@ -220,7 +220,7 @@ def create_app(settings: WebSettings | None = None, *, clock=None, frontend_root
     if not store.owner():
         raise ValueError("Initialize the owner through the host CLI before serving")
     auth = Auth(store)
-    app = FastAPI(title="Wealth Ledger API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None,
+    app = FastAPI(title="Kurafolio API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None,
                   responses={code: {"model": ErrorView} for code in (400,401,403,404,409,413,422,429,500,503)})
     session_cookie = APIKeyCookie(name=settings.cookie_name, auto_error=False, scheme_name="OwnerSession")
     app.state.store, app.state.auth, app.state.settings = store, auth, settings

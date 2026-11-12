@@ -200,7 +200,7 @@ export default function App() {
       <div className="login-page">
         <header>
           <Link to="/login" className="brand">
-            <BookOpen aria-hidden="true" /> Wealth Ledger
+            <BookOpen aria-hidden="true" /> Kurafolio
           </Link>
           <div className="appearance-controls">
             <Language />
@@ -370,7 +370,7 @@ function PortfolioWorkspace({
       </a>
       <aside className="sidebar">
         <Link to="/app" className="brand">
-          <BookOpen aria-hidden="true" /> Wealth Ledger
+          <BookOpen aria-hidden="true" /> Kurafolio
         </Link>
         <p className="sidebar-caption">{t("tagline")}</p>
         <label>

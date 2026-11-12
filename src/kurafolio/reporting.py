@@ -789,7 +789,7 @@ def _pdf(sections: list[ReportSection], payload: dict, output: Path, font_path: 
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 
-    font_name = "WealthLedger-" + current_context().locale + "-" + hashlib.sha256(font_path.read_bytes()).hexdigest()[:12]
+    font_name = "Kurafolio-" + current_context().locale + "-" + hashlib.sha256(font_path.read_bytes()).hexdigest()[:12]
     pdfmetrics.registerFont(TTFont(font_name,str(font_path)))
     page_width,_ = A4
     available_width = page_width-72
@@ -845,7 +845,7 @@ def _pdf(sections: list[ReportSection], payload: dict, output: Path, font_path: 
         canvas.restoreState()
 
     document = SimpleDocTemplate(str(output),pagesize=A4,rightMargin=36,leftMargin=36,
-                                  topMargin=34,bottomMargin=48,title=tr('message.8c7463e935f6'),author="Wealth Ledger")
+                                  topMargin=34,bottomMargin=48,title=tr('message.8c7463e935f6'),author="Kurafolio")
     def canvas_factory(*args, **kwargs):
         from reportlab.pdfgen.canvas import Canvas
         canvas = Canvas(*args, **kwargs)

@@ -1,4 +1,4 @@
-# Wealth Ledger user manual
+# Kurafolio user manual
 
 The [default parser import workflow](source-projections.md#default-daily-workflow)
 prepares explicit approval through the regular CLI/browser, including optional

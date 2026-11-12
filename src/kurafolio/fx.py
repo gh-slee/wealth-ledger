@@ -14,7 +14,7 @@ CBC_URL = "https://www.cbc.gov.tw/tw/mp-1.html"
 
 
 def _download(url):
-    request = urllib.request.Request(url, headers={"User-Agent": "WealthLedger/1.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Kurafolio/1.0"})
     with urllib.request.urlopen(request, timeout=25, context=tls_context()) as response:
         return response.read().decode("utf-8-sig")
 

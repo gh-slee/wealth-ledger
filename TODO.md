@@ -1,4 +1,4 @@
-# Wealth Ledger roadmap
+# Kurafolio roadmap
 
 This tracks product capabilities and public-source preparation, not authorization to
 implement every item. Select work from the current task. Finance, imports, downloads

@@ -1,6 +1,6 @@
 # End-to-end roadmap
 
-Wealth Ledger V2 turns the current single-owner SQLite app into a registered,
+Kurafolio V2 turns the current single-owner SQLite app into a registered,
 tenant-isolated PostgreSQL product with live analysis, ephemeral CSV imports and
 on-demand exports. The current CLI and Web app stay usable throughout. This page
 orders the work. Each ticket file holds its own scope, acceptance and handoff;

@@ -82,7 +82,7 @@ class Client:
 
     def get(self, url, body=None, headers=None):
         request = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None,
-                  headers={"User-Agent": "Mozilla/5.0 WealthLedger/1", "Accept": "*/*",
+                  headers={"User-Agent": "Mozilla/5.0 Kurafolio/1", "Accept": "*/*",
                            **({"Content-Type": "application/json"} if body is not None else {}), **(headers or {})})
         with self.opener.open(request, timeout=35) as response:
             data = response.read(24_000_001)

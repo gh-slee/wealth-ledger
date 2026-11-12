@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/readme/kurafolio-mark.svg" width="76" height="76" alt="Wealth Ledger icon">
+  <img src="assets/readme/kurafolio-mark.svg" width="76" height="76" alt="Kurafolio icon">
 </p>
 
-<h1 align="center">Wealth Ledger</h1>
+<h1 align="center">Kurafolio</h1>
 
 <p align="center">
   <strong>Your financial CSVs. One investment ledger. Your own server.</strong><br>
@@ -30,7 +30,7 @@
   <a href="#support-this-project">Support</a>
 </p>
 
-Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by the implemented shared parser pipeline. Support for additional institutions and export formats remains planned.
+Kurafolio is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by the implemented shared parser pipeline. Support for additional institutions and export formats remains planned.
 
 Review supported inputs in an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data. One owner or household can keep multiple independent portfolios in an instance, through a React/TypeScript interface or the supported **Python CLI**. Both use the same Python financial core.
 
@@ -175,7 +175,7 @@ Expand a page below to see its screen and an example task:
 <details>
 <summary><strong>Sign in — access your own instance</strong></summary>
 
-<img src="assets/readme/web-login.png" width="1200" alt="Wealth Ledger sign-in page with blank username and password inputs">
+<img src="assets/readme/web-login.png" width="1200" alt="Kurafolio sign-in page with blank username and password inputs">
 
 Sign in with the account created on your host. Each instance has one owner or
 household and can contain independent portfolios. The screenshot contains no entered
@@ -423,7 +423,7 @@ Development setup and detailed maintenance procedures live in [CONTRIBUTING.md](
 
 ## Support this project
 
-I want Wealth Ledger to be a tool you can understand and run for yourself. If it helps you make sense of your investment records, consider supporting the work behind it. Your support helps me spend more time on careful testing, clearer reports and new source adapters.
+I want Kurafolio to be a tool you can understand and run for yourself. If it helps you make sense of your investment records, consider supporting the work behind it. Your support helps me spend more time on careful testing, clearer reports and new source adapters.
 
 [❤️ Sponsor on GitHub](https://github.com/sponsors/gh-slee)
 

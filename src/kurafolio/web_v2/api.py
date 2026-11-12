@@ -272,7 +272,7 @@ def create_app(settings):
     async def lifespan(app):
         yield
         await asyncio.to_thread(auth.close)
-    app=FastAPI(title='Wealth Ledger V2 identity API',version='2',docs_url=None,redoc_url=None,
+    app=FastAPI(title='Kurafolio V2 identity API',version='2',docs_url=None,redoc_url=None,
                 openapi_url=None,lifespan=lifespan,redirect_slashes=False)
     app.state.auth=auth
     app.add_middleware(Boundary,settings=settings,auth=auth)

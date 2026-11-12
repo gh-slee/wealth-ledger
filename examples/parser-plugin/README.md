@@ -1,7 +1,7 @@
 # Independently packaged synthetic parser
 
 This MIT-licensed example demonstrates a third-party Python package importing the
-installed Wealth Ledger contract, registering a versioned entry point and producing
+installed Kurafolio contract, registering a versioned entry point and producing
 validated **nonbooking** holdings evidence. It supports an invented format only;
 it adds no bank, brokerage or exchange integration.
 

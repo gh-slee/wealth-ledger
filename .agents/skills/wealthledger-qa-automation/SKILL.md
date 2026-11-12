@@ -1,6 +1,6 @@
 ---
 name: wealthledger-qa-automation
-description: "Use when explicitly assigned the Wealth Ledger independent QA role or verification stage of an authorized spec workflow to verify acceptance and failure boundaries."
+description: "Use when explicitly assigned the Kurafolio independent QA role or verification stage of an authorized spec workflow to verify acceptance and failure boundaries."
 ---
 
 # Senior FinTech QA / SDET

@@ -1,6 +1,6 @@
 # Agent development guide
 
-Wealth Ledger is a local-first Python 3.12+ investment ledger with SQLite history,
+Kurafolio is a local-first Python 3.12+ investment ledger with SQLite history,
 ODS/Markdown/PDF reports, optional FastAPI/Huey services and a React/TypeScript UI.
 One owner can maintain independent portfolios. Wealthsimple holdings and Bull
 Bitcoin orders use the implemented shared parser/approval/publication pipeline;

@@ -1,6 +1,6 @@
 # Tickets and the parallel agent workflow
 
-This directory is the single tracked backlog for Wealth Ledger. Any coding agent
+This directory is the single tracked backlog for Kurafolio. Any coding agent
 (Codex, Claude Code, opencode with DeepSeek or another model, or a human) can pick
 up any ticket, including one another agent started and could not finish. Several
 agents can work on different tickets at the same time.

@@ -1040,7 +1040,7 @@ def write_package(sheets, images, output_path, total_cad, position_count, *,
             element(entry,"config:config-item",{"config:name":key,"config:type":type_},value)
     meta_root=ET.Element(tag("office:document-meta"),{tag("office:version"):"1.2"})
     metadata=element(meta_root,"office:meta")
-    element(metadata,"meta:generator",text="Wealth Ledger portable ODS exporter")
+    element(metadata,"meta:generator",text="Kurafolio portable ODS exporter")
     element(metadata,"meta:user-defined",{"meta:name":"report_locale","meta:value-type":"string"},current_context().locale)
     if report_model:
         element(metadata,"meta:user-defined",{"meta:name":"report_model","meta:value-type":"string"},report_model)

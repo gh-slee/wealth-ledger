@@ -86,7 +86,7 @@ def resolve_btc_price(project, as_of, override=None):
     start = stamp-timedelta(minutes=10)
     query = urlencode({"granularity": 60, "start": start.isoformat(), "end": stamp.isoformat()})
     url = "https://api.exchange.coinbase.com/products/BTC-USD/candles?"+query
-    with urlopen(Request(url, headers={"User-Agent": "WealthLedger/1.0"}),
+    with urlopen(Request(url, headers={"User-Agent": "Kurafolio/1.0"}),
                  context=tls_context(), timeout=30) as response:
         raw = response.read()
         status = response.status
