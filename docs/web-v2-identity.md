@@ -144,6 +144,17 @@ No v1 fallback, static report route, default OpenAPI/docs page or portfolio sele
 is mounted. Candidate responses are raw canonical domain-v1 JSON bytes. Job DTOs
 contain only id/kind/status/attempt/error_code; unknown stored error codes are sanitized.
 
+The service also serves the built browser bundle on the same origin, as the SQLite
+Web App does. It reads `frontend/dist` from the code root. `GET` on `/`, `/login`,
+`/setup`, `/register`, `/app` and any path under `/app/` returns `index.html`, and
+`GET /assets/<file>` returns a file from `assets/` by exact name. Source maps,
+dotfiles, symlinks and nested paths return 404. These reads need no session, create
+no cookie and skip the eight-request admission limit. They carry the application
+content-security policy and the same `no-store` cache headers as SQLite `/`. Other
+methods on these paths return 405. Host checks still apply. Without a built bundle
+the API starts normally, and the page and asset paths return the JSON `not_found`
+error. The `licenses/` directory is not served.
+
 Cookies are HttpOnly, SameSite=Lax, Path=/, no Domain; HTTPS uses Secure and the
 `__Host-` prefix. Anonymous lifetime is 600 seconds; authenticated idle/absolute
 limits are 1,800/43,200 seconds. Safe GET/CSRF polling does not extend idle; explicit

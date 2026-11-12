@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse
 from typing import Literal
 
 from .auth import Auth, ABSOLUTE_SECONDS, ANONYMOUS_SECONDS
+from .frontend import APP_CONTENT_SECURITY_POLICY
 from .config import WebSettings
 from .storage import Store, WebError
 
@@ -62,7 +63,7 @@ class SecurityBoundary:
                 headers.extend([(b"cache-control", b"no-store, private"), (b"pragma", b"no-cache"),
                     (b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer"),
                     (b"x-frame-options", b"DENY"), (b"content-security-policy", (
-                        b"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+                        APP_CONTENT_SECURITY_POLICY.encode()
                         if request.url.path in {"/", "/login", "/app"} or request.url.path.startswith(("/app/", "/assets/"))
                         else b"default-src 'none'; frame-ancestors 'none'")),
                     (b"x-request-id", request_id.encode())])
