@@ -13,6 +13,10 @@ import tokenize
 
 from check_publication import PUBLIC_ROLE_SKILLS, path_allowed, public_role_candidate
 
+# The one documented exception: README explains the project name with the kanji
+# kura (U+8535). Only that character, only on that line, only in README.md.
+NAME_LINE = 'A kura (\u8535) is the traditional Japanese storehouse'
+
 CJK = re.compile(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\U00020000-\U000323af]')
 
 
@@ -30,6 +34,8 @@ def check_file(path: str, text: str) -> list[dict]:
 
     if path.endswith('.md'):
         for line, value in enumerate(text.splitlines(), 1):
+            if path == 'README.md' and value.startswith(NAME_LINE) and not CJK.search(value.replace('\u8535', '')):
+                continue
             if CJK.search(value):
                 record(line, 'markdown')
         return issues

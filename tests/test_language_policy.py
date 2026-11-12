@@ -24,6 +24,13 @@ class LanguagePolicyTests(unittest.TestCase):
         self.assertEqual(result[0]['kind'], 'markdown')
         self.assertNotIn('\u4e2d', str(result))
 
+    def test_only_the_readme_name_line_may_show_the_kura_kanji(self):
+        line = 'A kura (蔵) is the traditional Japanese storehouse where a family kept its valuables.\n'
+        self.assertEqual(check_language.check_file('README.md', line), [])
+        self.assertEqual(len(check_language.check_file('docs/user-manual.md', line)), 1)
+        self.assertEqual(len(check_language.check_file('README.md', 'Kura 蔵\n')), 1)
+        self.assertEqual(len(check_language.check_file('README.md', line.rstrip() + ' 中\n')), 1)
+
     def test_comments_docstrings_and_identifiers_are_checked(self):
         source = '"""\u4e2d\u6587"""\n# \u4e2d\u6587\n\u6578\u91cf = 1\n'
         self.assertEqual({row['kind'] for row in check_language.check_file('scripts/example.py', source)},
