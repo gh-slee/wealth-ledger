@@ -153,8 +153,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   retry loop instead of becoming an internal error.
   Opt-in PostgreSQL tests cover commit, exact replay, a reused operation, a new
   operation on a committed set, expiry, source and wrapper changes, request
-  shape and a revoked session. Rate admission, grants and the HTTP route are not
-  yet wired.
+  shape and a revoked session. Grants and the HTTP route are still pending.
   The private `_quota_v1(tenant, portfolio, bucket, count, bytes)` helper is the
   shared PostgreSQL admission and release point. It locks the instance bucket row
   before the scoped user row. `read` and `control` count one attempt against 300s
@@ -206,7 +205,13 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   An ACCEPT receipt is returned exactly as stored. A control receipt (CANCEL or
   DECISIONS) is rebuilt as the history DTO from its row and audit entry with zero
   fact counts. Receipts from earlier restore realms stay readable but grant
-  nothing. Rate admission for these calls is left to the caller.
+  nothing. The SQL fragment `admit_rate_v1` authenticates the live principal and
+  admits one attempt to the `read` or `control` bucket. The future HTTP gateway
+  must commit admission in its own short transaction before decoding the request
+  body or invoking a read, create, decide, cancel or confirm call. A later
+  refusal or rollback then leaves the admitted attempt counted. An exhausted
+  bucket returns `import_busy`. The `0004` provider will grant execution to the
+  identity/source gateway.
   [Page cursors](../src/kurafolio/ingestion/cursors.py) follow the declared
   token format: canonical cursor JSON and an HMAC-SHA256 over those exact bytes,
   each unpadded base64url and joined by a dot, at most 1,024 characters. The key

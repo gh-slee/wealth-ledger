@@ -37506,6 +37506,21 @@
       },
       {
         "arguments": [
+          "text",
+          "uuid",
+          "bigint",
+          "jsonb",
+          "text",
+          "text"
+        ],
+        "execute": "identity_source_gateway",
+        "name": "admit_rate_v1",
+        "returns": "jsonb",
+        "search_path": "pg_catalog,pg_temp",
+        "security_definer": true
+      },
+      {
+        "arguments": [
           "uuid",
           "text",
           "jsonb",
