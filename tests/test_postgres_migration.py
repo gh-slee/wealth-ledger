@@ -3732,6 +3732,61 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual({effect['accepted_revision_id'] for effect in plan['facts']},
                          {row['revision']['id'] for row in pages['revisions']})
 
+    def test_prepare_context_builds_exact_scope_and_rechecks_the_lease(self):
+        from kurafolio.ingestion.codec import digest, validate
+        plan, seed, _ = self.accept_seed()
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,"
+                 "realm_digest='" + realm + "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        fields = {'resource': 'context', 'set_id': repr(plan['set_id'])}
+        def probe(label, sql):
+            return ('SAVEPOINT probe;' + sql + self.basis_call(label, **fields) +
+                    'ROLLBACK TO probe;RELEASE probe;')
+        cursor = ("(" + self.previous('context', '{value}') + " - ARRAY['version','rows','next_cursor']) "
+                  "|| jsonb_build_object('after_key','0','expires_at'," +
+                  self.previous('claim', '{value,lease,expires_at}') + ")")
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + self.basis_call('context', **fields) + self.basis_call('replay', **fields)
+            + self.basis_call('continuation', cursor=cursor, **fields)
+            + self.basis_call('wrong_cursor', cursor="jsonb_set(" + cursor + ",'{resource}',to_jsonb('inputs'::text))",
+                              **fields)
+            + self.basis_call('wrong_resource', resource='prepare_context', set_id=fields['set_id'])
+            + self.basis_call('extra_field', extra='true', **fields)
+            + probe('revoked', 'UPDATE wl_identity.sessions SET revoked=true;')
+            + probe('source_changed', "SET LOCAL session_replication_role=replica;"
+                    "UPDATE wl_sources.enablements SET generation=generation+1;"
+                    "SET LOCAL session_replication_role=origin;")
+            + probe('expired', "SET LOCAL session_replication_role=replica;"
+                    "UPDATE wl_ingestion.leases SET created_at=clock_timestamp()-interval '60 seconds',"
+                    "expires_at=date_trunc('second',clock_timestamp()-interval '10 seconds') WHERE work_kind='prepare';"
+                    "SET LOCAL session_replication_role=origin;")
+            + probe('restored', 'UPDATE wl_pg.instance_state SET restore_epoch=1;')
+            + "SELECT 'UNCHANGED '||jsonb_build_array("
+              "(SELECT count(*) FROM wl_ingestion.leases WHERE last_request_id IS NOT NULL"
+              " OR last_request_digest IS NOT NULL OR last_result_bytes IS NOT NULL),"
+              "(SELECT count(*) FROM wl_ingestion.accepted_plans))::text;")
+        self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+        page = validate(out['CONTEXT']['value'], 'BasisPage')
+        expected = {key: plan[key] for key in ('tenant_id', 'portfolio_id', 'set_id', 'incarnation',
+                                               'restore_epoch', 'pinned_sources')}
+        expiry = dict(plan['expires_at'], fractional_digits=6,
+                      token=plan['expires_at']['token'].replace('+00:00', '.000000+00:00'))
+        self.assertEqual([dict(expected, kind='prepare_context', realm_digest=realm, set_expires_at=expiry)],
+                         page['rows'])
+        self.assertEqual(digest(expected['pinned_sources']), out['CLAIM']['value']['lease']['source_fingerprint'])
+        self.assertIsNone(page['next_cursor'])
+        self.assertEqual(out['CONTEXT'], out['REPLAY'])
+        self.assertEqual([0, 0], out['UNCHANGED'])
+        for label, code in (('CONTINUATION', 'import_stale'), ('WRONG_CURSOR', 'import_stale'),
+                            ('WRONG_RESOURCE', 'import_invalid'), ('EXTRA_FIELD', 'import_invalid'),
+                            ('REVOKED', 'session_changed'), ('SOURCE_CHANGED', 'import_stale'),
+                            ('EXPIRED', 'import_stale'), ('RESTORED', 'import_stale')):
+            with self.subTest(label=label):
+                self.assertEqual({'ok': False, 'code': code}, out[label])
+
     def test_prepare_basis_large_literal_page_is_exact(self):
         from kurafolio.ingestion.codec import encode
         plan, seed, _ = self.accept_seed()
@@ -3800,7 +3855,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                                   for ordinal, value in enumerate(decisions[group])],
                                  [(item['collection'],item['ordinal'],item['value']) for item in items])
 
-    def prepare_preview_call(self, label, bundle, *, ready):
+    def prepare_preview_call(self, label, bundle, *, ready, **pins):
         from kurafolio.ingestion.codec import encode, sha256
         encoded = encode(bundle)
         lease = "pg_catalog.current_setting('test.claim')::jsonb#>>'{value,lease,"
@@ -3810,7 +3865,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             'fence': '(' + lease + "fence}')", 'request_id': "'c1000000-0000-4000-8000-00000000000a'",
             'bundle_digest': repr(sha256(encoded)), 'payload_bytes': str(len(encoded)),
             'expected_set_revision': "'2'" if ready else "'1'", 'accepted_generation': "'0'",
-            'mapping_generation': "'0'", 'control_generation': "'1'" if ready else "'0'",
+            'mapping_generation': "'0'", 'control_generation': "'1'" if ready else "'0'", **pins,
         }, data="pg_catalog.decode('" + encoded.hex() + "','hex')")
 
     def test_prepare_preview_checks_initial_and_ready_bundles_and_replays(self):
@@ -3864,6 +3919,106 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 self.assertEqual([0], out['FACTS'])
                 if ready:
                     self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
+
+    def test_prepare_authority_basis_and_preview_use_scoped_latest_history(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, encode, validate
+        base, seed, catalog = self.accept_seed()
+        plan = deepcopy(ORACLE['authority-only-plan.json'])
+        decisions = deepcopy(ORACLE['authority-only-decisions.json'])
+        prestate = ORACLE['authority-only-prestate.json']
+        prior = prestate['prior_authority']
+        peer = prestate['peer_revision']
+        plan['expires_at'] = base['expires_at']
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        plan['realm_digest'] = realm
+        # The review names the pair in the opposite orientation to its history.
+        flipped = dict(decisions['authorities'][0], left=prior['right'], right=prior['left'])
+        historical = dict(kind='historical_only', evidence_reference='Synthetic history',
+                          left=prior['left'], right=None)
+        new_pair = dict(historical, left=prior['right'])
+        decisions['authorities'] = [flipped, historical, new_pair]
+        seed += self.accept_statement('accept', {
+            'operation_id': '50000000-0000-4000-8000-000000000001',
+            'preview_id': base['preview_id'], 'preview_digest': digest(base),
+        }, catalog)
+        seed += self.later_plan_seed(plan)
+        scope = {key: plan[key] for key in ('tenant_id', 'portfolio_id')}
+        def accepted_id(table):
+            return self.Expression(f'(SELECT id FROM wl_ingestion.{table} LIMIT 1)')
+        seed += self.row('source_revisions', dict(scope, id=peer['id'], source_key=peer['source_key_digest'],
+            source_revision='r1', financial_digest=peer['financial_digest'], source_change='original',
+            accepted_change='original', parent_id=None, input_id=accepted_id('accepted_inputs'),
+            collection='records', local_id=0, typed_bytes=encode(peer['typed']), typed_digest=digest(peer['typed']),
+            created_at=self.Expression('clock_timestamp()')))
+        link = prestate['prior_link_id']
+        history_link = 'd0000000-0000-4000-8000-0000000000d1'
+        def link_row(value, id_, revision, **changes):
+            return self.row('authority_links', dict(scope, id=id_, revision=revision,
+                left_revision_id=value['left']['accepted_revision_id'],
+                right_revision_id=value['right'] and value['right']['accepted_revision_id'],
+                decision_kind=value['kind'], evidence_reference=value['evidence_reference'],
+                evidence_digest=digest(value), plan_id=accepted_id('accepted_plans')) | changes)
+        seed += link_row(prior, link, 1) + link_row(historical, history_link, 1)
+        # The foreign portfolio marker is only used for the scoped read and rolls back.
+        seed += 'SET CONSTRAINTS ALL DEFERRED;'
+        seed += link_row(prior, link, 9, portfolio_id='d0000000-0000-4000-8000-0000000000ff')
+        seed += ("DELETE FROM wl_ingestion.previews WHERE set_id='" + plan['set_id'] + "';"
+                 "UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,"
+                 "prepare_session_digest=repeat('1',64),prepare_credential_version=1 WHERE id='" + plan['set_id'] + "';"
+                 "UPDATE wl_ingestion.roots SET accepted_generation=2,mapping_generation=2,control_generation=2;"
+                 "UPDATE wl_ingestion.decisions SET revision=1,canonical_bytes=decode('" + encode(decisions).hex() +
+                 "','hex'),digest='" + digest(decisions) + "' WHERE set_id='" + plan['set_id'] + "';")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        current = dict(prior, kind='authority', evidence_reference='Synthetic updated choice')
+        review = deepcopy(ORACLE['authority-only-review.json'])
+        review.update(state='CONFLICT', expires_at=plan['expires_at'], plan_digest=None, set_revision='2')
+        rows = review['content']['rows'] = [row for row in review['content']['rows'] if row['type'] == 'source_entity']
+        rows.extend({'type': 'authority', 'authority': authority,
+                     'prior_link_id': id_, 'prior_link_revision': revision, 'prior_choice': choice}
+                    for authority, id_, revision, choice in (
+                        (flipped, link, '2', current['kind']),
+                        (historical, history_link, '1', historical['kind']), (new_pair, None, None, None)))
+        for index, row in enumerate(rows):
+            row['ordinal'] = str(index)
+        def write(label, **changes):
+            content = deepcopy(review)
+            next(row for row in content['content']['rows'] if row['type'] == 'authority').update(changes)
+            content['content_digest'] = digest(content['content'])
+            return self.prepare_preview_call(label, {'version': 1, 'review': content, 'plan': None}, ready=True,
+                accepted_generation="'2'", mapping_generation="'2'", control_generation="'2'")
+        fields = {'resource': 'authorities', 'set_id': repr(plan['set_id'])}
+        snapshot = ("SELECT 'LABEL '||jsonb_build_array("
+                    "(SELECT count(*) FROM wl_ingestion.authority_links),"
+                    "(SELECT count(*) FROM wl_ingestion.previews WHERE set_id='" + plan['set_id'] + "'),"
+                    "(SELECT count(*) FROM wl_ingestion.leases WHERE work_kind='prepare' AND "
+                    "(last_request_id IS NOT NULL OR last_request_digest IS NOT NULL OR last_result_bytes IS NOT NULL)))::text;")
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + snapshot.replace('LABEL', 'BEFORE') + self.basis_call('first', limit=1, **fields)
+            + self.basis_call('second', cursor=self.previous('first', '{value,next_cursor}'), **fields)
+            + self.basis_call('again', limit=1, **fields) + snapshot.replace('LABEL', 'AFTER_READS')
+            + link_row(current, link, 2) + self.basis_call('latest', **fields)
+            + write('stale', prior_link_revision='1', prior_choice=prior['kind'])
+            + write('forged', prior_link_id=history_link) + write('partial', prior_choice=None)
+            + snapshot.replace('LABEL', 'AFTER_REFUSALS') + write('prepared')
+            + snapshot.replace('LABEL', 'AFTER_PREPARE'))
+        self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
+        self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+        def row(value, id_, revision):
+            return {'kind': 'authority', 'authority': value, 'link_id': id_, 'link_revision': revision}
+        self.assertEqual([row(prior, link, '1')], validate(out['FIRST']['value'], 'BasisPage')['rows'])
+        self.assertEqual([row(historical, history_link, '1')], validate(out['SECOND']['value'], 'BasisPage')['rows'])
+        self.assertEqual(out['FIRST'], out['AGAIN'])
+        self.assertEqual(out['BEFORE'], out['AFTER_READS'])
+        self.assertEqual([row(current, link, '2'), row(historical, history_link, '1')],
+                         validate(out['LATEST']['value'], 'BasisPage')['rows'])
+        for label in ('STALE', 'FORGED', 'PARTIAL'):
+            self.assertEqual({'ok': False, 'code': 'import_stale'}, out[label], label)
+        self.assertEqual([4, 0, 0], out['AFTER_REFUSALS'])
+        self.assertTrue(out['PREPARED']['ok'], out['PREPARED'])
+        self.assertEqual([4, 1, 1], out['AFTER_PREPARE'])
 
     def cleanup_call(self, label, claim='claim', *, proofs=(), request='c1000000-0000-4000-8000-0000000000a1',
                      token=None, data='NULL', drop=(), **fields):

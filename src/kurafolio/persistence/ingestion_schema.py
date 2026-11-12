@@ -243,7 +243,7 @@ class _SchemaPredicate:
         from ..ingestion.contracts import definition
         schema = definition('Minimal') if schema is None else schema
         allowed = {'$ref', 'additionalProperties', 'anyOf', 'enum', 'items', 'maxItems',
-                   'maxLength', 'maximum', 'minimum', 'pattern', 'properties', 'required', 'type'}
+                   'maxLength', 'maximum', 'minItems', 'minimum', 'pattern', 'properties', 'required', 'type'}
         if schema.keys() - allowed:
             raise ValueError('Unknown schema keyword')
         if '$ref' in schema:
@@ -292,6 +292,8 @@ class _SchemaPredicate:
             self.ordinal += 1
             alias = 'child_' + str(self.ordinal)
             checks.append('pg_catalog.jsonb_array_length(' + value + ')<=' + str(schema['maxItems']))
+            if 'minItems' in schema:
+                checks.append('pg_catalog.jsonb_array_length(' + value + ')>=' + str(schema['minItems']))
             predicate = self.compile(alias + '.value', schema['items'], namespace, trail)
             checks.append('NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(' + value + ') '
                           + alias + '(value) WHERE NOT ' + predicate + ')')
@@ -474,7 +476,10 @@ class _MinimalErrorPredicate(_MinimalScalarPredicate):
             self.ordinal += 1
             alias = 'error_child_' + str(self.ordinal)
             child = self.status(alias + '.value', schema['items'], namespace, trail)
-            inner = 'CASE WHEN pg_catalog.jsonb_array_length(' + value + ')>' + str(schema['maxItems']) + ' THEN 2 ELSE COALESCE((SELECT x.status FROM (SELECT ' + child + ' AS status,' + alias + '.ordinal FROM pg_catalog.jsonb_array_elements(' + value + ') WITH ORDINALITY ' + alias + '(value,ordinal)) x WHERE x.status<>0 ORDER BY x.ordinal LIMIT 1),0) END'
+            length = 'pg_catalog.jsonb_array_length(' + value + ')'
+            minimum = (' WHEN ' + length + '<' + str(schema['minItems']) + ' THEN 1'
+                       if 'minItems' in schema else '')
+            inner = 'CASE WHEN ' + length + '>' + str(schema['maxItems']) + ' THEN 2' + minimum + ' ELSE COALESCE((SELECT x.status FROM (SELECT ' + child + ' AS status,' + alias + '.ordinal FROM pg_catalog.jsonb_array_elements(' + value + ') WITH ORDINALITY ' + alias + '(value,ordinal)) x WHERE x.status<>0 ORDER BY x.ordinal LIMIT 1),0) END'
         elif kind == 'string':
             text = self.text(value)
             inner = 'CASE WHEN pg_catalog.length(' + text + ')>' + str(schema.get('maxLength', 4096)) + ' THEN 2 WHEN ' + self.compile(value, schema, namespace, trail) + ' THEN 0 ELSE 1 END'
@@ -2809,15 +2814,17 @@ def _second_sql(expression):
 
 
 # The set's pins as a Plan's pinned_sources entries, in member-ID order (the
-# order acceptance uses), hashed canonically. The worker can compare it with the
-# pins in a later Plan without reading any member row.
-_FINGERPRINT_SQL = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(COALESCE((SELECT "
+# order acceptance uses). The claim fingerprint and context page use the
+# same pins so the worker can verify the context before constructing a Plan.
+_PINNED_SOURCES_SQL = ("COALESCE((SELECT "
     "pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('member_id',p.id::text,'connection_id',p.connection_id::text,"
     "'connection_version',p.connection_version,'connection_generation',p.connection_generation::text,"
     "'enablement_generation',p.enablement_generation::text,'availability_generation',p.availability_generation::text,"
     "'installation_id',p.installation_id,'wrapper_profile_digest',p.wrapper_profile_digest,'format_version',"
     "p.format_version,'context_digest',p.context_digest) ORDER BY p.id::text COLLATE \"C\") FROM wl_ingestion.members p "
-    "WHERE p.tenant_id=tenant AND p.portfolio_id=portfolio AND p.set_id=selected.id),'[]'::jsonb))),'hex')")
+    "WHERE p.tenant_id=tenant AND p.portfolio_id=portfolio AND p.set_id=selected.id),'[]'::jsonb)")
+_FINGERPRINT_SQL = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1("
+    + _PINNED_SOURCES_SQL + ")),'hex')")
 
 
 def _raising(fragment):
@@ -3643,7 +3650,8 @@ _BASIS_ACCEPTED_ROWS = r"""
    AND (f.value->>'active')::boolean=h.active ORDER BY p.created_at DESC,p.id DESC LIMIT 1
  ) effect ON true WHERE resource='heads'
  UNION ALL
- SELECT a.id::text,pg_catalog.jsonb_build_object('kind','authority','authority',pg_catalog.jsonb_build_object(
+ SELECT a.id::text,pg_catalog.jsonb_build_object('kind','authority','link_id',a.id::text,
+  'link_revision',a.revision::text,'authority',pg_catalog.jsonb_build_object(
   'kind',a.decision_kind,'evidence_reference',a.evidence_reference,
   'left',pg_catalog.jsonb_build_object('form','accepted','accepted_revision_id',a.left_revision_id::text),
   'right',CASE WHEN a.right_revision_id IS NOT NULL THEN
@@ -3652,6 +3660,15 @@ _BASIS_ACCEPTED_ROWS = r"""
   AND NOT EXISTS(SELECT 1 FROM wl_ingestion.authority_links newer
    WHERE (newer.tenant_id,newer.portfolio_id,newer.id)=(a.tenant_id,a.portfolio_id,a.id) AND newer.revision>a.revision)
 """
+
+
+_BASIS_CONTEXT_ROW = r"""
+ SELECT '0',pg_catalog.jsonb_build_object('kind','prepare_context','tenant_id',tenant::text,
+  'portfolio_id',portfolio::text,'set_id',selected.id::text,'realm_digest',selected.realm_digest,
+  'incarnation',selected.incarnation::text,'restore_epoch',selected.restore_epoch::text,
+  'set_expires_at',SET_EXPIRY,'pinned_sources',PINNED_SOURCES)
+ WHERE resource='context'
+""".replace('SET_EXPIRY', _instant_sql('selected.expires_at')).replace('PINNED_SOURCES', _PINNED_SOURCES_SQL)
 
 
 def read_plan_basis_ddl():
@@ -3698,6 +3715,8 @@ BEGIN
    DECISION_ROWS
    UNION ALL
    ACCEPTED_ROWS
+   UNION ALL
+   CONTEXT_ROW
   )
   SELECT key,data,pg_catalog.lead(key) OVER(ORDER BY key COLLATE "C") AS following
    FROM (SELECT key,data FROM basis_rows WHERE after_key IS NULL OR key COLLATE "C">=after_key COLLATE "C"
@@ -3748,7 +3767,8 @@ REVOKE ALL ON FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) FR
         'EXPIRY_INSTANT', _second_sql('held.expires_at')).replace('STORED_DECISIONS', _stored_decisions_sql()).replace(
         'INPUT_ROWS', _BASIS_INPUT_ROWS).replace('DECISION_ROWS', _BASIS_DECISION_ROWS).replace(
         'ENTITY_CTES', _BASIS_ENTITIES).replace('ACCEPTED_ROWS', _BASIS_ACCEPTED_ROWS).replace(
-        'PAGE_MAX', str(MAX_PAGE)).replace('ROW_SHAPE', row_shape).replace('ORIGIN_CHECK', _PREPARE_ORIGIN_CHECK)
+        'CONTEXT_ROW', _BASIS_CONTEXT_ROW).replace('PAGE_MAX', str(MAX_PAGE)).replace(
+        'ROW_SHAPE', row_shape).replace('ORIGIN_CHECK', _PREPARE_ORIGIN_CHECK)
 
 
 # Validate the disclosed review against the staged evidence and immutable
@@ -3858,6 +3878,38 @@ _PREPARE_REVIEW_ROWS = r"""
       (SELECT pg_catalog.jsonb_agg(j.value ORDER BY j.value->>'scheme' COLLATE "C",j.value->>'value' COLLATE "C")
       FROM pg_catalog.jsonb_array_elements(source->'identifiers') j(value)) END) THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  WHEN 'authority' THEN
+   authority:=row_data->'authority';
+   IF NOT COALESCE((decisions->'authorities') @> pg_catalog.jsonb_build_array(authority),false) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+   authority_left:=NULL;authority_right:=NULL;
+   FOREACH side IN ARRAY ARRAY['left','right'] LOOP
+    reference:=authority->side;resolved:=NULL;
+    IF reference->>'form'='accepted' THEN
+     resolved:=(reference->>'accepted_revision_id')::uuid;
+     IF NOT EXISTS(SELECT 1 FROM wl_ingestion.source_revisions r
+      WHERE r.tenant_id=tenant AND r.portfolio_id=portfolio AND r.id=resolved) THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+    ELSIF reference->>'form'='incoming' AND plan IS NOT NULL THEN
+     SELECT (j.value->>'accepted_revision_id')::uuid INTO resolved
+     FROM pg_catalog.jsonb_array_elements(plan->'facts') j(value)
+     WHERE (j.value->'member_id',j.value->'collection',j.value->'local_id')=
+      (reference->'member_id',reference->'collection',reference->'local_id');
+     IF resolved IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+    END IF;
+    IF side='left' THEN authority_left:=resolved; ELSE authority_right:=resolved; END IF;
+   END LOOP;
+   prior_link:=NULL;
+   IF authority_left IS NOT NULL AND (authority_right IS NOT NULL OR authority->'right'='null'::jsonb) THEN
+    SELECT a.* INTO prior_link FROM wl_ingestion.authority_links a
+    WHERE a.tenant_id=tenant AND a.portfolio_id=portfolio AND
+     ((a.left_revision_id=authority_left AND a.right_revision_id IS NOT DISTINCT FROM authority_right)
+      OR (authority_right IS NOT NULL AND a.left_revision_id=authority_right AND a.right_revision_id=authority_left))
+    ORDER BY a.revision DESC LIMIT 1;
+   END IF;
+   IF (row_data->>'prior_link_id',row_data->>'prior_link_revision',row_data->>'prior_choice') IS DISTINCT FROM
+    (prior_link.id::text,prior_link.revision::text,prior_link.decision_kind) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
   ELSE NULL;
   END CASE;
  END LOOP;
@@ -3893,6 +3945,8 @@ DECLARE
  SCOPE_DECLARATIONS
  payload jsonb;cursor integer;depth integer:=0;quoted boolean:=false;escaped boolean:=false;current_byte integer;
  review jsonb;plan jsonb;rows jsonb;stage record;item record;row_data jsonb;
+ authority jsonb;reference jsonb;side text;resolved uuid;authority_left uuid;authority_right uuid;
+ prior_link wl_ingestion.authority_links%ROWTYPE;
  candidate jsonb;target jsonb;issuer_target jsonb;source jsonb;identity jsonb;issuer jsonb;refs jsonb;body jsonb;evidence jsonb;
  staged jsonb:='{}'::jsonb;seen_entities jsonb:='{}'::jsonb;seen_facts jsonb:='{}'::jsonb;seen_candidates jsonb:='{}'::jsonb;
  entity_count integer:=0;fact_count integer:=0;disclosed_entities integer:=0;disclosed_facts integer:=0;matches integer;

@@ -383,13 +383,17 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   The checked `read_plan_basis_v1` fragment pages admitted inputs and scoped
   accepted evidence under the live prepare lease. Its private `decisions`
   resource returns a header with the stored digest and ordered typed items
-  so a worker can reconstruct the current decisions. Page reads retain no
-  lease result. The `prepare_preview_v1` fragment verifies the review against
-  the admitted stages and live pins. A READY preview also passes the existing
-  Plan and accepted-reference checks. It stores the immutable preview and
-  returns the saved result on a valid retry. The worker still needs the
-  checked Plan scope, source pin values, and accepted link identifiers to
-  build those requests independently.
+  so a worker can reconstruct the current decisions. The `context` resource
+  returns one row with the Plan scope, set expiry and ordered member source
+  pins. The worker can compare the pins' canonical digest with the prepare
+  claim fingerprint. Each `authorities` row includes the latest accepted link
+  ID and revision alongside the decision and evidence references. Page reads
+  retain no lease result. The `prepare_preview_v1` fragment checks the review
+  against the admitted stages, live pins and prior authority choices. A READY
+  preview also passes the existing Plan and accepted-reference checks. The
+  function stores the immutable preview and returns the saved result on a
+  valid retry. WL-P0-007F wires these private calls into the worker, and
+  WL-P0-007D verifies the installed functions and grants.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 

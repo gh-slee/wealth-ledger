@@ -52,6 +52,24 @@ class IngestionContractTests(unittest.TestCase):
             with self.subTest(row=bad['kind']):
                 self.assert_blocked(bad, name='BasisRow', code='import_invalid')
 
+    def test_prepare_basis_rows_require_pins_and_bounded_link_history(self):
+        plan = fixture('plan-first-use.json')
+        context = {key: plan[key] for key in ('tenant_id', 'portfolio_id', 'set_id', 'incarnation',
+                                              'realm_digest', 'restore_epoch', 'pinned_sources')}
+        context.update(kind='prepare_context', set_expires_at=plan['expires_at'])
+        prestate = fixture('authority-only-prestate.json')
+        authority = {'kind': 'authority', 'authority': prestate['prior_authority'],
+                     'link_id': prestate['prior_link_id'], 'link_revision': '9223372036854775807'}
+        for row in (context, authority):
+            self.assertEqual(row, validate(row, 'BasisRow'))
+            self.assert_blocked(dict(row, extra=True), name='BasisRow', code='import_invalid')
+        for bad in (dict(context, pinned_sources=[]),
+                    {key: value for key, value in authority.items() if key != 'link_id'},
+                    dict(authority, link_revision='0'), dict(authority, link_revision='9223372036854775808')):
+            self.assert_blocked(bad, name='BasisRow', code='import_invalid')
+        self.assert_blocked(dict(context, pinned_sources=plan['pinned_sources'] * 5),
+                            name='BasisRow', code='import_invalid')
+
     def test_key_preimages_match_literal_bytes_and_hashes(self):
         for row in fixture('key-preimages.json')['vectors']:
             with self.subTest(name=row['name']):
