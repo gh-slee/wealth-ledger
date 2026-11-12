@@ -174,6 +174,7 @@ _FUNCTIONS = (
     '{"arguments":["text","uuid","bigint","jsonb","text","jsonb"],"execute":"identity_source_gateway","name":"cancel_set_v1","returns":"jsonb","search_path":"pg_catalog,pg_temp","security_definer":true}',
     '{"arguments":["text","uuid","bigint","jsonb","text","jsonb"],"execute":"identity_source_gateway","name":"read_receipt_v1","returns":"jsonb","search_path":"pg_catalog,pg_temp","security_definer":true}',
     '{"arguments":["text","uuid","bigint","jsonb","text","jsonb"],"execute":"identity_source_gateway","name":"reserve_member_v1","returns":"jsonb","search_path":"pg_catalog,pg_temp","security_definer":true}',
+    '{"arguments":["text","uuid","bigint","jsonb","text","text"],"execute":"identity_source_gateway","name":"admit_rate_v1","returns":"jsonb","search_path":"pg_catalog,pg_temp","security_definer":true}',
     '{"arguments":["uuid","text","jsonb","bytea"],"execute":"ingestion_worker_only","name":"claim_member_v1","returns":"jsonb","search_path":"pg_catalog,pg_temp","security_definer":true}',
     '{"arguments":["uuid","text","jsonb","bytea"],"execute":"ingestion_worker_only","name":"renew_member_v1","returns":"jsonb","search_path":"pg_catalog,pg_temp","security_definer":true}',
     '{"arguments":["uuid","text","jsonb","bytea"],"execute":"ingestion_worker_only","name":"admit_stage_v1","returns":"jsonb","search_path":"pg_catalog,pg_temp","security_definer":true}',
@@ -2124,6 +2125,33 @@ for _name, _value in (
 QUOTA_DDL = (QUOTA_DDL.replace('INVALID;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';")
     .replace('BUSY;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy';")
     .replace('LIMIT;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_limit';"))
+
+
+# The gateway commits admission before validating or executing the main request.
+ADMIT_RATE_DDL = r'''
+CREATE FUNCTION wl_ingestion.admit_rate_v1(p_digest text,p_user uuid,p_version bigint,
+ p_realm jsonb,p_catalog_digest text,p_bucket text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $admit_rate$
+DECLARE guard jsonb;
+BEGIN
+ IF p_bucket IS NULL OR p_bucket COLLATE "C" NOT IN ('read','control') THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_user_v1(p_digest,p_user,p_version,p_realm,p_catalog_digest);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ PERFORM wl_ingestion._quota_v1((guard#>>'{value,tenant_id}')::uuid,
+  (guard#>>'{value,portfolio_id}')::uuid,p_bucket,1,0);
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',NULL::jsonb);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ IF SQLERRM IN ('import_busy','import_invalid') THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code',SQLERRM);
+ END IF;
+ RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $admit_rate$;
+REVOKE ALL ON FUNCTION wl_ingestion.admit_rate_v1(text,uuid,bigint,jsonb,text,text) FROM PUBLIC;
+'''
 
 
 # Transient-only cleanup for one terminal set. Accepted inputs, Plans, source

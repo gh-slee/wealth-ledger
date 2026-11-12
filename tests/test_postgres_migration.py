@@ -84,13 +84,16 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertIn('expires_at=created_at+interval \'86400 seconds\'', sql)
 
     def test_gateway_worker_and_helpers_have_separate_exact_signatures(self):
-        self.assertEqual(9, len(schema.GATEWAY))
+        self.assertEqual(10, len(schema.GATEWAY))
         self.assertEqual(8, len(schema.WORKER))
         self.assertFalse(set(schema.GATEWAY) & set(schema.WORKER))
         self.assertEqual('wl_ingestion.claim_member_v1(uuid,text,jsonb,bytea)',
                          schema.signature('claim_member_v1'))
         self.assertEqual('wl_ingestion.accept_preview_v1(text,uuid,bigint,jsonb,text,jsonb)',
                          schema.signature('accept_preview_v1'))
+        self.assertIn('admit_rate_v1', schema.GATEWAY)
+        self.assertEqual('wl_ingestion.admit_rate_v1(text,uuid,bigint,jsonb,text,text)',
+                         schema.signature('admit_rate_v1'))
         with self.assertRaises(ValueError):
             schema.signature('unreviewed_function')
         self.assertNotIn('GRANT ', schema.tables_ddl())
@@ -321,7 +324,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.OUTBOX_GUARD_DDL + '\n' + schema.user_guard_ddl()
                 + '\n' + schema.minimal_validator_ddl() + '\n' + schema.plan_validator_ddl() + '\n' + schema.reference_validator_ddl() + '\n' + schema.REPLAY_DDL
                 + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl()
-                + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.PURGE_DDL
+                + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.ADMIT_RATE_DDL
+                + '\n' + schema.PURGE_DDL
                 + '\n' + schema.CANCEL_DDL + '\n' + schema.DECIDE_DDL
                 + '\n' + schema.READ_SET_DDL + '\n' + schema.READ_RECEIPT_DDL
                 + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL
@@ -2090,6 +2094,58 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             "outstanding_sets||':'||reserved_bytes,',' ORDER BY bucket) FROM wl_ingestion.instance_budgets)<>"
             "'control:1:0:0:0,raw:14:0:0:0,read:60:0:0:0,storage:0:0:7:" + str(7 * full) + "' THEN "
             "RAISE EXCEPTION 'unexpected_instance_budgets'; END IF; END $test$;"])
+
+    def test_gateway_rate_admission_preserves_the_charge_after_request_refusal(self):
+        plan, seed, catalog = self.accept_seed()
+        # The savepoint is after admission so rolling back the refused operation
+        # leaves the earlier charge visible without persisting the test fixture.
+        out = self.run_labelled(seed
+            + self.gateway_expression('admit_rate_v1', 'admit', "'read'", catalog)
+            + 'SAVEPOINT main_request;'
+            + self.gateway_statement('read_set_v1', 'refused', {'set_id': plan['set_id'], 'extra': 1}, catalog)
+            + 'ROLLBACK TO SAVEPOINT main_request;'
+            + self.gateway_expression('admit_rate_v1', 'invalid', "'raw'", catalog)
+            + self.gateway_expression('admit_rate_v1', 'missing', 'NULL', catalog)
+            + self.gateway_expression('admit_rate_v1', 'unauthenticated', "'control'", catalog, session='0' * 64)
+            + self.STATE
+            + "SELECT 'RATES '||pg_catalog.jsonb_build_array("
+              "(SELECT jsonb_agg(jsonb_build_array(bucket,used_count) ORDER BY bucket) FROM wl_ingestion.quotas),"
+              "(SELECT jsonb_agg(jsonb_build_array(bucket,used_count) ORDER BY bucket) "
+              "FROM wl_ingestion.instance_budgets))::text;")
+        self.assertEqual({'ok': True, 'value': None}, out['ADMIT'])
+        for label in ('REFUSED', 'INVALID', 'MISSING'):
+            self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label])
+        self.assertFalse(out['UNAUTHENTICATED']['ok'])
+        self.assertEqual([[['read', 1]], [['read', 1]]], out['RATES'])
+        self.assertEqual(0, out['STATE']['receipts'])
+
+    def test_gateway_rate_admission_enforces_both_limits_for_each_bucket(self):
+        plan, seed, catalog = self.accept_seed()
+        for bucket, user_limit, instance_limit in (('read', 60, 600), ('control', 30, 300)):
+            for exhausted, user_count, instance_count in (
+                    ('user', user_limit, user_limit), ('instance', 1, instance_limit)):
+                with self.subTest(bucket=bucket, exhausted=exhausted):
+                    values = {'bucket': bucket, 'window_start': self.Expression('now()'), 'reserved_bytes': 0,
+                              'lease_count': 0, 'outstanding_sets': 0}
+                    out = self.run_labelled(seed
+                        + self.row('quotas', dict(values, tenant_id=plan['tenant_id'],
+                                                 portfolio_id=plan['portfolio_id'], used_count=user_count - 1))
+                        + self.row('instance_budgets', dict(values, used_count=instance_count - 1))
+                        + self.gateway_expression('admit_rate_v1', 'last', f"'{bucket}'", catalog)
+                        + self.gateway_expression('admit_rate_v1', 'busy', f"'{bucket}'", catalog)
+                        + "SELECT 'COUNTS '||pg_catalog.jsonb_build_array("
+                          "(SELECT used_count FROM wl_ingestion.quotas),"
+                          "(SELECT used_count FROM wl_ingestion.instance_budgets))::text;")
+                    self.assertEqual({'ok': True, 'value': None}, out['LAST'])
+                    self.assertEqual({'ok': False, 'code': 'import_busy'}, out['BUSY'])
+                    self.assertEqual([user_count, instance_count], out['COUNTS'])
+
+    def test_gateway_rate_admission_is_not_public(self):
+        self.assertEqual('f', self.sql(
+            "SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_proc p, "
+            "LATERAL pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f',p.proowner))) a "
+            "WHERE p.oid='wl_ingestion.admit_rate_v1(text,uuid,bigint,jsonb,text,text)'::regprocedure "
+            "AND a.grantee=0 AND a.privilege_type='EXECUTE');"))
 
     def test_quota_instance_storage_bound_spans_portfolios(self):
         full = schema.SET_RESERVATION_BYTES
