@@ -7,12 +7,14 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 
+from . import unofficial_yahoo
 from .service import QuoteService
 
 MAX_CONFIG_BYTES = 4096
-# Provider name -> factory(settings). Unofficial adapters are added here only
-# after the owner approves the named endpoint (WL-P0-009A decision 1).
-PROVIDERS = {}
+# Provider name -> factory(settings). A factory marked ``unofficial`` starts only
+# when the operator sets accept_unofficial_terms. The Yahoo chart endpoint was
+# approved by the owner on 2026-11-12 (WL-P0-009A decision 1).
+PROVIDERS = {unofficial_yahoo.NAME: unofficial_yahoo.factory}
 
 
 @dataclass(frozen=True, slots=True)

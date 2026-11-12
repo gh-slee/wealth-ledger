@@ -89,11 +89,31 @@ WL-P0-009E.
 ## The optional unofficial adapter
 
 No verified free official source covers Toronto-listed securities yet, so the
-first V2 release includes an optional adapter for an unofficial public
-market-data endpoint. The endpoint is named and added only after the owner
-approves the spike findings recorded in
-[WL-P0-009A](../tickets/WL-P0-009A.md). Until then no unofficial provider is
-registered, and naming one in `provider` stops the service from starting.
+first V2 release includes an optional adapter for the unofficial Yahoo Finance
+chart endpoint (`query1.finance.yahoo.com/v8/finance/chart/`). The owner
+approved it on 2026-11-12 after the spike recorded in
+[WL-P0-009A](../tickets/WL-P0-009A.md). Its registered name is
+`unofficial-yahoo-chart`.
+
+What it does:
+
+- It supports the Toronto Stock Exchange (`XTSE`), the TSX Venture Exchange
+  (`XTSX`) and the US exchanges `XNYS`, `XNAS`, `ARCX`, `BATS` and `XASE`. A
+  listing on any other exchange is reported `unavailable` with reason
+  `unsupported_exchange`, and no request is sent for it.
+- It sends one request per listing, because the endpoint's multi-symbol quote
+  call needs a browser session. It identifies itself as `Kurafolio/0.1` and
+  does not imitate a browser.
+- Quotes are reported as `delayed`. In the spike the latest price was one to
+  five minutes old, but the endpoint does not state its delay, so it can be
+  older.
+- Daily history uses the endpoint's closing prices, which include split
+  adjustments but not dividend adjustments. Days the endpoint leaves empty are
+  skipped, never filled.
+- Prices are read as exact decimals and rounded to the precision the endpoint
+  reports for the listing, which removes floating-point noise in its history.
+- Bond coverage was not tested. A bond with no listing on a supported exchange
+  stays `unavailable`.
 
 Before you enable it, know its limits:
 
@@ -109,8 +129,19 @@ Before you enable it, know its limits:
 - Keep `max_requests_per_minute` low. Sending many requests can get the
   instance's address blocked.
 
-To enable it, set `provider` to the adapter's registered name and
-`accept_unofficial_terms` to `true`, then restart the market refresh process.
+To enable it, set `provider` and `accept_unofficial_terms` and restart the
+market refresh process:
+
+```json
+{
+  "provider": "unofficial-yahoo-chart",
+  "accept_unofficial_terms": true,
+  "cache_seconds": 300,
+  "max_requests_per_minute": 20
+}
+```
+
+Without `accept_unofficial_terms: true` the service refuses to start.
 To disable it, set `provider` back to `none`.
 
 ## What leaves the instance
@@ -120,15 +151,17 @@ date range. It never contains a user, account, quantity or value.
 
 Failures are logged at warning level under the `kurafolio.market` logger with
 the provider name, the listing and a short fixed reason code such as
-`http_error`, `unexpected_shape`, `no_data` or `rate_limited`. URLs, API keys,
+`http_error`, `upstream_rate_limited`, `network_error`, `unexpected_shape`,
+`no_data` or `rate_limited`. URLs, API keys,
 response bodies and exception messages are never logged.
 
 ## Tests
 
 Tests use the deterministic fake provider in `src/kurafolio/market/fake.py`
-and never call the network. The market test module blocks socket connections
-and DNS lookups for every test, so a test that tries to reach the network fails:
+and recorded synthetic responses for the unofficial adapter. They never call
+the network: the market test modules block socket connections and DNS lookups
+for every test, so a test that tries to reach the network fails.
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m unittest tests.test_market_quotes -v
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_market_*.py' -v
 ```
