@@ -3438,6 +3438,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' " + self.OWN + ")",
                 "'40000000-0000-4000-8000-0000000000ff'")}, 'import_invalid'),
             ('proof_state', seed, {'proofs': ('gone',)}, 'import_invalid'),
+            ('proof_time_long', seed, {'cleanup_proofs': self.proofs('absent').replace(
+                '2026-02-02T13:00:10+00:00', '9' * 5000)}, 'import_invalid'),
             ('unclaimed', self.claim_seed()[2], {}, 'import_stale'),
             ('wrong_token', seed, {'token': 'cd' * 32}, 'authentication_required'),
             ('old_fence', seed, {'fence': "'2'", 'cleanup_proofs': self.proofs('absent').replace("'fence','1'", "'fence','2'")},
@@ -3592,11 +3594,21 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     NO_WORK = {'ok': True, 'value': {'version': 1, 'outcome': 'no_work', 'lease': None}}
 
     def test_cleanup_after_cancel_during_reception_releases_the_unbound_slot_once(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
         seed, catalog = self.cleanup_seed(bind=False)
+        # The API may hold the raw buffer until the 120-second raw deadline from reserve.
+        past_deadline = (replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
+                         "expires_at=expires_at-interval '3 minutes' WHERE work_kind='normalize';" + origin)
         out = self.run_labelled(seed + self.plan_claim('idle') + self.cancel_call(catalog) +
-            self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") + self.plan_claim('claim') + self.plan_claim('again') +
-            self.plan_claim('other', request='c1000000-0000-4000-8000-000000000002') + self.cleanup_call('clean') +
-            self.CLEANUP_STATE + self.cleanup_call('replay') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") + self.plan_claim('early') + self.plan_claim('again',
+            request='c1000000-0000-4000-8000-000000000001') +
+            self.plan_claim('other', request='c1000000-0000-4000-8000-000000000002') +
+            self.cleanup_call('waited', 'early') + self.CLEANUP_STATE.replace("'CSTATE '", "'HELD '") +
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released' WHERE work_kind='normalize'") +
+            past_deadline + self.plan_claim('claim', request='c1000000-0000-4000-8000-000000000004') +
+            self.cleanup_call('clean', request='c1000000-0000-4000-8000-0000000000a4') +
+            self.CLEANUP_STATE + self.cleanup_call('replay', request='c1000000-0000-4000-8000-0000000000a4') +
             self.cleanup_call('changed', request='c1000000-0000-4000-8000-0000000000a2') +
             self.plan_claim('after', request='c1000000-0000-4000-8000-000000000003'))
         # A live set within its deadline is not cleanup work.
@@ -3606,18 +3618,23 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual((['CANCELLED', 'pending'], [['cancelled', 'held', None]], [1, 1], 1,
                           [1, schema.SET_RESERVATION_BYTES]),
                          (before['set'], before['attempts'], before['raw'], before['raw_instance'], before['storage']))
-        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', before)
+        early = self.assert_cleanup_lease(out['EARLY'], 'claimed', '1', before)
         # The same claim request recovers its own lease; no second lease is handed out.
         again = self.assert_cleanup_lease(out['AGAIN'], 'already_claimed', '1', before)
-        self.assertEqual(dict(lease, outcome='already_claimed'), again)
+        self.assertEqual(dict(early, outcome='already_claimed'), again)
         self.assertEqual(self.NO_WORK, out['OTHER'])
-        # The offer never reached the launcher, so its slot returns without a proof.
+        # Before the raw deadline the slot and storage stay held and cleanup is retryable.
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(early, 'cleanup_pending', False)}, out['WAITED'])
+        self.assertEqual((['CANCELLED', 'failed'], [['cancelled', 'held', None]], [1, 1]),
+                         (out['HELD']['set'], out['HELD']['attempts'], out['HELD']['raw']))
+        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '2', before)
+        # The offer was never bound, so after the deadline its slot returns without a proof.
         self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'purged', True)}, out['CLEAN'])
         state = out['CSTATE']
         self.assertEqual((['CANCELLED', 'complete'], [['cancelled', 'released', None]], [1, 0], 0, [0, 0], 0),
                          (state['set'], state['attempts'], state['raw'], state['raw_instance'], state['storage'],
                           state['transient']))
-        self.assertEqual([['finished', 1, 1, schema.CLEANUP_SESSION_DIGEST, 0, None]], state['cleanup'])
+        self.assertEqual([['finished', n, n, schema.CLEANUP_SESSION_DIGEST, 0, None] for n in (1, 2)], state['cleanup'])
         self.assertEqual(out['CLEAN'], out['REPLAY'])
         self.assertEqual({'ok': False, 'code': 'import_stale'}, out['CHANGED'])
         self.assertEqual(self.NO_WORK, out['AFTER'])
@@ -3756,6 +3773,14 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             ('lapsed', {'prefix': replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
                         "expires_at=pg_catalog.clock_timestamp()-interval '1 second' WHERE work_kind='cleanup';" + origin},
              'import_stale'),
+            ('restored', {'prefix': replica + "UPDATE wl_ingestion.leases SET restore_epoch=restore_epoch+1 "
+                          "WHERE work_kind='cleanup';" + origin}, 'import_stale'),
+            ('proof_time', {'cleanup_proofs': self.proofs('absent').replace('2026-02-02T13:00:10+00:00', 'not-a-time')},
+             'import_invalid'),
+            ('proof_time_long', {'cleanup_proofs': self.proofs('absent').replace('2026-02-02T13:00:10+00:00', '9' * 5000)},
+             'import_invalid'),
+            ('proof_fraction', {'cleanup_proofs': self.proofs('absent').replace('13:00:10+00:00', '13:00:10.5+00:00')},
+             'import_invalid'),
         )
         for name, fields, code in cases:
             with self.subTest(case=name):
@@ -3792,6 +3817,21 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual({'ok': False, 'code': 'import_stale'}, out['LAPSED'])
         self.assert_cleanup_lease(out['NEXT'], 'claimed', '2', out['CSTATE'])
         self.assertEqual([['expired', 1], ['active', 2]], [row[:2] for row in out['CSTATE']['cleanup']])
+        # The database refuses a second live cleanup lease for one set.
+        self.run_labelled(claimed + self.rejects(
+            "INSERT INTO wl_ingestion.leases SELECT tenant_id,portfolio_id,pg_catalog.gen_random_uuid(),set_id,member_id,"
+            "work_kind,attempt+1,fence+1,worker_id,token_digest,session_digest,credential_version,incarnation,restore_epoch,"
+            "created_at,expires_at,state,pg_catalog.gen_random_uuid(),claim_request_digest,NULL,NULL,NULL,raw_slot,"
+            "cleanup_proof_bytes FROM wl_ingestion.leases WHERE work_kind='cleanup'"))
+        # A claim request ID this worker already used for a normalize claim is a conflict.
+        out = self.run_labelled(seed + self.lease_call('claim_member_v1', 'member') + self.cancel_call(catalog) +
+                                self.plan_claim('reused', request='c0000000-0000-4000-8000-000000000002'))
+        self.assertTrue(out['MEMBER']['ok'], out['MEMBER'])
+        self.assertEqual({'ok': False, 'code': 'import_conflict'}, out['REUSED'])
+        # Both functions rely on READ COMMITTED rechecks and refuse other isolation levels.
+        raw = self.sql('BEGIN ISOLATION LEVEL REPEATABLE READ;' + claimed.replace(self.plan_claim('claim'), '') +
+                       self.plan_claim('repeatable') + 'ROLLBACK;')
+        self.assertIn('REPEATABLE {"ok": false, "code": "import_invalid"}', raw)
 
     def test_claim_selects_the_oldest_terminal_set_first(self):
         replica = 'SET LOCAL session_replication_role=replica;'

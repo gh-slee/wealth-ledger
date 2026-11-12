@@ -333,29 +333,38 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   leaving the attempt unchanged. No worker process calls it yet.
   `claim_plan_v1` and `cleanup_set_v1` give terminal sets back their capacity
   after the originating session has ended. `claim_plan_v1` with
-  `work_kind: cleanup` takes a fresh worker token and picks the oldest set that
-  is terminal with cleanup `pending` or `failed` and has no live cleanup lease. A
-  set past its expiry is first expired under its lock, exactly as a user call
-  would expire it. The claim stores the token's digest on a 30-second cleanup
+  `work_kind: cleanup` takes a worker-generated token (the worker must not reuse
+  one; the database does not check) and picks the oldest set that is terminal
+  with cleanup `pending` or `failed` and has no live cleanup lease. A set past its
+  expiry is first expired under its lock, exactly as a user call would expire it.
+  A set whose root another call holds is skipped rather than waited for, and the
+  trigger refuses a second live cleanup lease for one set. The claim stores the token's digest on a 30-second cleanup
   lease. Following the owner's decisions, the lease carries a fixed cleanup
   session marker instead of a user session, its fence is 1 plus the set's earlier
   cleanup leases, and its acknowledgement's `source_fingerprint` is the set's
   creation request digest. Repeating the same claim request returns
-  `already_claimed`; with nothing eligible the result is `no_work`. A lapsed
-  cleanup lease is closed as expired before the set is handed out again. Prepare
+  `already_claimed`; a claim request ID the worker already used for other work
+  returns `import_conflict`; with nothing eligible the result is `no_work`. A
+  lapsed cleanup lease is closed as expired before the set is handed out again.
+  Cleanup leases last 30 seconds and cannot be renewed yet. Prepare
   claims return `import_invalid` until WL-P0-007L adds them.
   `cleanup_set_v1` takes the lease's job ID and fence, the same token, and up to
   twelve proofs. Each proof must name a normalize attempt of this set that was
-  bound to the launcher, at most three times. It locks the raw and storage quota
+  bound to a handoff token, at most three times. A proof's `checked_at` must be a
+  UTC Instant whose fraction matches its `fractional_digits`; finish checks the
+  same shape. A restore or new incarnation since the claim makes the lease
+  stale. It locks the raw and storage quota
   rows before the set. Every raw slot still held by a fenced attempt is then
   handled once. An attempt that was never bound releases its slot without a
-  proof. A bound attempt releases it only when its proofs all say `absent` or
+  proof, but only after its 120-second raw deadline from reserve has passed, so
+  the API can no longer hold its raw buffer. A bound attempt releases it only when its proofs all say `absent` or
   `not_created`, and the proofs are stored on that attempt. When no slot is left
   held, `_purge_v1` removes the transient rows and releases the storage
   reservation (`purged`). Otherwise, by owner decision, the proofs are kept, the
   set stays `failed` with its storage held, and the next claim retries it
   (`cleanup_pending`). The finished lease stores its acknowledgement for replay.
-  The lease trigger enforces the same rules: a slot moves only from `held` to
+  Both functions refuse to run outside READ COMMITTED, which their lock
+  rechecks rely on. The lease trigger enforces the same rules: a slot moves only from `held` to
   `released`, a recorded proof is never removed, and a closed attempt can change
   nothing else. Opt-in PostgreSQL tests cover cancel during reception, cancel
   before claim, expiry before claim, a slot already released by finish, pending

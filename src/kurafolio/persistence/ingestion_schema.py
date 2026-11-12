@@ -2831,7 +2831,11 @@ def _proofs_shape_sql(maximum, *, same_job):
    ARRAY(SELECT pg_catalog.jsonb_object_keys(q.value->'checked_at') ORDER BY 1)<>
     ARRAY['fractional_digits','tag','token','zone']::text[] OR q.value#>'{checked_at,tag}' IS DISTINCT FROM '"instant"'::jsonb OR
    pg_catalog.jsonb_typeof(q.value#>'{checked_at,token}')<>'string' OR q.value#>'{checked_at,zone}'<>'null'::jsonb OR
-   (q.value#>>'{checked_at,fractional_digits}') COLLATE "C" !~ '^[0-9]$')""")
+   pg_catalog.jsonb_typeof(q.value#>'{checked_at,fractional_digits}')<>'number' OR
+   (q.value#>>'{checked_at,fractional_digits}') COLLATE "C" !~ '^[0-9]$' OR
+   (q.value#>>'{checked_at,token}') COLLATE "C" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?\+00:00$' OR
+   (q.value#>>'{checked_at,fractional_digits}')::integer<>COALESCE(pg_catalog.length(pg_catalog.substring(
+    q.value#>>'{checked_at,token}','\.([0-9]+)\+')),0))""")
 
 
 def _lease_ddl(name, mode):
@@ -3145,10 +3149,16 @@ BEGIN
  guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
  IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
  IF p_request->>'work_kind'<>'cleanup' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
+ -- The live-lease and selection rechecks rely on READ COMMITTED snapshots.
+ IF pg_catalog.current_setting('transaction_isolation')<>'read committed' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
  request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
- -- A lost acknowledgement: the same claim request finds its own lease again.
- SELECT * INTO held FROM wl_ingestion.leases l WHERE l.work_kind='cleanup' AND
-  l.claim_request_id=(p_request->>'claim_request_id')::uuid ORDER BY l.created_at DESC,l.id LIMIT 1;
+ -- A lost acknowledgement: the same claim request finds its own lease again. A
+ -- claim request ID this worker already used for other work is a conflict.
+ SELECT * INTO held FROM wl_ingestion.leases l WHERE l.worker_id=p_worker AND
+  l.claim_request_id=(p_request->>'claim_request_id')::uuid;
+ IF held.id IS NOT NULL AND held.work_kind<>'cleanup' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
  IF held.id IS NOT NULL THEN
   PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id FOR UPDATE;
   SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id
@@ -3172,8 +3182,12 @@ BEGIN
    NOT EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=x.tenant_id AND l.portfolio_id=x.portfolio_id AND
     l.set_id=x.id AND l.work_kind='cleanup' AND l.state IN ('offered','active') AND l.expires_at>n)
    ORDER BY x.created_at,x.id::text COLLATE "C" LIMIT 8 LOOP
-  -- Root, set, members and leases in the declared order; then recheck under the locks.
-  PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=candidate.tenant_id AND portfolio_id=candidate.portfolio_id FOR UPDATE;
+  -- Root, set, members and leases in the declared order; then recheck under the
+  -- locks. A root another call holds is skipped, never waited for, so claims
+  -- holding several roots cannot deadlock each other or a user call.
+  PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=candidate.tenant_id AND portfolio_id=candidate.portfolio_id
+   FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
   SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=candidate.tenant_id AND portfolio_id=candidate.portfolio_id
    AND id=candidate.id FOR UPDATE;
   PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=selected.tenant_id AND portfolio_id=selected.portfolio_id
@@ -3221,6 +3235,7 @@ EXCEPTION WHEN SQLSTATE '22023' THEN
  code:=SQLERRM;
  IF code NOT IN CODES THEN code:='import_invalid'; END IF;
  RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict');
 WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
 WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
 WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
@@ -3251,7 +3266,7 @@ CREATE FUNCTION wl_ingestion.cleanup_set_v1(p_worker uuid,p_token text,p_request
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $cleanup$
 DECLARE guard jsonb;selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%ROWTYPE;attempt record;
  tenant uuid;portfolio uuid;scopes integer;n timestamptz;request_digest text;code text;ack jsonb;proofs jsonb;
- released integer:=0;waiting integer:=0;outcome text;
+ released integer:=0;waiting integer:=0;changed integer;outcome text;
 BEGIN
  IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
   ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>ARRAY['cleanup_proofs','credential_epoch','fence',
@@ -3269,6 +3284,9 @@ BEGIN
  END IF;
  guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
  IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ -- The live-lease and selection rechecks rely on READ COMMITTED snapshots.
+ IF pg_catalog.current_setting('transaction_isolation')<>'read committed' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
  request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
  -- Scope comes from the stored set, never from the worker.
  SELECT pg_catalog.count(*),(pg_catalog.array_agg(x.tenant_id))[1],(pg_catalog.array_agg(x.portfolio_id))[1]
@@ -3300,10 +3318,12 @@ BEGIN
    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
   RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.convert_from(held.last_result_bytes,'UTF8')::jsonb);
  END IF;
- IF held.state<>'active' OR n>=held.expires_at OR selected.state NOT IN TERMINAL THEN
+ -- A restore or new incarnation since the claim makes the lease stale.
+ IF held.state<>'active' OR n>=held.expires_at OR selected.state NOT IN TERMINAL OR
+  held.incarnation::text<>guard#>>'{value,incarnation}' OR held.restore_epoch::text<>guard#>>'{value,restore_epoch}' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
- -- Each proof names a normalize attempt of this set that was handed to the
- -- launcher (bound to a token), at most three times.
+ -- Each proof names a normalize attempt of this set that was bound to a handoff
+ -- token, at most three times.
  IF EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') q(value) WHERE NOT EXISTS(
    SELECT 1 FROM wl_ingestion.leases l JOIN wl_ingestion.members m ON m.tenant_id=l.tenant_id AND
     m.portfolio_id=l.portfolio_id AND m.set_id=l.set_id AND m.id=l.member_id
@@ -3312,18 +3332,22 @@ BEGIN
   EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') q(value)
    GROUP BY q.value->>'job_id',q.value->>'fence' HAVING pg_catalog.count(*)>3) THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
- -- Owner decision: a slot returns only for an attempt that never reached the
- -- launcher, or whose proofs all show no live child or raw buffer. Pending or
+ -- Owner decision: a slot returns only for an attempt that was never bound (once
+ -- its raw deadline has passed), or whose proofs all show no live child. Pending or
  -- failed proofs are recorded and the slot stays held for a later cleanup.
- FOR attempt IN SELECT l.id,l.fence,l.token_digest,ATTEMPT_JOB AS job FROM wl_ingestion.leases l
+ FOR attempt IN SELECT l.id,l.fence,l.token_digest,l.created_at,ATTEMPT_JOB AS job FROM wl_ingestion.leases l
    JOIN wl_ingestion.members m ON m.tenant_id=l.tenant_id AND m.portfolio_id=l.portfolio_id AND
     m.set_id=l.set_id AND m.id=l.member_id
    WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.set_id=selected.id AND l.work_kind='normalize' AND
     l.raw_slot='held' AND l.state NOT IN ('offered','active') ORDER BY l.id LOOP
   IF attempt.token_digest IS NULL THEN
+   -- Never bound: no launcher has the bytes. The API may still hold a raw
+   -- buffer until the fixed 120-second raw deadline from reserve has passed.
+   IF n<attempt.created_at+interval '120 seconds' THEN waiting:=waiting+1; CONTINUE; END IF;
    UPDATE wl_ingestion.leases SET raw_slot='released' WHERE tenant_id=tenant AND portfolio_id=portfolio AND
     id=attempt.id AND raw_slot='held';
-   released:=released+1;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   released:=released+changed;
    CONTINUE;
   END IF;
   SELECT pg_catalog.jsonb_agg(q.value ORDER BY q.o) INTO proofs FROM
@@ -3334,7 +3358,8 @@ BEGIN
     WHERE q.value->>'state' NOT IN ('absent','not_created')) THEN
    UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes=wl_ingestion._canonical_v1(proofs)
     WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=attempt.id AND raw_slot='held';
-   released:=released+1;
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   released:=released+changed;
   ELSE
    UPDATE wl_ingestion.leases SET cleanup_proof_bytes=wl_ingestion._canonical_v1(proofs)
     WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=attempt.id AND raw_slot='held';
@@ -4110,7 +4135,11 @@ BEGIN
      member.state NOT IN ('waiting','receiving'))) OR
     -- Every normalize attempt starts holding the raw slot reserve took for it.
     (NEW.work_kind='normalize' AND NEW.raw_slot IS DISTINCT FROM 'held') OR
-    NEW.cleanup_proof_bytes IS NOT NULL THEN REJECT; END IF;
+    NEW.cleanup_proof_bytes IS NOT NULL OR
+    -- At most one live cleanup lease per set.
+    (NEW.work_kind='cleanup' AND EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=NEW.tenant_id AND
+     l.portfolio_id=NEW.portfolio_id AND l.set_id=NEW.set_id AND l.work_kind='cleanup' AND
+     l.state IN ('offered','active'))) THEN REJECT; END IF;
    RETURN NEW;
   END IF;
   IF (NEW.tenant_id,NEW.portfolio_id,NEW.id,NEW.set_id,NEW.member_id,NEW.work_kind,NEW.attempt,
@@ -4119,11 +4148,14 @@ BEGIN
    (OLD.tenant_id,OLD.portfolio_id,OLD.id,OLD.set_id,OLD.member_id,OLD.work_kind,OLD.attempt,
     OLD.fence,OLD.worker_id,OLD.session_digest,OLD.credential_version,OLD.incarnation,
     OLD.restore_epoch,OLD.created_at) THEN REJECT; END IF;
-  -- A raw slot is released once, only by a fenced attempt that never reached the
-  -- launcher or whose recorded proofs for this fence all show no live child. A
+  -- A raw slot is released once, only by a fenced attempt that was never bound
+  -- (and whose fixed 120-second raw deadline from reserve has passed, so the API
+  -- holds no raw buffer) or whose recorded proofs for this fence all show no
+  -- live child. A
   -- recorded proof may be replaced while the slot is held but is never dropped.
   IF (NEW.raw_slot IS DISTINCT FROM OLD.raw_slot AND NOT (OLD.raw_slot='held' AND NEW.raw_slot='released' AND
-     NEW.state NOT IN ('offered','active') AND (OLD.token_digest IS NULL OR (NEW.cleanup_proof_bytes IS NOT NULL AND
+     NEW.state NOT IN ('offered','active') AND ((OLD.token_digest IS NULL AND
+      n>=OLD.created_at+interval '120 seconds') OR (NEW.cleanup_proof_bytes IS NOT NULL AND
      pg_catalog.jsonb_typeof(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb)='array' AND
      pg_catalog.jsonb_array_length(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb)>0 AND NOT EXISTS(
       SELECT 1 FROM pg_catalog.jsonb_array_elements(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb) q(value)
