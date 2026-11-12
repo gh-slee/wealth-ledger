@@ -23,11 +23,11 @@ def main():
 
     import uvicorn
     from examples.demo import run_demo
-    from wealth_ledger.web.api import create_app
-    from wealth_ledger.web.auth import password_hash
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.storage import Store, prepare_instance
+    from kurafolio.web.api import create_app
+    from kurafolio.web.auth import password_hash
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.storage import Store, prepare_instance
     import json
     import hashlib
     with tempfile.TemporaryDirectory(prefix="wealth-browser-synthetic-") as temporary:
@@ -64,10 +64,10 @@ def main():
             conn.execute("UPDATE jobs SET updated_at=updated_at-60 WHERE id=?", (old["id"],))
         # Independent old-format declaration; all bytes originate in the synthetic demo.
         import shutil
-        from wealth_ledger.core import import_holdings
-        from wealth_ledger.crypto import import_bull_orders
-        from wealth_ledger.combined import make_combined_payload
-        from wealth_ledger.web.adoption import prepare_adoption, confirm_adoption
+        from kurafolio.core import import_holdings
+        from kurafolio.crypto import import_bull_orders
+        from kurafolio.combined import make_combined_payload
+        from kurafolio.web.adoption import prepare_adoption, confirm_adoption
         legacy = Path(temporary) / "legacy-cli"
         data = ROOT / "examples/data"
         fx = json.loads((data / "fx.json").read_text())
@@ -86,13 +86,13 @@ def main():
         preview = prepare_adoption(settings,legacy,"Legacy synthetic portfolio",plan,allow_legacy_reports=True)
         confirm_adoption(settings,plan,preview["plan_sha256"])
         # A real source-report operation/registry, with invented direct instruments.
-        from wealth_ledger.web.source_reports import enqueue_preview, confirm_preview
-        from wealth_ledger.web.worker import execute_job
-        from wealth_ledger.web.uploads import upload_path
-        from wealth_ledger.source_context_pipeline import context_document
-        from wealth_ledger.source_builtin import WealthsimpleHoldings, WS_FORMAT
-        from wealth_ledger.source_v2 import ParseContext
-        from wealth_ledger.prices import parse_time
+        from kurafolio.web.source_reports import enqueue_preview, confirm_preview
+        from kurafolio.web.worker import execute_job
+        from kurafolio.web.uploads import upload_path
+        from kurafolio.source_context_pipeline import context_document
+        from kurafolio.source_builtin import WealthsimpleHoldings, WS_FORMAT
+        from kurafolio.source_v2 import ParseContext
+        from kurafolio.prices import parse_time
         from datetime import datetime, timezone
         source_portfolio = store.create_portfolio("Source synthetic portfolio", "en-CA", "actual_only")
         source_pid = source_portfolio["id"]

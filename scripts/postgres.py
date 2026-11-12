@@ -25,9 +25,9 @@ def test_environment(output, *, identity=False):
     import psycopg
     from psycopg import sql
     from psycopg.conninfo import make_conninfo
-    from wealth_ledger.persistence.config import PostgresConfig
-    from wealth_ledger.persistence.context import Database
-    from wealth_ledger.persistence.migration import migrate
+    from kurafolio.persistence.config import PostgresConfig
+    from kurafolio.persistence.context import Database
+    from kurafolio.persistence.migration import migrate
     output=Path(output).resolve()
     if output.exists():raise ValueError('invalid_config')
     output.mkdir(parents=True,mode=0o700)
@@ -69,7 +69,7 @@ def test_environment(output, *, identity=False):
     try:
         if identity:
             import hashlib
-            from wealth_ledger.persistence.migration import migrate_identity
+            from kurafolio.persistence.migration import migrate_identity
             key=secrets.token_bytes(32);_private(output/'identity.key',key)
             status=migrate_identity(operator,resources['runtime_role'],resources['identity_role'],hashlib.sha256(key).hexdigest())
         else:status=migrate(operator,resources['runtime_role'])
@@ -104,14 +104,14 @@ def source_test_artifact(image,context_manifest,output):
     import hashlib
     import re
     import tomllib
-    from wealth_ledger.data_sources.contract_v1 import canonical
-    from wealth_ledger.data_sources.catalog_v1 import verify_installation
-    from wealth_ledger.data_sources.compatibility_v1 import builtin_descriptors
+    from kurafolio.data_sources.contract_v1 import canonical
+    from kurafolio.data_sources.catalog_v1 import verify_installation
+    from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
     if not re.fullmatch(r'sha256:[0-9a-f]{64}',image):raise ValueError('invalid_config')
     manifest=json.loads(Path(context_manifest).read_bytes())
     files=[]
     for name,digest in sorted(manifest['files'].items()):
-        if not name.startswith('src/wealth_ledger/'):continue
+        if not name.startswith('src/kurafolio/'):continue
         path=Path(name)
         if path.is_absolute() or '..' in path.parts or '__pycache__' in path.parts or (ROOT/path).is_symlink():raise ValueError('invalid_config')
         if hashlib.sha256((ROOT/path).read_bytes()).hexdigest()!=digest:raise ValueError('invalid_config')
@@ -119,10 +119,10 @@ def source_test_artifact(image,context_manifest,output):
     if not files:raise ValueError('invalid_config')
     project=tomllib.loads((ROOT/'pyproject.toml').read_text())['project']
     raw=canonical({'format':'source-content-v1','package_distribution':project['name'],'package_version':project['version'],
-        'entry_points':[{'name':'wealthsimple.holdings','target':'wealth_ledger.source_builtin:registrations'},
-                        {'name':'bullbitcoin.orders','target':'wealth_ledger.source_builtin:registrations'}], 'files':files})
+        'entry_points':[{'name':'wealthsimple.holdings','target':'kurafolio.source_builtin:registrations'},
+                        {'name':'bullbitcoin.orders','target':'kurafolio.source_builtin:registrations'}], 'files':files})
     descriptors=builtin_descriptors(package_distribution=project['name'],package_version=project['version'],
-        artifact_sha256=hashlib.sha256(raw).hexdigest(),execution_image_digest=image[7:],entry_point_target='wealth_ledger.source_builtin:registrations')
+        artifact_sha256=hashlib.sha256(raw).hexdigest(),execution_image_digest=image[7:],entry_point_target='kurafolio.source_builtin:registrations')
     for descriptor in descriptors:verify_installation(descriptor,raw,image_root='/app/src')
     _private(Path(output),raw)
     return {'synthetic':True,'artifact_file':str(output),'files':len(files),'image_id':image}
@@ -148,16 +148,16 @@ def main():
         elif args.command=='cleanup-test-environment':result=cleanup_environment(args.config)
         elif args.command=='test-source-artifact':result=source_test_artifact(args.image,args.context_manifest,args.output)
         else:
-            from wealth_ledger.persistence.config import PostgresConfig
-            from wealth_ledger.persistence.context import Database
-            from wealth_ledger.persistence.migration import migrate,finalize_restore
+            from kurafolio.persistence.config import PostgresConfig
+            from kurafolio.persistence.context import Database
+            from kurafolio.persistence.migration import migrate,finalize_restore
             db=Database(PostgresConfig.from_secret_file(args.secret_file))
             try:
                 result=db.status() if args.command=='status' else (migrate(db,args.runtime_role) if args.command=='migrate' else finalize_restore(db,args.runtime_role))
             finally:db.close()
         print(json.dumps(result));return 0
     except Exception as error:
-        from wealth_ledger.persistence.errors import PersistenceError
+        from kurafolio.persistence.errors import PersistenceError
         code=error.code if isinstance(error,PersistenceError) else 'operation_failed'
         print(json.dumps({'error':code}),file=sys.stderr);return 2
 

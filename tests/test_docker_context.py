@@ -22,12 +22,12 @@ class DockerContextTests(unittest.TestCase):
         for name in FIXED:
             target = self.root / name; target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)
-        source = self.root / "src/wealth_ledger"; source.mkdir(parents=True)
+        source = self.root / "src/kurafolio"; source.mkdir(parents=True)
         (source / "__init__.py").write_text('"""Synthetic code only."""\n')
 
     def test_explicit_context_excludes_financial_state_and_private_instructions(self):
         for name in ("data/source.csv", "reports/report.md", "private/notes.md", "config/local.toml",
-                     "AGENTS.override.md", "src/wealth_ledger/AGENTS.override.md", ".env"):
+                     "AGENTS.override.md", "src/kurafolio/AGENTS.override.md", ".env"):
             target = self.root / name; target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("invented private test marker")
         for name in PUBLIC_ROLE_SKILLS:
@@ -38,7 +38,7 @@ class DockerContextTests(unittest.TestCase):
         manifest = prepare_context(self.root, output)
         self.assertFalse((output / ".agents").exists())
         self.assertFalse(set(manifest["files"]) & PUBLIC_ROLE_SKILLS)
-        self.assertEqual(set(manifest["files"]), set(FIXED) | {"src/wealth_ledger/__init__.py"})
+        self.assertEqual(set(manifest["files"]), set(FIXED) | {"src/kurafolio/__init__.py"})
         for path in output.rglob("*"):
             if path.is_file():
                 self.assertNotIn(b"invented private test marker", path.read_bytes())
@@ -48,7 +48,7 @@ class DockerContextTests(unittest.TestCase):
             prepare_context(self.root, self.root / "src/context")
 
     def test_source_credential_failure_does_not_create_context(self):
-        (self.root / "src/wealth_ledger/private_code.py").write_text('password = "never-use-this-synthetic-value"\n')
+        (self.root / "src/kurafolio/private_code.py").write_text('password = "never-use-this-synthetic-value"\n')
         target = self.base / "rejected-context"
         with self.assertRaisesRegex(ValueError, "publication"):
             prepare_context(self.root, target)

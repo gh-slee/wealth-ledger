@@ -17,9 +17,9 @@ from docker_context import prepare_context
 ROOT = Path(__file__).resolve().parents[1]
 SMOKE = r'''
 import json, os, pathlib, platform, re, secrets, subprocess, time, urllib.error, urllib.request
-from wealth_ledger.web.auth import password_hash
-from wealth_ledger.web.config import WebSettings
-from wealth_ledger.web.storage import prepare_instance, Store
+from kurafolio.web.auth import password_hash
+from kurafolio.web.config import WebSettings
+from kurafolio.web.storage import prepare_instance, Store
 assert os.getuid() == 10001
 assert not pathlib.Path('/app/data').exists()
 assert not list(pathlib.Path('/app').rglob('AGENTS.override.md'))

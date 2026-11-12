@@ -10,7 +10,7 @@ import asyncio
 import re
 import time
 
-from wealth_ledger.ingestion.contracts import IngestionError, MAX_RAW
+from kurafolio.ingestion.contracts import IngestionError, MAX_RAW
 
 
 def upload_length(headers):

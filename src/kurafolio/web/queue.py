@@ -8,7 +8,7 @@ from huey.registry import Message
 
 from .storage import ID, contained
 
-TASK_NAME = "wealth_ledger.web.queue.dispatch"
+TASK_NAME = "kurafolio.web.queue.dispatch"
 
 
 class NotificationSerializer:
@@ -31,7 +31,7 @@ class NotificationSerializer:
 
 
 def make_queue(store):
-    queue = SqliteHuey("wealth-ledger-v1", filename=str(contained(store.root, "admin/queue.sqlite3")),
+    queue = SqliteHuey("kurafolio-v1", filename=str(contained(store.root, "admin/queue.sqlite3")),
                       serializer=NotificationSerializer(), results=False, store_none=False,
                       immediate=False, fsync=True)
     for suffix in ("", "-wal", "-shm"):

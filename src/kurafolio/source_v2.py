@@ -589,7 +589,7 @@ def decode_batch(canonical: bytes, raw: bytes) -> NormalizedBatch:
                 raise ValueError("Canonical times must be strings")
             result = datetime.fromisoformat(value); _time(result)
             return result
-        if is_dataclass(expected) and expected.__module__ in {__name__, "wealth_ledger.source_protocol"}:
+        if is_dataclass(expected) and expected.__module__ in {__name__, "kurafolio.source_protocol"}:
             if not isinstance(value, dict) or set(value) != {field.name for field in fields(expected)}:
                 raise ValueError("Canonical object schema differs")
             hints = get_type_hints(expected)

@@ -14,9 +14,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    from wealth_ledger.web.api import create_app
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.storage import prepare_instance, Store
+    from kurafolio.web.api import create_app
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.storage import prepare_instance, Store
     with tempfile.TemporaryDirectory(prefix="wealth-ledger-schema-") as directory:
         settings = WebSettings(Path(directory)/"instance")
         prepare_instance(settings)

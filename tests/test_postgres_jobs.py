@@ -3,12 +3,12 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 import threading
 import uuid
-from wealth_ledger.persistence.context import execute,Database,COUNTER_MAX,TenantContext
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.jobs import Jobs
-from wealth_ledger.persistence.outbox import relay
-from wealth_ledger.persistence.repositories import Candidates
+from kurafolio.persistence.context import execute,Database,COUNTER_MAX,TenantContext
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.jobs import Jobs
+from kurafolio.persistence.outbox import relay
+from kurafolio.persistence.repositories import Candidates
 from test_postgres_config import PostgresCase
 
 
@@ -99,7 +99,7 @@ class JobTests(PostgresCase):
             with self.subTest(changes=changes),self.assertRaises(PersistenceError):replace(lease,**changes)
 
     def test_persisted_job_fields_cannot_be_rebased_or_erased_by_lease_copy(self):
-        from wealth_ledger.persistence.operations import digest
+        from kurafolio.persistence.operations import digest
         Candidates(self.runtime).put(self.context,self.batch_id,self.batch,expected_generation=0,idempotency_key='lease-binding-candidate')
         connection=self.batch.connections[0]
         service=Jobs(self.runtime)
@@ -134,13 +134,13 @@ class JobTests(PostgresCase):
         import subprocess
         import sys
         from dataclasses import asdict
-        from wealth_ledger.persistence.jobs import Lease
+        from kurafolio.persistence.jobs import Lease
         service=Jobs(self.runtime)
         program="""import json,os,signal,sys
 from dataclasses import asdict
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.context import Database,TenantContext
-from wealth_ledger.persistence.jobs import Jobs,Lease
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.context import Database,TenantContext
+from kurafolio.persistence.jobs import Jobs,Lease
 payload=json.loads(sys.stdin.readline());database=Database(PostgresConfig.from_secret_file(payload['secret_file']));jobs=Jobs(database)
 if payload['mode']=='claim':
  context=TenantContext(**payload['context']);lease=jobs.claim(context,payload['worker_id'],lease_seconds=15)

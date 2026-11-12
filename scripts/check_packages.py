@@ -33,22 +33,22 @@ EGG_NAMES = {"PKG-INFO", "SOURCES.txt", "dependency_links.txt", "entry_points.tx
 
 
 def public_source(name):
-    if name.startswith("wealth_ledger/"):
+    if name.startswith("kurafolio/"):
         name = "src/" + name
-    bundle = "src/wealth_ledger/_bundle/"
+    bundle = "src/kurafolio/_bundle/"
     if name.startswith(bundle):
         name = name[len(bundle):]
-    allowed = (name.startswith("src/wealth_ledger/") and name.endswith(".py")
-               or name.startswith("src/wealth_ledger/locales/") and name.rsplit("/", 1)[-1] in CATALOG_NAMES
+    allowed = (name.startswith("src/kurafolio/") and name.endswith(".py")
+               or name.startswith("src/kurafolio/locales/") and name.rsplit("/", 1)[-1] in CATALOG_NAMES
                or name.startswith("assets/fonts/") and name.rsplit("/", 1)[-1] in FONT_NAMES
                or name == "config/company-aliases.json")
     return name if allowed and guard.path_allowed(name) else None
 
 
 def audit_artifacts(directory):
-    wheel, = directory.glob("wealth_ledger-*.whl")
-    sdist, = directory.glob("wealth_ledger-*.tar.gz")
-    plugin, = directory.glob("wealth_ledger_synthetic_parser-*.whl")
+    wheel, = directory.glob("kurafolio-*.whl")
+    sdist, = directory.glob("kurafolio-*.tar.gz")
+    plugin, = directory.glob("kurafolio_synthetic_parser-*.whl")
     with zipfile.ZipFile(plugin) as archive:
         seen = set()
         for item in archive.infolist():
@@ -62,14 +62,14 @@ def audit_artifacts(directory):
                 source = "examples/parser-plugin/src/" + name
                 if raw != (ROOT / source).read_bytes() or guard.content_issues(raw, source):
                     raise ValueError("Example wheel differs from reviewed source")
-            elif name.startswith("wealth_ledger_synthetic_parser-0.1.0.dist-info/"):
+            elif name.startswith("kurafolio_synthetic_parser-0.1.0.dist-info/"):
                 tail = name.split(".dist-info/", 1)[1]
                 if tail not in META_NAMES or tail == "licenses/THIRD_PARTY_NOTICES.md" or guard.content_issues(raw, name):
                     raise ValueError("Unexpected example wheel metadata")
             else:
                 raise ValueError("Unexpected example wheel member")
-        if not {"synthetic_parser/__init__.py", "wealth_ledger_synthetic_parser-0.1.0.dist-info/entry_points.txt",
-                "wealth_ledger_synthetic_parser-0.1.0.dist-info/licenses/LICENSE"} <= seen:
+        if not {"synthetic_parser/__init__.py", "kurafolio_synthetic_parser-0.1.0.dist-info/entry_points.txt",
+                "kurafolio_synthetic_parser-0.1.0.dist-info/licenses/LICENSE"} <= seen:
             raise ValueError("Example wheel lacks required source/license/registration")
     counts = {plugin.name: len(seen)}
     for path in (wheel, sdist):
@@ -100,19 +100,19 @@ def audit_artifacts(directory):
                 continue
             if path.suffix == ".whl":
                 prefix, separator, tail = name.partition(".dist-info/")
-                allowed = separator and prefix.startswith("wealth_ledger-") and "/" not in prefix and tail in META_NAMES
+                allowed = separator and prefix.startswith("kurafolio-") and "/" not in prefix and tail in META_NAMES
             else:
                 allowed = name in {"pyproject.toml", "build_backend.py", "MANIFEST.in", "README.md", "LICENSE",
                                    "THIRD_PARTY_NOTICES.md", "scripts/check_publication.py"}
                 if allowed:
                     allowed = raw == (ROOT / name).read_bytes()
-                allowed = allowed or (name == "setup.cfg" and raw == b"[egg_info]\ntag_build = \ntag_date = 0\n\n") or name == "PKG-INFO" or (name.startswith("src/wealth_ledger.egg-info/")
+                allowed = allowed or (name == "setup.cfg" and raw == b"[egg_info]\ntag_build = \ntag_date = 0\n\n") or name == "PKG-INFO" or (name.startswith("src/kurafolio.egg-info/")
                     and name.rsplit("/", 1)[-1] in EGG_NAMES and len(PurePosixPath(name).parts) == 3)
             if not allowed or guard.content_issues(raw, name):
                 raise ValueError("Unexpected artifact content: " + name)
-        required = {"wealth_ledger/source_protocol.py", "wealth_ledger/source_testing.py",
-                    "wealth_ledger/_bundle/assets/fonts/NotoSansTC-Regular.ttf"} if path.suffix == ".whl" else {
-                    "build_backend.py", "scripts/check_publication.py", "assets/fonts/OFL.txt", "src/wealth_ledger/source_protocol.py"}
+        required = {"kurafolio/source_protocol.py", "kurafolio/source_testing.py",
+                    "kurafolio/_bundle/assets/fonts/NotoSansTC-Regular.ttf"} if path.suffix == ".whl" else {
+                    "build_backend.py", "scripts/check_publication.py", "assets/fonts/OFL.txt", "src/kurafolio/source_protocol.py"}
         if not required <= seen:
             raise ValueError("Artifact lacks required public resources")
         counts[path.name] = len(seen)
@@ -146,10 +146,10 @@ def verify_installed(python):
         check = '''
 import json
 from pathlib import Path
-import wealth_ledger
-from wealth_ledger.workspace import PACKAGE_ROOT, CODE_ROOT, SOURCE_CHECKOUT, resolve_workspace
-from wealth_ledger.resources import company_aliases
-from wealth_ledger.source_registry import AdapterRegistration
+import kurafolio
+from kurafolio.workspace import PACKAGE_ROOT, CODE_ROOT, SOURCE_CHECKOUT, resolve_workspace
+from kurafolio.resources import company_aliases
+from kurafolio.source_registry import AdapterRegistration
 from synthetic_parser import register
 assert not SOURCE_CHECKOUT
 assert PACKAGE_ROOT.parent.name in {"site-packages", "dist-packages"}

@@ -14,6 +14,7 @@ from typing import Iterable
 from .source_protocol import AdapterInfo, Detection, SourceAdapter, validate_info
 from .source_v2 import SourceAdapter as ContextSourceAdapter
 
+# Kept from the pre-Kurafolio name: installed parser plugins publish under this group.
 ENTRY_POINT_GROUP = "wealth_ledger.source_adapters"
 MAX_INPUT_BYTES = 10 * 1024 * 1024
 _NAMESPACE = re.compile(r"[a-z][a-z0-9_.-]*")

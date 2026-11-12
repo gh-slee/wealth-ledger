@@ -10,15 +10,15 @@ import tempfile
 import unittest
 import zipfile
 
-from wealth_ledger import wallet, operations
-from wealth_ledger.core import import_holdings, initialize
-from wealth_ledger.crypto import import_bull_orders
-from wealth_ledger.crypto_opening import import_opening
-from wealth_ledger.workflow import prepare_update, ingest_inputs, select_context
-from wealth_ledger.reporting import generate_reports
-from wealth_ledger.workbook import build_workbook, verify_workbook
-from wealth_ledger.validation import validate_formula_caches
-from wealth_ledger.wallet_reports import write_exports
+from kurafolio import wallet, operations
+from kurafolio.core import import_holdings, initialize
+from kurafolio.crypto import import_bull_orders
+from kurafolio.crypto_opening import import_opening
+from kurafolio.workflow import prepare_update, ingest_inputs, select_context
+from kurafolio.reporting import generate_reports
+from kurafolio.workbook import build_workbook, verify_workbook
+from kurafolio.validation import validate_formula_caches
+from kurafolio.wallet_reports import write_exports
 from test_core import FX, write_holdings
 from test_crypto import FIELDS, ASSUMPTIONS, order
 from test_combined import quote
@@ -303,7 +303,7 @@ class WalletTests(unittest.TestCase):
 
     def test_report_failure_resume_keeps_single_observation_and_fixed_time(self):
         request={"btc_balance":".0799","btc_balance_as_of":T1,"as_of":T1}
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             with self.assertRaises(operations.ReportOperationError):
                 operations.execute_update(self.project,request,lambda *args:(_ for _ in ()).throw(ValueError("synthetic report failure")))
             failed=operations.list_operations(self.project)[0]
@@ -320,9 +320,9 @@ class WalletTests(unittest.TestCase):
         self.assertEqual(result["operation_id"],failed["operation_id"])
 
     def test_resume_preserves_saved_locale_and_rejects_changed_catalog(self):
-        from wealth_ledger.i18n import PresentationContext
+        from kurafolio.i18n import PresentationContext
         request={"btc_balance":".0799","btc_balance_as_of":T1,"as_of":T1,"report_locale":"en-CA"}
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             with self.assertRaises(operations.ReportOperationError):
                 operations.execute_update(self.project,request,lambda *args:(_ for _ in ()).throw(ValueError("synthetic report failure")))
             failed=operations.list_operations(self.project)[0]
@@ -340,7 +340,7 @@ class WalletTests(unittest.TestCase):
         self.assertEqual(len(wallet.records(self.project,'balance')),1)
 
     def test_stale_pending_operation_rejected_after_new_inputs(self):
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=ValueError("quote unavailable")):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=ValueError("quote unavailable")):
             with self.assertRaises(operations.ReportOperationError):
                 operations.execute_update(self.project,{"btc_balance":".0799","btc_balance_as_of":T1,"as_of":T1},lambda *a:{})
         failed=operations.list_operations(self.project)[0]
@@ -358,7 +358,7 @@ class WalletTests(unittest.TestCase):
         ws=write_holdings(self.root/"ws.csv");import_holdings(self.project,ws,"baseline",FX)
         time="2026-10-10T12:00:00-04:00"
         self.balance(".08",time=time)
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             first,_=prepare_update(self.project,as_of=time)
             self.balance("0",time="2026-10-10T13:00:00-04:00")
             zero,_=prepare_update(self.project,as_of="2026-10-10T13:00:00-04:00")
@@ -369,26 +369,26 @@ class WalletTests(unittest.TestCase):
 
     def test_matching_balance_keeps_numeric_zero_difference_across_reports(self):
         self.balance(".08")
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             payload,_=prepare_update(self.project,as_of=T2)
         out=self.root/"matched-report"
         artifacts=generate_reports(payload,out)
         build_workbook(payload,out/"portfolio.ods",chart_images=artifacts["charts"])
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.report_checks import validate_report_presentation
         self.assertEqual(validate_report_presentation(payload,out)["status"],"passed")
         self.assertEqual(payload['crypto']['wallet']['anchor_ledger_residual_btc'],'0.00000000')
         self.assertIn('| 錢包回報與同時間帳本推算量差額 | 0 |',(out/'report.md').read_text(encoding="utf-8"))
 
     def test_all_reports_have_gap_table_audit_exports_and_live_residual_formula(self):
         self.balance();self.event(amount=".00004")
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             payload,_=prepare_update(self.project,as_of=T2)
         out=self.root/"reports"
         artifacts=generate_reports(payload,out)
         build_workbook(payload,out/"portfolio.ods",chart_images=artifacts["charts"])
         write_exports(payload,out)
         self.assertEqual(validate_formula_caches(out/"portfolio.ods")["cache_mismatches"],0)
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.report_checks import validate_report_presentation
         self.assertEqual(validate_report_presentation(payload,out)["status"],"passed")
 
         self.assertEqual(verify_workbook(out/"portfolio.ods")["sheets"],11)
@@ -407,7 +407,7 @@ class WalletTests(unittest.TestCase):
         ws=write_holdings(self.root/"ws.csv")
         now=datetime.fromisoformat(NOW)
         stamp="2026-10-10T12:00:00-04:00"
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             for index, paths in enumerate(([],[ws],[self.path],[ws,self.path])):
                 with self.subTest(paths=len(paths)):
                     p=self.root/f"combo-{index}"
@@ -419,7 +419,7 @@ class WalletTests(unittest.TestCase):
                     self.assertGreaterEqual(datetime.fromisoformat(payload["meta"]["as_of"]),datetime.fromisoformat(stamp))
 
     def test_default_observation_time_captured_once_and_no_input_keeps_it(self):
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             first,_=prepare_update(self.project,btc_balance=".0799",now=datetime.fromisoformat(NOW))
             later,_=prepare_update(self.project,now=datetime.fromisoformat("2026-10-10T22:00:00Z"))
         self.assertEqual(first["meta"]["as_of"],later["meta"]["as_of"])
@@ -441,7 +441,7 @@ class WalletTests(unittest.TestCase):
     def test_zero_wallet_only_report_is_supported(self):
         p=self.root/"zero-wallet"
         wallet.add_balance(p,"0",T1,now=NOW)
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=lambda p,t,f:quote(t)):
             payload,_=prepare_update(p,as_of=T1)
         out=self.root/"zero-report"
         artifacts=generate_reports(payload,out)
@@ -449,7 +449,7 @@ class WalletTests(unittest.TestCase):
         self.assertEqual(Decimal(payload["totals"]["total_cad"]),0)
         self.assertEqual(payload["meta"]["account_count"],1)
         self.assertEqual(validate_formula_caches(out/"portfolio.ods")["cache_mismatches"],0)
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.report_checks import validate_report_presentation
         self.assertEqual(validate_report_presentation(payload,out)["status"],"passed")
 
 
@@ -458,7 +458,7 @@ class WalletTests(unittest.TestCase):
         initialize(p)
         ws=write_holdings(self.root/"ws-batch.csv")
         invalid=self.orders([{**order("bad"),"ORDER_TYPE":"Unsupported"}],"invalid.csv")
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX):
             with self.assertRaises(ValueError):
                 operations.atomic_data(p,lambda stage:ingest_inputs(stage,[ws,invalid],now=datetime.fromisoformat(NOW)))
         with sqlite3.connect(p/"data/db/portfolio.sqlite3") as conn:
@@ -466,7 +466,7 @@ class WalletTests(unittest.TestCase):
 
     def test_quote_failure_preserves_input_ids_for_retry(self):
         request={"btc_balance":".0799","btc_balance_as_of":T1,"as_of":T1}
-        with patch("wealth_ledger.workflow.resolve_rates",return_value=FX),patch("wealth_ledger.combined.resolve_btc_price",side_effect=ValueError("quote failure")):
+        with patch("kurafolio.workflow.resolve_rates",return_value=FX),patch("kurafolio.combined.resolve_btc_price",side_effect=ValueError("quote failure")):
             with self.assertRaises(operations.ReportOperationError):
                 operations.execute_update(self.project,request,lambda *a:{})
         operation=operations.list_operations(self.project)[0]
@@ -498,7 +498,7 @@ class WalletTests(unittest.TestCase):
     def test_reference_override_archived_and_retry_does_not_require_original(self):
         path=self.root/'quote.json';path.write_text(json.dumps(quote(T1)), encoding="utf-8")
         request={'btc_balance':'.0799','btc_balance_as_of':T1,'as_of':T1,'price_file':str(path)}
-        with patch('wealth_ledger.workflow.resolve_rates',return_value=FX):
+        with patch('kurafolio.workflow.resolve_rates',return_value=FX):
             with self.assertRaises(operations.ReportOperationError):
                 operations.execute_update(self.project,request,lambda *a:(_ for _ in ()).throw(ValueError('synthetic publisher failed')))
             operation=operations.list_operations(self.project)[0]
@@ -510,7 +510,7 @@ class WalletTests(unittest.TestCase):
         self.assertEqual(len(wallet.records(self.project,'balance')),1)
 
     def test_no_input_rebuild_uses_successful_pointer_not_failed_future_report(self):
-        with patch('wealth_ledger.workflow.resolve_rates',return_value=FX),patch('wealth_ledger.combined.resolve_btc_price',side_effect=lambda p,t,f:quote(t)):
+        with patch('kurafolio.workflow.resolve_rates',return_value=FX),patch('kurafolio.combined.resolve_btc_price',side_effect=lambda p,t,f:quote(t)):
             initial,_=prepare_update(self.project,as_of=T1)
             bundle=self.project/'reports/initial';bundle.mkdir(parents=True)
             (bundle/'data.json').write_text(json.dumps(initial), encoding="utf-8")

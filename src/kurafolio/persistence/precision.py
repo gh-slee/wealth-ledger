@@ -2,8 +2,8 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal
-from wealth_ledger.domain.canonical_v1 import DateOnlyV1, DecimalTokenV1
-from wealth_ledger.domain.validation_v1 import decimal_parts_v1
+from kurafolio.domain.canonical_v1 import DateOnlyV1, DecimalTokenV1
+from kurafolio.domain.validation_v1 import decimal_parts_v1
 
 
 def decimal_value(value):

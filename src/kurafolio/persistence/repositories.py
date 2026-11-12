@@ -3,8 +3,8 @@ from dataclasses import asdict
 import hashlib
 import json
 import re
-from wealth_ledger.domain import canonical_v1 as c
-from wealth_ledger.domain.validation_v1 import encode_domain_v1, decode_domain_v1, DomainValidationError
+from kurafolio.domain import canonical_v1 as c
+from kurafolio.domain.validation_v1 import encode_domain_v1, decode_domain_v1, DomainValidationError
 from .context import execute, identifier
 from .errors import PersistenceError
 from .operations import atomic, canonical, digest, insert, parameters

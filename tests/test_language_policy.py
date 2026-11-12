@@ -31,7 +31,7 @@ class LanguagePolicyTests(unittest.TestCase):
 
     def test_localized_runtime_and_test_strings_are_preserved(self):
         source = 'label = "\u4e2d\u6587"\n'
-        self.assertEqual(check_language.check_file('src/wealth_ledger/example.py', source), [])
+        self.assertEqual(check_language.check_file('src/kurafolio/example.py', source), [])
         self.assertEqual(check_language.check_file('tests/test_example.py', source), [])
 
     def test_private_guidance_and_catalogs_are_not_read_as_english_docs(self):
@@ -41,8 +41,8 @@ class LanguagePolicyTests(unittest.TestCase):
             (root / 'AGENTS.override.md').write_text('\u4e2d\u6587', encoding='utf-8')
             (root / 'private').mkdir()
             (root / 'private/notes.md').write_text('\u4e2d\u6587', encoding='utf-8')
-            (root / 'src/wealth_ledger/locales').mkdir(parents=True)
-            (root / 'src/wealth_ledger/locales/zh-TW.json').write_text('{"label":"\u4e2d\u6587"}', encoding='utf-8')
+            (root / 'src/kurafolio/locales').mkdir(parents=True)
+            (root / 'src/kurafolio/locales/zh-TW.json').write_text('{"label":"\u4e2d\u6587"}', encoding='utf-8')
             result = check_language.scan(root)
             self.assertTrue(result['passed'])
             self.assertEqual(result['files_checked'], 1)

@@ -39,7 +39,7 @@ def stage_source(root, destination):
     guard = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(guard)
     names = list(ROOT_FILES)
-    package = root / "src/wealth_ledger"
+    package = root / "src/kurafolio"
     if package.is_symlink():
         raise ValueError("Build package must not be a symlink")
     for path in package.rglob("*"):
@@ -48,7 +48,7 @@ def stage_source(root, destination):
         if path.suffix == ".py" and "__pycache__" not in path.parts:
             names.append(path.relative_to(root).as_posix())
     names += ["assets/fonts/" + name for name in FONTS]
-    names += ["src/wealth_ledger/locales/" + name for name in LOCALES]
+    names += ["src/kurafolio/locales/" + name for name in LOCALES]
     for name in sorted(set(names)):
         raw = _read(root, name)
         if not guard.path_allowed(name) or guard.content_issues(raw, name):
@@ -56,7 +56,7 @@ def stage_source(root, destination):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(raw)
-    bundle = destination / "src/wealth_ledger/_bundle"
+    bundle = destination / "src/kurafolio/_bundle"
     shutil.copytree(destination / "assets", bundle / "assets")
     (bundle / "config").mkdir()
     shutil.copyfile(destination / "config/company-aliases.json", bundle / "config/company-aliases.json")

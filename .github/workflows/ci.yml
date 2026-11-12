@@ -141,7 +141,7 @@ jobs:
         run: |
           python scripts/docker_context.py --output work/sdk-image-context
           docker build --tag wealth-ledger-sdk-base:test work/sdk-image-context
-          python scripts/check_plugin_image.py --base-image wealth-ledger-sdk-base:test --wheel work/sdk-dist/wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl
+          python scripts/check_plugin_image.py --base-image wealth-ledger-sdk-base:test --wheel work/sdk-dist/kurafolio_synthetic_parser-0.1.0-py3-none-any.whl
 
 
   postgres-foundation:

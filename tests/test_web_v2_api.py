@@ -8,16 +8,16 @@ from unittest.mock import patch
 import uuid
 
 from test_identity_support import IdentityCase
-from wealth_ledger.web_v2.auth import digest
-from wealth_ledger.persistence.identity import IdentityError
+from kurafolio.web_v2.auth import digest
+from kurafolio.persistence.identity import IdentityError
 
 
 class IdentityHttp(IdentityCase):
     def setUp(self):
         super().setUp()
         from fastapi.testclient import TestClient
-        from wealth_ledger.web_v2.api import create_app
-        from wealth_ledger.web_v2.config import Settings
+        from kurafolio.web_v2.api import create_app
+        from kurafolio.web_v2.config import Settings
         self.app=create_app(Settings(self.configs['identity'],self.configs['runtime'],self.key,'http://localhost'))
         self.client=TestClient(self.app,base_url='http://localhost')
         self.client.__enter__();self.addCleanup(self.client.__exit__,None,None,None)
@@ -113,9 +113,9 @@ class IdentityHttp(IdentityCase):
         self.assertEqual(self.client.get('/api/v2/me',headers={'Host':'other.test'}).status_code,400)
 
     def test_candidate_and_job_own_shared_foreign_and_missing(self):
-        from wealth_ledger.domain.validation_v1 import decode_domain_v1
-        from wealth_ledger.persistence.repositories import Candidates
-        from wealth_ledger.persistence.jobs import Jobs
+        from kurafolio.domain.validation_v1 import decode_domain_v1
+        from kurafolio.persistence.repositories import Candidates
+        from kurafolio.persistence.jobs import Jobs
         token,a=self.bootstrap();_,b=self.member()
         original=(Path(__file__).parent/'fixtures/postgres_foundation/golden.json').read_bytes()
         base=decode_domain_v1(original);shared=str(uuid.uuid4());foreign=str(uuid.uuid4())

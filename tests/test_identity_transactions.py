@@ -9,10 +9,10 @@ import threading
 import uuid
 
 from test_identity_support import IdentityCase
-from wealth_ledger.persistence.identity import IdentityError,IdentityStore,role_inventory
-from wealth_ledger.persistence.context import execute,RequestDatabase
-from wealth_ledger.persistence.migration import migrate_identity,finalize_identity_restore
-from wealth_ledger.web_v2.auth import digest
+from kurafolio.persistence.identity import IdentityError,IdentityStore,role_inventory
+from kurafolio.persistence.context import execute,RequestDatabase
+from kurafolio.persistence.migration import migrate_identity,finalize_identity_restore
+from kurafolio.web_v2.auth import digest
 
 ORACLE=json.loads((Path(__file__).parent/'fixtures/identity_v2/oracle.json').read_text())
 

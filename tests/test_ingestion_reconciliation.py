@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 import unittest
 
-from wealth_ledger.ingestion.codec import digest, encode
-from wealth_ledger.ingestion.contracts import IngestionError
-from wealth_ledger.ingestion.mapping import MappingIndex, compatible, proposed_body, verify_target_version
-from wealth_ledger.ingestion.reconciliation import (financial_projection, project_record,
+from kurafolio.ingestion.codec import digest, encode
+from kurafolio.ingestion.contracts import IngestionError
+from kurafolio.ingestion.mapping import MappingIndex, compatible, proposed_body, verify_target_version
+from kurafolio.ingestion.reconciliation import (financial_projection, project_record,
     reconcile_revision, snapshot_order, source_revision_key)
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())

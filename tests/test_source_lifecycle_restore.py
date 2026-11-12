@@ -6,13 +6,13 @@ import subprocess
 import unittest
 
 from test_source_lifecycle import SourceCase,ConfiguredSourceCase,CONTENT_ENABLED,installation_fixture
-from wealth_ledger.persistence.context import Database,execute
-from wealth_ledger.persistence.identity import IdentityStore,IdentityError,Principal
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.source_migration import migrate_sources,finalize_sources_restore,structure_snapshot
-from wealth_ledger.persistence.source_store import SourceStore
-from wealth_ledger.data_sources.lifecycle_v1 import SourceError
-from wealth_ledger.web_v2.auth import digest
+from kurafolio.persistence.context import Database,execute
+from kurafolio.persistence.identity import IdentityStore,IdentityError,Principal
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.source_migration import migrate_sources,finalize_sources_restore,structure_snapshot
+from kurafolio.persistence.source_store import SourceStore
+from kurafolio.data_sources.lifecycle_v1 import SourceError
+from kurafolio.web_v2.auth import digest
 
 
 class SourceMigrationFaultTests(SourceCase):

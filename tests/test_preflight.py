@@ -12,11 +12,11 @@ import sqlite3
 import tempfile
 import unittest
 
-from wealth_ledger.core import import_holdings, inspect_holdings, initialize
-from wealth_ledger.crypto import import_bull_orders
-from wealth_ledger.crypto_opening import import_opening
-from wealth_ledger.preflight import preview_update, render_preview
-from wealth_ledger.wallet import add_balance, add_event
+from kurafolio.core import import_holdings, inspect_holdings, initialize
+from kurafolio.crypto import import_bull_orders
+from kurafolio.crypto_opening import import_opening
+from kurafolio.preflight import preview_update, render_preview
+from kurafolio.wallet import add_balance, add_event
 from test_core import FX, write_holdings, synthetic_rows
 from test_crypto import FIELDS, ASSUMPTIONS, order
 from test_combined import quote
@@ -41,8 +41,8 @@ class PreflightTests(unittest.TestCase):
         self.ws = write_holdings(self.root / 'holdings.csv')
         self.orders = [order('fund', amount='100'), order('buy', 'Buy Bitcoin', '100', 'BTC', '.08', completed='2026-01-01T02:00:00Z')]
         self.bull = self.write_orders(self.orders)
-        self.network = [patch('wealth_ledger.fx._download', side_effect=AssertionError('Network forbidden')),
-                        patch('wealth_ledger.prices.urlopen', side_effect=AssertionError('Network forbidden'))]
+        self.network = [patch('kurafolio.fx._download', side_effect=AssertionError('Network forbidden')),
+                        patch('kurafolio.prices.urlopen', side_effect=AssertionError('Network forbidden'))]
         self.mocks = [p.start() for p in self.network]
 
     def tearDown(self):
@@ -240,7 +240,7 @@ class PreflightTests(unittest.TestCase):
     def test_cached_quote_verifies_evidence_and_returns_checked(self):
         self.seed()
         self.cache_fx('2026-10-10')
-        from wealth_ledger.prices import parse_time
+        from kurafolio.prices import parse_time
         key = parse_time(T1).strftime('%Y-%m-%dT%H%M%S%z')
         evidence = self.project / 'data/prices/evidence/quote.json'
         evidence.parent.mkdir(parents=True)
@@ -311,14 +311,14 @@ class PreflightTests(unittest.TestCase):
 
     def test_preview_rejects_concurrent_live_input_change(self):
         self.seed(bull=False)
-        from wealth_ledger import preflight
+        from kurafolio import preflight
         original = preflight.inspect_holdings
         def changed(*args, **kwargs):
             value = original(*args, **kwargs)
             with sqlite3.connect(self.project / 'data/db/portfolio.sqlite3') as conn:
                 conn.execute("UPDATE accounts SET label='Concurrent change'")
             return value
-        with patch('wealth_ledger.preflight.inspect_holdings', side_effect=changed):
+        with patch('kurafolio.preflight.inspect_holdings', side_effect=changed):
             result = preview_update(self.project, {'paths': [self.ws]}, now=NOW)
         self.assertEqual(result['status'], 'blocked')
         self.assertIn('concurrent_change', [b['component'] for b in result['blockers']])

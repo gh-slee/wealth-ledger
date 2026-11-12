@@ -25,7 +25,7 @@ def render(output: Path) -> dict:
     for name, expected in SYNTHETIC_INPUT_SHA256.items():
         if hashlib.sha256((PROJECT / "examples/data" / name).read_bytes()).hexdigest() != expected:
             raise ValueError("Synthetic example changed; review its contents and hashes before generating public artwork")
-    specification = importlib.util.spec_from_file_location("wealth_ledger_readme_demo", PROJECT / "examples/demo.py")
+    specification = importlib.util.spec_from_file_location("kurafolio_readme_demo", PROJECT / "examples/demo.py")
     module = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(module)
     font_path = PROJECT / "assets/fonts/NotoSansTC-Regular.ttf"

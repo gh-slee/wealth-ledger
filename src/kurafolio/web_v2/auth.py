@@ -6,10 +6,10 @@ import re
 import secrets
 import threading
 
-from wealth_ledger.persistence.context import Database, RequestDatabase, REALM_SNAPSHOT, execute
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.identity import IdentityError, IdentityStore, Principal, REALM_KEYS, role_inventory
-from wealth_ledger.persistence.identity_schema import HASH_PATTERN
+from kurafolio.persistence.context import Database, RequestDatabase, REALM_SNAPSHOT, execute
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.identity import IdentityError, IdentityStore, Principal, REALM_KEYS, role_inventory
+from kurafolio.persistence.identity_schema import HASH_PATTERN
 
 TOKEN = re.compile(r'[A-Za-z0-9_-]{43}\Z')
 HEX = re.compile(r'[0-9a-f]{64}\Z')
@@ -61,7 +61,7 @@ class Auth:
         self.financial = Database(settings.financial, schema_mode=getattr(settings,'schema_profile','identity'))
         self.sources = None
         if getattr(settings,'schema_profile','identity')=='sources':
-            from wealth_ledger.persistence.source_store import SourceStore
+            from kurafolio.persistence.source_store import SourceStore
             self.sources = SourceStore(settings.identity,settings.source_catalog)
         self.passwords = Passwords()
         try:
@@ -95,7 +95,7 @@ class Auth:
                     or right['ready'] is not True):
                 raise IdentityError()
             if self.sources is not None:
-                from wealth_ledger.persistence.source_migration import verify_inventory
+                from kurafolio.persistence.source_migration import verify_inventory
                 with self.financial.engine.begin() as conn:
                     verify_inventory(conn,runtime_role=runtime_role,gateway_role=gateway_role)
                     saved=execute(conn,'SELECT digest FROM wl_sources.catalog_state WHERE id=1').scalar_one()
@@ -198,8 +198,8 @@ class Auth:
                         principal.credential_version, record_id)
 
     def candidate(self, principal, record_id):
-        from wealth_ledger.persistence.repositories import Candidates
-        from wealth_ledger.domain.validation_v1 import encode_domain_v1
+        from kurafolio.persistence.repositories import Candidates
+        from kurafolio.domain.validation_v1 import encode_domain_v1
         try:
             value = Candidates(RequestDatabase(self.financial, principal)).read(principal.context, record_id)
             if value is None:
@@ -211,7 +211,7 @@ class Auth:
             raise IdentityError() from None
 
     def job(self, principal, record_id):
-        from wealth_ledger.persistence.jobs import Jobs
+        from kurafolio.persistence.jobs import Jobs
         try:
             value = Jobs(RequestDatabase(self.financial, principal)).read(principal.context, record_id)
             if value is None:

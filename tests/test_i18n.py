@@ -15,11 +15,11 @@ from unittest.mock import patch
 import zipfile
 import xml.etree.ElementTree as ET
 
-from wealth_ledger.i18n import (PresentationContext, LocalizationError, SourceText,
+from kurafolio.i18n import (PresentationContext, LocalizationError, SourceText,
     catalog, current_context, display_payload, legacy_text, normalize_locale,
     placeholders, presentation_context, registry, sheet_title, tr, validate_catalogs)
-from wealth_ledger.settings import report_locale, ensure_report_locale_setting
-from wealth_ledger.formatting import money, quantity, percent
+from kurafolio.settings import report_locale, ensure_report_locale_setting
+from kurafolio.formatting import money, quantity, percent
 
 ROOT = Path(__file__).resolve().parents[1]
 OVERVIEW = 'message.' + hashlib.sha256('資產總覽'.encode()).hexdigest()[:12]
@@ -41,9 +41,9 @@ class CatalogTests(unittest.TestCase):
 
     def test_incomplete_or_mismatched_catalog_is_rejected(self):
         original = catalog
-        with patch('wealth_ledger.i18n.catalog', side_effect=lambda locale: {} if locale == 'zh-CN' else original(locale)):
+        with patch('kurafolio.i18n.catalog', side_effect=lambda locale: {} if locale == 'zh-CN' else original(locale)):
             with self.assertRaisesRegex(LocalizationError, 'Incomplete catalog'): validate_catalogs()
-        with patch('wealth_ledger.i18n.catalog', side_effect=lambda locale: {'sample': '{other}' if locale == 'zh-CN' else '{value}'}):
+        with patch('kurafolio.i18n.catalog', side_effect=lambda locale: {'sample': '{other}' if locale == 'zh-CN' else '{value}'}):
             with self.assertRaisesRegex(LocalizationError, 'parameters differ'): validate_catalogs()
 
     def test_new_offline_errors_and_source_statuses_use_legacy_mapping(self):
@@ -51,7 +51,7 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(legacy_text('Saved report data hash mismatch'),'已保存報告的資料雜湊不符')
         with presentation_context('en-CA'):
             self.assertEqual(legacy_text('未介接'),'No adapter')
-        resource=json.loads((ROOT/'src/wealth_ledger/locales/legacy.json').read_text())
+        resource=json.loads((ROOT/'src/kurafolio/locales/legacy.json').read_text())
         self.assertEqual(set(resource),{'schema_version','source_locale','messages'})
         for key in resource['messages'].values():self.assertIn(key,catalog('en-CA'))
 
@@ -134,7 +134,7 @@ class LocaleSettingsTests(unittest.TestCase):
         self.assertEqual(p.read_text(encoding='utf-8'),text)
 
     def test_fresh_data_only_operation_preserves_new_ledger_english_default(self):
-        from wealth_ledger import operations
+        from kurafolio import operations
         with operations.project_lock(self.root):
             operations.record_data_operation(self.root, {'kind':'synthetic'}, lambda stage:{'status':'checked'})
         self.assertTrue((self.root/'data/db/portfolio.sqlite3').is_file())
@@ -142,7 +142,7 @@ class LocaleSettingsTests(unittest.TestCase):
         self.assertIn('locale = "en-CA"',(self.root/'config/local.toml').read_text())
 
     def test_invalid_locale_precedes_any_operation_or_ledger_write(self):
-        from wealth_ledger.operations import execute_update
+        from kurafolio.operations import execute_update
         with self.assertRaises(LocalizationError):
             execute_update(self.root, {'report_locale':'invalid'}, lambda *args: None)
         self.assertEqual(list(self.root.iterdir()), [])
@@ -150,7 +150,7 @@ class LocaleSettingsTests(unittest.TestCase):
     def test_invalid_saved_locale_returns_error_without_traceback_or_writes(self):
         from contextlib import redirect_stderr
         from io import StringIO
-        from wealth_ledger.cli import run_main
+        from kurafolio.cli import run_main
         with tempfile.TemporaryDirectory() as temporary:
             project=Path(temporary);(project/'config').mkdir()
             config=project/'config/local.toml';config.write_text('[reporting]\nlocale="zh"\n')
@@ -184,18 +184,18 @@ class LocalizedReportTests(unittest.TestCase):
         shutil.copyfile(ROOT/'config/company-aliases.json',self.project/'config/company-aliases.json')
 
     def payload(self):
-        from wealth_ledger.lookthrough import attach_analysis
+        from kurafolio.lookthrough import attach_analysis
         import test_lookthrough
-        from wealth_ledger.fund_sources import holding
+        from kurafolio.fund_sources import holding
         payload=self.fixture.payload()
         attach_analysis(self.project,payload,fetcher=lambda id,directory:test_lookthrough.fund(id,[holding('Synthetic Company',100,ticker='SYNTH',country='CA',gics_sector='Industrials')]))
         return payload
 
     def render(self,payload,locale,output):
-        from wealth_ledger.reporting import generate_reports
-        from wealth_ledger.workbook import build_workbook,verify_workbook
-        from wealth_ledger.validation import validate_formula_caches
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.reporting import generate_reports
+        from kurafolio.workbook import build_workbook,verify_workbook
+        from kurafolio.validation import validate_formula_caches
+        from kurafolio.report_checks import validate_report_presentation
         artifacts=generate_reports(payload,output,locale=locale)
         build_workbook(payload,output/'portfolio.ods',chart_images=artifacts['charts'],locale=locale)
         self.assertEqual(validate_formula_caches(output/'portfolio.ods')['cache_mismatches'],0)
@@ -205,7 +205,7 @@ class LocalizedReportTests(unittest.TestCase):
         return artifacts
 
     def test_same_payload_three_languages_preserves_financial_data_and_formulas(self):
-        from wealth_ledger.lookthrough import portfolio_signature
+        from kurafolio.lookthrough import portfolio_signature
         from pypdf import PdfReader
         payload=self.payload();before=json.dumps(payload,sort_keys=True);signature=portfolio_signature(payload)
         db=self.project/'data/db/portfolio.sqlite3';db_before=db.read_bytes()
@@ -225,7 +225,7 @@ class LocalizedReportTests(unittest.TestCase):
         self.assertEqual(db.read_bytes(),db_before)
 
     def test_unknown_cost_and_unexplained_wallet_gap_remain_non_numeric_in_all_languages(self):
-        from wealth_ledger.wallet import add_balance
+        from kurafolio.wallet import add_balance
         add_balance(self.project,'.0024','2026-10-09T22:28:00-04:00',source='synthetic wallet',now='2026-10-10T20:00:00Z')
         payload=self.payload()
         self.assertEqual(payload['crypto']['wallet']['unresolved_count'],1)
@@ -234,14 +234,14 @@ class LocalizedReportTests(unittest.TestCase):
         for locale in LOCALES:self.render(payload,locale,self.project/'unknown'/locale)
 
     def test_offline_editions_keep_source_bytes_and_do_not_touch_ledger_or_latest(self):
-        from wealth_ledger.editions import render_language_edition
+        from kurafolio.editions import render_language_edition
         payload=self.payload();source=self.project/'source-report';source.mkdir()
         raw=json.dumps(payload,ensure_ascii=False,indent=2).encode()
         (source/'data.json').write_bytes(raw)
         manifest={'snapshot_as_of':payload['meta']['as_of'],'lookthrough_run_id':payload['lookthrough']['run_id'],'data_sha256':hashlib.sha256(raw).hexdigest()}
         (source/'manifest.json').write_text(json.dumps(manifest),encoding='utf-8')
         original={str(p.relative_to(self.project)):p.read_bytes() for p in self.project.rglob('*') if p.is_file()}
-        with patch('urllib.request.urlopen',side_effect=AssertionError('network forbidden')),patch('wealth_ledger.prices.urlopen',side_effect=AssertionError('network forbidden')),patch('wealth_ledger.fund_sources.Client.get',side_effect=AssertionError('network forbidden')):
+        with patch('urllib.request.urlopen',side_effect=AssertionError('network forbidden')),patch('kurafolio.prices.urlopen',side_effect=AssertionError('network forbidden')),patch('kurafolio.fund_sources.Client.get',side_effect=AssertionError('network forbidden')):
             result=render_language_edition(source,self.project/'edition','en-CA')
         self.assertFalse(result['ledger_changed']);self.assertFalse(result['latest_changed'])
         self.assertEqual((self.project/'edition/data.json').read_bytes(),raw)
@@ -251,7 +251,7 @@ class LocalizedReportTests(unittest.TestCase):
         with self.assertRaises(ValueError):render_language_edition(source,source/'inside','en-CA')
 
     def test_offline_editions_reject_tampered_source_before_creating_output(self):
-        from wealth_ledger.editions import render_language_edition
+        from kurafolio.editions import render_language_edition
         source=self.project/'invalid-bundle';source.mkdir()
         (source/'data.json').write_text('{}',encoding='utf-8')
         (source/'manifest.json').write_text('{"data_sha256":"wrong"}',encoding='utf-8')

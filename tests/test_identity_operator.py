@@ -10,7 +10,7 @@ import time
 from unittest.mock import patch
 
 from test_identity_support import IdentityCase
-from wealth_ledger.web_v2.operator import export_secret,OperatorError
+from kurafolio.web_v2.operator import export_secret,OperatorError
 
 
 class IdentityOperator(IdentityCase):
@@ -35,7 +35,7 @@ class IdentityOperator(IdentityCase):
                 calls.append(fd)
                 if len(calls)==4:raise OSError('Synthetic export interruption')
                 return original(fd)
-            with patch('wealth_ledger.web_v2.operator.os.fsync',side_effect=fail_after_commit):
+            with patch('kurafolio.web_v2.operator.os.fsync',side_effect=fail_after_commit):
                 with self.assertRaises(OperatorError) as caught:export_secret(self.operator,'invite',path)
             record=caught.exception.record_id
             self.assertTrue(record);self.assertTrue(caught.exception.resolved)
@@ -54,9 +54,9 @@ class IdentityOperator(IdentityCase):
             program=r'''
 import os,sys,time
 from pathlib import Path
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.identity import IdentityStore
-from wealth_ledger.web_v2.operator import export_secret
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.identity import IdentityStore
+from kurafolio.web_v2.operator import export_secret
 secret,target,marker,stage=sys.argv[1:]
 store=IdentityStore(PostgresConfig.from_secret_file(secret))
 original=store.call

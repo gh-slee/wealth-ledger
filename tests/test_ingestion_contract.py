@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 import unittest
 
-from wealth_ledger.ingestion.codec import decode, digest, encode, validate
-from wealth_ledger.ingestion.contracts import IngestionError, definition
-from wealth_ledger.ingestion.approval import validate_review_bundle, verify_staged_material
+from kurafolio.ingestion.codec import decode, digest, encode, validate
+from kurafolio.ingestion.contracts import IngestionError, definition
+from kurafolio.ingestion.approval import validate_review_bundle, verify_staged_material
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())
 

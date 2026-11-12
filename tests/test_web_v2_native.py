@@ -7,16 +7,16 @@ import subprocess
 import unittest
 
 from test_identity_support import IdentityCase
-from wealth_ledger.web_v2.auth import digest
+from kurafolio.web_v2.auth import digest
 
 # Test-only wrappers coordinate real hashing BEFORE SQL acquisition. No production
 # route/header/environment bypass, forged forwarded peer or host alias is used.
 PROGRAM=r'''
 import concurrent.futures,hashlib,http.client,json,multiprocessing as mp,os,queue,socket,sys,time
 from http.cookies import SimpleCookie
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.web_v2.config import Settings
-from wealth_ledger.web_v2.api import create_app
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.web_v2.config import Settings
+from kurafolio.web_v2.api import create_app
 import uvicorn
 payload=json.load(sys.stdin)
 context=mp.get_context('fork');results=context.Queue();barrier=context.Barrier(16);hash_slots=context.BoundedSemaphore(2)
@@ -143,8 +143,8 @@ class IdentityNativeImage(IdentityCase):
     def test_optional_nonroot_two_user_http_financial_isolation(self):
         import hashlib
         import uuid
-        from wealth_ledger.domain.validation_v1 import decode_domain_v1
-        from wealth_ledger.persistence.repositories import Candidates
+        from kurafolio.domain.validation_v1 import decode_domain_v1
+        from kurafolio.persistence.repositories import Candidates
         _,a=self.bootstrap();_,b=self.member();shared=str(uuid.uuid4());foreign=str(uuid.uuid4())
         original=(Path(__file__).parent/'fixtures/postgres_foundation/golden.json').read_bytes();template=decode_domain_v1(original)
         expected={}
@@ -166,11 +166,11 @@ class IdentityNativeImage(IdentityCase):
 SOURCE_PROGRAM=r'''
 import http.client,json,multiprocessing as mp,os,socket,sys,time
 import uvicorn
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.web_v2.config import Settings
-from wealth_ledger.web_v2.api import create_app
-from wealth_ledger.data_sources.catalog_v1 import decode_catalog
-from wealth_ledger.data_sources.contract_v1 import canonical
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.web_v2.config import Settings
+from kurafolio.web_v2.api import create_app
+from kurafolio.data_sources.catalog_v1 import decode_catalog
+from kurafolio.data_sources.contract_v1 import canonical
 payload=json.load(sys.stdin);context=mp.get_context('fork');children=[];ports=[];ready=context.Queue()
 def server(listener):
  port=listener.getsockname()[1]
@@ -219,7 +219,7 @@ from test_source_lifecycle import ConfiguredSourceCase,CONTENT_ENABLED
 class SourceNativeImage(ConfiguredSourceCase):
     def test_two_native_http_processes_share_actual_database_source_read_budget(self):
         from psycopg.conninfo import make_conninfo
-        from wealth_ledger.data_sources.contract_v1 import primitive
+        from kurafolio.data_sources.contract_v1 import primitive
         import re
         token,principal=self.bootstrap()
         image=os.environ['WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE']

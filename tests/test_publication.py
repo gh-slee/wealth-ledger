@@ -22,15 +22,15 @@ class PublicationPolicyTests(unittest.TestCase):
         for path in ('build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'docs/parser-sdk.md',
                      'examples/parser-plugin/pyproject.toml', 'examples/parser-plugin/LICENSE',
                      'examples/parser-plugin/tests/test_installed_api.py',
-                     'README.md', 'PRODUCT.md', 'DESIGN.md', 'docs/ux-p0-002-status-design.md', 'src/wealth_ledger/core.py', 'scripts/update.py',
+                     'README.md', 'PRODUCT.md', 'DESIGN.md', 'docs/ux-p0-002-status-design.md', 'src/kurafolio/core.py', 'scripts/update.py',
                      'tests/test_publication.py', 'config/publish.example.toml',
                      'docs/development.md', '.githooks/pre-push', 'examples/data/wealthsimple-holdings.csv',
                      'examples/data/bull-orders.csv', 'examples/data/fx.json',
                      'examples/data/btc-price.json', 'examples/templates/btc_events.csv',
                      'examples/templates/cash_flows.csv', 'THIRD_PARTY_NOTICES.md',
                      '.github/pull_request_template.md', 'config/local.example.toml',
-                     'docs/i18n-plan.md', 'docs/self-hosted-webapp.md', 'docs/agent-development.md', 'docs/web-imports.md', 'src/wealth_ledger/locales/en-CA.json',
-                     'src/wealth_ledger/locales/zh-CN.json', 'src/wealth_ledger/locales/legacy.json',
+                     'docs/i18n-plan.md', 'docs/self-hosted-webapp.md', 'docs/agent-development.md', 'docs/web-imports.md', 'src/kurafolio/locales/en-CA.json',
+                     'src/kurafolio/locales/zh-CN.json', 'src/kurafolio/locales/legacy.json',
                      'assets/fonts/NotoSansSC-Regular.ttf', 'assets/fonts/OFL-SC.txt',
                      'assets/fonts/NotoSansSC-provenance.json',
                      'assets/readme/wealth-ledger-mark.svg', 'assets/readme/report-preview.png',
@@ -93,19 +93,19 @@ class PublicationPolicyTests(unittest.TestCase):
     def test_private_and_unknown_paths(self):
         for path in ('data/raw/export.csv', 'reports/report.md', 'backups/history.db',
                      'config/publish.local.toml', 'docs/session-handoff.md', 'private/readme.md',
-                     'src/wealth_ledger/__pycache__/core.py', 'scripts/token.key',
+                     'src/kurafolio/__pycache__/core.py', 'scripts/token.key',
                      'tests/fixtures/user.csv', 'examples/data/user-holdings.csv',
                      'examples/templates/private.csv', 'examples/arbitrary/example.csv',
                      'examples/parser-plugin/build/lib/synthetic_parser/__init__.py',
                      'examples/parser-plugin/private.csv', 'examples/parser-plugin/.env',
-                     'examples/parser-plugin/AGENTS.override.md', 'src/wealth_ledger/_bundle/private.json',
+                     'examples/parser-plugin/AGENTS.override.md', 'src/kurafolio/_bundle/private.json',
                      'examples/demo.csv', 'PRODUCT.local.md', 'DESIGN.local.md', 'unreviewed.md', '../README.md', '/README.md',
-                     'src\\wealth_ledger\\core.py', '.github/workflows/deploy.yml',
-                     'src/wealth_ledger/locales/user.json', 'assets/fonts/downloaded-font.ttf',
+                     'src\\kurafolio\\core.py', '.github/workflows/deploy.yml',
+                     'src/kurafolio/locales/user.json', 'assets/fonts/downloaded-font.ttf',
                      'assets/readme/private-screenshot.png', 'assets/readme/export.csv',
                      'docs/private-webapp-notes.md', 'AGENTS.override.md',
-                     'docs/AGENTS.override.md', 'src/wealth_ledger/AGENTS.override.md',
-                     'src/wealth_ledger/locales/AGENTS.override.md',
+                     'docs/AGENTS.override.md', 'src/kurafolio/AGENTS.override.md',
+                     'src/kurafolio/locales/AGENTS.override.md',
                      'scripts/AGENTS.OVERRIDE.MD', 'frontend/AGENTS.override.md',
                      'frontend/src/AGENTS.override.md', 'frontend/.env', 'frontend/dist/index.html',
                      'frontend/node_modules/private.json', 'frontend/src/user.json', 'frontend/public/wallet.csv',
@@ -423,7 +423,7 @@ create_pr = true
 
     def test_private_overrides_are_ignored_and_omitted_from_worktree_manifest(self):
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
-        paths = ('AGENTS.override.md', 'src/wealth_ledger/AGENTS.override.md')
+        paths = ('AGENTS.override.md', 'src/kurafolio/AGENTS.override.md')
         for path in paths:
             self.write(path, 'Private synthetic owner guidance.\n')
             self.run_git('check-ignore', '-q', '--', path)
@@ -447,7 +447,7 @@ create_pr = true
 
     def test_deleted_nested_override_still_blocks_history_and_pre_push(self):
         base = self.run_git('rev-parse', 'HEAD')
-        path = 'src/wealth_ledger/AGENTS.override.md'
+        path = 'src/kurafolio/AGENTS.override.md'
         self.write('.gitignore', 'AGENTS.override.md\n')
         self.write(path, 'Private synthetic owner guidance.\n')
         self.run_git('add', '-f', '--', path)
@@ -466,7 +466,7 @@ create_pr = true
     def test_design_state_is_ignored_and_excluded_from_worktree(self):
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
         paths = ('.impeccable/critique/synthetic.json',
-                 'src/wealth_ledger/.impeccable/capture.py')
+                 'src/kurafolio/.impeccable/capture.py')
         for path in paths:
             self.write(path, 'Private synthetic design state.\n')
             self.run_git('check-ignore', '-q', '--', path)
@@ -477,7 +477,7 @@ create_pr = true
 
     def test_force_added_design_state_blocks_index_and_history(self):
         self.write('.gitignore', '.impeccable/\n')
-        path = 'src/wealth_ledger/.impeccable/capture.py'
+        path = 'src/kurafolio/.impeccable/capture.py'
         self.write(path, '# Private synthetic design state\n')
         self.run_git('add', '-f', '--', path)
         self.assertFalse(guard.scan_staged(self.root)['passed'])
@@ -836,9 +836,9 @@ create_pr = true
 class TypedSchemaPrivacyTests(unittest.TestCase):
     def test_secretstr_field_declarations_do_not_hide_literal_credentials(self):
         schema = b'class Login:\n    password: SecretStr = Field(min_length=1, max_length=256)\n'
-        self.assertEqual(guard.content_issues(schema, 'src/wealth_ledger/web/api.py'), [])
+        self.assertEqual(guard.content_issues(schema, 'src/kurafolio/web/api.py'), [])
         raw = b'class Login:\n    password: SecretStr = Field(default="not-a-public-credential")\n'
-        self.assertIn('possible credential assignment', guard.content_issues(raw, 'src/wealth_ledger/web/api.py'))
+        self.assertIn('possible credential assignment', guard.content_issues(raw, 'src/kurafolio/web/api.py'))
 
     def test_prompted_password_reader_does_not_allow_a_quoted_credential(self):
         source = b'password = getpass.getpass("Owner password: ")\n'

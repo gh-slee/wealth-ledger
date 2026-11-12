@@ -10,18 +10,18 @@ import unittest
 import test_web as foundation
 from test_source_builtin import ALIAS, fixture
 from test_source_context_pipeline import CONTEXTS
-from wealth_ledger.source_builtin import WealthsimpleHoldings,BullBitcoinOrders,WS_FORMAT,BULL_FORMAT
-from wealth_ledger.source_context_pipeline import ParsedSources,context_document
+from kurafolio.source_builtin import WealthsimpleHoldings,BullBitcoinOrders,WS_FORMAT,BULL_FORMAT
+from kurafolio.source_context_pipeline import ParsedSources,context_document
 
 AVAILABLE=foundation.AVAILABLE and importlib.util.find_spec("huey") is not None
 if AVAILABLE:
-    from wealth_ledger import operations,source_ingestion as core
-    from wealth_ledger.source_submission import recover_submission
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.worker import execute_job,reconcile
-    from wealth_ledger.web.backups import backup_instance,restore_instance
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.storage import Store
+    from kurafolio import operations,source_ingestion as core
+    from kurafolio.source_submission import recover_submission
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.worker import execute_job,reconcile
+    from kurafolio.web.backups import backup_instance,restore_instance
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.storage import Store
 
 
 @unittest.skipUnless(AVAILABLE,"Optional Web dependencies are not installed")
@@ -47,9 +47,9 @@ class WebSubmissionTests(unittest.TestCase):
         self.body={"upload_ids":self.uploads,"contexts":context_document(CONTEXTS)["inputs"],"bindings":[
             {"provider":a.key.provider,"source_account_id":a.key.account_id,"target_kind":"new"} for batch in self.batches for a in batch.accounts]}
         if not actual:
-            patches=[patch("wealth_ledger.source_submission.parse_sources",return_value=ParsedSources({"environment_sha256":"a"*64},self.batches,self.raw)),
-                patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="a"*64),
-                patch("wealth_ledger.web.source_submissions.environment_fingerprint",return_value="a"*64)]
+            patches=[patch("kurafolio.source_submission.parse_sources",return_value=ParsedSources({"environment_sha256":"a"*64},self.batches,self.raw)),
+                patch("kurafolio.source_ingestion.environment_fingerprint",return_value="a"*64),
+                patch("kurafolio.web.source_submissions.environment_fingerprint",return_value="a"*64)]
             for item in patches:item.start();self.addCleanup(item.stop)
 
     def preview(self,*,body=None,key="synthetic-source-preview",expected=202,execute=True):
@@ -126,10 +126,10 @@ class WebSubmissionTests(unittest.TestCase):
         with patch.object(Jobs,"state",delivery):execute_job(self.settings,job["id"])
         self.assertEqual(self.jobs.get(self.pid,job["id"])["status"],"recorded")
         self.jobs.state(job["id"],"needs_review")
-        from wealth_ledger.web.source_submissions import plan_directory
+        from kurafolio.web.source_submissions import plan_directory
         import shutil
         shutil.rmtree(plan_directory(self.store,self.pid,preview["id"]))
-        with patch("wealth_ledger.source_ingestion.environment_fingerprint",side_effect=AssertionError("Environment used during recovery")):
+        with patch("kurafolio.source_ingestion.environment_fingerprint",side_effect=AssertionError("Environment used during recovery")):
             response=self.mutate("POST",self.prefix+"/source-ingestions/"+job["id"]+"/recover")
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(response.json()["status"],"recorded")
@@ -169,8 +169,8 @@ class WebSubmissionTests(unittest.TestCase):
         target=WebSettings(self.root.parent/"source-complete-restored");restore_instance(target,archive)
         restored=Store(target);row=Jobs(restored).get(self.pid,job["id"])
         self.assertEqual(row["status"],"recorded")
-        from wealth_ledger.web.source_submissions import completed_result
-        with patch("wealth_ledger.source_submission.parse_sources",side_effect=AssertionError("Restore parsed source")):
+        from kurafolio.web.source_submissions import completed_result
+        with patch("kurafolio.source_submission.parse_sources",side_effect=AssertionError("Restore parsed source")):
             self.assertEqual(completed_result(restored,row),job["result"])
         _,project=restored.portfolio(self.pid);core.verify_store(project)
 
@@ -191,7 +191,7 @@ class WebSubmissionTests(unittest.TestCase):
 
     def test_failed_uncommitted_operation_can_be_discarded_without_removing_its_audit_row(self):
         self.prepare();preview=self.preview();job=self.confirm(preview,execute=False)
-        with patch("wealth_ledger.source_ingestion._apply",side_effect=ValueError("Synthetic rejected stage")):
+        with patch("kurafolio.source_ingestion._apply",side_effect=ValueError("Synthetic rejected stage")):
             execute_job(self.settings,job["id"])
         self.assertEqual(self.jobs.get(self.pid,job["id"])["status"],"failed")
         response=self.mutate("POST",self.prefix+"/source-ingestions/"+job["id"]+"/discard")
@@ -202,11 +202,11 @@ class WebSubmissionTests(unittest.TestCase):
 
     def test_cli_frozen_preview_honors_web_instance_maintenance_before_parser_or_write(self):
         self.prepare()
-        from wealth_ledger.web.maintenance import maintenance
-        from wealth_ledger.locking import LockBusy
-        from wealth_ledger.source_submission import prepare_submission
+        from kurafolio.web.maintenance import maintenance
+        from kurafolio.locking import LockBusy
+        from kurafolio.source_submission import prepare_submission
         with maintenance(self.root,timeout=0):
-            with patch("wealth_ledger.source_submission.parse_sources",side_effect=AssertionError("Parser ran during maintenance")):
+            with patch("kurafolio.source_submission.parse_sources",side_effect=AssertionError("Parser ran during maintenance")):
                 with self.assertRaises(LockBusy):
                     prepare_submission(self.project,(),contexts=CONTEXTS,bindings=(),directory=self.root/"admin/blocked-source-preview")
         self.assertFalse((self.root/"admin/blocked-source-preview").exists())

@@ -6,9 +6,9 @@ import hashlib
 import json
 import unittest
 
-from wealth_ledger import source_v2 as v2
-from wealth_ledger.source_protocol import AccountKey, AdapterInfo, AssetKey, CryptoLeg, Detection, Money, RecordKey
-from wealth_ledger.source_testing import check_contract_v2
+from kurafolio import source_v2 as v2
+from kurafolio.source_protocol import AccountKey, AdapterInfo, AssetKey, CryptoLeg, Detection, Money, RecordKey
+from kurafolio.source_testing import check_contract_v2
 
 AT = datetime.fromisoformat("2024-01-31T17:00:00-05:00")
 CONTEXT = v2.ParseContext(datetime.fromisoformat("2024-02-01T12:00:00+00:00"), "synthetic-export", "source-alias", "America/Toronto", "synthetic-v2")
@@ -160,8 +160,8 @@ class ParserV2Tests(unittest.TestCase):
             with self.assertRaises(ValueError):v2.validate_batch(batch((corrected,),context=bad),RAW)
 
     def test_v2_sdk_and_registry_detection_are_separate_from_v1_source_plans(self):
-        from wealth_ledger.source_registry import AdapterRegistration,ProviderInfo,build_registry
-        from wealth_ledger.source_pipeline import DEFAULT_CONFIG,SourcePlanError,_plan
+        from kurafolio.source_registry import AdapterRegistration,ProviderInfo,build_registry
+        from kurafolio.source_pipeline import DEFAULT_CONFIG,SourcePlanError,_plan
         class Adapter:
             info=INFO
             def detect(self,raw):return Detection(True,"synthetic-v2","Synthetic exact format")

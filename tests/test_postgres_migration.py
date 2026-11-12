@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import unittest
 
-from wealth_ledger.persistence import ingestion_schema as schema
+from kurafolio.persistence import ingestion_schema as schema
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())
 
@@ -263,7 +263,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from wealth_ledger.persistence import schema as foundation, identity_schema, source_schema
+        from kurafolio.persistence import schema as foundation, identity_schema, source_schema
         cls.directory = tempfile.TemporaryDirectory(prefix='wl007-append-only-')
         cls.addClassCleanup(cls.directory.cleanup)
         secret = Path(cls.directory.name) / 'bootstrap.txt'
@@ -314,7 +314,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_closed_minimal_shape_scalars_without_claiming_graph_admission(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         predicate = schema._minimal_shape_predicate()
         cases = []
         for name, value in ORACLE.items():
@@ -407,7 +407,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_preserves_literals_and_has_no_public_execution(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = [(encode(value), None) for name, value in ORACLE.items()
                  if name.startswith('minimal-') or name.endswith('-minimal.json')]
         value = deepcopy(ORACLE['minimal-native.json'])
@@ -425,7 +425,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
             "WHERE oid='wl_ingestion._validate_minimal_v1(bytea)'::regprocedure"))
 
     def test_minimal_entry_canonical_bytes_and_resource_errors(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         valid = encode(ORACLE['minimal-native.json'])
         cases = [(None, 'import_limit'), (b'', 'import_limit'),
             (b'x' * (4194304 + 1), 'import_limit'),
@@ -442,7 +442,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_graph_satoshi_cash_and_unknown_evidence(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = []
         for field in ('account_local_id', 'asset_local_id', 'quantity'):
             value = deepcopy(ORACLE['minimal-native.json'])
@@ -485,7 +485,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_legacy_offset_seconds_and_canonical_boundaries(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = []
         # Each canonical legacy token below denotes the literal trade instant
         # 2026-01-01T12:00:00+00:00, including positive/negative subminute offsets.
@@ -518,7 +518,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_shape_error_classes(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = []
         value = deepcopy(ORACLE['minimal-native.json'])
         value['accounts'][0]['label'] = 'x' * 161
@@ -537,7 +537,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     @staticmethod
     def _plan_seed(plan, *, decisions=None, stages=None):
         """Construct a rolled-back stored basis from fixed synthetic vectors."""
-        from wealth_ledger.ingestion.codec import encode, sha256
+        from kurafolio.ingestion.codec import encode, sha256
         def literal(value):
             if value is None:
                 return 'NULL'
@@ -615,7 +615,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         return '\n'.join(statements)
 
     def _assert_plan(self, plan, *, raw=None, code=None, mutate_basis=''):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         raw = encode(plan) if raw is None else raw
         argument = "decode('" + raw.hex() + "','hex')"
         call = "wl_ingestion._validate_plan_v1('" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "','" + plan['set_id'] + "'," + argument + ')'
@@ -639,7 +639,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_entry_rehashed_tampering_cannot_replace_stored_basis(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         original = ORACLE['plan-native-first-use.json']
         mutations = []
         plan = deepcopy(original)
@@ -670,7 +670,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         self._assert_plan(original, code='import_stale', mutate_basis='DELETE FROM wl_ingestion.stages;')
 
     def test_plan_entry_raw_bounds_and_canonical_rejections(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan = ORACLE['plan-native-first-use.json']
         raw = encode(plan)
         for altered, code in ((raw + b'\n', 'import_invalid'),
@@ -684,7 +684,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     @staticmethod
     def _preview_seed(plan):
-        from wealth_ledger.ingestion.codec import encode, digest
+        from kurafolio.ingestion.codec import encode, digest
         # The reference helper consumes the stored Plan. Review disclosure is a
         # separate prepare-preview responsibility, not granted by these markers.
         values = {'tenant_id': plan['tenant_id'], 'portfolio_id': plan['portfolio_id'],
@@ -714,9 +714,9 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     @staticmethod
     def _accepted_basis_seed(plan_name):
         """Retain immutable first-use vectors; this is not an acceptance engine."""
-        from wealth_ledger.ingestion.codec import encode, digest
-        from wealth_ledger.ingestion.reconciliation import source_revision_key, financial_projection
-        from wealth_ledger.ingestion.mapping import MappingIndex
+        from kurafolio.ingestion.codec import encode, digest
+        from kurafolio.ingestion.reconciliation import source_revision_key, financial_projection
+        from kurafolio.ingestion.mapping import MappingIndex
         plan = ORACLE[plan_name]
         input_ = plan['inputs'][0]
         minimal = next(v for v in ORACLE.values() if type(v) is dict and 'provenance' in v
@@ -776,7 +776,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_rejects_rebound_ids_omitted_heads_and_wrong_scope(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         baseline = ORACLE['branch-fresh_duplicate_only-plan.json']
         cases = []
         plan = deepcopy(baseline)
@@ -822,7 +822,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_same_set_duplicate_uses_the_pinned_new_revision(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan = deepcopy(ORACLE['plan-native-first-use.json'])
         second = '20000000-0000-4000-8000-000000000099'
         for name in ('inputs', 'pinned_sources', 'mappings', 'facts'):
@@ -859,7 +859,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def _reference_case(self, plan, *, baseline=None, code=None, stages=None):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan = deepcopy(plan)
         decisions = {'version': 1, 'operation_id': '10000000-0000-4000-8000-000000000099',
             'expected_set_revision': '1', **{k: plan[k] for k in ('mappings', 'new_entities', 'authorities', 'parents')}}
@@ -874,7 +874,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_group_binding_and_void_need_source_authority(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         for name in ('branch-equal_value_explicit_correction-plan.json', 'branch-fresh_duplicate_only-plan.json'):
             plan = deepcopy(ORACLE[name])
             plan['facts'][0]['economic_group_id'] = '80000000-0000-4000-8000-000000000099'
@@ -894,7 +894,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_same_set_correction_path_reaches_current_head(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan = deepcopy(ORACLE['branch-equal_value_explicit_correction-plan.json'])
         minimal = deepcopy(ORACLE['branch-equal_value_explicit_correction-minimal.json'])
         minimal['records'][0]['identity']['revision'] = 'r3'
@@ -928,7 +928,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_overlapping_connections_require_explicit_choice(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         for choice in (None, 'independent', 'mirror'):
             plan = deepcopy(ORACLE['plan-native-first-use.json'])
             first = plan['inputs'][0]['member_id']
@@ -960,7 +960,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 self._reference_case(plan, code='import_conflict' if choice is None else None)
 
     def test_receipt_replay_exact_namespace_and_immutable_original_result(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         receipt = ORACLE['receipt-first-use.json']
         tenant, portfolio = ORACLE['plan-first-use.json']['tenant_id'], ORACLE['plan-first-use.json']['portfolio_id']
         raw = encode(receipt)
@@ -995,7 +995,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
             "AND a.grantee=0 AND a.privilege_type='EXECUTE'"))
 
     def test_append_only_guard_and_no_public_execution(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         minimal = ORACLE['minimal-native.json']
         raw = encode(minimal)
         def literal(value):
@@ -1029,9 +1029,9 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         self.assertEqual('0', self.sql('SELECT count(*) FROM wl_ingestion.accepted_inputs'))
 
     def test_user_guard_on_constructed_markers_checks_live_auth_not_financial_truth(self):
-        from wealth_ledger.data_sources import contract_v1 as contract
-        from wealth_ledger.data_sources.catalog_v1 import catalog_digest
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.data_sources import contract_v1 as contract
+        from kurafolio.data_sources.catalog_v1 import catalog_digest
+        from kurafolio.persistence import identity_schema
         catalog = contract.CatalogSnapshot(1, '0', (), (), ())
         catalog_bytes = contract.canonical(contract.primitive(catalog))
         expected_catalog = catalog_digest(catalog)
@@ -1118,7 +1118,7 @@ END $test$;
                 self.sql('BEGIN;' + seed + assertion + 'ROLLBACK;')
 
     def event_insert(self, value, *, row=None, raw=None):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         row = value if row is None else row
         raw = encode(value) if raw is None else raw
         def literal(token):
@@ -1140,7 +1140,7 @@ END $test$;
 
     def test_outbox_literal_events_and_closed_rehashed_mutants(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         events = [x['event'] for x in ORACLE['effect-oracles.json']['cases'] if x.get('event')]
         self.assertEqual(3, len(events))
         for event in events:
@@ -1180,7 +1180,7 @@ END $test$;
                 self.event_rejected(original, original, raw=raw, code=code)
 
     def test_canonical_aggregation_preserves_exact_unicode_and_large_array_bytes(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         for value in ({'\u53f0\u7063': 'value', '\u00e9': [True, False, None], 'A': {'z': -1, 'a': 0}},
                       {}, [], ['x'] * 40000, {'heads': ['a' * 64] * 40000}):
             raw = encode(value)
@@ -1281,7 +1281,7 @@ END $test$;
     @classmethod
     def revision_row(cls, revision_id, change='original', parent=None, collection='records',
                      typed=None, number=0):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         typed = encode(typed if typed is not None else {'record_type': 'activity', 'n': number})
         return cls.row('source_revisions', {'tenant_id': cls.T, 'portfolio_id': cls.P, 'id': revision_id,
             'source_key': hashlib.sha256(revision_id.encode()).hexdigest(), 'source_revision': '1',
@@ -1413,7 +1413,7 @@ END $test$;
 
     def test_transition_guard_transient_rows_pin_previews_and_purge_after_terminal(self):
         live, member, view, stale = ('a3000000-0000-4000-8000-00000000000' + x for x in '1234')
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan = encode({'synthetic': 'plan'})
         seed = (self.row('roots', {'tenant_id': self.T, 'portfolio_id': self.P, 'accepted_generation': 2,
                     'mapping_generation': 3, 'control_generation': 4}) +
@@ -1552,7 +1552,7 @@ END $test$;
             ':true,' + ids['C2'] + ':true,' + ids['P1'] + ":true' THEN RAISE EXCEPTION 'unexpected_heads'; END IF; END $test$;"])
 
     def test_head_guard_snapshot_key_scope_complete_base_and_order(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         effects = ORACLE['snapshot-history-effects.json']
         preimage = effects['head_preimage']
         self.assertEqual(effects['head_digest'], hashlib.sha256(encode(preimage)).hexdigest())
@@ -1706,7 +1706,7 @@ END $test$;
                                   out['HEADS'][0]['activity'])
 
     def test_effects_authority_only_appends_the_existing_link_revision(self):
-        from wealth_ledger.ingestion.codec import encode, digest
+        from kurafolio.ingestion.codec import encode, digest
         case = next(x for x in ORACLE['effect-oracles.json']['cases'] if x['name'] == 'authority_only_explicit_mirror')
         prestate = ORACLE['authority-only-prestate.json']
         base, plan = ORACLE[prestate['base_plan']], ORACLE['authority-only-plan.json']
@@ -1760,8 +1760,8 @@ END $test$;
 
     def test_effects_rejects_one_source_identity_mapped_to_two_targets(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
-        from wealth_ledger.ingestion.mapping import proposed_body
+        from kurafolio.ingestion.codec import digest
+        from kurafolio.ingestion.mapping import proposed_body
         plan = deepcopy(ORACLE['plan-first-use.json'])
         member = plan['inputs'][0]['member_id']
         minimal = deepcopy(next(v for v in ORACLE.values() if type(v) is dict and 'provenance' in v
@@ -1821,7 +1821,7 @@ END $test$;
     def accept_seed(self, *, expires_in_hours=12, availability='ACTIVE', installations=None):
         from copy import deepcopy
         import datetime
-        from wealth_ledger.ingestion.codec import encode, digest
+        from kurafolio.ingestion.codec import encode, digest
         plan = deepcopy(ORACLE['plan-first-use.json'])
         expires = (datetime.datetime.now(datetime.timezone.utc) +
                    datetime.timedelta(hours=expires_in_hours)).replace(microsecond=0)
@@ -1870,7 +1870,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         return plan, seed + self._plan_seed(plan) + self._preview_seed(plan), hashlib.sha256(catalog).hexdigest()
 
     def accept_statement(self, label, payload, catalog_digest, *, session=None):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         payload_text = json.dumps(payload).replace("'", "''")
         return ("DO $accept$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; "
@@ -1896,7 +1896,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         return out
 
     def test_accept_preview_commits_once_and_replays_the_exact_receipt(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.accept_seed()
         operation = '50000000-0000-4000-8000-000000000001'
         payload = {'operation_id': operation, 'preview_id': plan['preview_id'], 'preview_digest': digest(plan)}
@@ -1936,7 +1936,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(expected, out['AFTER'])
 
     def test_accept_preview_rejects_stale_sources_and_requests_without_writing(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.accept_seed()
         payload = {'operation_id': '50000000-0000-4000-8000-000000000003', 'preview_id': plan['preview_id'],
                    'preview_digest': digest(plan)}
@@ -1979,7 +1979,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual({'ok': False, 'code': 'source_unavailable'}, out['RESULT'])
 
     def test_accept_preview_expiry_wins_and_fences_the_set(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.accept_seed(expires_in_hours=-1)
         payload = {'operation_id': '50000000-0000-4000-8000-000000000004', 'preview_id': plan['preview_id'],
                    'preview_digest': digest(plan)}
@@ -2159,7 +2159,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         return plan, seed + worker + lease + self.TRANSITION_TRIGGERS, catalog
 
     def test_cancel_wins_once_fences_work_and_replays_its_receipt(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.cancel_seed()
         revision = plan['expected_set_revision']
         payload = {'operation_id': '51000000-0000-4000-8000-000000000001', 'set_id': plan['set_id'],
@@ -2191,7 +2191,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(expected, out['CAFTER'])
 
     def test_cancel_after_acceptance_returns_the_committed_set_unchanged(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.cancel_seed()
         confirm = {'operation_id': '51000000-0000-4000-8000-000000000004', 'preview_id': plan['preview_id'],
                    'preview_digest': digest(plan)}
@@ -2260,7 +2260,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         "(SELECT control_generation FROM wl_ingestion.roots),'previews',(SELECT count(*) FROM wl_ingestion.previews))::text;")
 
     def test_decide_appends_one_revision_fences_preparation_and_replays(self):
-        from wealth_ledger.ingestion.codec import digest, encode
+        from kurafolio.ingestion.codec import digest, encode
         plan, seed, catalog = self.cancel_seed()
         payload = self.decide_payload(plan)
         revision, control = int(plan['expected_set_revision']), int(plan['expected_control_generation'])
@@ -2336,7 +2336,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(['EXPIRED', int(plan['expected_set_revision']), 'pending'], out['DSTATE']['set'])
 
     def test_read_set_and_receipt_stay_in_scope_and_rebuild_control_receipts(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.cancel_seed()
         cancel = {'operation_id': '52000000-0000-4000-8000-000000000003', 'set_id': plan['set_id'],
                   'expected_set_revision': plan['expected_set_revision']}
@@ -2395,7 +2395,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     # previous `next` payload as its cursor inside the same transaction. The
     # API checks the MAC before this point; SQL rechecks every binding.
     def gateway_expression(self, function, label, payload_sql, catalog_digest, *, session=None):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         return ("DO $paged$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion." + function + "('" +
             (session or self.SESSION) + "','" + ORACLE['plan-first-use.json']['tenant_id'] + "',1," +
@@ -2458,7 +2458,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def review_seed(self, plan):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         document = deepcopy(ORACLE['mixed-set-review.json'])
         document.update(id=plan['preview_id'], set_id=plan['set_id'])
         raw = encode(document)
@@ -2521,7 +2521,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def worker_guard_statement(self, label, *, worker=None, token=None, epoch='1', realm=None, extra=''):
         realm_sql = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" + __import__(
-            'wealth_ledger.persistence.identity_schema', fromlist=['realm']).realm() + ")),'hex')") if realm is None \
+            'kurafolio.persistence.identity_schema', fromlist=['realm']).realm() + ")),'hex')") if realm is None \
             else "'" + realm + "'"
         return ("DO $worker$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion._guard_worker_v1('" +
@@ -2590,7 +2590,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def internal_error(self, function, payload_sql, catalog):
         """A gateway call that must fail closed with internal_error, not return data."""
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         return ("DO $failclosed$ DECLARE st wl_pg.instance_state%ROWTYPE; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; BEGIN PERFORM wl_ingestion." + function + "('" +
             self.SESSION + "','" + ORACLE['plan-first-use.json']['tenant_id'] + "',1," + identity_schema.realm() +
@@ -2725,8 +2725,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         # read_preview_v1: ReviewContent.rows has no minimum, so an empty review is a
         # valid document. Its first page is empty (WL-P0-007I); a cursor past the
         # end is still stale.
-        from wealth_ledger.ingestion.codec import encode
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.persistence import identity_schema
         plan, seed, catalog = self.accept_seed()
         document, _ = self.review_seed(plan)
         document['content']['rows'] = []
@@ -2786,7 +2786,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     IMAGE_DIGEST = '83125eb1979a26b9249616951138ab5afc27bd21a215bb5b4612b235acd3c34f'
 
     def create_seed(self, *, projection='parser2-minimal-v1', profiles=1, formats=None, quota_sets=0, availability='ACTIVE'):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan, seed, catalog = self.accept_seed(availability=availability)
         pin = plan['pinned_sources'][0]
         profile = {'version': 1, 'installation_id': pin['installation_id'], 'image_digest': self.IMAGE_DIGEST,
@@ -2825,7 +2825,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         "FROM wl_ingestion.members m JOIN wl_ingestion.sets s ON s.id=m.set_id WHERE s.state='RECEIVING' ORDER BY m.ordinal LIMIT 1;")
 
     def test_create_reserves_once_pins_sources_and_builds_the_parser_context(self):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         plan, pin, seed, catalog = self.create_seed()
         payload = self.create_payload(pin)
         realm = ("DO $realm$ DECLARE st wl_pg.instance_state%ROWTYPE; BEGIN SELECT * INTO st FROM wl_pg.instance_state "
@@ -3078,7 +3078,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         return plan, pin, seed, catalog
 
     def lease_call(self, function, label, *, token=None, data='NULL', drop=(), prelude='', **fields):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         values = {'version': '1', 'work_kind': "'normalize'",
                   'realm_digest': "pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" +
                                   identity_schema.realm() + ")),'hex')",
@@ -3126,7 +3126,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                     self.assertNotIn(fragment, ddl)
 
     def test_claim_activates_the_bound_offer_once_and_renew_extends_it(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan, pin, seed, catalog = self.claim_seed()
         renew_two = "'c0000000-0000-4000-8000-000000000003'"
         out = self.run_labelled(seed + self.LEASE_STATE.replace("'LSTATE '", "'BEFORE '") +
@@ -3220,7 +3220,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     # admit_stage_v1 receives canonical minimal evidence rebound to the member's
     # database-built context, as a real child result would be.
     def admit_call(self, label, *, fixture='minimal-parser2.json', mutate='', **fields):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         source = encode(ORACLE[fixture]).decode()
         assert '$fixture$' not in source
         member = ("FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1")

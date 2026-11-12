@@ -13,18 +13,18 @@ from unittest.mock import patch
 import test_source_legacy_projection as fixtures
 from test_source_projection import hashes
 from test_source_v2 import batch, META, POSITION, RAW, AT as POSITION_AT
-from wealth_ledger import source_v2 as v2, wallet
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.workspace import resolve_workspace
-from wealth_ledger.source_report import make_source_payload
-from wealth_ledger.source_valuation import read_observations, read_source_valuation
-from wealth_ledger.source_projection import ProjectionError
-from wealth_ledger.crypto_opening import import_opening
-from wealth_ledger.reporting import generate_reports
-from wealth_ledger.workbook import build_workbook, verify_workbook
-from wealth_ledger.validation import validate_formula_caches
-from wealth_ledger.publishing import verify_ods
-from wealth_ledger.report_checks import validate_report_presentation
+from kurafolio import source_v2 as v2, wallet
+from kurafolio.application import ApplicationService
+from kurafolio.workspace import resolve_workspace
+from kurafolio.source_report import make_source_payload
+from kurafolio.source_valuation import read_observations, read_source_valuation
+from kurafolio.source_projection import ProjectionError
+from kurafolio.crypto_opening import import_opening
+from kurafolio.reporting import generate_reports
+from kurafolio.workbook import build_workbook, verify_workbook
+from kurafolio.validation import validate_formula_caches
+from kurafolio.publishing import verify_ods
+from kurafolio.report_checks import validate_report_presentation
 
 AT=fixtures.AT
 START=fixtures.START
@@ -51,7 +51,7 @@ class SourceReportTests(unittest.TestCase):
 
     def render(self, payload, name, locale="en-CA"):
         output=self.base/name
-        with patch("urllib.request.urlopen",side_effect=AssertionError("No network")),patch("wealth_ledger.prices.urlopen",side_effect=AssertionError("No network")):
+        with patch("urllib.request.urlopen",side_effect=AssertionError("No network")),patch("kurafolio.prices.urlopen",side_effect=AssertionError("No network")):
             artifacts=generate_reports(payload,output,locale=locale)
             book=build_workbook(payload,output/"portfolio.ods",chart_images=artifacts["charts"],locale=locale)
             self.assertEqual(validate_formula_caches(output/"portfolio.ods")["cache_mismatches"],0)
@@ -160,7 +160,7 @@ class SourceReportTests(unittest.TestCase):
         self.assertEqual(value["positions"],[])
 
     def test_recorded_external_flow_subtotal_does_not_enable_complete_returns(self):
-        from wealth_ledger.core import import_cash_flows
+        from kurafolio.core import import_cash_flows
         self.native(orders=False);account=self.payload()["accounts"][0]["account_id"]
         path=self.base/"synthetic-flow.csv";path.write_text("date,account_id,flow_type,currency,amount\n2024-02-10,"+account+",deposit,CAD,100\n")
         import_cash_flows(self.root,path);value=self.payload()
@@ -203,7 +203,7 @@ class SourceReportTests(unittest.TestCase):
     def test_reading_frozen_edition_ignores_current_prices_settings_and_source_parsers(self):
         self.commit(self.ws());result=self.service().source_valuation(self.inputs());original=read_source_valuation(self.root,result["observation_id"])
         (self.root/"config/local.toml").write_text("[reporting]\nlocale='zh-TW'\nbtc_cost_policy='bull_average_proxy'\n")
-        with patch("wealth_ledger.source_report.make_source_payload",side_effect=AssertionError("No repricing")),patch("wealth_ledger.source_builtin.WealthsimpleHoldings.normalize",side_effect=AssertionError("No parser")):
+        with patch("kurafolio.source_report.make_source_payload",side_effect=AssertionError("No repricing")),patch("kurafolio.source_builtin.WealthsimpleHoldings.normalize",side_effect=AssertionError("No parser")):
             self.assertEqual(read_source_valuation(self.root,result["observation_id"]),original)
 
     def test_corrupt_frozen_archive_fails_without_revaluation_or_writes(self):
@@ -220,7 +220,7 @@ class SourceReportTests(unittest.TestCase):
         self.assertEqual(hashes(self.root),before)
 
     def test_failed_staged_valuation_has_no_derived_rows_or_archive_in_live_workspace(self):
-        import wealth_ledger.source_valuation as module
+        import kurafolio.source_valuation as module
         self.commit(self.ws());original=module.freeze_valuation
         def fail(stage,**inputs):original(stage,**inputs);raise RuntimeError("Synthetic interruption")
         with patch.object(module,"freeze_valuation",side_effect=fail),self.assertRaises(RuntimeError):self.service().source_valuation(self.inputs())
@@ -230,19 +230,19 @@ class SourceReportTests(unittest.TestCase):
     def test_atomic_receipt_recovers_without_recomputing_valuation(self):
         self.commit(self.ws());service=self.service();identifier="OP-0123456789abcdef"
         first=service.source_valuation(self.inputs(),operation_id=identifier)
-        with patch("wealth_ledger.source_valuation.freeze_valuation",side_effect=AssertionError("No repeated action")):
+        with patch("kurafolio.source_valuation.freeze_valuation",side_effect=AssertionError("No repeated action")):
             self.assertEqual(service.source_valuation(self.inputs(),operation_id=identifier),first)
         self.assertEqual(len(read_observations(self.root)),1)
 
     def test_preview_fingerprint_invalidates_after_canonical_input_change(self):
-        from wealth_ledger.operations import input_fingerprint
+        from kurafolio.operations import input_fingerprint
         self.commit(self.ws());before=input_fingerprint(self.root);self.commit(self.bull())
         with self.assertRaisesRegex(ValueError,"stale"):
             self.service().source_valuation(self.inputs(),expected_fingerprint=before)
         self.assertEqual(read_observations(self.root),[])
 
     def test_concurrent_configuration_change_rejects_read_model(self):
-        import wealth_ledger.source_valuation as module
+        import kurafolio.source_valuation as module
         self.commit(self.ws());original=module.read_observations
         def changed(project):
             (self.root/"config").mkdir(exist_ok=True);(self.root/"config/local.toml").write_text("[reporting]\nlocale='zh-TW'\n")
@@ -264,7 +264,7 @@ class SourceReportTests(unittest.TestCase):
         self.assertFalse(any(row["source_provider"]=="bullbitcoin" for row in payload["cash_rows"]))
 
     def test_native_report_gate_is_not_removed_by_valuation_record(self):
-        from wealth_ledger.source_ingestion import require_report_projection
+        from kurafolio.source_ingestion import require_report_projection
         self.commit(self.ws());self.service().source_valuation(self.inputs())
         with self.assertRaisesRegex(ValueError,"report_projection_unavailable"):require_report_projection(self.root)
 
@@ -309,8 +309,8 @@ class SourceReportTests(unittest.TestCase):
         self.assertEqual(len(value["history"]),2)
 
     def test_etf_exposure_and_classification_render_from_explicit_frozen_data(self):
-        from wealth_ledger.lookthrough import calculate
-        from wealth_ledger.fund_sources import holding
+        from kurafolio.lookthrough import calculate
+        from kurafolio.fund_sources import holding
         self.commit(self.ws());value=self.payload()
         funds={row["mic"]+":"+row["symbol"]:{"fund_id":row["mic"]+":"+row["symbol"],"status":"ok","as_of":"2024-01-31",
             "retrieved_at":"2024-02-01T00:00:00Z","issuer":"SYNTHETIC","latest_checked":False,"evidence":[],
@@ -331,7 +331,7 @@ class SourceReportTests(unittest.TestCase):
         self.assertIsNone(result["total_cad"])
 
     def test_known_native_opening_and_unknown_wallet_basis_are_presented_distinctly(self):
-        from wealth_ledger.source_presentation import _btc_sections,label
+        from kurafolio.source_presentation import _btc_sections,label
         self.native();value=self.payload()
         section=_btc_sections(value)[0][1];table=section.blocks[0][1]
         self.assertEqual(table.source_values[2,1].value,D(0))

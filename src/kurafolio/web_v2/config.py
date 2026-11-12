@@ -49,7 +49,7 @@ class Settings:
             if self.schema_profile not in {'identity','sources'}:
                 raise ValueError()
             if self.schema_profile=='sources':
-                from wealth_ledger.data_sources.catalog_v1 import validate_catalog
+                from kurafolio.data_sources.catalog_v1 import validate_catalog
                 validate_catalog(self.source_catalog)
             elif self.source_catalog is not None:
                 raise ValueError()
@@ -70,10 +70,10 @@ class Settings:
 
     @classmethod
     def from_files(cls,identity_file,financial_file,key_file,origin,*,pool_size=5,schema_profile="identity",source_catalog_file=None):
-        from wealth_ledger.persistence.config import PostgresConfig
+        from kurafolio.persistence.config import PostgresConfig
         if (schema_profile=='sources') != (source_catalog_file is not None):
             raise ValueError('Explicit source catalog/profile required')
-        from wealth_ledger.data_sources.catalog_v1 import read_catalog_file
+        from kurafolio.data_sources.catalog_v1 import read_catalog_file
         catalog=read_catalog_file(source_catalog_file) if source_catalog_file is not None else None
         return cls(PostgresConfig.from_secret_file(identity_file,pool_size=pool_size),
                    PostgresConfig.from_secret_file(financial_file,pool_size=pool_size),private_bytes(key_file,32),origin,schema_profile,catalog)

@@ -18,7 +18,7 @@ from .auth import Auth, ABSOLUTE_SECONDS, ANONYMOUS_SECONDS
 from .config import WebSettings
 from .storage import Store, WebError
 
-LOGGER = logging.getLogger("wealth_ledger.web")
+LOGGER = logging.getLogger("kurafolio.web")
 MAX_JSON_BYTES = 16 * 1024
 
 

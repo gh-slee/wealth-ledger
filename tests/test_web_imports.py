@@ -23,12 +23,12 @@ from test_web import AVAILABLE, ORIGIN
 
 AVAILABLE = AVAILABLE and importlib.util.find_spec("huey") is not None
 if AVAILABLE:
-    from wealth_ledger.operations import fingerprint, input_fingerprint
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.storage import Store, WebError
-    from wealth_ledger.web.worker import execute_job, execute_isolated, reconcile, run_worker
-    from wealth_ledger.web.queue import make_queue, NotificationSerializer
-    from wealth_ledger.web.uploads import CSV_BYTES, REFERENCE_BYTES, MAX_ROWS
+    from kurafolio.operations import fingerprint, input_fingerprint
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.storage import Store, WebError
+    from kurafolio.web.worker import execute_job, execute_isolated, reconcile, run_worker
+    from kurafolio.web.queue import make_queue, NotificationSerializer
+    from kurafolio.web.uploads import CSV_BYTES, REFERENCE_BYTES, MAX_ROWS
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -135,7 +135,7 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(self.client.get(old + "/jobs").status_code, 401)
 
     def test_preview_is_offline_and_financially_readonly_even_without_references(self):
-        with patch("wealth_ledger.fx._download", side_effect=AssertionError("Network forbidden")) as download:
+        with patch("kurafolio.fx._download", side_effect=AssertionError("Network forbidden")) as download:
             preview = self.ready(references=False)
             result = json.loads(preview["result_json"])
             self.assertEqual(result["status"], "pending_reference")
@@ -253,8 +253,8 @@ class ImportTests(unittest.TestCase):
         # A real child exits without Python cleanup, exercising persisted evidence.
         script='''import os
 from unittest.mock import patch
-from wealth_ledger.web.config import WebSettings
-from wealth_ledger.web.worker import execute_job
+from kurafolio.web.config import WebSettings
+from kurafolio.web.worker import execute_job
 from pathlib import Path
 '''+patch_code+f'\nexecute_job(WebSettings(Path({str(self.root)!r})), {formal["id"]!r})\n'
         result=subprocess.run([sys.executable,"-c",script],env={**os.environ,"PYTHONPATH":str(ROOT/"src"),"PYTHONDONTWRITEBYTECODE":"1"},capture_output=True)
@@ -262,7 +262,7 @@ from pathlib import Path
 
     def test_crash_after_financial_commit_resumes_same_operation_without_reimport(self):
         preview=self.ready(); formal=self.confirm(preview)
-        self.crash(formal,'patch("wealth_ledger.application.publish", side_effect=lambda *a: os._exit(77)).start()')
+        self.crash(formal,'patch("kurafolio.application.publish", side_effect=lambda *a: os._exit(77)).start()')
         before=fingerprint(self.project)
         with closing(sqlite3.connect(self.project/"data/db/portfolio.sqlite3")) as conn:
             self.assertEqual(conn.execute("SELECT status FROM update_operations").fetchone()[0],"data_committed")
@@ -276,7 +276,7 @@ from pathlib import Path
 
     def test_crash_after_bundle_move_recovers_without_new_edition(self):
         preview=self.ready(); formal=self.confirm(preview)
-        self.crash(formal,'patch("wealth_ledger.publishing._set_latest", side_effect=lambda *a: os._exit(77)).start()')
+        self.crash(formal,'patch("kurafolio.publishing._set_latest", side_effect=lambda *a: os._exit(77)).start()')
         bundles=list((self.project/"reports").glob("*/r*/manifest.json"))
         self.assertEqual(len(bundles),1)
         before=fingerprint(self.project)
@@ -289,7 +289,7 @@ from pathlib import Path
 
     def test_crash_before_commit_becomes_needs_review_without_automatic_rerun(self):
         preview=self.ready(); formal=self.confirm(preview)
-        self.crash(formal,'patch("wealth_ledger.operations.atomic_data", side_effect=lambda *a, **k: os._exit(77)).start()')
+        self.crash(formal,'patch("kurafolio.operations.atomic_data", side_effect=lambda *a, **k: os._exit(77)).start()')
         reconcile(self.store)
         self.assertEqual(self.jobs.get(self.pid,formal["id"])["status"],"needs_review")
         self.assertEqual(fingerprint(self.project),hashlib.sha256(b"[]").hexdigest())
@@ -298,14 +298,14 @@ from pathlib import Path
 
     def test_crash_inside_commit_transaction_rolls_back_marker_and_financial_rows(self):
         preview=self.ready(); formal=self.confirm(preview)
-        self.crash(formal,'''from wealth_ledger import operations
+        self.crash(formal,'''from kurafolio import operations
 original = operations.atomic_data
 def interrupted(project, action, *, finalize=None):
     def barrier(conn, accepted, digest):
         finalize(conn, accepted, digest)
         os._exit(77)
     return original(project, action, finalize=barrier)
-patch("wealth_ledger.operations.atomic_data", side_effect=interrupted).start()''')
+patch("kurafolio.operations.atomic_data", side_effect=interrupted).start()''')
         reconcile(self.store)
         self.assertEqual(self.jobs.get(self.pid,formal["id"])["status"],"needs_review")
         with closing(sqlite3.connect(self.project/"data/db/portfolio.sqlite3")) as conn:
@@ -314,7 +314,7 @@ patch("wealth_ledger.operations.atomic_data", side_effect=interrupted).start()''
 
     def test_crash_after_core_publication_reconciles_registry_without_another_report(self):
         preview=self.ready(); formal=self.confirm(preview)
-        self.crash(formal,'patch("wealth_ledger.web.worker.publish_registry", side_effect=lambda *a: os._exit(77)).start()')
+        self.crash(formal,'patch("kurafolio.web.worker.publish_registry", side_effect=lambda *a: os._exit(77)).start()')
         before=list((self.project/"reports").glob("*/r*/manifest.json"))
         self.assertEqual(len(before),1)
         reconcile(self.store)
@@ -325,7 +325,7 @@ patch("wealth_ledger.operations.atomic_data", side_effect=interrupted).start()''
 
     def test_report_failure_explicit_resume_uses_saved_inputs_and_frozen_time(self):
         preview=self.ready(); formal=self.confirm(preview)
-        with patch("wealth_ledger.application.publish",side_effect=ValueError("Synthetic report failure")):
+        with patch("kurafolio.application.publish",side_effect=ValueError("Synthetic report failure")):
             execute_job(self.settings,formal["id"])
         row=self.jobs.get(self.pid,formal["id"])
         self.assertEqual(row["status"],"report_failed")
@@ -363,12 +363,12 @@ patch("wealth_ledger.operations.atomic_data", side_effect=interrupted).start()''
 
     def test_engine_change_and_corrupt_bundle_fail_closed(self):
         preview=self.ready(); formal=self.confirm(preview)
-        with patch("wealth_ledger.web.jobs.engine_fingerprint",return_value="changed"):
+        with patch("kurafolio.web.jobs.engine_fingerprint",return_value="changed"):
             execute_job(self.settings,formal["id"])
         self.assertEqual(self.jobs.get(self.pid,formal["id"])["error_code"],"stale_engine")
         self.assertFalse((self.project/"data/db/portfolio.sqlite3").exists())
         formal=self.confirm(preview)
-        self.crash(formal,'patch("wealth_ledger.publishing._set_latest", side_effect=lambda *a: os._exit(77)).start()')
+        self.crash(formal,'patch("kurafolio.publishing._set_latest", side_effect=lambda *a: os._exit(77)).start()')
         report=next((self.project/"reports").glob("*/r*/report.md"))
         report.write_text("Corrupt synthetic report")
         reconcile(self.store)
@@ -377,7 +377,7 @@ patch("wealth_ledger.operations.atomic_data", side_effect=interrupted).start()''
         self.assertFalse((self.project/"reports/latest.json").exists())
 
     def test_worker_singleton_and_persistent_schema_upgrade_backup(self):
-        from wealth_ledger.locking import file_lock,LockBusy
+        from kurafolio.locking import file_lock,LockBusy
         self.prepare()
         with file_lock(self.root/"admin/worker.guard"):
             with self.assertRaises(LockBusy):
@@ -387,14 +387,14 @@ patch("wealth_ledger.operations.atomic_data", side_effect=interrupted).start()''
             self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0],2)
 
     def test_live_advisory_guard_cannot_be_broken_and_crash_releases_kernel_ownership(self):
-        from wealth_ledger.operations import project_lock
-        from wealth_ledger.locking import LockBusy
+        from kurafolio.operations import project_lock
+        from kurafolio.locking import LockBusy
         self.prepare()
         with project_lock(self.project):
             with self.assertRaises(LockBusy):
                 with project_lock(self.project):
                     self.fail("Concurrent lock acquired")
-        script='from wealth_ledger.operations import project_lock; import os; from pathlib import Path\nwith project_lock(Path('+repr(str(self.project))+')): os._exit(77)'
+        script='from kurafolio.operations import project_lock; import os; from pathlib import Path\nwith project_lock(Path('+repr(str(self.project))+')): os._exit(77)'
         result=subprocess.run([sys.executable,"-c",script],env={**os.environ,"PYTHONPATH":str(ROOT/"src")})
         self.assertEqual(result.returncode,77)
         with project_lock(self.project):

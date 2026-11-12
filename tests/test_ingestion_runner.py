@@ -11,9 +11,9 @@ import tempfile
 import threading
 import unittest
 
-from wealth_ledger.ingestion.codec import encode, sha256
-from wealth_ledger.ingestion.contracts import IngestionError, MAX_MINIMAL
-from wealth_ledger.ingestion.runner_client import (ChildOutputCollector, PeerTLS,
+from kurafolio.ingestion.codec import encode, sha256
+from kurafolio.ingestion.contracts import IngestionError, MAX_MINIMAL
+from kurafolio.ingestion.runner_client import (ChildOutputCollector, PeerTLS,
     pack_input, pack_result, unpack_input, unpack_result)
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())

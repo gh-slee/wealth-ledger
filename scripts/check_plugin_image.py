@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def verify(base_image, wheel):
     image = "wealth-ledger-sdk-test-" + uuid.uuid4().hex + ":derived"
-    if wheel.name != "wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl":
+    if wheel.name != "kurafolio_synthetic_parser-0.1.0-py3-none-any.whl":
         raise ValueError("Supply the reviewed synthetic example wheel")
     try:
         with tempfile.TemporaryDirectory(prefix="wealth-ledger-plugin-image-") as directory:
@@ -36,7 +36,7 @@ USER 10001:10001
         code = '''import json, os, pathlib, sys, tempfile, unittest
 assert os.getuid() == 10001
 assert not pathlib.Path('/app/AGENTS.override.md').exists()
-from wealth_ledger.workspace import CODE_ROOT, SOURCE_CHECKOUT
+from kurafolio.workspace import CODE_ROOT, SOURCE_CHECKOUT
 assert SOURCE_CHECKOUT and CODE_ROOT == pathlib.Path('/app')
 with tempfile.TemporaryDirectory() as directory:
     for name, content in json.loads(sys.stdin.read()).items():

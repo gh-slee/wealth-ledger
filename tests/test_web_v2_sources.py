@@ -13,8 +13,8 @@ class SourceHttpTests(ConfiguredSourceCase):
     def setUp(self):
         super().setUp()
         from fastapi.testclient import TestClient
-        from wealth_ledger.web_v2.api import create_app
-        from wealth_ledger.web_v2.config import Settings
+        from kurafolio.web_v2.api import create_app
+        from kurafolio.web_v2.config import Settings
         self.app=create_app(Settings(self.configs['identity'],self.configs['runtime'],self.key,'http://localhost',schema_profile='sources',source_catalog=self.catalog))
         self.client=TestClient(self.app,base_url='http://localhost')
         self.client.__enter__();self.addCleanup(self.client.__exit__,None,None,None)
@@ -48,7 +48,7 @@ class SourceHttpTests(ConfiguredSourceCase):
     def test_authentication_closed_catalog_and_mutation_create_replay_status(self):
         self.assertEqual(self.client.get('/api/v2/sources').status_code,401)
         realm=self.login()
-        with patch('wealth_ledger.source_registry.build_registry',side_effect=AssertionError('No parser dispatch')):
+        with patch('kurafolio.source_registry.build_registry',side_effect=AssertionError('No parser dispatch')):
             catalog=self.client.get('/api/v2/sources')
         self.assertEqual(catalog.status_code,200,catalog.text)
         for forbidden in ('entry_point_target','descriptor_bytes','database_oid','server_address','artifact_sha256'):

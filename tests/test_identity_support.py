@@ -33,10 +33,10 @@ class IdentityCase(unittest.TestCase):
 
     def target(self, *, migrate=True):
         from psycopg.conninfo import make_conninfo
-        from wealth_ledger.persistence.config import PostgresConfig
-        from wealth_ledger.persistence.identity import IdentityStore
-        from wealth_ledger.persistence.context import Database
-        from wealth_ledger.persistence.migration import migrate_identity
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.identity import IdentityStore
+        from kurafolio.persistence.context import Database
+        from kurafolio.persistence.migration import migrate_identity
         name='wl_test_identity_'+uuid.uuid4().hex[:16]
         statement='CREATE DATABASE "'+name+'" OWNER "'+self.config['migration_role']+'"'
         subprocess.run(['docker','exec',self.config['container'],'psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-c',statement],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
@@ -52,45 +52,45 @@ class IdentityCase(unittest.TestCase):
         self.name,self.configs,self.operator,self.gateway,self.financial=self.target()
 
     def scalar(self,sql,**parameters):
-        from wealth_ledger.persistence.context import execute
+        from kurafolio.persistence.context import execute
         with self.operator.database.engine.begin() as connection:
             return execute(connection,sql,**parameters).scalar_one()
 
     def sql(self,sql,**parameters):
-        from wealth_ledger.persistence.context import execute
+        from kurafolio.persistence.context import execute
         with self.operator.database.engine.begin() as connection:
             return execute(connection,sql,**parameters).all() if sql.lstrip().upper().startswith('SELECT') else execute(connection,sql,**parameters)
 
     def anonymous(self):
-        from wealth_ledger.web_v2.auth import digest
+        from kurafolio.web_v2.auth import digest
         token=secrets.token_urlsafe(32)
         self.gateway.call('issue_anonymous_v1',digest(token))
         return token
 
     def bootstrap(self,username='AdminExample'):
-        from wealth_ledger.web_v2.auth import digest
+        from kurafolio.web_v2.auth import digest
         code=secrets.token_urlsafe(32)
         self.operator.call('arm_setup_v1',digest(code))
         self.gateway.call('bootstrap_commit_v1',digest(code),username,self.encoded,digest(self.anonymous()))
         return self.login(username)
 
     def login(self,username):
-        from wealth_ledger.web_v2.auth import digest
-        from wealth_ledger.persistence.identity import Principal
+        from kurafolio.web_v2.auth import digest
+        from kurafolio.persistence.identity import Principal
         target=self.gateway.call('login_target_v1',username.lower())
         replacement=secrets.token_urlsafe(32)
         value=self.gateway.call('login_commit_v1',target['user_id'],target['credential_version'],digest(self.anonymous()),digest(replacement))
         return replacement,Principal.from_value(value['principal'])
 
     def member(self,username='MemberExample'):
-        from wealth_ledger.web_v2.auth import digest
+        from kurafolio.web_v2.auth import digest
         code=secrets.token_urlsafe(32)
         self.operator.call('issue_invite_v1',digest(code))
         self.gateway.call('register_commit_v1',digest(code),username,self.encoded,digest(self.anonymous()))
         return self.login(username)
 
     def clock(self,instant):
-        from wealth_ledger.persistence.context import execute
+        from kurafolio.persistence.context import execute
         # Operator-only test seam on a marked target; never a runtime flag/GUC.
         if not self.name.startswith('wl_test_identity_'):raise RuntimeError()
         import datetime
@@ -100,6 +100,6 @@ class IdentityCase(unittest.TestCase):
         self.addCleanup(self.restore_clock)
 
     def restore_clock(self):
-        from wealth_ledger.persistence.context import execute
+        from kurafolio.persistence.context import execute
         with self.operator.database.engine.begin() as conn:
             execute(conn,"CREATE OR REPLACE FUNCTION wl_identity._clock_timestamp_v1() RETURNS timestamptz LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS 'SELECT pg_catalog.clock_timestamp()'")

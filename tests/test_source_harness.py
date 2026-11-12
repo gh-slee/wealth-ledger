@@ -18,10 +18,10 @@ import unittest
 from unittest.mock import patch
 import uuid
 
-from wealth_ledger.data_sources import contract_v1 as s
-from wealth_ledger.data_sources.catalog_v1 import verify_installation
-from wealth_ledger.data_sources.compatibility_v1 import builtin_descriptors
-from wealth_ledger.data_sources.transport_v1 import make_envelope,validate_transport
+from kurafolio.data_sources import contract_v1 as s
+from kurafolio.data_sources.catalog_v1 import verify_installation
+from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
+from kurafolio.data_sources.transport_v1 import make_envelope,validate_transport
 
 FIXTURES=Path(__file__).parent/'fixtures/source_capabilities'
 ROOT=Path(__file__).resolve().parents[1]
@@ -150,11 +150,11 @@ class SourceHarnessTests(unittest.TestCase):
         for name,digest in files.items():
             if hashlib.sha256((ROOT/'src'/name).read_bytes()).hexdigest()!=digest:raise RuntimeError('Source image context is stale')
         artifact=s.canonical({'format':'source-content-v1','package_distribution':'wealth-ledger','package_version':'0.1.0',
-            'entry_points':[{'name':'wealthsimple.holdings','target':'wealth_ledger.source_builtin:registrations'},
-                            {'name':'bullbitcoin.orders','target':'wealth_ledger.source_builtin:registrations'}],
+            'entry_points':[{'name':'wealthsimple.holdings','target':'kurafolio.source_builtin:registrations'},
+                            {'name':'bullbitcoin.orders','target':'kurafolio.source_builtin:registrations'}],
             'files':[{'path':name,'sha256':digest} for name,digest in sorted(files.items())]})
         descriptor=builtin_descriptors(package_distribution='wealth-ledger',package_version='0.1.0',artifact_sha256=hashlib.sha256(artifact).hexdigest(),
-            execution_image_digest=cls.base[7:],entry_point_target='wealth_ledger.source_builtin:registrations')[0]
+            execution_image_digest=cls.base[7:],entry_point_target='kurafolio.source_builtin:registrations')[0]
         verify_installation(descriptor,artifact,image_root='/app/src')
         suffix=uuid.uuid4().hex;cls.directory=ROOT/'work'/('source-harness-'+suffix);cls.directory.mkdir(mode=0o700,parents=True)
         context=cls.directory/'context';context.mkdir()
@@ -229,7 +229,7 @@ class SourceHarnessTests(unittest.TestCase):
 
     def test_actual_builtin_normalization_preserves_frozen_archive_bytes(self):
         from test_domain_bridge_v1 import WS_RAW,WS_ARCHIVE,BULL_RAW,BULL_ARCHIVE
-        from wealth_ledger import source_v2
+        from kurafolio import source_v2
         for raw,archive in ((WS_RAW,WS_ARCHIVE),(BULL_RAW,BULL_ARCHIVE)):
             batch=source_v2.decode_batch(archive,raw)
             context={'context_version':1,'payload_kind':'parser_v2','context':s.primitive(s.ParserBinding('parser2_context_v1',batch.evidence.context))}
@@ -241,7 +241,7 @@ class SourceHarnessTests(unittest.TestCase):
 
     def test_offline_file_and_api_semantic_parity_and_nonbooking_admission(self):
         from test_source_transport import direct_case
-        from wealth_ledger.domain.validation_v1 import decode_domain_v1
+        from kurafolio.domain.validation_v1 import decode_domain_v1
         raw=b'{"btc_received":"0.01000000","cad_paid":"700.00"}'
         _,original,_=direct_case();outputs=[]
         for transport,operation in (('FILE_IMPORT','fake_file'),('PULL_API','fake_api')):

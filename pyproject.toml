@@ -18,13 +18,13 @@ postgres = ["SQLAlchemy==2.1.6", "psycopg[binary]==3.3.6"]
 web = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1", "pwdlib[argon2]>=0.2,<1", "huey>=3.4,<4"]
 
 [project.scripts]
-wealth-ledger-source-parsers = "wealth_ledger.source_cli:main"
-wealth-ledger-source-ingestion = "wealth_ledger.source_submission_cli:main"
-wealth-ledger-source-reports = "wealth_ledger.source_report_cli:main"
+wealth-ledger-source-parsers = "kurafolio.source_cli:main"
+wealth-ledger-source-ingestion = "kurafolio.source_submission_cli:main"
+wealth-ledger-source-reports = "kurafolio.source_report_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["wealth_ledger*"]
+include = ["kurafolio*"]
 
 [tool.setuptools.package-data]
-wealth_ledger = ["locales/*.json", "_bundle/assets/fonts/*", "_bundle/config/company-aliases.json"]
+kurafolio = ["locales/*.json", "_bundle/assets/fonts/*", "_bundle/config/company-aliases.json"]

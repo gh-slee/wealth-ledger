@@ -2,7 +2,7 @@
 from typing import Annotated, Literal
 import re
 from pydantic import BaseModel, ConfigDict, Field, AfterValidator, SecretStr, field_validator, model_validator
-from wealth_ledger.persistence.errors import CODES
+from kurafolio.persistence.errors import CODES
 
 
 def password(value, minimum=15):
@@ -12,7 +12,7 @@ def password(value, minimum=15):
 
 
 def canonical_uuid(value):
-    from wealth_ledger.persistence.context import identifier
+    from kurafolio.persistence.context import identifier
     try:
         identifier(value)
     except Exception:
@@ -164,7 +164,7 @@ class Error(Closed):
 # Sources are available only in the explicit0003 backend profile. These models
 # contain metadata, never financial values or executable plugin configuration.
 def source_counter(value):
-    from wealth_ledger.data_sources.contract_v1 import counter
+    from kurafolio.data_sources.contract_v1 import counter
     return counter(value)
 
 

@@ -12,7 +12,7 @@ from test_web import AVAILABLE
 from test_web_reports import synthetic_payload, publish_fixture
 
 if AVAILABLE:
-    from wealth_ledger.web.report_document import parse_document, edition_metadata
+    from kurafolio.web.report_document import parse_document, edition_metadata
 
 
 @unittest.skipUnless(AVAILABLE, "Optional Web dependencies are not installed")
@@ -37,7 +37,7 @@ class DocumentTests(unittest.TestCase):
 
     def test_full_presentation_matches_saved_markdown_three_locales_without_rendering(self):
         self.prepare()
-        from wealth_ledger.reporting import generate_reports
+        from kurafolio.reporting import generate_reports
         for locale in ("en-CA", "zh-TW", "zh-CN"):
             with self.subTest(locale=locale):
                 report, file = publish_fixture(self.store, self.pid, {**self.payload, "reporting": {"locale": locale}})
@@ -46,7 +46,7 @@ class DocumentTests(unittest.TestCase):
                 for name in ["report.md", "report.pdf", *[str(Path(path).relative_to(file.parent)) for path in artifacts["charts"].values()]]:
                     self.store.register_artifact(self.pid, report, (file.parent/name).relative_to(self.project).as_posix())
                 before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in file.parent.rglob("*") if path.is_file()}
-                with patch("wealth_ledger.reporting.generate_reports", side_effect=AssertionError("No rendering")), patch("urllib.request.urlopen", side_effect=AssertionError("No network")):
+                with patch("kurafolio.reporting.generate_reports", side_effect=AssertionError("No rendering")), patch("urllib.request.urlopen", side_effect=AssertionError("No network")):
                     response = self.client.get(self.url.replace(self.report, report))
                 self.assertEqual(response.status_code, 200, response.text)
                 document = response.json()
@@ -114,7 +114,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(a["report_locale"], "en-CA")
 
     def test_document_limits_and_bad_tables_fail_closed(self):
-        from wealth_ledger.web.report_document import MAX_DOCUMENT_BYTES
+        from kurafolio.web.report_document import MAX_DOCUMENT_BYTES
         with self.assertRaises(ValueError):
             parse_document("## Section\n| A | B |\n| --- | --- |\n| too few |", {})
         with self.assertRaises(ValueError):

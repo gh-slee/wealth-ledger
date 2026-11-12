@@ -11,12 +11,12 @@ from unittest.mock import patch
 
 import test_source_legacy_projection as fixtures
 from test_source_projection import hashes
-from wealth_ledger import wallet
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.crypto_opening import import_opening, latest_opening
-from wealth_ledger.source_legacy_projection import project_compatible_sources
-from wealth_ledger.wallet_basis import has_canonical_sources
-from wealth_ledger.workspace import resolve_workspace
+from kurafolio import wallet
+from kurafolio.application import ApplicationService
+from kurafolio.crypto_opening import import_opening, latest_opening
+from kurafolio.source_legacy_projection import project_compatible_sources
+from kurafolio.wallet_basis import has_canonical_sources
+from kurafolio.workspace import resolve_workspace
 
 AT = fixtures.AT
 START = fixtures.START
@@ -230,7 +230,7 @@ class SourceWalletDeclarationTests(unittest.TestCase):
 
     def test_cli_append_and_show_share_the_canonical_basis(self):
         self.commit(self.bull()); self.opening()
-        command="from pathlib import Path; from wealth_ledger.wallet_cli import run; run(Path.cwd(), 'balance')"
+        command="from pathlib import Path; from kurafolio.wallet_cli import run; run(Path.cwd(), 'balance')"
         def run(*args):
             result=subprocess.run([sys.executable,"-c",command,"--workspace",str(self.root),"--locale","en-CA",*args],capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)

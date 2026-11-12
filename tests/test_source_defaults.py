@@ -9,9 +9,9 @@ from unittest.mock import patch
 import test_source_imports as entry
 from test_source_builtin import ROOT, csv_change, CONTEXT
 from test_source_legacy_projection import AT, FX
-from wealth_ledger.source_profiles import source_profiles, resolve_profiles
-from wealth_ledger.source_builtin import WealthsimpleHoldings, WS_FORMAT
-from wealth_ledger import source_v2 as v2
+from kurafolio.source_profiles import source_profiles, resolve_profiles
+from kurafolio.source_builtin import WealthsimpleHoldings, WS_FORMAT
+from kurafolio import source_v2 as v2
 
 
 class DefaultSourceTests(unittest.TestCase):
@@ -58,7 +58,7 @@ class DefaultSourceTests(unittest.TestCase):
         self.seed()
         canonical=next((self.project/'data/raw/source-v2').glob('*.json'))
         canonical.chmod(0o600);canonical.write_text(canonical.read_text()+' ')
-        with patch('wealth_ledger.source_imports.parse_sources',side_effect=AssertionError('Never reparse')):
+        with patch('kurafolio.source_imports.parse_sources',side_effect=AssertionError('Never reparse')):
             with self.assertRaises(ValueError):source_profiles(self.project)
 
     def test_explicit_correction_parents_publish_and_are_not_saved_context_defaults(self):
@@ -77,9 +77,9 @@ class DefaultSourceTests(unittest.TestCase):
             self.preview(paths=[self.paths[0]],directory=self.root/'unattributed-correction')
         ready=self.preview(paths=[self.paths[0]],context_options=[{'profile_id':ws['id'],'revisions':revisions,'scope_revisions':scopes}],directory=self.root/'correction')
         self.assertEqual(ready['preview']['status'],'awaiting_confirmation')
-        from wealth_ledger.source_publication import confirm_source_report
+        from kurafolio.source_publication import confirm_source_report
         from test_source_publication import publisher_receipt
-        with patch('wealth_ledger.lookthrough.attach_analysis'),patch('wealth_ledger.publishing.publish',side_effect=publisher_receipt):
+        with patch('kurafolio.lookthrough.attach_analysis'),patch('kurafolio.publishing.publish',side_effect=publisher_receipt):
             confirm_source_report(self.project,self.root/'correction',ready['preview']['approval_sha256'])
         self.assertEqual(source_profiles(self.project),before_profiles)
         resolved,_=resolve_profiles(self.project,[{'profile_id':ws['id']}],1,{})

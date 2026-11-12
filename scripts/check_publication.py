@@ -129,8 +129,8 @@ def path_allowed(path: str) -> bool:
         return len(parts) == 4 and parts[1:3] == ('public', 'licenses') and p.name in {
             'ibm-plex-sans-condensed.txt', 'atkinson-hyperlegible.txt', 'shadcn-ui.txt'}
     if parts[0] == 'src':
-        return (len(parts) >= 3 and parts[1] == 'wealth_ledger' and p.suffix == '.py'
-                or len(parts) == 4 and parts[1:3] == ('wealth_ledger', 'locales')
+        return (len(parts) >= 3 and parts[1] == 'kurafolio' and p.suffix == '.py'
+                or len(parts) == 4 and parts[1:3] == ('kurafolio', 'locales')
                 and p.name in {'registry.json', 'legacy.json', 'en-CA.json', 'zh-TW.json', 'zh-CN.json'})
     if parts[0] == 'scripts':
         return len(parts) == 2 and p.suffix == '.py'

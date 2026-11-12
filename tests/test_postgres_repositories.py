@@ -4,12 +4,12 @@ from dataclasses import replace
 import json
 import threading
 import uuid
-from wealth_ledger.domain.canonical_v1 import ExternalSourceRefV1
-from wealth_ledger.domain.validation_v1 import encode_domain_v1
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.context import Database
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.repositories import Candidates,selector_identity
+from kurafolio.domain.canonical_v1 import ExternalSourceRefV1
+from kurafolio.domain.validation_v1 import encode_domain_v1
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.context import Database
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.repositories import Candidates,selector_identity
 from test_postgres_config import PostgresCase,FIXTURES
 
 
@@ -87,8 +87,8 @@ class RepositoryTests(PostgresCase):
 
     def test_database_generated_retry_failures_are_bounded_and_atomic(self):
         from unittest.mock import patch
-        from wealth_ledger.persistence import repositories
-        from wealth_ledger.persistence.context import execute
+        from kurafolio.persistence import repositories
+        from kurafolio.persistence.context import execute
         original=repositories.insert;attempts=[]
         def fail_in_postgres(uow,table,values,**options):
             result=original(uow,table,values,**options)
@@ -104,10 +104,10 @@ class RepositoryTests(PostgresCase):
 
     def test_actual_PostgreSQL_deadlock_restarts_one_whole_transaction(self):
         from unittest.mock import patch
-        from wealth_ledger.persistence import repositories
-        from wealth_ledger.persistence.context import execute,TenantContext
-        from wealth_ledger.persistence.migration import seed_tenant
-        from wealth_ledger.domain.validation_v1 import decode_domain_v1
+        from kurafolio.persistence import repositories
+        from kurafolio.persistence.context import execute,TenantContext
+        from kurafolio.persistence.migration import seed_tenant
+        from kurafolio.domain.validation_v1 import decode_domain_v1
         database=Database(PostgresConfig.from_secret_file(self.settings['runtime_secret_file'],pool_size=2));self.addCleanup(database.close)
         other=TenantContext(str(uuid.uuid4()),str(uuid.uuid4()));seed_tenant(self.operator,other)
         raw=self.raw.replace(self.context.tenant_id.encode(),other.tenant_id.encode()).replace(self.context.portfolio_id.encode(),other.portfolio_id.encode());second=decode_domain_v1(raw)
@@ -131,7 +131,7 @@ class RepositoryTests(PostgresCase):
     def test_maximal_multibyte_and_escaped_selectors_preserve_domain_bytes(self):
         import test_domain_v1 as fixture
         base=fixture.with_events(fixture.event())
-        from wealth_ledger.domain.validation_v1 import decode_domain_v1
+        from kurafolio.domain.validation_v1 import decode_domain_v1
         base=decode_domain_v1(encode_domain_v1(base).replace(base.tenant_id.encode(),self.context.tenant_id.encode()).replace(base.portfolio_id.encode(),self.context.portfolio_id.encode()))
         for index,text in enumerate(['🌞'*4096, '\"'*4096]):
             provider='p'*4096;first=base.connections[0]

@@ -110,7 +110,7 @@ class PresentationContext:
                 "font_sha256": hashlib.sha256((CODE_ROOT / "assets/fonts" / registry()["locales"][self.locale]["font"]).read_bytes()).hexdigest()}
 
 
-_CONTEXT = ContextVar("wealth_ledger_presentation", default=PresentationContext())
+_CONTEXT = ContextVar("kurafolio_presentation", default=PresentationContext())
 
 
 def current_context():

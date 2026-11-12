@@ -2,4 +2,4 @@ include build_backend.py
 include scripts/check_publication.py
 include config/company-aliases.json
 recursive-include assets/fonts *.ttf *.txt *.md *.json
-recursive-include src/wealth_ledger *.py *.json *.ttf *.txt *.md
+recursive-include src/kurafolio *.py *.json *.ttf *.txt *.md

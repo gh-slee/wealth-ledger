@@ -9,11 +9,11 @@ import test_web as foundation
 import test_web_source_reports as publication
 from test_source_legacy_projection import FX, AT, quote
 from test_source_publication import publisher_receipt
-from wealth_ledger import operations
+from kurafolio import operations
 
 if publication.submission.AVAILABLE:
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.worker import execute_job
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.worker import execute_job
 
 
 @unittest.skipUnless(publication.submission.AVAILABLE,'Optional Web dependencies are not installed')
@@ -78,7 +78,7 @@ class SourceImportWebTests(unittest.TestCase):
         self.prepare()
         def synthetic_cache(root, day):
             path=Path(root)/'data/fx'/f'{day}.json';path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(FX));return FX
-        with patch('wealth_ledger.fx.resolve_rates',side_effect=synthetic_cache) as fetch:
+        with patch('kurafolio.fx.resolve_rates',side_effect=synthetic_cache) as fetch:
             first=self.preview({'reference_policy':'fetch_public','as_of':AT})
         self.assertEqual(first['status'],'ready',first['error_code']);fetch.assert_called_once()
         job=self.confirm({**first,'result':first['result']['preview']})

@@ -11,13 +11,13 @@ from unittest.mock import patch
 import venv
 
 from test_source_protocol import ACCOUNT, AT, EVIDENCE, HOLDING, INFO, batch
-from wealth_ledger.source_environment import EnvironmentError, environment_fingerprint
-from wealth_ledger.source_pipeline import (
+from kurafolio.source_environment import EnvironmentError, environment_fingerprint
+from kurafolio.source_pipeline import (
     DEFAULT_CONFIG, SourcePlanError, _json, _plan, bounded_read, host_config,
     parse_config, plan_sources, validate_inputs, validate_receipt,
 )
-from wealth_ledger.source_registry import AdapterRegistration, ProviderInfo, build_registry
-from wealth_ledger.source_protocol import Detection
+from kurafolio.source_registry import AdapterRegistration, ProviderInfo, build_registry
+from kurafolio.source_protocol import Detection
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = b"symbol,quantity\nDEMO,1.25\n"
@@ -95,7 +95,7 @@ class SourcePipelineTests(unittest.TestCase):
             def normalize(self, raw, *, export_version):
                 raise RuntimeError("synthetic-private-row")
         self.assert_code("normalization_failed", lambda: synthetic_plan(adapter=Broken()))
-        with patch("wealth_ledger.source_pipeline.NORMALIZED_BYTES", 1):
+        with patch("kurafolio.source_pipeline.NORMALIZED_BYTES", 1):
             self.assert_code("normalization_limits", synthetic_plan)
 
     def test_environment_tracks_actual_same_version_code_and_unlisted_dependency_files(self):
@@ -129,7 +129,7 @@ class SourcePipelineTests(unittest.TestCase):
             link = site / "external.py"; link.symlink_to(runtime)
             with self.assertRaises(EnvironmentError): capture()
             link.unlink()
-            with patch("wealth_ledger.source_environment.MAX_CODE_BYTES", 1), self.assertRaises(EnvironmentError): capture()
+            with patch("kurafolio.source_environment.MAX_CODE_BYTES", 1), self.assertRaises(EnvironmentError): capture()
             with self.assertRaises(EnvironmentError): environment_fingerprint(roots={"missing":root/"missing"}, executable=runtime)
 
     def test_bounded_evidence_and_missing_config_do_not_initialize_any_ledger(self):
@@ -150,8 +150,8 @@ class SourcePipelineTests(unittest.TestCase):
 PLUGIN = '''from datetime import datetime
 from decimal import Decimal
 import hashlib
-from wealth_ledger.source_protocol import *
-from wealth_ledger.source_registry import AdapterRegistration, ProviderInfo
+from kurafolio.source_protocol import *
+from kurafolio.source_registry import AdapterRegistration, ProviderInfo
 class Demo:
     info = AdapterInfo("demo", "demo.holdings", "1.0.0", ("csv-v1",), ("holdings",))
     def detect(self, raw):

@@ -8,12 +8,12 @@ import unittest
 
 import test_source_defaults as defaults
 from test_source_legacy_projection import AT, FX
-from wealth_ledger.core import import_cash_flows, mark_flow_period
-from wealth_ledger.source_ingestion import verify_store, state_fingerprint
-from wealth_ledger.source_legacy_projection import project_compatible_sources
-from wealth_ledger.source_profiles import investment_accounts
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.workspace import resolve_workspace
+from kurafolio.core import import_cash_flows, mark_flow_period
+from kurafolio.source_ingestion import verify_store, state_fingerprint
+from kurafolio.source_legacy_projection import project_compatible_sources
+from kurafolio.source_profiles import investment_accounts
+from kurafolio.application import ApplicationService
+from kurafolio.workspace import resolve_workspace
 
 
 class SourceManualFlowTests(unittest.TestCase):

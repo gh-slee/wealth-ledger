@@ -6,11 +6,11 @@ from pathlib import Path
 import tempfile
 import unittest
 import uuid
-from wealth_ledger.domain.validation_v1 import decode_domain_v1
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.context import Database,TenantContext,execute
-from wealth_ledger.persistence.migration import seed_tenant
-from wealth_ledger.persistence.errors import PersistenceError
+from kurafolio.domain.validation_v1 import decode_domain_v1
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.context import Database,TenantContext,execute
+from kurafolio.persistence.migration import seed_tenant
+from kurafolio.persistence.errors import PersistenceError
 
 EXTRAS=importlib.util.find_spec('sqlalchemy') is not None and importlib.util.find_spec('psycopg') is not None
 CONFIG=os.environ.get('WEALTH_LEDGER_PG_TEST_CONFIG')

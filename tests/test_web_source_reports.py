@@ -16,17 +16,17 @@ import test_web_source_submission as submission
 from test_source_legacy_projection import FX, AT, START, quote
 from test_source_projection import hashes
 from test_source_publication import publisher_receipt
-from wealth_ledger import operations
-from wealth_ledger.source_context_pipeline import context_document
-from wealth_ledger.source_submission import parse_bindings
+from kurafolio import operations
+from kurafolio.source_context_pipeline import context_document
+from kurafolio.source_submission import parse_bindings
 
 if submission.AVAILABLE:
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.worker import execute_job, execute_isolated, reconcile
-    from wealth_ledger.web.source_reports import plan_directory
-    from wealth_ledger.web.backups import backup_instance, restore_instance
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.storage import Store
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.worker import execute_job, execute_isolated, reconcile
+    from kurafolio.web.source_reports import plan_directory
+    from kurafolio.web.backups import backup_instance, restore_instance
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.storage import Store
 
 
 @unittest.skipUnless(submission.AVAILABLE, "Optional Web dependencies are not installed")
@@ -40,7 +40,7 @@ class SourceReportWebTests(unittest.TestCase):
     def prepare(self, *, actual=False):
         submission.WebSubmissionTests.prepare(self, actual=actual)
         if not actual:
-            item = patch("wealth_ledger.web.source_reports.environment_fingerprint", return_value="a" * 64)
+            item = patch("kurafolio.web.source_reports.environment_fingerprint", return_value="a" * 64)
             item.start(); self.addCleanup(item.stop)
         self.body["valuation"] = {"as_of": AT, "period_start": START, "generated_at": AT,
                                   "fx": FX, "report_locale": "en-CA"}
@@ -60,7 +60,7 @@ class SourceReportWebTests(unittest.TestCase):
         self.assertEqual(response.status_code, expected, response.text)
         if expected != 202: return response.json()
         if execute:
-            with patch("wealth_ledger.lookthrough.attach_analysis"), patch("wealth_ledger.publishing.publish", side_effect=publisher_receipt):
+            with patch("kurafolio.lookthrough.attach_analysis"), patch("kurafolio.publishing.publish", side_effect=publisher_receipt):
                 execute_job(self.settings, response.json()["id"])
         return self.jobs.view(self.jobs.get(self.pid, response.json()["id"]))
 
@@ -117,7 +117,7 @@ class SourceReportWebTests(unittest.TestCase):
                     config = self.root / "admin/source-parsers.json"; config.write_text('{"schema_version":1,"enabled":[],"bindings":[]}\n')
                     self.addCleanup(lambda: config.unlink(missing_ok=True))
                 elif reason == "environment":
-                    item = patch("wealth_ledger.web.source_reports.environment_fingerprint", return_value="b" * 64)
+                    item = patch("kurafolio.web.source_reports.environment_fingerprint", return_value="b" * 64)
                     item.start(); self.addCleanup(item.stop)
                 else:
                     self.now[0] += 25 * 3600; self.login()
@@ -155,15 +155,15 @@ class SourceReportWebTests(unittest.TestCase):
         self.assertEqual(preview["status"], "ready", preview["error_code"])
         job = self.confirm(preview, execute=False)
         from examples.demo import synthetic_fund
-        from wealth_ledger.lookthrough import attach_analysis
+        from kurafolio.lookthrough import attach_analysis
         original = attach_analysis
-        with patch("urllib.request.urlopen", side_effect=AssertionError("No network")), patch("wealth_ledger.lookthrough.attach_analysis", side_effect=lambda root, payload: original(root, payload, fetcher=synthetic_fund)):
+        with patch("urllib.request.urlopen", side_effect=AssertionError("No network")), patch("kurafolio.lookthrough.attach_analysis", side_effect=lambda root, payload: original(root, payload, fetcher=synthetic_fund)):
             execute_job(self.settings, job["id"])
         job = self.jobs.view(self.jobs.get(self.pid, job["id"]))
         self.assertEqual(job["status"], "published", job["error_code"])
         before = hashes(self.project)
         for locale in ("en-CA", "zh-TW", "zh-CN"):
-            with patch("wealth_ledger.source_publication.make_source_payload", side_effect=AssertionError("No revaluation")):
+            with patch("kurafolio.source_publication.make_source_payload", side_effect=AssertionError("No revaluation")):
                 view = self.view(job, locale)
             self.assertTrue(view["findings"])
             self.assertFalse(any(text.startswith("source_report.") for text in view["findings"]))
@@ -190,26 +190,26 @@ class SourceReportWebTests(unittest.TestCase):
 
     def test_report_failure_resumes_same_payload_without_uploads_plan_config_or_parser(self):
         self.prepare(); preview = self.preview(); job = self.confirm(preview, execute=False)
-        with patch("wealth_ledger.lookthrough.attach_analysis"), patch("wealth_ledger.publishing.publish", side_effect=RuntimeError):
+        with patch("kurafolio.lookthrough.attach_analysis"), patch("kurafolio.publishing.publish", side_effect=RuntimeError):
             execute_job(self.settings, job["id"])
         self.assertEqual(self.jobs.get(self.pid, job["id"])["status"], "report_failed")
         shutil.rmtree(plan_directory(self.store, self.pid, preview["id"]))
         shutil.rmtree(self.root / "uploads" / self.pid)
         response = self.mutate("POST", self.prefix + "/jobs/" + job["id"] + "/resume")
         self.assertEqual(response.status_code, 202, response.text)
-        with patch("wealth_ledger.source_submission.parse_sources", side_effect=AssertionError("No parser")), patch("wealth_ledger.source_publication.make_source_payload", side_effect=AssertionError("No revaluation")), patch("wealth_ledger.lookthrough.attach_analysis", side_effect=AssertionError("No analysis refresh")), patch("wealth_ledger.publishing.publish", side_effect=publisher_receipt):
+        with patch("kurafolio.source_submission.parse_sources", side_effect=AssertionError("No parser")), patch("kurafolio.source_publication.make_source_payload", side_effect=AssertionError("No revaluation")), patch("kurafolio.lookthrough.attach_analysis", side_effect=AssertionError("No analysis refresh")), patch("kurafolio.publishing.publish", side_effect=publisher_receipt):
             execute_job(self.settings, job["id"])
         self.assertEqual(self.jobs.get(self.pid, job["id"])["status"], "published")
         self.assertEqual(len(operations.list_operations(self.project)), 1)
 
     def test_core_publication_survives_registry_interruption_and_reconciles_without_second_report(self):
         self.prepare(); preview = self.preview(); job = self.confirm(preview, execute=False)
-        with patch("wealth_ledger.lookthrough.attach_analysis"), patch("wealth_ledger.publishing.publish", side_effect=publisher_receipt), patch("wealth_ledger.web.worker.publish_registry", side_effect=RuntimeError):
+        with patch("kurafolio.lookthrough.attach_analysis"), patch("kurafolio.publishing.publish", side_effect=publisher_receipt), patch("kurafolio.web.worker.publish_registry", side_effect=RuntimeError):
             execute_job(self.settings, job["id"])
         self.assertEqual(operations.get(self.project, job["core_operation_id"])["status"], "published")
         self.assertEqual(self.jobs.get(self.pid, job["id"])["status"], "needs_review")
         self.jobs.state(job["id"], "running")
-        with patch("wealth_ledger.publishing.publish", side_effect=AssertionError("No second report")):
+        with patch("kurafolio.publishing.publish", side_effect=AssertionError("No second report")):
             reconcile(self.store)
         self.assertEqual(self.jobs.get(self.pid, job["id"])["status"], "published")
         self.assertEqual(len(list((self.project / "reports").glob("*/r*/manifest.json"))), 1)
@@ -222,9 +222,9 @@ class SourceReportWebTests(unittest.TestCase):
         target = WebSettings(self.root.parent / "restored-source-report-web")
         restore_instance(target, archive)
         store = Store(target)
-        from wealth_ledger.web.reports import Publications
-        from wealth_ledger.web.exports import export_data
-        with patch("wealth_ledger.source_publication.make_source_payload", side_effect=AssertionError("No revalue")):
+        from kurafolio.web.reports import Publications
+        from kurafolio.web.exports import export_data
+        with patch("kurafolio.source_publication.make_source_payload", side_effect=AssertionError("No revalue")):
             self.assertEqual(Publications(store).view(self.pid, job["id"], "en-CA"), before)
             exported = export_data(store, self.pid, job["id"], "history")
         self.assertEqual(exported["source_basis"]["source_valuation_id"], 1)
@@ -245,12 +245,12 @@ class SourceReportWebTests(unittest.TestCase):
 
     def test_wallet_only_report_preserves_observation_date_without_inventing_broker_sources(self):
         self.prepare()
-        from wealth_ledger.wallet import add_balance
+        from kurafolio.wallet import add_balance
         add_balance(self.project, "0.01234567", AT, now=AT)
         body = {"valuation": {**self.body["valuation"], "btc_price": quote()}}
         job = self.confirm(self.preview(body=body)); view = self.view(job)
         self.assertEqual([r["provider"] for r in view["source_dates"]], ["wallet"])
-        from wealth_ledger.prices import parse_time
+        from kurafolio.prices import parse_time
         self.assertEqual(parse_time(view["source_dates"][0]["as_of"]), parse_time(AT))
         self.assertEqual(Decimal(view["btc"]["quantity_btc"]), Decimal("0.01234567"))
         self.assertEqual(Decimal(view["btc"]["valuation"]["unit_price_cad"]), Decimal(quote()["close"]) * Decimal(FX["usd_cad"]))
@@ -263,7 +263,7 @@ class SourceReportWebTests(unittest.TestCase):
         self.assertEqual(self.jobs.get(self.pid, preview["id"])["status"], "interrupted")
         ready = self.preview(key="fresh-after-interruption"); job = self.confirm(ready, execute=False)
         operations.start(self.project, {"type": "synthetic-unproven-start"}, operation_id=job["core_operation_id"])
-        with patch("wealth_ledger.source_publication.confirm_source_report", side_effect=AssertionError("No duplicate commit")):
+        with patch("kurafolio.source_publication.confirm_source_report", side_effect=AssertionError("No duplicate commit")):
             execute_job(self.settings, job["id"])
         self.assertEqual(self.jobs.get(self.pid, job["id"])["status"], "needs_review")
 
@@ -280,9 +280,9 @@ class SourceReportWebTests(unittest.TestCase):
 
     def test_third_provider_read_projection_preserves_identity_and_unknowns(self):
         self.prepare(); job = self.confirm(self.preview())
-        from wealth_ledger.source_publication import frozen_report
-        from wealth_ledger.web.source_report_views import source_view
-        from wealth_ledger.i18n import presentation_context, display_payload
+        from kurafolio.source_publication import frozen_report
+        from kurafolio.web.source_report_views import source_view
+        from kurafolio.i18n import presentation_context, display_payload
         payload = frozen_report(self.project, operations.get(self.project, job["core_operation_id"]))
         for row in payload["source_projection"]["accounts"]: row["provider"] = "third-synthetic-provider"
         for row in payload["positions"] + payload["cash_rows"]: row["source_provider"] = "third-synthetic-provider"
@@ -294,7 +294,7 @@ class SourceReportWebTests(unittest.TestCase):
 
     def test_restore_retains_proven_committed_report_retry_without_old_preview(self):
         self.prepare(); preview = self.preview(); job = self.confirm(preview, execute=False)
-        with patch("wealth_ledger.lookthrough.attach_analysis"), patch("wealth_ledger.publishing.publish", side_effect=RuntimeError):
+        with patch("kurafolio.lookthrough.attach_analysis"), patch("kurafolio.publishing.publish", side_effect=RuntimeError):
             execute_job(self.settings, job["id"])
         self.assertEqual(self.jobs.get(self.pid, job["id"])["status"], "report_failed")
         self.jobs.resume(self.pid, job["id"])
@@ -304,6 +304,6 @@ class SourceReportWebTests(unittest.TestCase):
         target = WebSettings(self.root.parent / "restored-committed-source-web")
         restore_instance(target, archive); jobs = Jobs(Store(target))
         self.assertEqual(jobs.get(self.pid, job["id"])["status"], "queued")
-        with patch("wealth_ledger.source_publication.make_source_payload", side_effect=AssertionError("No revalue")), patch("wealth_ledger.lookthrough.attach_analysis", side_effect=AssertionError("No analysis")), patch("wealth_ledger.publishing.publish", side_effect=publisher_receipt):
+        with patch("kurafolio.source_publication.make_source_payload", side_effect=AssertionError("No revalue")), patch("kurafolio.lookthrough.attach_analysis", side_effect=AssertionError("No analysis")), patch("kurafolio.publishing.publish", side_effect=publisher_receipt):
             execute_job(target, job["id"])
         self.assertEqual(jobs.get(self.pid, job["id"])["status"], "published")

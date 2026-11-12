@@ -225,7 +225,7 @@ def execute_isolated(settings, job_id):
     env = {**os.environ, "WEALTH_LEDGER_DATA_ROOT": str(settings.data_root),
            "WEALTH_LEDGER_PUBLIC_ORIGIN": settings.public_origin, "PYTHONPATH": str(PACKAGE_ROOT.parent),
            "PYTHONDONTWRITEBYTECODE": "1"}
-    return subprocess.run([sys.executable, "-m", "wealth_ledger.web.worker", job_id], env=env,
+    return subprocess.run([sys.executable, "-m", "kurafolio.web.worker", job_id], env=env,
                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
 
 

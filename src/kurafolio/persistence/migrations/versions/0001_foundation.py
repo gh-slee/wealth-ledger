@@ -2,7 +2,7 @@
 import uuid
 from alembic import op
 from sqlalchemy import text
-from wealth_ledger.persistence.schema import ddl
+from kurafolio.persistence.schema import ddl
 revision = "0001_foundation"
 down_revision = None
 branch_labels = None

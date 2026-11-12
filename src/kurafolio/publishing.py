@@ -158,16 +158,16 @@ def publish(project, payload, import_result, lookthrough_run_id=None, *, frozen_
     project = Path(project)
     pointer = project / "reports/latest.json"
     previous_latest = json.loads(pointer.read_text()) if pointer.exists() else None
-    from wealth_ledger.lookthrough import attach_analysis, portfolio_signature
+    from kurafolio.lookthrough import attach_analysis, portfolio_signature
     if not frozen_analysis:
         attach_analysis(project,payload,run_id=lookthrough_run_id)
     elif lookthrough_run_id is not None:
         raise ValueError("Frozen source publication cannot select another analysis run")
-    from wealth_ledger.reporting import generate_reports
-    from wealth_ledger.i18n import LEGACY_LOCALE
+    from kurafolio.reporting import generate_reports
+    from kurafolio.i18n import LEGACY_LOCALE
     locale = payload.get("reporting", {}).get("locale", LEGACY_LOCALE)
-    from wealth_ledger.workbook import build_workbook
-    from wealth_ledger.validation import validate_formula_caches
+    from kurafolio.workbook import build_workbook
+    from kurafolio.validation import validate_formula_caches
     as_of = datetime.fromisoformat(payload["meta"]["as_of"])
     parent = project / "reports" / as_of.strftime("%Y-%m-%d_%H%M")
     parent.mkdir(parents=True, exist_ok=True)
@@ -180,10 +180,10 @@ def publish(project, payload, import_result, lookthrough_run_id=None, *, frozen_
     try:
         payload_path = output / "data.json"
         payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        from wealth_ledger.lookthrough_reports import write_exports
+        from kurafolio.lookthrough_reports import write_exports
         if payload.get("lookthrough"):
             write_exports(payload, output)
-        from wealth_ledger.wallet_reports import write_exports as write_wallet_exports
+        from kurafolio.wallet_reports import write_exports as write_wallet_exports
         write_wallet_exports(payload, output)
         report_result = generate_reports(payload, output, locale=locale, cache_directory=project / "work/cache")
         ods = output / "portfolio.ods"
@@ -193,7 +193,7 @@ def publish(project, payload, import_result, lookthrough_run_id=None, *, frozen_
         for name in ("report.pdf", "report.md", "portfolio.ods"):
             if (output / name).stat().st_size == 0:
                 raise ValueError(f"Empty report artifact: {name}")
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.report_checks import validate_report_presentation
         presentation_validation = validate_report_presentation(payload, output, locale=locale)
         backup = database_backup(project, "reported")
         manifest = {

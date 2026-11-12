@@ -7,8 +7,8 @@ import sys
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
-from wealth_ledger.cli import make_parser, run_main
-from wealth_ledger.application import ApplicationService
+from kurafolio.cli import make_parser, run_main
+from kurafolio.application import ApplicationService
 
 def main():
     parser = make_parser(PROJECT, description=__doc__)
@@ -32,7 +32,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Offline input preview in a disposable project; never commit or publish")
     parser.add_argument("--json", action="store_true", help="Print machine-readable dry-run JSON instead of the Traditional Chinese summary")
     parser.add_argument("--btc-cost-policy", choices=("actual_only", "bull_average_proxy"), help="Explicit BTC report cost policy; defaults to private local setting or actual_only")
-    from wealth_ledger.source_import_cli import add_arguments
+    from kurafolio.source_import_cli import add_arguments
     add_arguments(parser)
     args = parser.parse_args()
     service = ApplicationService(parser.workspace)
@@ -44,7 +44,7 @@ def main():
     if args.native_import and (args.source_parsers or args.confirm_source_preview):
         parser.error("Choose the default parser workflow or --native-import, not both")
     if args.confirm_source_preview or not modes and not args.native_import:
-        from wealth_ledger.source_import_cli import run
+        from kurafolio.source_import_cli import run
         return run(args, service, paths, selected_locale, parser)
     if any((args.plan_directory,args.source_bindings,args.source_context,args.source_config,args.source_select,
             args.source_period_start,args.fetch_source_references,args.approval_sha256,args.source_profile,args.list_source_profiles)):
@@ -77,7 +77,7 @@ def main():
                "btc_balance_as_of": args.btc_balance_as_of, "btc_balance_source": args.btc_balance_source,
                "btc_cost_policy": args.btc_cost_policy, "report_locale": selected_locale}
     if args.dry_run:
-        from wealth_ledger.preflight import render_preview
+        from kurafolio.preflight import render_preview
         result = service.preview(request)
         print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else render_preview(result, locale=selected_locale))
         return 2 if result["status"] == "blocked" else 0

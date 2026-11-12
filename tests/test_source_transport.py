@@ -6,11 +6,11 @@ import hashlib
 import json
 import unittest
 
-from wealth_ledger.data_sources import contract_v1 as s
-from wealth_ledger.data_sources.transport_v1 import make_envelope, validate_transport
-from wealth_ledger.domain import canonical_v1 as c
-from wealth_ledger.domain import legacy_bridge_v1 as b
-from wealth_ledger.domain.validation_v1 import encode_domain_v1, decode_domain_v1
+from kurafolio.data_sources import contract_v1 as s
+from kurafolio.data_sources.transport_v1 import make_envelope, validate_transport
+from kurafolio.domain import canonical_v1 as c
+from kurafolio.domain import legacy_bridge_v1 as b
+from kurafolio.domain.validation_v1 import encode_domain_v1, decode_domain_v1
 from test_source_capabilities import context_vector
 from test_domain_v1 import with_events, event, C1
 

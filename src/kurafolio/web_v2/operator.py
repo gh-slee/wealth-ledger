@@ -40,7 +40,7 @@ def new_private(path, raw):
 
 def export_secret(store, kind, output):
     """Journal an opaque ID before COMMIT; hard termination leaves a recovery handle."""
-    from wealth_ledger.persistence.identity import IdentityError
+    from kurafolio.persistence.identity import IdentityError
     from .auth import digest
     output=Path(output)
     receipt=output.with_name(output.name+'.receipt.json')
@@ -56,7 +56,7 @@ def export_secret(store, kind, output):
         key='setup_id' if kind=='setup' else 'invite_id'
         def journal(value):
             nonlocal record_id
-            from wealth_ledger.persistence.context import identifier
+            from kurafolio.persistence.context import identifier
             record_id=identifier(value[key])
             # The receipt is owned by this invocation; never follow a replaced link.
             fd=os.open(receipt,os.O_WRONLY|os.O_NOFOLLOW)
@@ -119,9 +119,9 @@ def execute_command(args):
     if args.action=='instance-key':
         new_private(args.output,secrets.token_bytes(32))
         return {'key_created':True}
-    from wealth_ledger.persistence.config import PostgresConfig
-    from wealth_ledger.persistence.identity import IdentityStore
-    from wealth_ledger.persistence.migration import migrate_identity, finalize_identity_restore
+    from kurafolio.persistence.config import PostgresConfig
+    from kurafolio.persistence.identity import IdentityStore
+    from kurafolio.persistence.migration import migrate_identity, finalize_identity_restore
     from .config import private_bytes
     source_action=args.action=='sources' or args.action=='operator' and args.operation=='migrate-sources'
     profile='sources' if source_action else getattr(args,'schema_profile','identity')
@@ -145,10 +145,10 @@ def execute_command(args):
         if args.action in {'setup','invite'}:
             if args.operation in {'arm','issue'}:
                 return export_secret(store,args.action,args.output)
-            from wealth_ledger.persistence.context import identifier
+            from kurafolio.persistence.context import identifier
             store.call('revoke_setup_v1' if args.action=='setup' else 'revoke_invite_v1',identifier(args.record_id))
             return {'revoked':True}
-        from wealth_ledger.persistence.context import identifier
+        from kurafolio.persistence.context import identifier
         user_id=identifier(args.user_id)
         if args.operation=='reset-password':
             value=read_password(stdin=args.password_stdin)
@@ -167,8 +167,8 @@ def source_proofs(catalog,path):
     """Explicit private host paths only; proof inputs never enter a child or API."""
     if path is None:return ()
     from .config import private_bytes
-    from wealth_ledger.data_sources.contract_v1 import load_json,MAX_CONTEXT,installation_id
-    from wealth_ledger.data_sources.catalog_v1 import verify_installation
+    from kurafolio.data_sources.contract_v1 import load_json,MAX_CONTEXT,installation_id
+    from kurafolio.data_sources.catalog_v1 import verify_installation
     value=load_json(private_bytes(path,MAX_CONTEXT))
     if type(value) is not dict or set(value)!={'format','installations'} or value['format']!='source-proof-input-v1' or type(value['installations']) is not list:
         raise OperatorError('invalid_config')
@@ -188,10 +188,10 @@ def source_proofs(catalog,path):
 
 def source_command(args,store):
     from .config import private_bytes
-    from wealth_ledger.data_sources.catalog_v1 import read_catalog_file,catalog_digest
-    from wealth_ledger.data_sources.contract_v1 import counter
-    from wealth_ledger.persistence.source_migration import migrate_sources,apply_catalog,finalize_sources_restore,verify_inventory
-    from wealth_ledger.persistence.context import execute
+    from kurafolio.data_sources.catalog_v1 import read_catalog_file,catalog_digest
+    from kurafolio.data_sources.contract_v1 import counter
+    from kurafolio.persistence.source_migration import migrate_sources,apply_catalog,finalize_sources_restore,verify_inventory
+    from kurafolio.persistence.context import execute
     import hmac
     key=private_bytes(args.key_file,32)
     if len(key)!=32:raise OperatorError('invalid_config')

@@ -197,7 +197,7 @@ standard-library check. It inspects allowlisted public Markdown and Python comme
 docstrings and identifiers for CJK text. Private instructions/data are outside its
 read scope. Explicit exception categories are:
 
-- Catalog/registry/legacy JSON in src/wealth_ledger/locales/.
+- Catalog/registry/legacy JSON in src/kurafolio/locales/.
 - Intentional runtime localized labels, closed legacy compatibility strings and
   Unicode/localization test values inside Python string literals.
 - Original source/user content and generated localized reports, which are not

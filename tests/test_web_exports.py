@@ -14,7 +14,7 @@ import test_web as foundation
 from test_web_reports import synthetic_payload, publish_fixture
 
 if foundation.AVAILABLE:
-    from wealth_ledger.web.storage import Store
+    from kurafolio.web.storage import Store
 
 
 def complete_publication(store, pid, payload):
@@ -98,11 +98,11 @@ class ExportTests(unittest.TestCase):
         other=self.portfolio('Other invented ledger')
         for suffix in ('bundle.zip','export?dataset=holdings'):
             self.assertEqual(self.client.get(f'/api/v1/portfolios/{other}/reports/{self.report}/'+suffix).status_code,404)
-        from wealth_ledger.web.jobs import Jobs
+        from kurafolio.web.jobs import Jobs
         Jobs(self.store).state(self.report,'data_committed')
         self.assertEqual(self.client.get(self.prefix+'/bundle.zip').status_code,404)
         Jobs(self.store).state(self.report,'published',result={'valuation_as_of':self.payload['meta']['as_of']})
-        with patch('wealth_ledger.web.exports.MAX_BUNDLE',1):
+        with patch('kurafolio.web.exports.MAX_BUNDLE',1):
             self.assertEqual(self.client.get(self.prefix+'/bundle.zip').status_code,413)
             self.assertEqual(self.client.get(self.prefix+'/export?dataset=holdings').status_code,413)
         (self.folder/'report.pdf').write_bytes(b'changed')

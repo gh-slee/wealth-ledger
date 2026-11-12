@@ -8,8 +8,8 @@ import traceback
 import unittest
 from unittest.mock import patch
 
-from wealth_ledger.source_protocol import AdapterInfo, Detection
-from wealth_ledger.source_registry import (
+from kurafolio.source_protocol import AdapterInfo, Detection
+from kurafolio.source_registry import (
     ENTRY_POINT_GROUP, MAX_INPUT_BYTES, AdapterRegistration, PluginCandidate,
     PluginSelection, ProviderInfo, RegistryError, build_registry, discover_plugins,
 )
@@ -58,7 +58,7 @@ class SourceRegistryTests(unittest.TestCase):
         return caught.exception
 
     def test_default_registry_does_not_discover_or_import_packages(self):
-        with patch("wealth_ledger.source_registry.metadata.distributions", side_effect=AssertionError("No discovery")):
+        with patch("kurafolio.source_registry.metadata.distributions", side_effect=AssertionError("No discovery")):
             registry = build_registry()
         self.assertEqual(registry.adapters, ())
         self.assert_code("no_match", lambda: registry.detect(b"demo"))
@@ -116,7 +116,7 @@ class SourceRegistryTests(unittest.TestCase):
             self.assert_code("invalid_catalog", lambda: discover_plugins((item,)))
         bad = replace(candidate(), target="not the recorded target")
         self.assert_code("invalid_catalog", lambda: build_registry(catalog=(bad,)))
-        with patch("wealth_ledger.source_registry.metadata.distributions", side_effect=RuntimeError("synthetic-sensitive-value")):
+        with patch("kurafolio.source_registry.metadata.distributions", side_effect=RuntimeError("synthetic-sensitive-value")):
             error = self.assert_code("invalid_catalog", discover_plugins)
         self.assertNotIn("synthetic-sensitive-value", str(error))
 
@@ -127,7 +127,7 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertEqual(registry.detect(b"demo").descriptor.plugin, SELECTION)
 
     def test_automatic_metadata_discovery_is_only_for_explicit_enablement(self):
-        with patch("wealth_ledger.source_registry.metadata.distributions", return_value=(Distribution(),)) as discover:
+        with patch("kurafolio.source_registry.metadata.distributions", return_value=(Distribution(),)) as discover:
             with patch.object(metadata.EntryPoint, "load", return_value=lambda: registration()):
                 registry = build_registry(enabled=(SELECTION,))
         discover.assert_called_once()
@@ -231,8 +231,8 @@ class SourceRegistryTests(unittest.TestCase):
             (info / "METADATA").write_text("Metadata-Version: 2.1\nName: demo-parser\nVersion: 1.2.3\n", encoding="utf-8")
             (info / "entry_points.txt").write_text(f"[{ENTRY_POINT_GROUP}]\nholdings = {module}:make\n", encoding="utf-8")
             (root / (module + ".py")).write_text(
-                "from wealth_ledger.source_registry import AdapterRegistration, ProviderInfo\n"
-                "from wealth_ledger.source_protocol import AdapterInfo, Detection\n"
+                "from kurafolio.source_registry import AdapterRegistration, ProviderInfo\n"
+                "from kurafolio.source_protocol import AdapterInfo, Detection\n"
                 "class Demo:\n"
                 "    info = AdapterInfo('demo', 'demo.holdings', '1.0.0', ('csv-v1',), ('holdings',))\n"
                 "    def detect(self, raw): return Detection(raw == b'demo', 'csv-v1' if raw == b'demo' else None, 'Synthetic')\n"

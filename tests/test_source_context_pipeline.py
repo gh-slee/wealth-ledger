@@ -9,12 +9,12 @@ import unittest
 from unittest.mock import patch
 
 from test_source_builtin import CONTEXT, ALIAS, ROOT, fixture
-from wealth_ledger.source_builtin import registrations
-from wealth_ledger.source_context_pipeline import (BLOCKER, _plan, context_document, contexts_from_document,
+from kurafolio.source_builtin import registrations
+from kurafolio.source_context_pipeline import (BLOCKER, _plan, context_document, contexts_from_document,
     parse_context, parse_sources, plan_context_sources, validate_receipt)
-from wealth_ledger.source_environment import digest
-from wealth_ledger.source_pipeline import DEFAULT_CONFIG, SourcePlanError
-from wealth_ledger.source_registry import build_registry
+from kurafolio.source_environment import digest
+from kurafolio.source_pipeline import DEFAULT_CONFIG, SourcePlanError
+from kurafolio.source_registry import build_registry
 
 CONTEXTS = (CONTEXT, replace(CONTEXT, account_alias=ALIAS))
 RAW = (fixture("wealthsimple-holdings.csv"), fixture("bull-orders.csv"))
@@ -49,9 +49,9 @@ class ContextSchemaTests(unittest.TestCase):
         self.assertEqual(first["inputs"][1]["record_counts"], {"cash_flows": 1, "crypto_transactions": 2})
 
     def test_valid_empty_batch_keeps_unknown_coverage_without_zero_asset_inference(self):
-        from wealth_ledger.source_builtin import WealthsimpleHoldings
-        from wealth_ledger.source_builtin import WS_FORMAT
-        from wealth_ledger import source_v2 as v2
+        from kurafolio.source_builtin import WealthsimpleHoldings
+        from kurafolio.source_builtin import WS_FORMAT
+        from kurafolio import source_v2 as v2
         original = WealthsimpleHoldings().normalize(RAW[0], export_version=WS_FORMAT, context=CONTEXT)
         empty = replace(original, records=(), snapshots=(), coverage=())
         v2.validate_batch(empty, RAW[0])
@@ -83,7 +83,7 @@ class ContextSchemaTests(unittest.TestCase):
             validate_receipt(malformed)
 
     def test_invalid_context_does_not_execute_source_normalizer(self):
-        with patch("wealth_ledger.source_builtin.WealthsimpleHoldings.normalize", side_effect=AssertionError("must not normalize")):
+        with patch("kurafolio.source_builtin.WealthsimpleHoldings.normalize", side_effect=AssertionError("must not normalize")):
             with self.assertRaises(SourcePlanError):
                 _plan(RAW, (replace(CONTEXT, source_timezone="Unknown/Zone"), CONTEXTS[1]), DEFAULT_CONFIG, {}, registry=build_registry(builtins=registrations()), environment="a" * 64)
 
@@ -116,7 +116,7 @@ class IsolatedContextTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "stale_plan")
 
     def test_actual_cli_uses_same_context_contract_and_revalidation(self):
-        command = [sys.executable, "-B", "-m", "wealth_ledger.source_cli", *map(str, self.paths),
+        command = [sys.executable, "-B", "-m", "kurafolio.source_cli", *map(str, self.paths),
             "--config", str(self.config), "--context", str(self.context)]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -134,7 +134,7 @@ class IsolatedContextTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "stale_environment")
 
     def test_timeout_and_unknown_context_are_redacted(self):
-        with patch("wealth_ledger.source_context_pipeline.subprocess.run", side_effect=subprocess.TimeoutExpired("synthetic", 1)):
+        with patch("kurafolio.source_context_pipeline.subprocess.run", side_effect=subprocess.TimeoutExpired("synthetic", 1)):
             with self.assertRaises(SourcePlanError) as caught:
                 self.plan(timeout=1)
         self.assertEqual(caught.exception.code, "parser_timeout")
@@ -147,7 +147,7 @@ class IsolatedContextTests(unittest.TestCase):
             result = real_run(*args, **kwargs)
             self.paths[0].write_bytes(RAW[0] + b"\n")
             return result
-        with patch("wealth_ledger.source_context_pipeline.subprocess.run", side_effect=mutate):
+        with patch("kurafolio.source_context_pipeline.subprocess.run", side_effect=mutate):
             with self.assertRaises(SourcePlanError) as caught:
                 self.plan()
         self.assertEqual(caught.exception.code, "stale_plan")

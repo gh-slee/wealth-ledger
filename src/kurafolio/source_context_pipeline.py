@@ -175,7 +175,7 @@ def parse_sources(paths, *, contexts, config_path=None, selections=None, previou
         env.update({"PYTHONPATH": str(PACKAGE_ROOT.parent), "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONPYCACHEPREFIX": str(root / "bytecode"), "PYTHONHASHSEED": "0", "PYTHONUTF8": "1", "TZ": "UTC"})
         try:
-            result = subprocess.run([str(python or sys.executable), "-B", "-m", "wealth_ledger.source_context_pipeline", str(root)],
+            result = subprocess.run([str(python or sys.executable), "-B", "-m", "kurafolio.source_context_pipeline", str(root)],
                 env=env, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
         except subprocess.TimeoutExpired:
             raise SourcePlanError("parser_timeout") from None

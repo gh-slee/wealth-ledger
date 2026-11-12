@@ -3,11 +3,11 @@ from dataclasses import replace
 import base64
 import unittest
 
-from wealth_ledger import source_v2 as old
-from wealth_ledger.domain.legacy_bridge_v1 import bridge_parser_v2
-from wealth_ledger.data_sources import contract_v1 as s
-from wealth_ledger.data_sources.compatibility_v1 import builtin_descriptors
-from wealth_ledger.data_sources.transport_v1 import make_envelope, validate_transport
+from kurafolio import source_v2 as old
+from kurafolio.domain.legacy_bridge_v1 import bridge_parser_v2
+from kurafolio.data_sources import contract_v1 as s
+from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
+from kurafolio.data_sources.transport_v1 import make_envelope, validate_transport
 from test_domain_bridge_v1 import (WS_RAW,WS_ARCHIVE,BULL_RAW,BULL_ARCHIVE,context_for)
 
 
@@ -18,7 +18,7 @@ class SourceCapabilityCompatibilityTests(unittest.TestCase):
             accepted=bridge_parser_v2(raw,archive,binding)
             self.assertEqual(accepted.blockers,())
             descriptor=s.Descriptor(1,original.adapter.provider_id,original.adapter.provider_id,original.adapter.adapter_id,
-                "wealth-ledger","1.0.0",original.adapter.adapter_id,"wealth_ledger.source_builtin:registrations",
+                "wealth-ledger","1.0.0",original.adapter.adapter_id,"kurafolio.source_builtin:registrations",
                 "a"*64,"b"*64,1,1,2,"parser_v2",("FILE_IMPORT",),original.adapter.export_versions,
                 ("CASH","CRYPTO","SECURITY"),"required" if original.adapter.provider_id=="bullbitcoin" else "forbidden","reviewed-file-v1")
             context=s.SourceContextV1(1,s.InternalRealm("synthetic_db","101",None,None,"44444444-4444-4444-8444-444444444444","0"),
@@ -44,7 +44,7 @@ class SourceCapabilityCompatibilityTests(unittest.TestCase):
 
     def test_builtin_metadata_uses_implemented_grammar_and_explicit_content_binding(self):
         descriptors=builtin_descriptors(package_distribution="wealth-ledger",package_version="1.0.0",artifact_sha256="a"*64,
-            execution_image_digest="b"*64,entry_point_target="wealth_ledger.source_builtin:registrations")
+            execution_image_digest="b"*64,entry_point_target="kurafolio.source_builtin:registrations")
         self.assertEqual([(x.provider_id,x.adapter_id,x.parser_api_version,x.format_versions,x.alias_policy) for x in descriptors],
             [("wealthsimple","wealthsimple.holdings",2,("wealthsimple-holdings-footer-v1",),"forbidden"),
              ("bullbitcoin","bullbitcoin.orders",2,("bullbitcoin-orders-utc-v1",),"required")])

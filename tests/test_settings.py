@@ -4,8 +4,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from wealth_ledger.settings import btc_cost_policy
-from wealth_ledger.btc_performance import btc_cost_estimate
+from kurafolio.settings import btc_cost_policy
+from kurafolio.btc_performance import btc_cost_estimate
 
 
 class ReportingSettingsTests(unittest.TestCase):
@@ -57,9 +57,9 @@ class ReportingSettingsTests(unittest.TestCase):
     def test_policy_changes_are_not_new_financial_observations(self):
         import csv,json,sqlite3
         from unittest.mock import patch
-        from wealth_ledger.core import import_holdings
-        from wealth_ledger.crypto import import_bull_orders
-        from wealth_ledger.combined import make_combined_payload
+        from kurafolio.core import import_holdings
+        from kurafolio.crypto import import_bull_orders
+        from kurafolio.combined import make_combined_payload
         from test_core import FX,write_holdings
         from test_crypto import ASSUMPTIONS,FIELDS,order
         from test_combined import quote
@@ -70,7 +70,7 @@ class ReportingSettingsTests(unittest.TestCase):
             writer=csv.DictWriter(stream,FIELDS);writer.writeheader()
             writer.writerows([order('fund'),order('buy','Buy Bitcoin','100','BTC','.001')])
         import_bull_orders(self.project,orders,opening_assumption=ASSUMPTIONS)
-        with patch('wealth_ledger.combined.resolve_btc_price',side_effect=lambda p,t,f:quote(t)):
+        with patch('kurafolio.combined.resolve_btc_price',side_effect=lambda p,t,f:quote(t)):
             actual=make_combined_payload(self.project)
             proxy=make_combined_payload(self.project,btc_cost_policy='bull_average_proxy')
         self.assertEqual(actual['crypto']['cost_estimate_policy'],'actual_only')
@@ -83,12 +83,12 @@ class ReportingSettingsTests(unittest.TestCase):
     def test_actual_only_has_no_proxy_formulas_and_passes_three_format_checks(self):
         import csv
         from unittest.mock import patch
-        from wealth_ledger.core import import_holdings
-        from wealth_ledger.crypto import import_bull_orders
-        from wealth_ledger.combined import make_combined_payload
-        from wealth_ledger.reporting import generate_reports
-        from wealth_ledger.workbook import build_workbook
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.core import import_holdings
+        from kurafolio.crypto import import_bull_orders
+        from kurafolio.combined import make_combined_payload
+        from kurafolio.reporting import generate_reports
+        from kurafolio.workbook import build_workbook
+        from kurafolio.report_checks import validate_report_presentation
         from test_core import FX,write_holdings
         from test_crypto import ASSUMPTIONS,FIELDS,order
         from test_combined import quote
@@ -99,7 +99,7 @@ class ReportingSettingsTests(unittest.TestCase):
             writer=csv.DictWriter(stream,FIELDS);writer.writeheader()
             writer.writerows([order('fund'),order('buy','Buy Bitcoin','100','BTC','.001')])
         import_bull_orders(self.project,orders,opening_assumption=ASSUMPTIONS)
-        with patch('wealth_ledger.combined.resolve_btc_price',side_effect=lambda p,t,f:quote(t)):
+        with patch('kurafolio.combined.resolve_btc_price',side_effect=lambda p,t,f:quote(t)):
             payload=make_combined_payload(self.project)
         output=self.project/'output'
         artifacts=generate_reports(payload,output)

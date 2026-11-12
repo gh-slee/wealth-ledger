@@ -15,9 +15,9 @@ from starlette.responses import JSONResponse
 
 from .auth import Auth, RequestError, TOKEN, HEX, digest
 from . import schemas as s
-from wealth_ledger.persistence.identity import IdentityError
-from wealth_ledger.data_sources.lifecycle_v1 import SourceError
-from wealth_ledger.domain.canonical_v1 import DomainBatchV1
+from kurafolio.persistence.identity import IdentityError
+from kurafolio.data_sources.lifecycle_v1 import SourceError
+from kurafolio.domain.canonical_v1 import DomainBatchV1
 
 SECURITY_HEADERS = {'Cache-Control':'no-store, private', 'Pragma':'no-cache',
  'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer',
@@ -384,7 +384,7 @@ def create_app(settings):
             return auth.source(request.state.principal,name,payload,deadline=request.state.source_deadline)
 
         def source_query(request,*,connections=False):
-            from wealth_ledger.data_sources.contract_v1 import counter,NAMESPACE
+            from kurafolio.data_sources.contract_v1 import counter,NAMESPACE
             params=request.state.query
             if not set(params)<={'limit','after','catalog_revision','state_revision','incarnation','restore_epoch'}:
                 raise RequestError('invalid_input',422)

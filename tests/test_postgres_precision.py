@@ -1,8 +1,8 @@
 """Real SQL checks use independently supplied literal precision/time oracles."""
 from decimal import Decimal
 import json
-from wealth_ledger.persistence.context import execute
-from wealth_ledger.persistence.precision import source_time
+from kurafolio.persistence.context import execute
+from kurafolio.persistence.precision import source_time
 from test_postgres_config import PostgresCase,FIXTURES
 
 
@@ -30,6 +30,6 @@ class PrecisionTests(PostgresCase):
             self.assertEqual(execute(conn,"SELECT '100000000000'::numeric*100000000").scalar_one(),Decimal('10000000000000000000'))
 
     def test_date_only_and_native_UTC_overflow_preserve_source_token(self):
-        from wealth_ledger.domain.canonical_v1 import DateOnlyV1,InstantV1
+        from kurafolio.domain.canonical_v1 import DateOnlyV1,InstantV1
         for time in [DateOnlyV1('2026-03-08',None),InstantV1('0001-01-01T00:00:00+23:59',None,0),InstantV1('9999-12-31T23:59:59-23:59',None,0)]:
             row=source_time(time);self.assertIsNone(row['time_utc']);self.assertEqual(row['time_token'],time.token)

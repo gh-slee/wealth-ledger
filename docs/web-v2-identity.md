@@ -57,17 +57,17 @@ password and sslmode, with matching target/TLS options. Never pass a password as
 CLI argument/environment variable or include it in an issue. Protect parent folders.
 
 ```bash
-PYTHONPATH=src python -m wealth_ledger.web_v2 --help
-PYTHONPATH=src python -m wealth_ledger.web_v2 instance-key create \
+PYTHONPATH=src python -m kurafolio.web_v2 --help
+PYTHONPATH=src python -m kurafolio.web_v2 instance-key create \
   --output /path/to/private/identity.key
-PYTHONPATH=src python -m wealth_ledger.web_v2 operator migrate-identity \
+PYTHONPATH=src python -m kurafolio.web_v2 operator migrate-identity \
   --secret-file /path/to/private/operator.conninfo \
   --runtime-role ledger_runtime --identity-role ledger_identity \
   --key-file /path/to/private/identity.key
-PYTHONPATH=src python -m wealth_ledger.web_v2 setup arm \
+PYTHONPATH=src python -m kurafolio.web_v2 setup arm \
   --secret-file /path/to/private/operator.conninfo \
   --output /path/to/private/setup-code
-PYTHONPATH=src python -m wealth_ledger.web_v2 serve \
+PYTHONPATH=src python -m kurafolio.web_v2 serve \
   --identity-file /path/to/private/identity.conninfo \
   --financial-file /path/to/private/runtime.conninfo \
   --key-file /path/to/private/identity.key \
@@ -97,13 +97,13 @@ Host commands use the same module prefix:
 
 ```bash
 # Opaque IDs come from command output or the retained private receipt.
-python -m wealth_ledger.web_v2 setup revoke --secret-file /path/to/private/operator.conninfo --record-id SETUP_UUID
-python -m wealth_ledger.web_v2 invite issue --secret-file /path/to/private/operator.conninfo --output /path/to/private/new-invite
-python -m wealth_ledger.web_v2 invite revoke --secret-file /path/to/private/operator.conninfo --record-id INVITE_UUID
-python -m wealth_ledger.web_v2 account reset-password --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
-python -m wealth_ledger.web_v2 account disable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
-python -m wealth_ledger.web_v2 account enable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
-python -m wealth_ledger.web_v2 identity status --secret-file /path/to/private/operator.conninfo
+python -m kurafolio.web_v2 setup revoke --secret-file /path/to/private/operator.conninfo --record-id SETUP_UUID
+python -m kurafolio.web_v2 invite issue --secret-file /path/to/private/operator.conninfo --output /path/to/private/new-invite
+python -m kurafolio.web_v2 invite revoke --secret-file /path/to/private/operator.conninfo --record-id INVITE_UUID
+python -m kurafolio.web_v2 account reset-password --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
+python -m kurafolio.web_v2 account disable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
+python -m kurafolio.web_v2 account enable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
+python -m kurafolio.web_v2 identity status --secret-file /path/to/private/operator.conninfo
 ```
 
 Password reset uses hidden TTY input and confirmation. For a protected pipe, add
@@ -171,7 +171,7 @@ running/later-written instance. Stop the isolated target and restore a matching
 trusted finalization, role/key/realm and data verification succeed.
 
 ```bash
-python -m wealth_ledger.web_v2 identity finalize-restore \
+python -m kurafolio.web_v2 identity finalize-restore \
   --secret-file /path/to/private/restored-operator.conninfo \
   --runtime-role ledger_runtime --identity-role ledger_identity \
   --key-file /path/to/private/matching-identity.key
@@ -193,8 +193,8 @@ restore target. Create a **new** private key file at a new path, then explicitly
 finalize that isolated target with replacement:
 
 ```bash
-python -m wealth_ledger.web_v2 instance-key create --output /path/to/private/recovered-instance.key
-python -m wealth_ledger.web_v2 identity finalize-restore \
+python -m kurafolio.web_v2 instance-key create --output /path/to/private/recovered-instance.key
+python -m kurafolio.web_v2 identity finalize-restore \
   --secret-file /path/to/private/restored-operator.conninfo \
   --runtime-role ledger_runtime --identity-role ledger_identity \
   --key-file /path/to/private/recovered-instance.key --replace-missing-key

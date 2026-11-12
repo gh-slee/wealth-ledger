@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def main():
-    from wealth_ledger.source_pipeline import PLAN_BYTES, SourcePlanError, _json, bounded_read, plan_sources
+    from kurafolio.source_pipeline import PLAN_BYTES, SourcePlanError, _json, bounded_read, plan_sources
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("files", nargs="+", type=Path)
     parser.add_argument("--config", required=True, type=Path, help="Trusted host JSON, never an uploaded plugin")

@@ -12,10 +12,10 @@ import unittest
 from unittest.mock import patch
 
 from test_source_v2 import ACCOUNT, META, POSITION, AT, RAW, CONTEXT, CAD, BTC, LBTC, batch, funding, purchase
-from wealth_ledger import source_ingestion as store, source_v2 as v2
-from wealth_ledger.source_protocol import AccountKey, CryptoLeg, Money, RecordKey
-from wealth_ledger.source_projection import ProjectionError, project_sources
-from wealth_ledger.workspace import resolve_workspace
+from kurafolio import source_ingestion as store, source_v2 as v2
+from kurafolio.source_protocol import AccountKey, CryptoLeg, Money, RecordKey
+from kurafolio.source_projection import ProjectionError, project_sources
+from kurafolio.workspace import resolve_workspace
 
 START = AT - timedelta(days=30)
 FX = {"usd_cad": "1.25", "usd_twd": "30", "usd_cad_date": "2024-01-30", "usd_twd_date": "2024-01-30",
@@ -33,7 +33,7 @@ class SourceProjectionTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve() / "ledger"
         self.root.mkdir()
-        self.env = patch("wealth_ledger.source_ingestion.environment_fingerprint", return_value="a" * 64)
+        self.env = patch("kurafolio.source_ingestion.environment_fingerprint", return_value="a" * 64)
         self.env.start()
         self.addCleanup(self.env.stop)
 
@@ -314,7 +314,7 @@ class SourceProjectionTests(unittest.TestCase):
         self.assertEqual(result["movements"]["changes"][0]["quantity_basis"], "recorded_effects_not_total_balance")
 
     def test_legacy_bindings_preserve_ids_without_adding_legacy_rows_twice(self):
-        from wealth_ledger.core import initialize
+        from kurafolio.core import initialize
         initialize(self.root)
         with closing(sqlite3.connect(self.root / "data/db/portfolio.sqlite3")) as conn:
             conn.execute("INSERT INTO accounts VALUES(?,?,?,?)", ("original-id", "TFSA", "Legacy fixture", "****0001"))
@@ -326,23 +326,23 @@ class SourceProjectionTests(unittest.TestCase):
         self.assertEqual(result["legacy_bindings"], [{"account_id": "original-id", "target_kind": "legacy_holdings"}])
         self.assertFalse(result["legacy_merge_ready"])
         self.assertFalse(result["report_projection_ready"])
-        from wealth_ledger.core import make_payload
+        from kurafolio.core import make_payload
         with self.assertRaises(store.IngestionError) as caught:
             make_payload(self.root)
         self.assertEqual(caught.exception.code, "report_projection_unavailable")
 
     def test_legacy_wallet_only_state_is_not_silently_ignored(self):
-        from wealth_ledger.core import initialize
+        from kurafolio.core import initialize
         initialize(self.root)
-        from wealth_ledger.wallet import add_balance
+        from kurafolio.wallet import add_balance
         add_balance(self.root, "0.00100000", AT.isoformat(), source="synthetic-user-observation", now=CONTEXT.evidence_at.isoformat())
         self.assertTrue(self.model()["legacy_state_present"])
         self.assertIsNone(self.model()["complete_portfolio_values"])
 
     def test_projection_never_calls_a_parser_and_detects_changed_evidence(self):
         self.commit()
-        with patch("wealth_ledger.source_builtin.WealthsimpleHoldings.normalize", side_effect=AssertionError("Parser executed")), \
-             patch("wealth_ledger.source_builtin.BullBitcoinOrders.normalize", side_effect=AssertionError("Parser executed")):
+        with patch("kurafolio.source_builtin.WealthsimpleHoldings.normalize", side_effect=AssertionError("Parser executed")), \
+             patch("kurafolio.source_builtin.BullBitcoinOrders.normalize", side_effect=AssertionError("Parser executed")):
             self.model()
         encoded = next((self.root / "data/raw/source-v2").glob("*.csv"))
         encoded.chmod(0o600)
@@ -352,7 +352,7 @@ class SourceProjectionTests(unittest.TestCase):
 
     def test_concurrent_financial_state_change_rejects_projection(self):
         self.commit()
-        with patch("wealth_ledger.source_ingestion.state_fingerprint", side_effect=("a" * 64, "b" * 64)):
+        with patch("kurafolio.source_ingestion.state_fingerprint", side_effect=("a" * 64, "b" * 64)):
             with self.assertRaises(ProjectionError) as caught:
                 self.model()
         self.assertEqual(caught.exception.code, "projection_state_changed")
@@ -372,8 +372,8 @@ class SourceProjectionTests(unittest.TestCase):
 
     def test_built_in_holdings_and_orders_project_without_provider_branches(self):
         from test_source_builtin import fixture, CONTEXT as BUILTIN_CONTEXT
-        from wealth_ledger.source_builtin import WealthsimpleHoldings, BullBitcoinOrders, WS_FORMAT, BULL_FORMAT
-        from wealth_ledger.source_formats import parse_wealthsimple
+        from kurafolio.source_builtin import WealthsimpleHoldings, BullBitcoinOrders, WS_FORMAT, BULL_FORMAT
+        from kurafolio.source_formats import parse_wealthsimple
         raw = fixture("wealthsimple-holdings.csv")
         holdings = WealthsimpleHoldings().normalize(raw, export_version=WS_FORMAT, context=BUILTIN_CONTEXT)
         self.commit(holdings, raw=raw)

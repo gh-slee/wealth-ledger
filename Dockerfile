@@ -20,7 +20,7 @@ RUN python -m pip install --no-cache-dir -r requirements-web.lock \
     && groupadd --gid 10001 ledger \
     && useradd --uid 10001 --gid ledger --no-create-home --home-dir /nonexistent ledger \
     && mkdir /data && chown 10001:10001 /data && chmod 0700 /data
-COPY src/wealth_ledger /app/src/wealth_ledger
+COPY src/kurafolio /app/src/kurafolio
 COPY scripts/web.py /app/scripts/web.py
 COPY config/company-aliases.json /app/config/company-aliases.json
 COPY assets/fonts /app/assets/fonts

@@ -8,7 +8,7 @@ import socket
 import sys
 import time
 
-from wealth_ledger.data_sources import contract_v1 as s
+from kurafolio.data_sources import contract_v1 as s
 
 OPERATIONS=frozenset({'normalize','fake_file','fake_api','inspect','probe','malformed_output'})
 PROBES=frozenset({'network','files','readonly','pids','memory','cpu','stdout','stderr','sleep','descendant'})
@@ -112,8 +112,8 @@ def main():
     if operation=='normalize':
         if set(context)!={'context_version','payload_kind','context'} or context['context_version']!=1 or context['payload_kind']!='parser_v2':raise ValueError('Invalid minimal parser context')
         binding=s.decode(s.ParserBinding,context['context'])
-        from wealth_ledger.source_builtin import WealthsimpleHoldings,BullBitcoinOrders
-        from wealth_ledger.source_v2 import canonical_json
+        from kurafolio.source_builtin import WealthsimpleHoldings,BullBitcoinOrders
+        from kurafolio.source_v2 import canonical_json
         factories={'wealthsimple':WealthsimpleHoldings,'bullbitcoin':BullBitcoinOrders}
         if value['provider'] not in factories:raise ValueError('Unknown fixed provider')
         batch=factories[value['provider']]().normalize(source,export_version=value['format_version'],context=binding.value)

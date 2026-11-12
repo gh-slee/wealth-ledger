@@ -4,13 +4,13 @@ import json
 import subprocess
 import threading
 import uuid
-from wealth_ledger.domain.validation_v1 import encode_domain_v1
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.context import Database,execute
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.jobs import Jobs
-from wealth_ledger.persistence.migration import migrate,finalize_restore
-from wealth_ledger.persistence.repositories import Candidates
+from kurafolio.domain.validation_v1 import encode_domain_v1
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.context import Database,execute
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.jobs import Jobs
+from kurafolio.persistence.migration import migrate,finalize_restore
+from kurafolio.persistence.repositories import Candidates
 from test_postgres_config import PostgresCase
 
 

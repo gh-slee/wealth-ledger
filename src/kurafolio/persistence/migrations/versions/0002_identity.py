@@ -1,7 +1,7 @@
 """Opt-in identity only; old finance DDL/migration remains unchanged."""
 from alembic import context, op
 from sqlalchemy import text
-from wealth_ledger.persistence.identity_schema import ddl
+from kurafolio.persistence.identity_schema import ddl
 
 revision = "0002_identity"
 down_revision = "0001_foundation"

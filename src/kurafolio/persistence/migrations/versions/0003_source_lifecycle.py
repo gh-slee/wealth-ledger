@@ -1,6 +1,6 @@
 """Explicit source metadata only; no financial acceptance or legacy data migration."""
 from alembic import context, op
-from wealth_ledger.persistence import source_schema as source
+from kurafolio.persistence import source_schema as source
 
 revision = "0003_source_lifecycle"
 down_revision = "0002_identity"

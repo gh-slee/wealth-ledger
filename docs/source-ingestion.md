@@ -36,7 +36,7 @@ migration requires its own reviewed plan and authorization.
 
 ## Contract version 2
 
-`wealth_ledger.source_v2` imports the same `AccountKey`, `AssetKey`, `Money`,
+`kurafolio.source_v2` imports the same `AccountKey`, `AssetKey`, `Money`,
 `RecordKey`, `CryptoLeg`, `Detection` and `AdapterInfo` primitives as v1. Adapters
 must explicitly declare `api_version=2`. V1 normalization/validation and canonical
 serialization are unchanged; v1 batches are not coerced into v2.
@@ -92,7 +92,7 @@ source authority, accepted-head decision or balance arithmetic is implemented.
 
 ## Planning, identities and commit
 
-The trusted API in `wealth_ledger.source_ingestion` provides:
+The trusted API in `kurafolio.source_ingestion` provides:
 
 1. `SourceInput(batch, raw)`: original bytes and a validated v2 batch.
 2. `Binding(account, ledger_account_id, target_kind)` or `new_binding(account)`:

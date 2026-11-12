@@ -223,7 +223,7 @@ def plan_sources(paths, *, config_path=None, selections=None, previous=None, exp
         env.update({"PYTHONPATH": str(PACKAGE_ROOT.parent), "PYTHONDONTWRITEBYTECODE": "1",
                     "PYTHONPYCACHEPREFIX": str(root / "bytecode"), "PYTHONHASHSEED": "0", "PYTHONUTF8": "1", "TZ": "UTC"})
         try:
-            result = subprocess.run([str(python or sys.executable), "-B", "-m", "wealth_ledger.source_pipeline", str(root)],
+            result = subprocess.run([str(python or sys.executable), "-B", "-m", "kurafolio.source_pipeline", str(root)],
                 env=env, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, timeout=timeout)
         except subprocess.TimeoutExpired:

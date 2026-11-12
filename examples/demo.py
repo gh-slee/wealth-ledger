@@ -15,18 +15,18 @@ from unittest.mock import patch
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "src"))
 
-from wealth_ledger.core import import_holdings
-from wealth_ledger.crypto import import_bull_orders
-from wealth_ledger.combined import make_combined_payload
-from wealth_ledger.fund_sources import holding
-from wealth_ledger.lookthrough import attach_analysis, portfolio_signature
-from wealth_ledger.lookthrough_reports import write_exports as write_analysis_exports
-from wealth_ledger import reporting
-from wealth_ledger.reporting import generate_reports
-from wealth_ledger.report_checks import validate_report_presentation
-from wealth_ledger.validation import validate_formula_caches
-from wealth_ledger.wallet_reports import write_exports as write_wallet_exports
-from wealth_ledger.workbook import build_workbook, verify_workbook
+from kurafolio.core import import_holdings
+from kurafolio.crypto import import_bull_orders
+from kurafolio.combined import make_combined_payload
+from kurafolio.fund_sources import holding
+from kurafolio.lookthrough import attach_analysis, portfolio_signature
+from kurafolio.lookthrough_reports import write_exports as write_analysis_exports
+from kurafolio import reporting
+from kurafolio.reporting import generate_reports
+from kurafolio.report_checks import validate_report_presentation
+from kurafolio.validation import validate_formula_caches
+from kurafolio.wallet_reports import write_exports as write_wallet_exports
+from kurafolio.workbook import build_workbook, verify_workbook
 
 
 def synthetic_fund(fund_id, directory):
@@ -63,8 +63,8 @@ def run_demo(output: Path, btc_cost_policy: str, locale="en-CA") -> dict:
         opening = json.loads((PROJECT / "config/bull-opening.example.json").read_text(encoding="utf-8"))
         # Any accidental production HTTP invocation fails instead of going online.
         with patch("urllib.request.urlopen", side_effect=AssertionError("Offline demo forbids network")), \
-             patch("wealth_ledger.prices.urlopen", side_effect=AssertionError("Offline demo forbids network")), \
-             patch("wealth_ledger.fund_sources.Client.get", side_effect=AssertionError("Offline demo forbids network")):
+             patch("kurafolio.prices.urlopen", side_effect=AssertionError("Offline demo forbids network")), \
+             patch("kurafolio.fund_sources.Client.get", side_effect=AssertionError("Offline demo forbids network")):
             import_holdings(ledger, data / "wealthsimple-holdings.csv", "baseline", fx)
             import_bull_orders(ledger, data / "bull-orders.csv", opening_assumption=opening)
             payload = make_combined_payload(ledger, as_of=quote["as_of"], price_file=quote_path, fx=fx)
@@ -79,7 +79,7 @@ def run_demo(output: Path, btc_cost_policy: str, locale="en-CA") -> dict:
                 for section in sections:
                     section.introduction.insert(0, notice)
                 return sections
-            with patch("wealth_ledger.reporting._sections", side_effect=marked_sections):
+            with patch("kurafolio.reporting._sections", side_effect=marked_sections):
                 artifacts = generate_reports(payload, bundle, locale=locale)
             build_workbook(payload, bundle / "portfolio.ods", chart_images=artifacts["charts"], locale=locale)
             write_analysis_exports(payload, bundle)
