@@ -144,3 +144,27 @@ test("a failed V2 probe can retry without opening the SQLite shell", async ({
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Home");
   expect(attempts).toBe(2);
 });
+
+test("SQLite session cache clears do not restart shell selection", async ({
+  page,
+}) => {
+  let probes = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v2/auth/csrf") probes++;
+  });
+  await page.goto("/");
+  await page.getByLabel("Username", { exact: true }).fill("example-owner");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("example-browser-only-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Overview");
+  await page
+    .getByRole("combobox", { name: "Interface language" })
+    .selectOption("zh-TW");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("資產總覽");
+  await expect(
+    page.getByRole("heading", { name: "CA$1,930.00" }),
+  ).toBeVisible();
+  expect(probes).toBe(1);
+});

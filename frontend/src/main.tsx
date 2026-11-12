@@ -1,10 +1,6 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import "@fontsource/atkinson-hyperlegible/latin-400.css";
 import "@fontsource/atkinson-hyperlegible/latin-700.css";
@@ -31,26 +27,46 @@ const client = new QueryClient({
 });
 function Application() {
   const { t } = useI18n();
-  const backend = useQuery({
-    queryKey: ["backend-version"],
-    queryFn: ({ signal }) => detectBackendVersion(signal),
-    staleTime: Infinity,
-  });
+  const [backend, setBackend] = useState<"pending" | "v1" | "v2" | "error">(
+    "pending",
+  );
+  const [attempt, setAttempt] = useState(0);
+  // Session and portfolio changes clear the query cache. The startup decision
+  // must survive those clears without remounting the active shell.
+  useEffect(() => {
+    const controller = new AbortController();
+    void detectBackendVersion(controller.signal).then(
+      (version) => {
+        if (!controller.signal.aborted) setBackend(version);
+      },
+      () => {
+        if (!controller.signal.aborted) setBackend("error");
+      },
+    );
+    return () => controller.abort();
+  }, [attempt]);
   const loading = (
     <main className="workbench" role="status">
       {t("loading")}
     </main>
   );
-  if (backend.isPending) return loading;
-  if (backend.isError) {
+  if (backend === "pending") return loading;
+  if (backend === "error") {
     return (
       <main className="workbench">
         <p role="alert">{t("failed")}</p>
-        <Button onClick={() => void backend.refetch()}>{t("retry")}</Button>
+        <Button
+          onClick={() => {
+            setBackend("pending");
+            setAttempt((count) => count + 1);
+          }}
+        >
+          {t("retry")}
+        </Button>
       </main>
     );
   }
-  return backend.data === "v2" ? (
+  return backend === "v2" ? (
     <Suspense fallback={loading}>
       <V2Shell />
     </Suspense>
