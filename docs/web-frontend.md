@@ -48,8 +48,11 @@ styles load only after the probe selects V2.
 The V2 shell tests use the synthetic browser fixture and intercept the V2
 probe with Playwright. They exercise the eight destinations, the Stock/Bond
 Exposures route, the phone menu and the three interface locales. The routes
-are placeholders. Backend asset serving is tracked in WL-P0-011G, and
-source-aware navigation needs the WL-P0-008 positions contract.
+are placeholders built from shared loading, empty and error states in
+`frontend/src/v2/page-state.tsx`; page tickets replace the content but keep
+those states. Stock/Bond, Exposures and Crypto offer "Enable a source" until
+the WL-P0-008 positions contract lets the shell detect holdings. All eight
+destinations stay in the navigation either way.
 
 ```bash
 npm --prefix frontend run build

@@ -17,6 +17,8 @@
 | `web-reports.png` | Saved report context, original downloads and grouped edition history. |
 | `web-report-reader.png` | Scrolled saved report contents and original analysis tables. |
 | `web-settings.png` | Default example settings; password-change fields remain blank. |
+| `web-v2-shell.png` | V2 shell placeholder pages at 1440 px; a synthetic V2 probe answer, no finance data. |
+| `web-v2-shell-phone.png` | The V2 phone menu at 375 px in dark mode; same synthetic probe answer. |
 
 All Web screenshots come from `scripts/web_browser_fixture.py`, using public
 `examples/demo.py` / `examples/data` inputs in a newly created temporary instance.
@@ -27,7 +29,7 @@ from the current file selections. The filled wallet form is not submitted and th
 confirmed by the screenshot script. The application UI is captured as rendered;
 financial text, tables, warnings and charts are not replaced with a visual mockup.
 
-Only these fourteen named PNG paths are allowlisted for publication; arbitrary
+Only these sixteen named PNG paths are allowlisted for publication; arbitrary
 screenshots remain blocked. Inspect every newly generated image before staging.
 The local capture receipt is evidence, not a substitute for visual privacy review.
 
@@ -87,7 +89,12 @@ Use `node frontend/scripts/capture-readme.mjs --overview-only` to refresh only
 
 Use `node frontend/scripts/capture-readme.mjs --imports-only` for only
 `web-imports.png`, with receipt `work/readme-capture/imports-provenance.json`.
-The three selective modes are mutually exclusive; no URL, portfolio or source-file
+Use `node frontend/scripts/capture-readme.mjs --v2-shell-only` for only the two
+`web-v2-shell*.png` images, with receipt `work/readme-capture/v2-shell-provenance.json`.
+The fixture is a SQLite instance, so this mode answers only the V2 startup probe with
+a synthetic token; the placeholder pages request no finance data.
+
+The four selective modes are mutually exclusive; no URL, portfolio or source-file
 arguments are accepted. None of these modes submits financial input. The first-run mode never creates financial records in
 the empty ledger.
 
