@@ -7,6 +7,7 @@ function, policy and trigger inventory before granting any application access.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 
@@ -20,7 +21,7 @@ _TABLES = (
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"accepted_generation","nullable":false,"type":"bigint"},{"name":"mapping_generation","nullable":false,"type":"bigint"},{"name":"control_generation","nullable":false,"type":"bigint"}],"immutable":false,"name":"roots","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"actor_user_id","nullable":false,"type":"uuid"},{"name":"creation_operation_id","nullable":false,"type":"uuid"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"state","nullable":false,"type":"text"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"member_count","nullable":false,"type":"integer"},{"name":"reserved_bytes","nullable":false,"type":"bigint"},{"name":"receipt_id","nullable":true,"type":"uuid"},{"name":"cleanup_state","nullable":false,"type":"text"}],"immutable":false,"name":"sets","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"ordinal","nullable":false,"type":"integer"},{"name":"connection_id","nullable":false,"type":"uuid"},{"name":"connection_version","nullable":false,"type":"text"},{"name":"installation_id","nullable":false,"type":"text"},{"name":"format_version","nullable":false,"type":"text"},{"name":"context_digest","nullable":false,"type":"text"},{"name":"context_bytes","nullable":true,"type":"bytea"},{"name":"raw_digest","nullable":true,"type":"text"},{"name":"raw_bytes","nullable":true,"type":"bigint"},{"name":"state","nullable":false,"type":"text"},{"name":"error_code","nullable":true,"type":"text"},{"name":"stage_digest","nullable":true,"type":"text"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"connection_generation","nullable":false,"type":"bigint"},{"name":"enablement_generation","nullable":false,"type":"bigint"},{"name":"availability_generation","nullable":false,"type":"bigint"},{"name":"wrapper_profile_digest","nullable":false,"type":"text"},{"name":"raw_deadline","nullable":true,"type":"timestamptz"}],"immutable":false,"name":"members","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
-    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":true,"type":"uuid"},{"name":"work_kind","nullable":false,"type":"text"},{"name":"attempt","nullable":false,"type":"bigint"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"worker_id","nullable":false,"type":"uuid"},{"name":"token_digest","nullable":true,"type":"text"},{"name":"session_digest","nullable":false,"type":"text"},{"name":"credential_version","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"state","nullable":false,"type":"text"},{"name":"claim_request_id","nullable":true,"type":"uuid"},{"name":"claim_request_digest","nullable":true,"type":"text"},{"name":"last_request_id","nullable":true,"type":"uuid"},{"name":"last_request_digest","nullable":true,"type":"text"},{"name":"last_result_bytes","nullable":true,"type":"bytea"}],"immutable":false,"name":"leases","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
+    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":true,"type":"uuid"},{"name":"work_kind","nullable":false,"type":"text"},{"name":"attempt","nullable":false,"type":"bigint"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"worker_id","nullable":false,"type":"uuid"},{"name":"token_digest","nullable":true,"type":"text"},{"name":"session_digest","nullable":false,"type":"text"},{"name":"credential_version","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"state","nullable":false,"type":"text"},{"name":"claim_request_id","nullable":true,"type":"uuid"},{"name":"claim_request_digest","nullable":true,"type":"text"},{"name":"last_request_id","nullable":true,"type":"uuid"},{"name":"last_request_digest","nullable":true,"type":"text"},{"name":"last_result_bytes","nullable":true,"type":"bytea"},{"name":"raw_slot","nullable":true,"type":"text"},{"name":"cleanup_proof_bytes","nullable":true,"type":"bytea"}],"immutable":false,"name":"leases","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":false,"type":"uuid"},{"name":"digest","nullable":false,"type":"text"},{"name":"codec","nullable":false,"type":"text"},{"name":"minimal_bytes","nullable":false,"type":"bytea"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"}],"immutable":false,"name":"stages","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","member_id","digest"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"canonical_bytes","nullable":false,"type":"bytea"},{"name":"digest","nullable":false,"type":"text"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"}],"immutable":false,"name":"decisions","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","revision"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"set_revision","nullable":false,"type":"bigint"},{"name":"decision_revision","nullable":false,"type":"bigint"},{"name":"plan_bytes","nullable":true,"type":"bytea"},{"name":"plan_digest","nullable":true,"type":"text"},{"name":"expected_accepted_generation","nullable":false,"type":"bigint"},{"name":"expected_mapping_generation","nullable":false,"type":"bigint"},{"name":"expected_control_generation","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"},{"name":"review_bytes","nullable":false,"type":"bytea"},{"name":"review_digest","nullable":false,"type":"text"}],"immutable":false,"name":"previews","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
@@ -2714,9 +2715,10 @@ MEMBER_PINS
   -- Unbound offer: no worker can claim it until bind adds the token digest.
   INSERT INTO wl_ingestion.leases(tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,token_digest,
    session_digest,credential_version,incarnation,restore_epoch,created_at,expires_at,state,claim_request_id,
-   claim_request_digest,last_request_id,last_request_digest,last_result_bytes)
+   claim_request_digest,last_request_id,last_request_digest,last_result_bytes,raw_slot,cleanup_proof_bytes)
    VALUES(tenant,portfolio,lease,selected.id,mem.id,'normalize',attempts+1,next_fence,worker,NULL,p_digest,
-    ss.credential_version,st.incarnation,st.restore_epoch,n,n+interval '30 seconds','offered',NULL,NULL,NULL,NULL,NULL);
+    ss.credential_version,st.incarnation,st.restore_epoch,n,n+interval '30 seconds','offered',NULL,NULL,NULL,NULL,NULL,
+    'held',NULL);
   RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('action','reserve',
    'set_id',selected.id::text,'member_id',mem.id::text,'lease_id',lease::text,'fence',next_fence::text,
    'raw_deadline',INSTANT_DEADLINE,'offer_expires_at',INSTANT_OFFER));
@@ -2804,6 +2806,38 @@ def _finish_codes():
     return definition('MemberResult', 'wire')['properties']['error_code']['anyOf'][0]['enum']
 
 
+def _proofs_shape_sql(maximum, *, same_job):
+    """Closed CleanupProof array shape for p_request->'cleanup_proofs'.
+
+    Finish proofs describe the finishing attempt itself, so they must repeat its
+    job and fence. Cleanup proofs name other (normalize) attempts; each function
+    matches them to its own rows after this shape check.
+    """
+    job = ("\n   q.value->'job_id' IS DISTINCT FROM p_request->'job_id' OR q.value->'fence' IS DISTINCT FROM p_request->'fence' OR"
+           if same_job else
+           "\n   pg_catalog.jsonb_typeof(q.value->'job_id')<>'string' OR (q.value->>'job_id') COLLATE \"C\" !~ 'UUID_RE' OR"
+           "\n   pg_catalog.jsonb_typeof(q.value->'fence')<>'string' OR (q.value->>'fence') COLLATE \"C\" !~ '^[1-9][0-9]{0,17}$' OR")
+    return (r"""
+  pg_catalog.jsonb_typeof(p_request->'cleanup_proofs')<>'array' OR pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>MAXIMUM OR
+  EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') q(value) WHERE
+   pg_catalog.jsonb_typeof(q.value)<>'object' OR ARRAY(SELECT pg_catalog.jsonb_object_keys(q.value) ORDER BY 1)<>
+    ARRAY['checked_at','fence','job_id','launcher_instance_id','proof_digest','state']::text[] OR""".replace(
+        'MAXIMUM', str(maximum)) + job + r"""
+   pg_catalog.jsonb_typeof(q.value->'state')<>'string' OR q.value->>'state' NOT IN ('absent','not_created','pending','failed') OR
+   pg_catalog.jsonb_typeof(q.value->'launcher_instance_id')<>'string' OR
+   (q.value->>'launcher_instance_id') COLLATE "C" !~ 'UUID_RE' OR
+   pg_catalog.jsonb_typeof(q.value->'proof_digest')<>'string' OR (q.value->>'proof_digest') COLLATE "C" !~ '^[0-9a-f]{64}$' OR
+   pg_catalog.jsonb_typeof(q.value->'checked_at')<>'object' OR
+   ARRAY(SELECT pg_catalog.jsonb_object_keys(q.value->'checked_at') ORDER BY 1)<>
+    ARRAY['fractional_digits','tag','token','zone']::text[] OR q.value#>'{checked_at,tag}' IS DISTINCT FROM '"instant"'::jsonb OR
+   pg_catalog.jsonb_typeof(q.value#>'{checked_at,token}')<>'string' OR q.value#>'{checked_at,zone}'<>'null'::jsonb OR
+   pg_catalog.jsonb_typeof(q.value#>'{checked_at,fractional_digits}')<>'number' OR
+   (q.value#>>'{checked_at,fractional_digits}') COLLATE "C" !~ '^[0-9]$' OR
+   (q.value#>>'{checked_at,token}') COLLATE "C" !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?\+00:00$' OR
+   (q.value#>>'{checked_at,fractional_digits}')::integer<>COALESCE(pg_catalog.length(pg_catalog.substring(
+    q.value#>>'{checked_at,token}','\.([0-9]+)\+')),0))""")
+
+
 def _lease_ddl(name, mode):
     """Render a normalize-lease worker function: claim, renew, admit or finish.
 
@@ -2828,26 +2862,13 @@ def _lease_ddl(name, mode):
                   " COLLATE \"C\" !~ '^[1-9][0-9]{0,6}$' OR (p_request->>'payload_bytes')::bigint>4194304")
     if finish:
         codes = ','.join("'" + c + "'" for c in _finish_codes())
-        shape += r"""
+        shape += (r"""
   OR pg_catalog.jsonb_typeof(p_request->'outcome')<>'string' OR
   p_request->>'outcome' NOT IN ('stage_admitted','reupload_required','rejected') OR
   (p_request->>'outcome'='stage_admitted' AND p_request->'error_code'<>'null'::jsonb) OR
   (p_request->>'outcome'<>'stage_admitted' AND (pg_catalog.jsonb_typeof(p_request->'error_code')<>'string' OR
    p_request->>'error_code' NOT IN (CODES))) OR
-  pg_catalog.jsonb_typeof(p_request->'cleanup_proofs')<>'array' OR pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>3 OR
-  EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') q(value) WHERE
-   pg_catalog.jsonb_typeof(q.value)<>'object' OR ARRAY(SELECT pg_catalog.jsonb_object_keys(q.value) ORDER BY 1)<>
-    ARRAY['checked_at','fence','job_id','launcher_instance_id','proof_digest','state']::text[] OR
-   q.value->'job_id' IS DISTINCT FROM p_request->'job_id' OR q.value->'fence' IS DISTINCT FROM p_request->'fence' OR
-   pg_catalog.jsonb_typeof(q.value->'state')<>'string' OR q.value->>'state' NOT IN ('absent','not_created','pending','failed') OR
-   pg_catalog.jsonb_typeof(q.value->'launcher_instance_id')<>'string' OR
-   (q.value->>'launcher_instance_id') COLLATE "C" !~ 'UUID_RE' OR
-   pg_catalog.jsonb_typeof(q.value->'proof_digest')<>'string' OR (q.value->>'proof_digest') COLLATE "C" !~ '^[0-9a-f]{64}$' OR
-   pg_catalog.jsonb_typeof(q.value->'checked_at')<>'object' OR
-   ARRAY(SELECT pg_catalog.jsonb_object_keys(q.value->'checked_at') ORDER BY 1)<>
-    ARRAY['fractional_digits','tag','token','zone']::text[] OR q.value#>'{checked_at,tag}' IS DISTINCT FROM '"instant"'::jsonb OR
-   pg_catalog.jsonb_typeof(q.value#>'{checked_at,token}')<>'string' OR q.value#>'{checked_at,zone}'<>'null'::jsonb OR
-   (q.value#>>'{checked_at,fractional_digits}') COLLATE "C" !~ '^[0-9]$')""".replace('CODES', codes)
+  """ + _proofs_shape_sql(3, same_job=True).lstrip()).replace('CODES', codes)
         step = r"""
  IF held.state<>'active' OR mem.state<>'normalizing' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
@@ -2864,9 +2885,14 @@ MEMBER_PINS
  ELSIF p_request->>'outcome'='reupload_required' THEN ack:=FINISH_ACK_REUPLOAD;
  ELSE ack:=FINISH_ACK_REJECTED; END IF;
  -- The lease finishes first: a terminal set no longer accepts lease changes.
+ -- Its proofs are kept; a proven attempt gives its own raw slot back here, once.
  UPDATE wl_ingestion.leases SET state='finished',last_request_id=(p_request->>'request_id')::uuid,
-  last_request_digest=request_digest,last_result_bytes=wl_ingestion._canonical_v1(ack)
-  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=held.id;
+  last_request_digest=request_digest,last_result_bytes=wl_ingestion._canonical_v1(ack),
+  raw_slot=CASE WHEN cleaned THEN 'released' ELSE raw_slot END,
+  cleanup_proof_bytes=CASE WHEN pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>0 THEN
+   wl_ingestion._canonical_v1(p_request->'cleanup_proofs') ELSE cleanup_proof_bytes END
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=held.id AND raw_slot='held';
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
  IF p_request->>'outcome'='stage_admitted' THEN
   UPDATE wl_ingestion.members SET state='admitted',stage_digest=staged
    WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id AND id=mem.id;
@@ -2889,7 +2915,7 @@ MEMBER_PINS
    set_id=selected.id AND state IN ('offered','active');
  END IF;
  -- Owner decision: the raw slot returns only with proven child cleanup;
- -- otherwise it stays held until a later cleanup call proves it.
+ -- otherwise the lease records it as held until cleanup_set_v1 proves it.
  IF cleaned THEN PERFORM wl_ingestion._quota_v1(tenant,portfolio,'raw',-1,0); END IF;
  RETURN pg_catalog.jsonb_build_object('ok',true,'value',ack);"""
         replay = r"""
@@ -3090,6 +3116,290 @@ CLAIM_DDL = _lease_ddl('claim_member_v1', 'claim')
 RENEW_DDL = _lease_ddl('renew_member_v1', 'renew')
 ADMIT_DDL = _lease_ddl('admit_stage_v1', 'admit')
 FINISH_DDL = _lease_ddl('finish_member_v1', 'finish')
+
+
+# Owner decisions 2026-11-10 for cleanup leases. A cleanup lease has no user
+# session: it stores this fixed marker digest and credential version 0. Its
+# LeaseAck fingerprint is the set's creation request digest, and its fence is 1
+# plus the number of earlier cleanup leases for that set.
+CLEANUP_SESSION_DIGEST = hashlib.sha256(b'kurafolio.ingestion.cleanup-lease.v1').hexdigest()
+
+_TERMINAL_SQL = "('COMMITTED','REJECTED','CANCELLED','EXPIRED')"
+
+_WORKER_CODES_SQL = ("('import_invalid','import_conflict','import_stale','import_expired','import_busy','not_found',"
+                     "'authentication_required','credentials_changed','instance_not_ready')")
+
+# claim_plan_v1 hands out one cleanup lease at a time. Preparation claims are
+# refused until their own worker functions exist (WL-P0-007L).
+CLAIM_PLAN_DDL = r"""
+CREATE FUNCTION wl_ingestion.claim_plan_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $claim_plan$
+DECLARE guard jsonb;selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%ROWTYPE;candidate record;
+ n timestamptz;until timestamptz;request_digest text;code text;next_fence bigint;lease uuid;
+BEGIN
+ IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>
+   ARRAY['claim_request_id','credential_epoch','realm_digest','version','work_kind']::text[] OR
+  p_request->'version' IS DISTINCT FROM '1'::jsonb OR pg_catalog.jsonb_typeof(p_request->'work_kind')<>'string' OR
+  p_request->>'work_kind' NOT IN ('prepare','cleanup') OR pg_catalog.jsonb_typeof(p_request->'claim_request_id')<>'string' OR
+  (p_request->>'claim_request_id') COLLATE "C" !~ 'UUID_RE' OR
+  p_request->>'claim_request_id'='00000000-0000-0000-0000-000000000000' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ IF p_request->>'work_kind'<>'cleanup' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
+ -- The live-lease and selection rechecks rely on READ COMMITTED snapshots.
+ IF pg_catalog.current_setting('transaction_isolation')<>'read committed' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
+ -- A lost acknowledgement: the same claim request finds its own lease again. A
+ -- claim request ID this worker already used for other work is a conflict.
+ SELECT * INTO held FROM wl_ingestion.leases l WHERE l.worker_id=p_worker AND
+  l.claim_request_id=(p_request->>'claim_request_id')::uuid;
+ IF held.id IS NOT NULL AND held.work_kind<>'cleanup' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+ IF held.id IS NOT NULL THEN
+  PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id FOR UPDATE;
+  SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id
+   AND id=held.set_id FOR UPDATE;
+  SELECT * INTO held FROM wl_ingestion.leases WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id
+   AND id=held.id FOR UPDATE;
+  n:=wl_identity._clock_timestamp_v1();
+  IF held.worker_id<>p_worker OR held.token_digest IS DISTINCT FROM guard#>>'{value,token_digest}' THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='authentication_required'; END IF;
+  IF held.claim_request_digest IS DISTINCT FROM request_digest THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  IF held.state<>'active' OR n>=held.expires_at THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,'outcome',
+   'already_claimed','lease',ACK_HELD));
+ END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ -- Owner decision: the oldest terminal set whose cleanup is pending or failed and
+ -- has no live cleanup lease. An overdue set is expired first, as any caller would.
+ FOR candidate IN SELECT x.tenant_id,x.portfolio_id,x.id FROM wl_ingestion.sets x WHERE
+   ((x.state IN TERMINAL AND x.cleanup_state IN ('pending','failed')) OR (x.state NOT IN TERMINAL AND n>=x.expires_at)) AND
+   NOT EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=x.tenant_id AND l.portfolio_id=x.portfolio_id AND
+    l.set_id=x.id AND l.work_kind='cleanup' AND l.state IN ('offered','active') AND l.expires_at>n)
+   ORDER BY x.created_at,x.id::text COLLATE "C" LIMIT 8 LOOP
+  -- Root, set, members and leases in the declared order; then recheck under the
+  -- locks. A root another call holds is skipped, never waited for, so claims
+  -- holding several roots cannot deadlock each other or a user call.
+  PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=candidate.tenant_id AND portfolio_id=candidate.portfolio_id
+   FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=candidate.tenant_id AND portfolio_id=candidate.portfolio_id
+   AND id=candidate.id FOR UPDATE;
+  PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=selected.tenant_id AND portfolio_id=selected.portfolio_id
+   AND set_id=selected.id ORDER BY id FOR UPDATE;
+  PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=selected.tenant_id AND portfolio_id=selected.portfolio_id
+   AND set_id=selected.id ORDER BY id FOR UPDATE;
+  n:=wl_identity._clock_timestamp_v1();
+  IF selected.state NOT IN TERMINAL AND n>=selected.expires_at THEN
+   -- Expiry wins under the set lock; it fences work and accepts nothing.
+   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=selected.tenant_id AND
+    portfolio_id=selected.portfolio_id AND id=selected.id;
+   UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=selected.tenant_id AND
+    portfolio_id=selected.portfolio_id AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
+   UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=selected.tenant_id AND
+    portfolio_id=selected.portfolio_id AND set_id=selected.id AND state IN ('offered','active');
+   SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=candidate.tenant_id AND
+    portfolio_id=candidate.portfolio_id AND id=candidate.id;
+  END IF;
+  CONTINUE WHEN selected.state NOT IN TERMINAL OR selected.cleanup_state NOT IN ('pending','failed');
+  -- A lapsed cleanup lease is closed before another one starts.
+  UPDATE wl_ingestion.leases SET state='expired' WHERE tenant_id=selected.tenant_id AND portfolio_id=selected.portfolio_id
+   AND set_id=selected.id AND work_kind='cleanup' AND state IN ('offered','active') AND expires_at<=n;
+  CONTINUE WHEN EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=selected.tenant_id AND
+   l.portfolio_id=selected.portfolio_id AND l.set_id=selected.id AND l.work_kind='cleanup' AND l.state IN ('offered','active'));
+  SELECT pg_catalog.count(*)+1 INTO next_fence FROM wl_ingestion.leases l WHERE l.tenant_id=selected.tenant_id AND
+   l.portfolio_id=selected.portfolio_id AND l.set_id=selected.id AND l.work_kind='cleanup';
+  until:=pg_catalog.date_trunc('second',n+interval '30 seconds');
+  lease:=pg_catalog.gen_random_uuid();
+  INSERT INTO wl_ingestion.leases(tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,token_digest,
+   session_digest,credential_version,incarnation,restore_epoch,created_at,expires_at,state,claim_request_id,
+   claim_request_digest,last_request_id,last_request_digest,last_result_bytes,raw_slot,cleanup_proof_bytes)
+   VALUES(selected.tenant_id,selected.portfolio_id,lease,selected.id,NULL,'cleanup',next_fence,next_fence,p_worker,
+    guard#>>'{value,token_digest}','CLEANUP_SESSION',0,(guard#>>'{value,incarnation}')::uuid,
+    (guard#>>'{value,restore_epoch}')::bigint,n,until,'active',(p_request->>'claim_request_id')::uuid,request_digest,
+    NULL,NULL,NULL,NULL,NULL);
+  SELECT * INTO held FROM wl_ingestion.leases WHERE tenant_id=selected.tenant_id AND portfolio_id=selected.portfolio_id
+   AND id=lease;
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,'outcome','claimed',
+   'lease',ACK_CLAIMED));
+ END LOOP;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,'outcome','no_work',
+  'lease',NULL));
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ -- Every change above rolls back with this block.
+ code:=SQLERRM;
+ IF code NOT IN CODES THEN code:='import_invalid'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict');
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $claim_plan$;
+REVOKE ALL ON FUNCTION wl_ingestion.claim_plan_v1(uuid,text,jsonb,bytea) FROM PUBLIC;
+"""
+
+
+def _cleanup_ack_sql(outcome):
+    return ("pg_catalog.jsonb_build_object('version',1,'job_id',held.id::text,'set_id',held.set_id::text,'member_id',NULL,"
+            "'work_kind','cleanup','fence',held.fence::text,'credential_epoch',guard#>>'{value,credential_epoch}',"
+            "'expires_at'," + _second_sql('held.expires_at') + ",'outcome','" + outcome +
+            "','source_fingerprint',selected.request_digest)")
+
+
+CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('ACK_HELD', _cleanup_ack_sql('already_claimed'))
+                  .replace('ACK_CLAIMED', _cleanup_ack_sql('claimed')).replace('TERMINAL', _TERMINAL_SQL)
+                  .replace('CLEANUP_SESSION', CLEANUP_SESSION_DIGEST).replace('CODES', _WORKER_CODES_SQL)
+                  .replace('UUID_RE', _UUID_RE))
+
+# The normalize job ID of a held attempt: its member's database-built context.
+_ATTEMPT_JOB_SQL = "pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id'"
+
+# cleanup_set_v1 proves each raw slot still held by a fenced normalize attempt,
+# releases it once, and purges the set's transient rows only when none is left.
+CLEANUP_SET_DDL = r"""
+CREATE FUNCTION wl_ingestion.cleanup_set_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $cleanup$
+DECLARE guard jsonb;selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%ROWTYPE;attempt record;
+ tenant uuid;portfolio uuid;scopes integer;n timestamptz;request_digest text;code text;ack jsonb;proofs jsonb;
+ released integer:=0;waiting integer:=0;changed integer;outcome text;
+BEGIN
+ IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
+  ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>ARRAY['cleanup_proofs','credential_epoch','fence',
+   'job_id','member_id','realm_digest','request_id','set_id','version','work_kind']::text[] OR
+  p_request->'version' IS DISTINCT FROM '1'::jsonb OR p_request->'work_kind' IS DISTINCT FROM '"cleanup"'::jsonb OR
+  p_request->'member_id' IS DISTINCT FROM 'null'::jsonb OR
+  pg_catalog.jsonb_typeof(p_request->'fence')<>'string' OR (p_request->>'fence') COLLATE "C" !~ '^[1-9][0-9]{0,17}$' OR
+  pg_catalog.jsonb_typeof(p_request->'job_id')<>'string' OR (p_request->>'job_id') COLLATE "C" !~ 'UUID_RE' OR
+  p_request->>'job_id'='00000000-0000-0000-0000-000000000000' OR
+  pg_catalog.jsonb_typeof(p_request->'set_id')<>'string' OR (p_request->>'set_id') COLLATE "C" !~ 'UUID_RE' OR
+  p_request->>'set_id'='00000000-0000-0000-0000-000000000000' OR
+  pg_catalog.jsonb_typeof(p_request->'request_id')<>'string' OR (p_request->>'request_id') COLLATE "C" !~ 'UUID_RE' OR
+  p_request->>'request_id'='00000000-0000-0000-0000-000000000000' OR PROOFS_SHAPE THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END IF;
+ guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ -- The live-lease and selection rechecks rely on READ COMMITTED snapshots.
+ IF pg_catalog.current_setting('transaction_isolation')<>'read committed' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
+ -- Scope comes from the stored set, never from the worker.
+ SELECT pg_catalog.count(*),(pg_catalog.array_agg(x.tenant_id))[1],(pg_catalog.array_agg(x.portfolio_id))[1]
+  INTO scopes,tenant,portfolio FROM wl_ingestion.sets x WHERE x.id=(p_request->>'set_id')::uuid;
+ IF scopes<>1 THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','not_found'); END IF;
+ -- Raw quota rows, then storage quota rows, precede the root (finish and _purge_v1
+ -- each take one of these pairs in the same order).
+ PERFORM 1 FROM wl_ingestion.instance_budgets WHERE bucket='raw' FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.quotas WHERE tenant_id=tenant AND portfolio_id=portfolio AND bucket='raw' FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.instance_budgets WHERE bucket='storage' FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.quotas WHERE tenant_id=tenant AND portfolio_id=portfolio AND bucket='storage' FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE;
+ SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND id=(p_request->>'set_id')::uuid FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id ORDER BY id FOR UPDATE;
+ n:=wl_identity._clock_timestamp_v1();
+ SELECT * INTO held FROM wl_ingestion.leases l WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND
+  l.set_id=selected.id AND l.id=(p_request->>'job_id')::uuid AND l.work_kind='cleanup';
+ IF held.id IS NULL OR held.fence::text<>p_request->>'fence' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ -- Only the worker the lease names, holding the token it claimed with.
+ IF held.worker_id<>p_worker OR held.token_digest IS DISTINCT FROM guard#>>'{value,token_digest}' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='authentication_required'; END IF;
+ -- A lost acknowledgement: the finished lease returns its exact stored result.
+ IF held.state='finished' THEN
+  IF held.last_request_id IS DISTINCT FROM (p_request->>'request_id')::uuid OR
+   held.last_request_digest IS DISTINCT FROM request_digest THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.convert_from(held.last_result_bytes,'UTF8')::jsonb);
+ END IF;
+ -- A restore or new incarnation since the claim makes the lease stale.
+ IF held.state<>'active' OR n>=held.expires_at OR selected.state NOT IN TERMINAL OR
+  held.incarnation::text<>guard#>>'{value,incarnation}' OR held.restore_epoch::text<>guard#>>'{value,restore_epoch}' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ -- Each proof names a normalize attempt of this set that was bound to a handoff
+ -- token, at most three times.
+ IF EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') q(value) WHERE NOT EXISTS(
+   SELECT 1 FROM wl_ingestion.leases l JOIN wl_ingestion.members m ON m.tenant_id=l.tenant_id AND
+    m.portfolio_id=l.portfolio_id AND m.set_id=l.set_id AND m.id=l.member_id
+   WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.set_id=selected.id AND l.work_kind='normalize' AND
+    l.token_digest IS NOT NULL AND l.fence::text=q.value->>'fence' AND ATTEMPT_JOB=q.value->>'job_id')) OR
+  EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') q(value)
+   GROUP BY q.value->>'job_id',q.value->>'fence' HAVING pg_catalog.count(*)>3) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ -- Owner decision: a slot returns only for an attempt that was never bound (once
+ -- its raw deadline has passed), or whose proofs all show no live child. Pending or
+ -- failed proofs are recorded and the slot stays held for a later cleanup.
+ FOR attempt IN SELECT l.id,l.fence,l.token_digest,l.created_at,ATTEMPT_JOB AS job FROM wl_ingestion.leases l
+   JOIN wl_ingestion.members m ON m.tenant_id=l.tenant_id AND m.portfolio_id=l.portfolio_id AND
+    m.set_id=l.set_id AND m.id=l.member_id
+   WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.set_id=selected.id AND l.work_kind='normalize' AND
+    l.raw_slot='held' AND l.state NOT IN ('offered','active') ORDER BY l.id LOOP
+  IF attempt.token_digest IS NULL THEN
+   -- Never bound: no launcher has the bytes. The API may still hold a raw
+   -- buffer until the fixed 120-second raw deadline from reserve has passed.
+   IF n<attempt.created_at+interval '120 seconds' THEN waiting:=waiting+1; CONTINUE; END IF;
+   UPDATE wl_ingestion.leases SET raw_slot='released' WHERE tenant_id=tenant AND portfolio_id=portfolio AND
+    id=attempt.id AND raw_slot='held';
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   released:=released+changed;
+   CONTINUE;
+  END IF;
+  SELECT pg_catalog.jsonb_agg(q.value ORDER BY q.o) INTO proofs FROM
+   pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') WITH ORDINALITY q(value,o)
+   WHERE q.value->>'job_id' IS NOT DISTINCT FROM attempt.job AND q.value->>'fence'=attempt.fence::text;
+  IF proofs IS NULL THEN waiting:=waiting+1; CONTINUE; END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(proofs) q(value)
+    WHERE q.value->>'state' NOT IN ('absent','not_created')) THEN
+   UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes=wl_ingestion._canonical_v1(proofs)
+    WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=attempt.id AND raw_slot='held';
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   released:=released+changed;
+  ELSE
+   UPDATE wl_ingestion.leases SET cleanup_proof_bytes=wl_ingestion._canonical_v1(proofs)
+    WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=attempt.id AND raw_slot='held';
+   waiting:=waiting+1;
+  END IF;
+ END LOOP;
+ -- A terminal set has no live normalize attempt; one still live is never released.
+ IF EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND
+   l.set_id=selected.id AND l.work_kind='normalize' AND l.raw_slot='held' AND l.state IN ('offered','active')) THEN
+  waiting:=waiting+1; END IF;
+ FOR i IN 1..released LOOP PERFORM wl_ingestion._quota_v1(tenant,portfolio,'raw',-1,0); END LOOP;
+ IF selected.cleanup_state='complete' THEN outcome:='already_purged';
+ ELSIF waiting=0 THEN outcome:='purged';
+ ELSE
+  outcome:='cleanup_pending';
+  -- Owner decision: keep a retryable failed state and the storage reservation.
+  IF selected.cleanup_state='pending' THEN
+   UPDATE wl_ingestion.sets SET cleanup_state='failed' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+  END IF;
+ END IF;
+ ack:=pg_catalog.jsonb_build_object('version',1,'job_id',held.id::text,'fence',held.fence::text,'set_id',selected.id::text,
+  'cleanup_complete',outcome<>'cleanup_pending','quota_released',released>0 OR outcome='purged','outcome',outcome);
+ -- The lease finishes before the purge; _purge_v1 waits only for non-cleanup leases.
+ UPDATE wl_ingestion.leases SET state='finished',last_request_id=(p_request->>'request_id')::uuid,
+  last_request_digest=request_digest,last_result_bytes=wl_ingestion._canonical_v1(ack)
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=held.id;
+ IF outcome='purged' THEN PERFORM wl_ingestion._purge_v1(tenant,portfolio,selected.id); END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',ack);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ -- Every change above rolls back with this block, including any release.
+ code:=SQLERRM;
+ IF code NOT IN CODES THEN code:='import_invalid'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $cleanup$;
+REVOKE ALL ON FUNCTION wl_ingestion.cleanup_set_v1(uuid,text,jsonb,bytea) FROM PUBLIC;
+""".replace('PROOFS_SHAPE', _proofs_shape_sql(12, same_job=False).strip()).replace('ATTEMPT_JOB', _ATTEMPT_JOB_SQL).replace(
+    'TERMINAL', _TERMINAL_SQL).replace('CODES', _WORKER_CODES_SQL).replace('UUID_RE', _UUID_RE)
 
 # One-ID reads: live authentication first, then only the caller's own scope.
 # They take no locks, write nothing and never grant authority for a later write.
@@ -3822,7 +4132,14 @@ BEGIN
     (NEW.work_kind='cleanup')<>(parent.state=ANY(terminal)) OR
     (NEW.work_kind<>'cleanup' AND n>=parent.expires_at) OR
     (NEW.work_kind='normalize' AND (NEW.fence<>member.fence OR
-     member.state NOT IN ('waiting','receiving'))) THEN REJECT; END IF;
+     member.state NOT IN ('waiting','receiving'))) OR
+    -- Every normalize attempt starts holding the raw slot reserve took for it.
+    (NEW.work_kind='normalize' AND NEW.raw_slot IS DISTINCT FROM 'held') OR
+    NEW.cleanup_proof_bytes IS NOT NULL OR
+    -- At most one live cleanup lease per set.
+    (NEW.work_kind='cleanup' AND EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=NEW.tenant_id AND
+     l.portfolio_id=NEW.portfolio_id AND l.set_id=NEW.set_id AND l.work_kind='cleanup' AND
+     l.state IN ('offered','active'))) THEN REJECT; END IF;
    RETURN NEW;
   END IF;
   IF (NEW.tenant_id,NEW.portfolio_id,NEW.id,NEW.set_id,NEW.member_id,NEW.work_kind,NEW.attempt,
@@ -3830,8 +4147,30 @@ BEGIN
     NEW.restore_epoch,NEW.created_at) IS DISTINCT FROM
    (OLD.tenant_id,OLD.portfolio_id,OLD.id,OLD.set_id,OLD.member_id,OLD.work_kind,OLD.attempt,
     OLD.fence,OLD.worker_id,OLD.session_digest,OLD.credential_version,OLD.incarnation,
-    OLD.restore_epoch,OLD.created_at) OR OLD.state IN ('finished','expired','cancelled') THEN
-   REJECT; END IF;
+    OLD.restore_epoch,OLD.created_at) THEN REJECT; END IF;
+  -- A raw slot is released once, only by a fenced attempt that was never bound
+  -- (and whose fixed 120-second raw deadline from reserve has passed, so the API
+  -- holds no raw buffer) or whose recorded proofs for this fence all show no
+  -- live child. A
+  -- recorded proof may be replaced while the slot is held but is never dropped.
+  IF (NEW.raw_slot IS DISTINCT FROM OLD.raw_slot AND NOT (OLD.raw_slot='held' AND NEW.raw_slot='released' AND
+     NEW.state NOT IN ('offered','active') AND ((OLD.token_digest IS NULL AND
+      n>=OLD.created_at+interval '120 seconds') OR (NEW.cleanup_proof_bytes IS NOT NULL AND
+     pg_catalog.jsonb_typeof(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb)='array' AND
+     pg_catalog.jsonb_array_length(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb)>0 AND NOT EXISTS(
+      SELECT 1 FROM pg_catalog.jsonb_array_elements(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb) q(value)
+      WHERE (q.value->>'state' IS DISTINCT FROM 'absent' AND q.value->>'state' IS DISTINCT FROM 'not_created') OR
+       q.value->>'fence' IS DISTINCT FROM NEW.fence::text))))) OR
+   (NEW.cleanup_proof_bytes IS DISTINCT FROM OLD.cleanup_proof_bytes AND
+    (NEW.cleanup_proof_bytes IS NULL OR OLD.raw_slot IS DISTINCT FROM 'held')) THEN REJECT; END IF;
+  IF OLD.state IN ('finished','expired','cancelled') THEN
+   -- A closed attempt changes only its raw-slot and cleanup-proof record.
+   IF (NEW.state,NEW.expires_at,NEW.token_digest,NEW.claim_request_id,NEW.claim_request_digest,
+     NEW.last_request_id,NEW.last_request_digest,NEW.last_result_bytes) IS DISTINCT FROM
+    (OLD.state,OLD.expires_at,OLD.token_digest,OLD.claim_request_id,OLD.claim_request_digest,
+     OLD.last_request_id,OLD.last_request_digest,OLD.last_result_bytes) THEN REJECT; END IF;
+   RETURN NEW;
+  END IF;
   IF NEW.state<>OLD.state AND NOT NEW.state=ANY(CASE OLD.state
    WHEN 'offered' THEN ARRAY['active','expired','cancelled']
    ELSE ARRAY['finished','expired','cancelled'] END) THEN REJECT; END IF;
@@ -4117,7 +4456,11 @@ def _value_rules(table):
             "(work_kind='normalize')=(member_id IS NOT NULL)", 'expires_at>=created_at',
             '(claim_request_id IS NULL)=(claim_request_digest IS NULL)',
             '(last_request_id IS NULL)=(last_request_digest IS NULL)',
-            '(last_request_id IS NULL)=(last_result_bytes IS NULL)'],
+            '(last_request_id IS NULL)=(last_result_bytes IS NULL)',
+            # Each normalize attempt took one raw slot at reserve; this records
+            # whether it still holds it. Proofs belong to normalize attempts only.
+            "(work_kind='normalize')=(raw_slot IS NOT NULL)", "raw_slot IN ('held','released')",
+            "cleanup_proof_bytes IS NULL OR work_kind='normalize'"],
         'stages': ["codec='minimal-evidence-v1'", 'purge_at>=created_at'],
         'decisions': ['revision>=1','purge_at>=created_at'],
         'previews': ['set_revision>=1', '(plan_bytes IS NULL)=(plan_digest IS NULL)',
@@ -4159,7 +4502,7 @@ def _value_rules(table):
     }
     result.extend(specific.get(name, ()))
     payloads = {
-        'leases': [('last_result_bytes', 16384, None)],
+        'leases': [('last_result_bytes', 16384, None), ('cleanup_proof_bytes', 4096, None)],
         'stages': [('minimal_bytes', 4194304, 'digest')],
         'decisions': [('canonical_bytes', 16777216, 'digest')],
         'previews': [('plan_bytes', 16777216, 'plan_digest'), ('review_bytes', 16777216, 'review_digest')],

@@ -227,6 +227,31 @@ class IngestionStorageDDLTests(unittest.TestCase):
             schema.TRANSITION_DDL).group(1).replace("'", '').replace('\n', '').replace(' ', '').split(',')))
 
 
+    def test_cleanup_lease_functions_match_their_worker_declarations(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}
+        for name, ddl in (('claim_plan_v1', schema.CLAIM_PLAN_DDL), ('cleanup_set_v1', schema.CLEANUP_SET_DDL)):
+            with self.subTest(function=name):
+                self.assertEqual((['uuid', 'text', 'jsonb', 'bytea'], 'jsonb', 'ingestion_worker_only'),
+                    (declared[name]['arguments'], declared[name]['returns'], declared[name]['execute']))
+                self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.' + name + '(uuid,text,jsonb,bytea) FROM PUBLIC;', ddl)
+                self.assertEqual(1, ddl.count('CREATE FUNCTION'))
+                self.assertIn('wl_ingestion._guard_worker_v1(p_worker,p_token,p_request)', ddl)
+                for fragment in ('GRANT ', 'DELETE ', 'ACK_', 'TERMINAL', 'CODES', 'UUID_RE', 'PROOFS_SHAPE',
+                                 'ATTEMPT_JOB', 'CLEANUP_SESSION', 'MAXIMUM'):
+                    self.assertNotIn(fragment, ddl)
+        # A cleanup lease never names a user session; it stores one fixed marker.
+        self.assertEqual(hashlib.sha256(b'kurafolio.ingestion.cleanup-lease.v1').hexdigest(),
+                         schema.CLEANUP_SESSION_DIGEST)
+        self.assertIn("'" + schema.CLEANUP_SESSION_DIGEST + "',0,", schema.CLAIM_PLAN_DDL)
+        # Only cleanup purges, and only through the private helper.
+        self.assertIn('wl_ingestion._purge_v1(tenant,portfolio,selected.id)', schema.CLEANUP_SET_DDL)
+        self.assertNotIn('_purge_v1', schema.CLAIM_PLAN_DDL)
+        # Finish and cleanup share one closed proof shape; finish proofs repeat its own job and fence.
+        self.assertIn("pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>3", schema.FINISH_DDL)
+        self.assertIn("pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>12", schema.CLEANUP_SET_DDL)
+        self.assertIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.FINISH_DDL)
+        self.assertNotIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.CLEANUP_SET_DDL)
+
 @unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
                      'Opt-in isolated ingestion PostgreSQL fragment acceptance')
 class IngestionAppendOnlyPostgresTests(unittest.TestCase):
@@ -302,7 +327,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL
                 + '\n' + schema.worker_guard_ddl() + '\n' + schema.CREATE_DDL
                 + '\n' + schema.RESERVE_DDL + '\n' + schema.CLAIM_DDL + '\n' + schema.RENEW_DDL
-                + '\n' + schema.ADMIT_DDL + '\n' + schema.FINISH_DDL)
+                + '\n' + schema.ADMIT_DDL + '\n' + schema.FINISH_DDL
+                + '\n' + schema.CLAIM_PLAN_DDL + '\n' + schema.CLEANUP_SET_DDL)
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -1276,7 +1302,8 @@ END $test$;
             'credential_version': 1, 'incarnation': cls.INCARNATION, 'restore_epoch': 0,
             'created_at': e(created), 'expires_at': e(expires), 'state': state,
             'claim_request_id': None, 'claim_request_digest': None, 'last_request_id': None,
-            'last_request_digest': None, 'last_result_bytes': None})
+            'last_request_digest': None, 'last_result_bytes': None,
+            'raw_slot': 'held' if kind == 'normalize' else None, 'cleanup_proof_bytes': None})
 
     @classmethod
     def revision_row(cls, revision_id, change='original', parent=None, collection='records',
@@ -3411,6 +3438,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' " + self.OWN + ")",
                 "'40000000-0000-4000-8000-0000000000ff'")}, 'import_invalid'),
             ('proof_state', seed, {'proofs': ('gone',)}, 'import_invalid'),
+            ('proof_time_long', seed, {'cleanup_proofs': self.proofs('absent').replace(
+                '2026-02-02T13:00:10+00:00', '9' * 5000)}, 'import_invalid'),
             ('unclaimed', self.claim_seed()[2], {}, 'import_stale'),
             ('wrong_token', seed, {'token': 'cd' * 32}, 'authentication_required'),
             ('old_fence', seed, {'fence': "'2'", 'cleanup_proofs': self.proofs('absent').replace("'fence','1'", "'fence','2'")},
@@ -3471,6 +3500,367 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             with self.subTest(function=name):
                 self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
                     "'wl_ingestion." + name + "(uuid,text,jsonb,bytea)','EXECUTE')"))
+
+    # Cleanup leases: claim_plan_v1 hands out one terminal set at a time and
+    # cleanup_set_v1 releases each held raw slot once before purging the set.
+    OWN_SET = ("(SELECT x.id::text FROM wl_ingestion.sets x WHERE "
+               "x.creation_operation_id='53000000-0000-4000-8000-000000000001')")
+    CLEANUP_TOKEN = 'cd' * 32
+
+    def worker_call(self, function, label, values, *, token=None, data='NULL'):
+        request = 'pg_catalog.jsonb_build_object(' + ','.join("'" + k + "'," + v for k, v in values.items()) + ')'
+        return ("DO $worker_call$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
+                "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion." + function + "('" + self.WORKER + "','" +
+                (token or self.CLEANUP_TOKEN) + "'," + request + "," + data + "); "
+                "PERFORM pg_catalog.set_config('test." + label + "',r::text,true); END $worker_call$;"
+                "SELECT '" + label.upper() + " '||pg_catalog.current_setting('test." + label + "');")
+
+    @staticmethod
+    def worker_realm():
+        from kurafolio.persistence import identity_schema
+        return "pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" + identity_schema.realm() + ")),'hex')"
+
+    def plan_claim(self, label, *, request='c1000000-0000-4000-8000-000000000001', token=None, data='NULL',
+                   drop=(), **fields):
+        values = {'version': '1', 'work_kind': "'cleanup'", 'realm_digest': self.worker_realm(),
+                  'credential_epoch': "'1'", 'claim_request_id': "'" + request + "'"}
+        values.update(fields)
+        for key in drop:
+            values.pop(key)
+        return self.worker_call('claim_plan_v1', label, values, token=token, data=data)
+
+    def cleanup_call(self, label, claim='claim', *, proofs=(), request='c1000000-0000-4000-8000-0000000000a1',
+                     token=None, data='NULL', drop=(), **fields):
+        lease = "(pg_catalog.current_setting('test." + claim + "')::jsonb#>>'{value,lease,"
+        values = {'version': '1', 'work_kind': "'cleanup'", 'realm_digest': self.worker_realm(),
+                  'credential_epoch': "'1'", 'job_id': lease + "job_id}')", 'set_id': self.OWN_SET,
+                  'member_id': 'NULL::text', 'fence': lease + "fence}')", 'request_id': "'" + request + "'",
+                  'cleanup_proofs': self.proofs(*proofs)}
+        values.update(fields)
+        for key in drop:
+            values.pop(key)
+        return self.worker_call('cleanup_set_v1', label, values, token=token, data=data)
+
+    def cancel_call(self, catalog):
+        payload = ("pg_catalog.jsonb_build_object('operation_id','53000000-0000-4000-8000-000000000009','set_id'," +
+                   self.OWN_SET + ",'expected_set_revision','1')")
+        return self.gateway_expression('cancel_set_v1', 'cancel', payload, catalog)
+
+    def cleanup_seed(self, *, bind=True, count=1):
+        plan, pin, seed, catalog = self.create_seed()
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1})
+        seed += self.gateway_statement('create_set_v1', 'create', self.create_payload(pin, count=count), catalog)
+        seed += self.reserve_call('reserve', catalog)
+        if bind:
+            seed += self.reserve_call('bind', catalog, action='bind', handoff_token_digest="'" + hashlib.sha256(
+                bytes.fromhex(self.WORKER_TOKEN)).hexdigest() + "'")
+        return seed, catalog
+
+    CLEANUP_STATE = ("SELECT 'CSTATE '||pg_catalog.jsonb_build_object('set',(SELECT pg_catalog.jsonb_build_array(x.state,"
+        "x.cleanup_state) FROM wl_ingestion.sets x WHERE x.creation_operation_id='53000000-0000-4000-8000-000000000001'),"
+        "'request_digest',(SELECT x.request_digest FROM wl_ingestion.sets x WHERE "
+        "x.creation_operation_id='53000000-0000-4000-8000-000000000001'),"
+        "'members',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(m.state,m.fence) ORDER BY m.ordinal) FROM "
+        "wl_ingestion.members m WHERE m.set_id=" + OWN_SET + "::uuid),'attempts',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.raw_slot,"
+        "(SELECT pg_catalog.jsonb_agg(q.value->>'state') FROM pg_catalog.jsonb_array_elements(pg_catalog.convert_from("
+        "l.cleanup_proof_bytes,'UTF8')::jsonb) q(value))) ORDER BY l.attempt,l.created_at) FROM wl_ingestion.leases l WHERE "
+        "l.work_kind='normalize'),'cleanup',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.fence,"
+        "l.attempt,l.session_digest,l.credential_version,l.member_id) ORDER BY l.fence) FROM wl_ingestion.leases l WHERE "
+        "l.work_kind='cleanup'),'raw',(SELECT pg_catalog.jsonb_build_array(used_count,lease_count) FROM wl_ingestion.quotas "
+        "WHERE bucket='raw'),'raw_instance',(SELECT lease_count FROM wl_ingestion.instance_budgets WHERE bucket='raw'),"
+        "'storage',(SELECT pg_catalog.jsonb_build_array(outstanding_sets,reserved_bytes) FROM wl_ingestion.quotas WHERE "
+        "bucket='storage'),'transient',(SELECT count(*) FROM wl_ingestion.stages WHERE set_id=" + OWN_SET + "::uuid)+"
+        "(SELECT count(*) FROM wl_ingestion.members WHERE set_id=" + OWN_SET + "::uuid AND context_bytes IS NOT NULL))::text;")
+
+    def assert_cleanup_lease(self, result, outcome, fence, state):
+        self.assertTrue(result.get('ok'), result)
+        value = result['value']
+        self.assertEqual((1, outcome), (value['version'], value['outcome']))
+        lease = value['lease']
+        self.assertEqual(sorted(['version', 'job_id', 'set_id', 'member_id', 'work_kind', 'fence', 'credential_epoch',
+                                 'expires_at', 'outcome', 'source_fingerprint']), sorted(lease))
+        self.assertEqual((1, None, 'cleanup', fence, '1', outcome, state['request_digest']),
+                         (lease['version'], lease['member_id'], lease['work_kind'], lease['fence'],
+                          lease['credential_epoch'], lease['outcome'], lease['source_fingerprint']))
+        self.assertRegex(lease['job_id'], '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+        self.assertRegex(lease['expires_at']['token'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$')
+        return lease
+
+    def cleanup_ack(self, lease, outcome, released):
+        return {'version': 1, 'job_id': lease['job_id'], 'fence': lease['fence'], 'set_id': lease['set_id'],
+                'cleanup_complete': outcome != 'cleanup_pending', 'quota_released': released, 'outcome': outcome}
+
+    NO_WORK = {'ok': True, 'value': {'version': 1, 'outcome': 'no_work', 'lease': None}}
+
+    def test_cleanup_after_cancel_during_reception_releases_the_unbound_slot_once(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed(bind=False)
+        # The API may hold the raw buffer until the 120-second raw deadline from reserve.
+        past_deadline = (replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
+                         "expires_at=expires_at-interval '3 minutes' WHERE work_kind='normalize';" + origin)
+        out = self.run_labelled(seed + self.plan_claim('idle') + self.cancel_call(catalog) +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") + self.plan_claim('early') + self.plan_claim('again',
+            request='c1000000-0000-4000-8000-000000000001') +
+            self.plan_claim('other', request='c1000000-0000-4000-8000-000000000002') +
+            self.cleanup_call('waited', 'early') + self.CLEANUP_STATE.replace("'CSTATE '", "'HELD '") +
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released' WHERE work_kind='normalize'") +
+            past_deadline + self.plan_claim('claim', request='c1000000-0000-4000-8000-000000000004') +
+            self.cleanup_call('clean', request='c1000000-0000-4000-8000-0000000000a4') +
+            self.CLEANUP_STATE + self.cleanup_call('replay', request='c1000000-0000-4000-8000-0000000000a4') +
+            self.cleanup_call('changed', request='c1000000-0000-4000-8000-0000000000a2') +
+            self.plan_claim('after', request='c1000000-0000-4000-8000-000000000003'))
+        # A live set within its deadline is not cleanup work.
+        self.assertEqual(self.NO_WORK, out['IDLE'])
+        self.assertTrue(out['CANCEL']['ok'], out['CANCEL'])
+        before = out['BEFORE']
+        self.assertEqual((['CANCELLED', 'pending'], [['cancelled', 'held', None]], [1, 1], 1,
+                          [1, schema.SET_RESERVATION_BYTES]),
+                         (before['set'], before['attempts'], before['raw'], before['raw_instance'], before['storage']))
+        early = self.assert_cleanup_lease(out['EARLY'], 'claimed', '1', before)
+        # The same claim request recovers its own lease; no second lease is handed out.
+        again = self.assert_cleanup_lease(out['AGAIN'], 'already_claimed', '1', before)
+        self.assertEqual(dict(early, outcome='already_claimed'), again)
+        self.assertEqual(self.NO_WORK, out['OTHER'])
+        # Before the raw deadline the slot and storage stay held and cleanup is retryable.
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(early, 'cleanup_pending', False)}, out['WAITED'])
+        self.assertEqual((['CANCELLED', 'failed'], [['cancelled', 'held', None]], [1, 1]),
+                         (out['HELD']['set'], out['HELD']['attempts'], out['HELD']['raw']))
+        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '2', before)
+        # The offer was never bound, so after the deadline its slot returns without a proof.
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'purged', True)}, out['CLEAN'])
+        state = out['CSTATE']
+        self.assertEqual((['CANCELLED', 'complete'], [['cancelled', 'released', None]], [1, 0], 0, [0, 0], 0),
+                         (state['set'], state['attempts'], state['raw'], state['raw_instance'], state['storage'],
+                          state['transient']))
+        self.assertEqual([['finished', n, n, schema.CLEANUP_SESSION_DIGEST, 0, None] for n in (1, 2)], state['cleanup'])
+        self.assertEqual(out['CLEAN'], out['REPLAY'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['CHANGED'])
+        self.assertEqual(self.NO_WORK, out['AFTER'])
+
+    def test_cleanup_holds_a_launched_attempt_until_its_proof_succeeds(self):
+        seed, catalog = self.cleanup_seed()
+        bound = "WHERE work_kind='normalize'"
+        out = self.run_labelled(seed + self.cancel_call(catalog) + self.plan_claim('claim') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") + self.cleanup_call('clean') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'FIRST '") +
+            # The trigger refuses a release without a successful proof for this fence.
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released' " + bound) +
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes=wl_ingestion._canonical_v1(" +
+                         self.proofs('pending') + ") " + bound) +
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes=wl_ingestion._canonical_v1(" +
+                         self.proofs('absent').replace("'fence','1'", "'fence','2'") + ") " + bound) +
+            self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
+            self.cleanup_call('pending', 'second', proofs=('absent', 'pending'),
+                              request='c1000000-0000-4000-8000-0000000000a4') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'MIDDLE '") +
+            # A recorded proof is never dropped.
+            self.rejects("UPDATE wl_ingestion.leases SET cleanup_proof_bytes=NULL " + bound) +
+            self.plan_claim('third', request='c1000000-0000-4000-8000-000000000006') +
+            self.cleanup_call('proved', 'third', proofs=('not_created', 'absent'),
+                              request='c1000000-0000-4000-8000-0000000000a6') +
+            self.CLEANUP_STATE +
+            # A released slot is never held or released again, and its proof stays fixed.
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='held' " + bound) +
+            self.rejects("UPDATE wl_ingestion.leases SET cleanup_proof_bytes=wl_ingestion._canonical_v1(" +
+                         self.proofs('absent') + ") " + bound))
+        before = out['BEFORE']
+        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', before)
+        # Owner decision: no proof keeps the slot and storage held, and cleanup failed but retryable.
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'cleanup_pending', False)}, out['CLEAN'])
+        first = out['FIRST']
+        self.assertEqual((['CANCELLED', 'failed'], [['cancelled', 'held', None]], [1, 1],
+                          [1, schema.SET_RESERVATION_BYTES]),
+                         (first['set'], first['attempts'], first['raw'], first['storage']))
+        self.assertEqual(before['transient'], first['transient'])
+        second = self.assert_cleanup_lease(out['SECOND'], 'claimed', '2', before)
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(second, 'cleanup_pending', False)}, out['PENDING'])
+        state = out['MIDDLE']
+        self.assertEqual((['CANCELLED', 'failed'], [['cancelled', 'held', ['absent', 'pending']]], [1, 1]),
+                         (state['set'], state['attempts'], state['raw']))
+        third = self.assert_cleanup_lease(out['THIRD'], 'claimed', '3', before)
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(third, 'purged', True)}, out['PROVED'])
+        state = out['CSTATE']
+        self.assertEqual((['CANCELLED', 'complete'], [['cancelled', 'released', ['not_created', 'absent']]], [1, 0],
+                          0, [0, 0], 0),
+                         (state['set'], state['attempts'], state['raw'], state['raw_instance'], state['storage'],
+                          state['transient']))
+        self.assertEqual([['finished', n, n, schema.CLEANUP_SESSION_DIGEST, 0, None] for n in (1, 2, 3)],
+                         state['cleanup'])
+
+    def test_claim_expires_an_overdue_set_before_cleaning_it(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed()
+        overdue = (replica + "UPDATE wl_ingestion.sets SET created_at=created_at-interval '2 days',expires_at=expires_at-"
+                   "interval '2 days' WHERE creation_operation_id='53000000-0000-4000-8000-000000000001';" + origin)
+        out = self.run_labelled(seed + overdue + self.plan_claim('claim') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'EXPIRED '") +
+            self.cleanup_call('clean', proofs=('not_created',)) + self.CLEANUP_STATE)
+        expired = out['EXPIRED']
+        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', expired)
+        # Expiry fences the member and the bound offer exactly as a user call would.
+        self.assertEqual((['EXPIRED', 'pending'], [['expired', 2]], [['cancelled', 'held', None]], [1, 1]),
+                         (expired['set'], expired['members'], expired['attempts'], expired['raw']))
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'purged', True)}, out['CLEAN'])
+        state = out['CSTATE']
+        self.assertEqual((['EXPIRED', 'complete'], [['cancelled', 'released', ['not_created']]], [1, 0], [0, 0]),
+                         (state['set'], state['attempts'], state['raw'], state['storage']))
+
+    def test_cleanup_never_releases_a_slot_finish_already_returned(self):
+        for label, finish_proofs, first, final in (
+                ('finish_proved', ('absent',), 'purged', [['finished', 'released', ['absent']]]),
+                ('finish_pending', ('pending',), 'cleanup_pending', [['finished', 'released', ['absent']]])):
+            with self.subTest(finish=label):
+                plan, pin, seed, catalog = self.finish_seed(count=2)
+                script = (seed + self.finish_call('finish', proofs=finish_proofs) +
+                    self.CLEANUP_STATE.replace("'CSTATE '", "'FINISHED '") + self.cancel_call(catalog) +
+                    self.plan_claim('claim', token=self.CLEANUP_TOKEN) + self.cleanup_call('clean') +
+                    self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
+                    # A proof for an attempt whose slot finish already returned changes nothing.
+                    self.cleanup_call('again', 'second', proofs=('absent',),
+                                      request='c1000000-0000-4000-8000-0000000000a4') + self.CLEANUP_STATE)
+                out = self.run_labelled(script)
+                self.assertTrue(out['FINISH']['ok'] and out['CANCEL']['ok'], out)
+                finished = out['FINISHED']
+                held = finish_proofs != ('absent',)
+                self.assertEqual(([1, 1] if held else [1, 0]), finished['raw'])
+                self.assertEqual([['finished', 'held' if held else 'released', list(finish_proofs)]],
+                                 finished['attempts'])
+                lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', finished)
+                self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, first, not held)}, out['CLEAN'])
+                state = out['CSTATE']
+                if held:
+                    second = self.assert_cleanup_lease(out['SECOND'], 'claimed', '2', finished)
+                    self.assertEqual({'ok': True, 'value': self.cleanup_ack(second, 'purged', True)}, out['AGAIN'])
+                else:
+                    # Nothing is left to claim, so a cleanup call has no lease to name.
+                    self.assertEqual(self.NO_WORK, out['SECOND'])
+                    self.assertEqual({'ok': False, 'code': 'import_invalid'}, out['AGAIN'])
+                # Exactly one release in all: the user's slot count returns to zero, never below.
+                self.assertEqual((['CANCELLED', 'complete'], final, [1, 0], 0, [0, 0]),
+                                 (state['set'], state['attempts'], state['raw'], state['raw_instance'],
+                                  state['storage']))
+
+    def test_cleanup_and_claim_refuse_without_changing_anything(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed()
+        claimed = seed + self.cancel_call(catalog) + self.plan_claim('claim')
+        unknown = "'40000000-0000-4000-8000-0000000000ff'"
+        thirteen = 'pg_catalog.jsonb_build_array(' + ','.join([self.PROOF.replace('OWN', self.OWN).replace(
+            'STATE', 'absent')] * 13) + ')'
+        cases = (
+            ('wrong_token', {'token': 'ef' * 32}, 'authentication_required'),
+            ('old_fence', {'fence': "'2'"}, 'import_stale'),
+            ('unknown_job', {'job_id': unknown}, 'import_stale'),
+            ('unknown_set', {'set_id': unknown}, 'not_found'),
+            ('member_id', {'member_id': "(SELECT m.id::text " + self.OWN + ")"}, 'import_invalid'),
+            ('normalize_kind', {'work_kind': "'normalize'"}, 'import_invalid'),
+            ('extra_field', {'note': "'x'"}, 'import_invalid'),
+            ('missing_field', {'drop': ('cleanup_proofs',)}, 'import_invalid'),
+            ('bytes', {'data': "'\\x00'::bytea"}, 'import_invalid'),
+            ('epoch', {'credential_epoch': "'2'"}, 'credentials_changed'),
+            ('proof_job', {'cleanup_proofs': self.proofs('absent').replace(
+                "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' " + self.OWN + ")",
+                "'40000000-0000-4000-8000-0000000000ff'")}, 'import_invalid'),
+            ('proof_fence', {'cleanup_proofs': self.proofs('absent').replace("'fence','1'", "'fence','2'")},
+             'import_invalid'),
+            ('proof_state', {'proofs': ('gone',)}, 'import_invalid'),
+            ('four_proofs', {'proofs': ('absent',) * 4}, 'import_invalid'),
+            ('thirteen_proofs', {'cleanup_proofs': thirteen}, 'import_invalid'),
+            ('lapsed', {'prefix': replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
+                        "expires_at=pg_catalog.clock_timestamp()-interval '1 second' WHERE work_kind='cleanup';" + origin},
+             'import_stale'),
+            ('restored', {'prefix': replica + "UPDATE wl_ingestion.leases SET restore_epoch=restore_epoch+1 "
+                          "WHERE work_kind='cleanup';" + origin}, 'import_stale'),
+            ('proof_time', {'cleanup_proofs': self.proofs('absent').replace('2026-02-02T13:00:10+00:00', 'not-a-time')},
+             'import_invalid'),
+            ('proof_time_long', {'cleanup_proofs': self.proofs('absent').replace('2026-02-02T13:00:10+00:00', '9' * 5000)},
+             'import_invalid'),
+            ('proof_fraction', {'cleanup_proofs': self.proofs('absent').replace('13:00:10+00:00', '13:00:10.5+00:00')},
+             'import_invalid'),
+        )
+        for name, fields, code in cases:
+            with self.subTest(case=name):
+                fields = dict(fields)
+                prefix = fields.pop('prefix', '')
+                out = self.run_labelled(claimed + prefix + self.cleanup_call('result', **fields) + self.CLEANUP_STATE)
+                self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                state = out['CSTATE']
+                self.assertEqual((['CANCELLED', 'pending'], [['cancelled', 'held', None]], [1, 1]),
+                                 (state['set'], state['attempts'], state['raw']))
+                self.assertEqual('active', state['cleanup'][0][0])
+        cancelled = seed + self.cancel_call(catalog)
+        for name, fields, code in (
+                ('prepare_kind', {'work_kind': "'prepare'"}, 'import_invalid'),
+                ('normalize_kind', {'work_kind': "'normalize'"}, 'import_invalid'),
+                ('extra_field', {'note': "'x'"}, 'import_invalid'),
+                ('missing_field', {'drop': ('claim_request_id',)}, 'import_invalid'),
+                ('zero_request', {'request': '00000000-0000-0000-0000-000000000000'}, 'import_invalid'),
+                ('bytes', {'data': "'\\x00'::bytea"}, 'import_invalid'),
+                ('epoch', {'credential_epoch': "'2'"}, 'credentials_changed')):
+            with self.subTest(claim=name):
+                out = self.run_labelled(cancelled + self.plan_claim('result', **fields) + self.CLEANUP_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertIsNone(out['CSTATE']['cleanup'])
+        # A replayed claim must come from the same token; a lapsed lease is closed
+        # and the set is handed out again under the next fence.
+        out = self.run_labelled(claimed + self.plan_claim('stolen', token='ef' * 32) +
+            replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
+            "expires_at=pg_catalog.clock_timestamp()-interval '1 second' WHERE work_kind='cleanup';" + origin +
+            self.plan_claim('lapsed') + self.plan_claim('next', request='c1000000-0000-4000-8000-000000000005') +
+            self.CLEANUP_STATE)
+        self.assertEqual({'ok': False, 'code': 'authentication_required'}, out['STOLEN'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['LAPSED'])
+        self.assert_cleanup_lease(out['NEXT'], 'claimed', '2', out['CSTATE'])
+        self.assertEqual([['expired', 1], ['active', 2]], [row[:2] for row in out['CSTATE']['cleanup']])
+        # The database refuses a second live cleanup lease for one set.
+        self.run_labelled(claimed + self.rejects(
+            "INSERT INTO wl_ingestion.leases SELECT tenant_id,portfolio_id,pg_catalog.gen_random_uuid(),set_id,member_id,"
+            "work_kind,attempt+1,fence+1,worker_id,token_digest,session_digest,credential_version,incarnation,restore_epoch,"
+            "created_at,expires_at,state,pg_catalog.gen_random_uuid(),claim_request_digest,NULL,NULL,NULL,raw_slot,"
+            "cleanup_proof_bytes FROM wl_ingestion.leases WHERE work_kind='cleanup'"))
+        # A claim request ID this worker already used for a normalize claim is a conflict.
+        out = self.run_labelled(seed + self.lease_call('claim_member_v1', 'member') + self.cancel_call(catalog) +
+                                self.plan_claim('reused', request='c0000000-0000-4000-8000-000000000002'))
+        self.assertTrue(out['MEMBER']['ok'], out['MEMBER'])
+        self.assertEqual({'ok': False, 'code': 'import_conflict'}, out['REUSED'])
+        # Both functions rely on READ COMMITTED rechecks and refuse other isolation levels.
+        raw = self.sql('BEGIN ISOLATION LEVEL REPEATABLE READ;' + claimed.replace(self.plan_claim('claim'), '') +
+                       self.plan_claim('repeatable') + 'ROLLBACK;')
+        self.assertIn('REPEATABLE {"ok": false, "code": "import_invalid"}', raw)
+
+    def test_claim_selects_the_oldest_terminal_set_first(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed(bind=False)
+        # A second terminal set created later in the same portfolio, built directly.
+        later = 'a7000000-0000-4000-8000-000000000001'
+        seed += self.cancel_call(catalog) + replica + (
+            "INSERT INTO wl_ingestion.sets SELECT tenant_id,portfolio_id,'" + later + "'::uuid,actor_user_id,"
+            "'53000000-0000-4000-8000-0000000000b1'::uuid,request_digest,incarnation,restore_epoch,realm_digest,state,"
+            "revision,created_at+interval '1 second',expires_at+interval '1 second',member_count,reserved_bytes,receipt_id,"
+            "cleanup_state FROM wl_ingestion.sets WHERE creation_operation_id='53000000-0000-4000-8000-000000000001';") + origin
+        out = self.run_labelled(seed + self.plan_claim('first') +
+            self.plan_claim('second', request='c1000000-0000-4000-8000-000000000002') +
+            self.plan_claim('third', request='c1000000-0000-4000-8000-000000000003') +
+            "SELECT 'OWN '||pg_catalog.jsonb_build_object('id'," + self.OWN_SET + ")::text;")
+        self.assertEqual(out['OWN']['id'], out['FIRST']['value']['lease']['set_id'])
+        self.assertEqual(later, out['SECOND']['value']['lease']['set_id'])
+        self.assertEqual(self.NO_WORK, out['THIRD'])
+
+    def test_cleanup_lease_functions_are_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        for name in ('claim_plan_v1', 'cleanup_set_v1'):
+            with self.subTest(function=name):
+                self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+                    "'wl_ingestion." + name + "(uuid,text,jsonb,bytea)','EXECUTE')"))
+
 
 if __name__ == '__main__':
     unittest.main()
