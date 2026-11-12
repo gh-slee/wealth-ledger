@@ -1,6 +1,6 @@
 # Agent development guide
 
-Wealth Ledger is a local-first Python 3.12+ investment ledger with SQLite history,
+Kurafolio is a local-first Python 3.12+ investment ledger with SQLite history,
 ODS/Markdown/PDF reports, optional FastAPI/Huey services and a React/TypeScript UI.
 One owner can maintain independent portfolios. Wealthsimple holdings and Bull
 Bitcoin orders use the implemented shared parser/approval/publication pipeline;
@@ -99,7 +99,7 @@ agents (any vendor or model) may work at once, one ticket each:
 
 Use [the spec workflow](docs/spec-development.md) for exact-revision human Gate A,
 serialized reservations, bounded PM/Architect/Developer/independent-QA handoffs and
-human Gate B. Repository skills under `.agents/skills/wealthledger-*` are guidance
+human Gate B. Repository skills under `.agents/skills/kurafolio-*` are guidance
 for explicit role assignments or an authorized SDD workflow. Discovery alone does
 not authorize implementation or dispatch agents. Developer self-tests are not
 independent QA. Read current source and task-specific references; future plans do
@@ -125,7 +125,7 @@ An existing equivalent virtual environment is fine. For Web changes install
 skip optional API tests. `scripts/web.py` manages trusted host initialization/upgrade/serve/worker.
 `python scripts/docker_context.py --output work/docker-context` prepares a new
 source-only image context. Container acceptance is explicitly opt-in:
-`WEALTH_LEDGER_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v`.
+`KURAFOLIO_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v`.
 It requires a running Docker daemon and uses only unique disposable synthetic resources.
 Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 `npm --prefix frontend run build`, `npm --prefix frontend test`,

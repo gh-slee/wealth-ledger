@@ -15,17 +15,17 @@ import zipfile
 
 import test_web as foundation
 import test_web_adoption as adoption_tests
-from wealth_ledger.operations import fingerprint
+from kurafolio.operations import fingerprint
 
 if foundation.AVAILABLE:
     from fastapi.testclient import TestClient
-    from wealth_ledger.web.adoption import prepare_adoption, confirm_adoption, verify_portfolio
-    from wealth_ledger.web.backups import backup_instance, restore_instance, validate_instance, database_info
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.storage import Store, WebError
-    from wealth_ledger.web.jobs import digest
-    from wealth_ledger.web.api import create_app
-    from wealth_ledger.web.report_evidence import inspect_report, ZIP_EVIDENCE
+    from kurafolio.web.adoption import prepare_adoption, confirm_adoption, verify_portfolio
+    from kurafolio.web.backups import backup_instance, restore_instance, validate_instance, database_info
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.storage import Store, WebError
+    from kurafolio.web.jobs import digest
+    from kurafolio.web.api import create_app
+    from kurafolio.web.report_evidence import inspect_report, ZIP_EVIDENCE
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -3,7 +3,7 @@ from copy import deepcopy
 from decimal import Decimal
 import unittest
 
-from wealth_ledger.btc_performance import btc_cost_estimate
+from kurafolio.btc_performance import btc_cost_estimate
 
 
 class BtcEstimateTests(unittest.TestCase):

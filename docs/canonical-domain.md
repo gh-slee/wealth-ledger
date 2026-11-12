@@ -1,6 +1,6 @@
 # Canonical domain contract v1
 
-`wealth_ledger.domain` provides an opt-in developer vocabulary, strict codec and
+`kurafolio.domain` provides an opt-in developer vocabulary, strict codec and
 one-way parser-v2 archive bridge. Domain version **1** is separate from parser API
 versions 1/2 and from the product V2 roadmap. Importing the domain package registers
 nothing. No CLI, Web route, parser registry, ingestion, SQLite binding or report
@@ -183,7 +183,7 @@ in the exact archive; a successful plain new token need not have the old spellin
 
 Operations introduce no application filesystem, database, network, subprocess,
 clock, random UUID, booking or provider calls. Two inherited boundaries remain:
-importing the existing parent `wealth_ledger` package initializes existing core
+importing the existing parent `kurafolio` package initializes existing core
 Decimal precision, and old strict decoding of an optional `source_timezone` may
 load read-only interpreter timezone reference data through `ZoneInfo`. These old
 behaviors are unchanged. After package initialization, new operations preserve

@@ -80,7 +80,7 @@ Normal dependency downloads may occur during build.
 
 Every invocation calls `docker build`; Docker layer caching remains enabled. Even
 when runtime inputs are unchanged by a documentation edit, a fresh candidate tag
-records the current commit. Tags use `wealth-ledger:pr-<commit>-<unique-suffix>` and
+records the current commit. Tags use `kurafolio:pr-<commit>-<unique-suffix>` and
 never replace a service tag. The receipt binds the exact commit, context hash and
 immutable image ID. Source/HEAD changes during the check invalidate success.
 
@@ -197,7 +197,7 @@ standard-library check. It inspects allowlisted public Markdown and Python comme
 docstrings and identifiers for CJK text. Private instructions/data are outside its
 read scope. Explicit exception categories are:
 
-- Catalog/registry/legacy JSON in src/wealth_ledger/locales/.
+- Catalog/registry/legacy JSON in src/kurafolio/locales/.
 - Intentional runtime localized labels, closed legacy compatibility strings and
   Unicode/localization test values inside Python string literals.
 - Original source/user content and generated localized reports, which are not
@@ -439,7 +439,7 @@ Install `requirements-pg-test.lock` in a dedicated test environment and keep
 and build locks intentionally pin different `packaging` versions; do not merge or
 loosen them to make one environment satisfy both.
 
-Real-PG tests require `WEALTH_LEDGER_PG_TEST=1` and an explicit synthetic test config.
+Real-PG tests require `KURAFOLIO_PG_TEST=1` and an explicit synthetic test config.
 They exercise actual RLS/constraints/locks and dump/empty-target restore; default
 unit-test skips cannot certify PostgreSQL. Preserve the four existing CI jobs and
 run the separate PG job, installed-package checks, normal pre-PR candidate image
@@ -464,25 +464,25 @@ SQLite service, existing portfolios and ports are never test targets.
 ```bash
 python scripts/postgres.py test-identity-environment --output work/source-test
 python scripts/docker_context.py --output work/source-runtime-context
-docker build --build-arg WEALTH_LEDGER_POSTGRES=1 \
-  --tag wealth-ledger-source-test:local --iidfile work/source-image-id work/source-runtime-context
-export WEALTH_LEDGER_IDENTITY_TEST=1
-export WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/source-test/test-config.json
-export WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE="$(cat work/source-image-id)"
-export WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE="$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE"
-export WEALTH_LEDGER_SOURCE_ARTIFACT_FILE=work/source-test/source-content.json
-export WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT=work/source-runtime-context/context-manifest.json
-export WEALTH_LEDGER_SOURCE_HARNESS_TEST=1
+docker build --build-arg KURAFOLIO_POSTGRES=1 \
+  --tag kurafolio-source-test:local --iidfile work/source-image-id work/source-runtime-context
+export KURAFOLIO_IDENTITY_TEST=1
+export KURAFOLIO_IDENTITY_TEST_CONFIG=work/source-test/test-config.json
+export KURAFOLIO_SOURCE_RUNTIME_IMAGE="$(cat work/source-image-id)"
+export KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE="$KURAFOLIO_SOURCE_RUNTIME_IMAGE"
+export KURAFOLIO_SOURCE_ARTIFACT_FILE=work/source-test/source-content.json
+export KURAFOLIO_SOURCE_HARNESS_CONTEXT=work/source-runtime-context/context-manifest.json
+export KURAFOLIO_SOURCE_HARNESS_TEST=1
 python scripts/postgres.py test-source-artifact \
-  --image "$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE" \
-  --context-manifest "$WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT" \
-  --output "$WEALTH_LEDGER_SOURCE_ARTIFACT_FILE"
+  --image "$KURAFOLIO_SOURCE_RUNTIME_IMAGE" \
+  --context-manifest "$KURAFOLIO_SOURCE_HARNESS_CONTEXT" \
+  --output "$KURAFOLIO_SOURCE_ARTIFACT_FILE"
 PYTHONPATH=src:tests python -m unittest \
   test_source_capabilities test_source_transport test_source_capability_compatibility \
   test_source_lifecycle test_source_lifecycle_security test_source_lifecycle_races \
   test_source_lifecycle_restore test_web_v2_sources test_web_v2_native.SourceNativeImage \
   test_source_harness -v
-python scripts/postgres.py cleanup-test-environment --config "$WEALTH_LEDGER_IDENTITY_TEST_CONFIG"
+python scripts/postgres.py cleanup-test-environment --config "$KURAFOLIO_IDENTITY_TEST_CONFIG"
 ```
 
 Use unique new context/target/tag names on later runs; helpers refuse overwriting

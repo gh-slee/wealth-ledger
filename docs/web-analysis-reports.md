@@ -59,7 +59,7 @@ The original document also retains its original quality/method sections.
 
 **Appearance** offers Follow system, Light and Dark on both login and signed-in
 pages. System follows OS preference changes. A manual choice persists only the
-nonfinancial `wealth-ledger-theme` enum in browser localStorage; financial queries,
+nonfinancial `kurafolio-theme` enum in browser localStorage; financial queries,
 sessions and portfolio selections are never persisted there. Storage restrictions
 fall back to an in-memory preference. Theme changes recolor native controls,
 tables, notices and interactive charts. Saved PNGs/PDF/ODS retain their original

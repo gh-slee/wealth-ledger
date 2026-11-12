@@ -76,7 +76,7 @@ inheritance or expose private data in a public/remote agent context.
 ## Fresh-session verification
 
 1. Open this repository as the project and start a **new** Codex session. For the
-   CLI, `codex --cd /path/to/wealth-ledger` selects the intended repository.
+   CLI, `codex --cd /path/to/kurafolio` selects the intended repository.
 2. Before editing, ask the following (do not request the full private file):
 
    > Without modifying files or accessing financial data, list the instruction
@@ -105,10 +105,10 @@ perform the corresponding check when that session/worktree is actually created.
 ## Repository role skills
 
 The four reviewed public skills are
-[PM](../.agents/skills/wealthledger-fintech-pm/SKILL.md),
-[Architect](../.agents/skills/wealthledger-software-architect/SKILL.md),
-[Developer](../.agents/skills/wealthledger-fullstack-developer/SKILL.md) and
-[QA](../.agents/skills/wealthledger-qa-automation/SKILL.md).
+[PM](../.agents/skills/kurafolio-fintech-pm/SKILL.md),
+[Architect](../.agents/skills/kurafolio-software-architect/SKILL.md),
+[Developer](../.agents/skills/kurafolio-fullstack-developer/SKILL.md) and
+[QA](../.agents/skills/kurafolio-qa-automation/SKILL.md).
 Each references the single shared AGENTS.md and the canonical
 [spec workflow](spec-development.md). Select an explicitly assigned role or an
 authorized SDD stage. Discovery is availability, not approval to implement,

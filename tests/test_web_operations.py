@@ -17,12 +17,12 @@ import test_web as foundation
 import test_web_backups as backups_tests
 
 if foundation.AVAILABLE:
-    from wealth_ledger.operations import atomic_data, fingerprint
-    from wealth_ledger.web.backups import backup_instance, restore_instance, database_info
-    from wealth_ledger.web.maintenance import instance_activity, clear_maintenance
-    from wealth_ledger.web.storage import prepare_instance, upgrade_instance, Store
-    from wealth_ledger.web.uploads import receive_upload
-    from wealth_ledger.locking import LockBusy
+    from kurafolio.operations import atomic_data, fingerprint
+    from kurafolio.web.backups import backup_instance, restore_instance, database_info
+    from kurafolio.web.maintenance import instance_activity, clear_maintenance
+    from kurafolio.web.storage import prepare_instance, upgrade_instance, Store
+    from kurafolio.web.uploads import receive_upload
+    from kurafolio.locking import LockBusy
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -87,7 +87,7 @@ class OperationsTests(unittest.TestCase):
         self.prepare()
         # Context inheritance would permit nested activity; another process is a real peer.
         code = '''from pathlib import Path
-from wealth_ledger.web.maintenance import instance_activity
+from kurafolio.web.maintenance import instance_activity
 import sys
 with instance_activity(Path(sys.argv[1])):
     print("held", flush=True)
@@ -110,7 +110,7 @@ with instance_activity(Path(sys.argv[1])):
         class Connection(sqlite3.Connection):
             def backup(self, target, *args, **kwargs):
                 raise full_disk()
-        with patch("wealth_ledger.web.storage.sqlite3.connect",
+        with patch("kurafolio.web.storage.sqlite3.connect",
                    side_effect=lambda *a, **k: original(*a, **k, factory=Connection)):
             with self.assertRaises(OSError):
                 upgrade_instance(self.settings)
@@ -124,14 +124,14 @@ with instance_activity(Path(sys.argv[1])):
         code = '''import os, sqlite3, sys
 from pathlib import Path
 from unittest.mock import patch
-from wealth_ledger.web.config import WebSettings
-from wealth_ledger.web.storage import upgrade_instance
+from kurafolio.web.config import WebSettings
+from kurafolio.web.storage import upgrade_instance
 original = sqlite3.connect
 class Connection(sqlite3.Connection):
     def executescript(self, script):
         super().executescript(script.split("CREATE TABLE jobs")[0])
         os._exit(77)
-with patch("wealth_ledger.web.storage.sqlite3.connect", side_effect=lambda *a, **k: original(*a, **k, factory=Connection)):
+with patch("kurafolio.web.storage.sqlite3.connect", side_effect=lambda *a, **k: original(*a, **k, factory=Connection)):
     upgrade_instance(WebSettings(Path(sys.argv[1])))
 '''
         child = subprocess.run([sys.executable, "-c", code, str(self.root)], capture_output=True)
@@ -151,7 +151,7 @@ with patch("wealth_ledger.web.storage.sqlite3.connect", side_effect=lambda *a, *
             Path(target).mkdir(parents=True, exist_ok=True)
             (Path(target) / "partial").write_bytes(b"incomplete")
             raise full_disk()
-        with patch("wealth_ledger.operations.shutil.copytree", side_effect=fail):
+        with patch("kurafolio.operations.shutil.copytree", side_effect=fail):
             with self.assertRaises(OSError):
                 atomic_data(self.project, lambda _: self.fail("Importer must not run"))
         self.assertFalse(list((self.project / "work").glob("input-stage-*")))
@@ -170,7 +170,7 @@ with patch("wealth_ledger.web.storage.sqlite3.connect", side_effect=lambda *a, *
                 Path(target).write_bytes(b"partial")
                 raise full_disk()
             return original(source, target, *args, **kwargs)
-        with patch("wealth_ledger.operations.shutil.copy2", side_effect=fail):
+        with patch("kurafolio.operations.shutil.copy2", side_effect=fail):
             with self.assertRaises(OSError):
                 atomic_data(self.project, action)
         self.assertFalse((self.project / "data/raw/new-evidence.txt").exists())
@@ -231,8 +231,8 @@ with patch("wealth_ledger.web.storage.sqlite3.connect", side_effect=lambda *a, *
         code = """import os, sys
 from pathlib import Path
 from unittest.mock import patch
-from wealth_ledger.web.config import WebSettings
-from wealth_ledger.web.backups import backup_instance
+from kurafolio.web.config import WebSettings
+from kurafolio.web.backups import backup_instance
 with patch("zipfile.ZipFile.write", side_effect=lambda *a, **k: os._exit(77)):
     backup_instance(WebSettings(Path(sys.argv[1])), Path(sys.argv[2]))
 """
@@ -252,15 +252,15 @@ with patch("zipfile.ZipFile.write", side_effect=lambda *a, **k: os._exit(77)):
         code = """import os, sys
 from pathlib import Path
 from unittest.mock import patch
-from wealth_ledger.web.config import WebSettings
-from wealth_ledger.web.backups import restore_instance
+from kurafolio.web.config import WebSettings
+from kurafolio.web.backups import restore_instance
 original = os.replace
 root = Path(sys.argv[1])
 def interrupt(source, destination):
     original(source, destination)
     if Path(destination).parent == root:
         os._exit(77)
-with patch("wealth_ledger.web.backups.os.replace", side_effect=interrupt):
+with patch("kurafolio.web.backups.os.replace", side_effect=interrupt):
     restore_instance(WebSettings(root), Path(sys.argv[2]))
 """
         result = subprocess.run([sys.executable, "-c", code, str(self.target.data_root), str(self.archive)], capture_output=True)
@@ -271,7 +271,7 @@ with patch("wealth_ledger.web.backups.os.replace", side_effect=interrupt):
         with self.assertRaisesRegex(ValueError, "empty"):
             restore_instance(self.target, self.archive)
         self.assertEqual(self.archive.read_bytes(), saved)
-        from wealth_ledger.web.config import WebSettings
+        from kurafolio.web.config import WebSettings
         other = WebSettings(self.root.parent / "another-empty-root")
         restore_instance(other, self.archive)
         self.assertEqual(fingerprint(Store(other).portfolio(self.pid)[1]), fingerprint(self.project))

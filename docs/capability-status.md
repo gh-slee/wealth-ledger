@@ -2,25 +2,25 @@
 
 This is a source baseline, not a deployment receipt or permission to implement the
 roadmap. The current integration ancestry includes merge
-[`0b62a8a` (PR #13)](https://github.com/gh-slee/wealth-ledger/pull/13), which contains
+[`0b62a8a` (PR #13)](https://github.com/gh-slee/kurafolio/pull/13), which contains
 the three UX-P0 slices. Domain contracts and development governance also include
-[PR #16](https://github.com/gh-slee/wealth-ledger/pull/16). Later unmerged work is not treated as shipped. Tests linked
+[PR #16](https://github.com/gh-slee/kurafolio/pull/16). Later unmerged work is not treated as shipped. Tests linked
 below describe executable coverage; this page does not claim they were all rerun
 for a documentation change. See [TODO](../TODO.md) for remaining work and
 [spec development](spec-development.md) for approval/ownership gates.
 
 | Area | Current source and evidence | Planned / explicit limit |
 |---|---|---|
-| Storage and ownership | SQLite, host-initialized single owner and multiple independent portfolios: [storage](../src/wealth_ledger/web/storage.py), [auth](../src/wealth_ledger/web/auth.py), [Web tests](../tests/test_web.py). | PostgreSQL, browser registration, multi-user/household roles and tenant architecture changes require separate approved implementation/migration. |
-| Shared parser pipeline | Current Wealthsimple holdings/Bull Bitcoin order formats, registry/SDK, explicit-context previews and regular CLI/browser preparation, mappings, exact approval and frozen reports: [built-ins](../src/wealth_ledger/source_builtin.py), [pipeline](../src/wealth_ledger/source_pipeline.py), [pipeline tests](../tests/test_source_pipeline.py), [publication tests](../tests/test_source_publication.py), [SDK](parser-sdk.md). | Parser protocol v2 is implemented; full product V2 is not. V1/v2 previews remain nonbooking. No universal CSV, extra real institution/provider, broker authentication, automatic installation or API synchronization is implied. |
+| Storage and ownership | SQLite, host-initialized single owner and multiple independent portfolios: [storage](../src/kurafolio/web/storage.py), [auth](../src/kurafolio/web/auth.py), [Web tests](../tests/test_web.py). | PostgreSQL, browser registration, multi-user/household roles and tenant architecture changes require separate approved implementation/migration. |
+| Shared parser pipeline | Current Wealthsimple holdings/Bull Bitcoin order formats, registry/SDK, explicit-context previews and regular CLI/browser preparation, mappings, exact approval and frozen reports: [built-ins](../src/kurafolio/source_builtin.py), [pipeline](../src/kurafolio/source_pipeline.py), [pipeline tests](../tests/test_source_pipeline.py), [publication tests](../tests/test_source_publication.py), [SDK](parser-sdk.md). | Parser protocol v2 is implemented; full product V2 is not. V1/v2 previews remain nonbooking. No universal CSV, extra real institution/provider, broker authentication, automatic installation or API synchronization is implied. |
 | Developer domain contract | Opt-in frozen domain-v1 vocabulary, strict decimal/time codec and explicit one-way parser-v2 archive bridge: [contract](canonical-domain.md), [domain tests](../tests/test_domain_v1.py), [bridge tests](../tests/test_domain_bridge_v1.py). | Development-only shape/evidence contract, always nonbooking. No current route or SQLite binding adopts it; scoped UUID checks do not establish tenant auth, balances, valuation, persistence or full product V2. |
-| Finance and history | Decimal/BTC precision, explicit observations/revisions, source-neutral reports and unknown/coverage boundaries: [source report](../src/wealth_ledger/source_report.py), [projection tests](../tests/test_source_projection.py), [wallet declaration tests](../tests/test_source_wallet_declarations.py). | Complete combined returns, broader income/corporate-action and tax models need evidence and separate contracts; missing data stays unknown. |
+| Finance and history | Decimal/BTC precision, explicit observations/revisions, source-neutral reports and unknown/coverage boundaries: [source report](../src/kurafolio/source_report.py), [projection tests](../tests/test_source_projection.py), [wallet declaration tests](../tests/test_source_wallet_declarations.py). | Complete combined returns, broader income/corporate-action and tax models need evidence and separate contracts; missing data stays unknown. |
 | Native/legacy support | Explicit native paths retain canonical-data omission guards; existing IDs, source evidence and frozen reports remain supported: [source projections](source-projections.md), [legacy compatibility tests](../tests/test_source_legacy_projection.py), [legacy Web adoption tests](../tests/test_web_legacy_adoption.py). | No silent rewrite/revaluation, dual writes or automatic private migration. Pre-checksum adoption is explicit and preserves original bytes with separate migration evidence. |
 | Browser and reports | React analysis, full saved-report reader, grouped history, system/light/dark, three locales, ODS/Markdown/PDF and scoped exports: [frontend](web-frontend.md), [report reading](web-analysis-reports.md), [reader tests](../tests/test_web_report_document.py). | Full visual/analytics overhaul and the remaining UX-P1/P2 tracks are planned. Local pilots do not establish merged or deployed behavior. |
 | UX-P0 | First-use guidance, evidence status/actions and staged import/recovery merged through PR #13: [onboarding tests](../frontend/tests/browser/onboarding.spec.ts), [status tests](../frontend/tests/browser/evidence-status.spec.ts), [import tests](../frontend/tests/browser/import-review.spec.ts), [ticket index](product-ux-review.md). | These bounded slices do not complete the whole UX redesign, numeric BTC-gap/coverage models or every future source-capability view. Deployment is a separate operator action. |
 | Operations/distribution | Source-built Docker context, isolated jobs, full backup/empty-target restore and trusted-host adoption: [context helper](../scripts/docker_context.py), [backup tests](../tests/test_web_backups.py), [operations acceptance](web-release-acceptance.md). | Public prebuilt multi-architecture images/pull-only distribution (WEB-008) remain planned. A source build or local smoke check is not a public registry release or real-instance upgrade. |
-| Optional PG foundation | Explicit candidate repositories, SQL precision/RLS/FKs, atomic receipt/outbox, leases/fencing and operator migrations: [contract](postgres-foundation.md), [repositories](../src/wealth_ledger/persistence/repositories.py), [tests](../tests/test_postgres_migrations.py). | Opt-in development infrastructure. Current Web/CLI remain SQLite; no authenticated registration, financial booking/valuation, provider cursor, full app recovery or personal migration is activated. Real-PG tests require explicit isolated configuration; skipped tests are not acceptance. |
-| Optional V2 identity | Protected setup/invitation/authentication backend and own-scope candidate/job reads, merged through [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19): [operator/API contract](web-v2-identity.md), [SQL tests](../tests/test_identity_transactions.py), [HTTP tests](../tests/test_web_v2_api.py). | Opt-in backend; the existing Web/CLI remain on SQLite. Setup/invitation UI remains WL-P0-011. No financial import/export service or existing-data migration is activated. |
+| Optional PG foundation | Explicit candidate repositories, SQL precision/RLS/FKs, atomic receipt/outbox, leases/fencing and operator migrations: [contract](postgres-foundation.md), [repositories](../src/kurafolio/persistence/repositories.py), [tests](../tests/test_postgres_migrations.py). | Opt-in development infrastructure. Current Web/CLI remain SQLite; no authenticated registration, financial booking/valuation, provider cursor, full app recovery or personal migration is activated. Real-PG tests require explicit isolated configuration; skipped tests are not acceptance. |
+| Optional V2 identity | Protected setup/invitation/authentication backend and own-scope candidate/job reads, merged through [PR #19](https://github.com/gh-slee/kurafolio/pull/19): [operator/API contract](web-v2-identity.md), [SQL tests](../tests/test_identity_transactions.py), [HTTP tests](../tests/test_web_v2_api.py). | Opt-in backend; the existing Web/CLI remain on SQLite. Setup/invitation UI remains WL-P0-011. No financial import/export service or existing-data migration is activated. |
 | Development roles | Four repository role skills and human-operated [SDD workflow](spec-development.md); [discovery/privacy guide](agent-development.md). | Skills are optional development guidance, never runtime dependencies. Adoption/discovery does not dispatch agents, approve another spec, or prove independent QA. |
 
 Current supported data includes normalized cash-flow CSVs and optional dated BTC
@@ -33,14 +33,14 @@ acquisition costs. See [the manual](user-manual.md) for supported daily operatio
 
 ## Optional V2 source lifecycle
 
-WL-P0-006, merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22),
+WL-P0-006, merged through [PR #22](https://github.com/gh-slee/kurafolio/pull/22),
 adds the explicit `0003` sources backend profile:
-[operator/API guide](web-v2-sources.md), [contract](../src/wealth_ledger/data_sources/contract_v1.py),
-[lifecycle SQL](../src/wealth_ledger/persistence/source_schema.py),
+[operator/API guide](web-v2-sources.md), [contract](../src/kurafolio/data_sources/contract_v1.py),
+[lifecycle SQL](../src/kurafolio/persistence/source_schema.py),
 [SQL tests](../tests/test_source_lifecycle.py), [HTTP tests](../tests/test_web_v2_sources.py)
 and [native test-only harness](../tests/test_source_harness.py). Independent
 implementation review is accepted; all seven
-[merged-main CI jobs](https://github.com/gh-slee/wealth-ledger/actions/runs/40914248281)
+[merged-main CI jobs](https://github.com/gh-slee/kurafolio/actions/runs/40914248281)
 passed on `4867f02`. This source baseline does not establish deployment or a data migration. Inert catalogs, user-version
 confirmation and reusable connections do not import financial facts. Default
 SQLite and the optional `0002` identity profile remain separate. V2 upload/financial

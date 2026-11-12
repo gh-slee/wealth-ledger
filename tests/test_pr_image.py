@@ -24,7 +24,7 @@ class CandidateTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)
         (self.root / '.gitignore').write_text('/work/\n/private/\n/data/\n')
-        source = self.root / 'src/wealth_ledger'
+        source = self.root / 'src/kurafolio'
         source.mkdir(parents=True)
         (source / '__init__.py').write_text('"""Synthetic candidate."""\n')
         self.git('init', '-b', 'main')
@@ -90,7 +90,7 @@ class CandidateTests(unittest.TestCase):
         self.assertFalse(self.calls)
 
     def test_untracked_image_source_stops_before_docker(self):
-        (self.root / 'src/wealth_ledger/unreviewed.py').write_text('# Synthetic extra\n')
+        (self.root / 'src/kurafolio/unreviewed.py').write_text('# Synthetic extra\n')
         with self.assertRaisesRegex(ValueError, 'uncommitted'):
             self.execute()
         self.assertFalse(self.calls)

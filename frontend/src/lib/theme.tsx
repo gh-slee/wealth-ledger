@@ -8,7 +8,7 @@ import {
 } from "react";
 
 export type Theme = "system" | "light" | "dark";
-export const THEME_KEY = "wealth-ledger-theme";
+export const THEME_KEY = "kurafolio-theme";
 export const validTheme = (value: string | null): Theme =>
   value === "light" || value === "dark" ? value : "system";
 const ThemeContext = createContext<{

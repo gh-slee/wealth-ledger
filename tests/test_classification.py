@@ -6,10 +6,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from wealth_ledger.fund_sources import holding, vanguard, REGISTRY
-from wealth_ledger.lookthrough import calculate
-from wealth_ledger.classification import country_code
-from wealth_ledger.classification_reports import write_exports, report_section
+from kurafolio.fund_sources import holding, vanguard, REGISTRY
+from kurafolio.lookthrough import calculate
+from kurafolio.classification import country_code
+from kurafolio.classification_reports import write_exports, report_section
 from test_lookthrough import ALIASES, payload, security, fund
 
 

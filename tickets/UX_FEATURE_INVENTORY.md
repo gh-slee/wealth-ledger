@@ -7,7 +7,7 @@ user-facing feature. Every row ends in a ticket or in "no change needed".
 ## How it was built
 
 - Read the frontend (`frontend/src`), every HTTP route of both backends
-  (`src/wealth_ledger/web/`, `src/wealth_ledger/web_v2/`), the product and design
+  (`src/kurafolio/web/`, `src/kurafolio/web_v2/`), the product and design
   documents and all tickets.
 - Ran the repository's disposable synthetic server (`scripts/web_browser_fixture.py`)
   on 2026-11-09 and 2026-11-10 and visited every page of the shipped application:

@@ -21,13 +21,13 @@ WEB = all(importlib.util.find_spec(name) for name in ("fastapi", "pwdlib", "uvic
 @unittest.skipUnless(WEB, "Optional Web dependencies are not installed")
 class InstalledApiTests(unittest.TestCase):
     def test_cli_and_api_worker_share_installed_plugin_without_booking(self):
-        from wealth_ledger.source_pipeline import plan_sources
-        from wealth_ledger.web.auth import password_hash
-        from wealth_ledger.web.config import WebSettings
-        from wealth_ledger.web.jobs import Jobs
-        from wealth_ledger.web.storage import Store, prepare_instance
-        from wealth_ledger.web.worker import execute_isolated
-        from wealth_ledger.operations import fingerprint
+        from kurafolio.source_pipeline import plan_sources
+        from kurafolio.web.auth import password_hash
+        from kurafolio.web.config import WebSettings
+        from kurafolio.web.jobs import Jobs
+        from kurafolio.web.storage import Store, prepare_instance
+        from kurafolio.web.worker import execute_isolated
+        from kurafolio.operations import fingerprint
         with tempfile.TemporaryDirectory(prefix="synthetic-plugin-api-") as directory:
             root = Path(directory).resolve()
             with socket.socket() as listener:
@@ -40,7 +40,7 @@ class InstalledApiTests(unittest.TestCase):
             supplied = secrets.token_urlsafe(32)
             store.set_owner("owner", password_hash(supplied))
             config = settings.data_root / "admin/source-parsers.json"
-            config.write_text(json.dumps({"schema_version":1, "enabled":[{"distribution":"wealth-ledger-synthetic-parser",
+            config.write_text(json.dumps({"schema_version":1, "enabled":[{"distribution":"kurafolio-synthetic-parser",
                 "version":"0.1.0", "entry_point":"synthetic", "adapter_id":"synthetic.holdings"}], "bindings":[]}))
             raw = fixture()
             source = root / "invented.csv"; source.write_bytes(raw)
@@ -56,7 +56,7 @@ class InstalledApiTests(unittest.TestCase):
                 with client.open(req, timeout=60) as response:
                     return response.status, json.load(response)
             program = ("import sys; from pathlib import Path; import uvicorn; "
-                       "from wealth_ledger.web.api import create_app; from wealth_ledger.web.config import WebSettings; "
+                       "from kurafolio.web.api import create_app; from kurafolio.web.config import WebSettings; "
                        "uvicorn.run(create_app(WebSettings(Path(sys.argv[1]),sys.argv[2])),host='127.0.0.1',port=int(sys.argv[3]),log_level='error')")
             process = subprocess.Popen([sys.executable, "-c", program, str(settings.data_root), origin, str(port)],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -106,21 +106,21 @@ class InstalledApiTests(unittest.TestCase):
 class InstalledV2ReportTests(unittest.TestCase):
     def test_actual_installed_third_parser_cli_generates_and_recovers_reports(self):
         from synthetic_parser.v2 import VERSION
-        from wealth_ledger.source_valuation import read_observations
-        from wealth_ledger.publishing import verify_bundle
-        from wealth_ledger.source_publication import verify_source_publications
+        from kurafolio.source_valuation import read_observations
+        from kurafolio.publishing import verify_bundle
+        from kurafolio.source_publication import verify_source_publications
         with tempfile.TemporaryDirectory(prefix="synthetic-v2-reports-") as temporary:
             root=Path(temporary).resolve();ledger=root/"ledger";ledger.mkdir()
             source=root/"invented.csv";source.write_bytes(fixture(format=VERSION))
-            config=root/"parsers.json";config.write_text(json.dumps({"schema_version":1,"enabled":[{"distribution":"wealth-ledger-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
+            config=root/"parsers.json";config.write_text(json.dumps({"schema_version":1,"enabled":[{"distribution":"kurafolio-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
             context=root/"context.json";context.write_text(json.dumps({"schema_version":1,"inputs":[{"evidence_at":"2024-02-01T12:00:00+00:00","source_reference":"synthetic-independent-export","format_selection":VERSION}]}))
             valuation=root/"valuation.json";valuation.write_text(json.dumps({"as_of":"2024-03-01T00:00:00Z","period_start":"2024-01-01T00:00:00Z","generated_at":"2024-03-01T00:00:00Z","report_locale":"en-CA","fx":{"usd_cad":"1.5","usd_twd":"30","usd_cad_date":"2024-02-29","usd_twd_date":"2024-02-29","usd_cad_source":"synthetic-fixed","usd_twd_source":"synthetic-fixed"}}))
             binding=root/"bindings.json";binding.write_text(json.dumps({"schema_version":1,"bindings":[{"provider":"synthetic","source_account_id":"demo-account","target_kind":"new"}]}))
             plan=root/"plan"
-            console=Path(sys.executable).parent/("wealth-ledger-source-reports.exe" if sys.platform=="win32" else "wealth-ledger-source-reports")
-            from wealth_ledger.workspace import SOURCE_CHECKOUT
+            console=Path(sys.executable).parent/("kurafolio-source-reports.exe" if sys.platform=="win32" else "kurafolio-source-reports")
+            from kurafolio.workspace import SOURCE_CHECKOUT
             if not SOURCE_CHECKOUT:self.assertTrue(console.is_file())
-            command=[str(console)] if console.is_file() else [sys.executable,"-m","wealth_ledger.source_report_cli"]
+            command=[str(console)] if console.is_file() else [sys.executable,"-m","kurafolio.source_report_cli"]
             def run(*args):
                 result=subprocess.run([*command,*map(str,args),"--workspace",str(ledger)],cwd=root,text=True,capture_output=True,timeout=180)
                 self.assertEqual(result.returncode,0,result.stdout[-1200:]+result.stderr[-1200:])
@@ -149,11 +149,11 @@ class InstalledV2ReportTests(unittest.TestCase):
     @unittest.skipUnless(WEB, "Optional Web dependencies are not installed")
     def test_independent_v2_web_approval_publication_read_and_exports(self):
         from synthetic_parser.v2 import VERSION
-        from wealth_ledger.web.auth import password_hash
-        from wealth_ledger.web.config import WebSettings
-        from wealth_ledger.web.storage import Store, prepare_instance
-        from wealth_ledger.web.jobs import Jobs
-        from wealth_ledger.web.worker import execute_isolated
+        from kurafolio.web.auth import password_hash
+        from kurafolio.web.config import WebSettings
+        from kurafolio.web.storage import Store, prepare_instance
+        from kurafolio.web.jobs import Jobs
+        from kurafolio.web.worker import execute_isolated
         with tempfile.TemporaryDirectory(prefix="synthetic-v2-web-report-") as temporary:
             root = Path(temporary).resolve()
             with socket.socket() as listener:
@@ -163,7 +163,7 @@ class InstalledV2ReportTests(unittest.TestCase):
             store = Store(settings); supplied = secrets.token_urlsafe(32)
             store.set_owner("owner", password_hash(supplied))
             (settings.data_root / "admin/source-parsers.json").write_text(json.dumps({"schema_version":1,
-                "enabled":[{"distribution":"wealth-ledger-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
+                "enabled":[{"distribution":"kurafolio-synthetic-parser","version":"0.1.0","entry_point":"synthetic_v2","adapter_id":"synthetic.holdings-v2"}],"bindings":[]}))
             client = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
             def request(path, *, body=None, headers=None, binary=False):
                 encoded = body if isinstance(body, bytes) else json.dumps(body).encode() if body is not None else None
@@ -173,7 +173,7 @@ class InstalledV2ReportTests(unittest.TestCase):
                     raw = response.read()
                     return raw if binary else json.loads(raw)
             program = ("import sys; from pathlib import Path; import uvicorn; "
-                "from wealth_ledger.web.api import create_app; from wealth_ledger.web.config import WebSettings; "
+                "from kurafolio.web.api import create_app; from kurafolio.web.config import WebSettings; "
                 "uvicorn.run(create_app(WebSettings(Path(sys.argv[1]),sys.argv[2])),host='127.0.0.1',port=int(sys.argv[3]),log_level='error')")
             process = subprocess.Popen([sys.executable,"-c",program,str(settings.data_root),origin,str(port)],
                 stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

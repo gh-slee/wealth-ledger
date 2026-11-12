@@ -1,5 +1,5 @@
 {
-  "format": "wealth-ledger-synthetic-identity-oracle-v1",
+  "format": "kurafolio-synthetic-identity-oracle-v1",
   "setup_and_member": {"users": 2, "roots": 2, "portfolios": 2, "generation_sum": 0, "admin_count": 1},
   "single_invite_race": {"attempts": 16, "commits": 1, "registration_rejected": 15},
   "single_setup_race": {"attempts": 16, "commits": 1, "setup_closed": 15},

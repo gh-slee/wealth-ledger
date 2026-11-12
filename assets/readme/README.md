@@ -2,7 +2,7 @@
 
 | Asset | Provenance / captured task |
 |---|---|
-| `wealth-ledger-mark.svg` | Original project artwork under the project MIT license. |
+| `kurafolio-mark.svg` | Original project artwork under the project MIT license. |
 | `report-preview.png` | The invented offline report from `examples/demo.py`. |
 | `web-getting-started.png` | Empty synthetic portfolio; first-observation guidance, no financial records. |
 | `web-login.png` | Blank sign-in form; no entered credentials. |
@@ -91,9 +91,9 @@ The three selective modes are mutually exclusive; no URL, portfolio or source-fi
 arguments are accepted. None of these modes submits financial input. The first-run mode never creates financial records in
 the empty ledger.
 
-Activate the Python environment first, or set `WEALTH_LEDGER_TEST_PYTHON` to its
+Activate the Python environment first, or set `KURAFOLIO_TEST_PYTHON` to its
 executable. An already installed Chrome binary can be selected with
-`WEALTH_LEDGER_BROWSER_CHANNEL=chrome`; Playwright uses a new disposable profile,
+`KURAFOLIO_BROWSER_CHANNEL=chrome`; Playwright uses a new disposable profile,
 never a personal browser session. `PLAYWRIGHT_BROWSERS_PATH` can select a browser cache.
 
 The capture script:

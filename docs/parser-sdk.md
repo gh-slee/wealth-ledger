@@ -7,7 +7,7 @@ projection guard remains necessary on canonical workspaces. See the workflow gui
 for saved contexts, corrections, reference caches and migration boundaries.
 
 SRC-003 provides an installable Python core, one shared version-1 contract,
-`wealth_ledger.source_testing`, and an independently packaged synthetic parser.
+`kurafolio.source_testing`, and an independently packaged synthetic parser.
 Everything runs in code. No runtime LLM, local LibreOffice or institution login is
 required. No package has been published to PyPI by this work.
 
@@ -25,7 +25,7 @@ built in; do not advertise arbitrary bank or exchange exports. See
 
 ## Optional domain-v1 development types
 
-`wealth_ledger.domain` supplies a separate [strict fact contract](canonical-domain.md)
+`kurafolio.domain` supplies a separate [strict fact contract](canonical-domain.md)
 and explicit one-way saved parser-v2 archive bridge. It does not register parser API
 3, replace `source_protocol`/`source_v2`, upgrade a v1 parser or alter entry points.
 The bridge requires caller-supplied UUID/listing/account/leg-role mappings and always
@@ -97,7 +97,7 @@ are deleted. This verifies synthetic operation, not a user's portfolio or deploy
 
 Start with [the independent example](../examples/parser-plugin/README.md) and
 [the canonical contract](source-adapters.md#implemented-protocol-surface-src-001).
-Import dataclasses from `wealth_ledger.source_protocol`; do not vendor copies.
+Import dataclasses from `kurafolio.source_protocol`; do not vendor copies.
 
 1. Declare stable provider/adapter IDs, API/adapter/export versions and supported kinds.
 2. Detect necessary format features from bytes. Ambiguity needs explicit selection.
@@ -106,7 +106,8 @@ Import dataclasses from `wealth_ledger.source_protocol`; do not vendor copies.
 4. Declare partial/complete scope from actual evidence. Row count does not prove
    completeness. Do not infer contributions from purchases or balances.
 5. Return `AdapterRegistration(ProviderInfo(...), adapter)` from a no-argument factory.
-6. Publish its metadata under entry-point group `wealth_ledger.source_adapters`.
+6. Publish its metadata under entry-point group `wealth_ledger.source_adapters`. The group keeps the project's
+   former name; plugin code imports `kurafolio` and depends on the `kurafolio` distribution.
    Package publication is an independent maintainer action, not performed by the tool.
 
 `check_contract(adapter, raw)` validates detection/metadata/normalization and exact
@@ -137,7 +138,7 @@ create a private host JSON file (for example `work/example-parser-host.json`):
 {
   "schema_version": 1,
   "enabled": [{
-    "distribution": "wealth-ledger-synthetic-parser",
+    "distribution": "kurafolio-synthetic-parser",
     "version": "0.1.0",
     "entry_point": "synthetic",
     "adapter_id": "synthetic.holdings"
@@ -154,11 +155,11 @@ synthetic-holdings-v1,demo-account,position-001,r1,,original,2024-01-31T16:00:00
 ```
 
 ```bash
-.venv-sdk/bin/wealth-ledger-source-parsers work/sdk-input.csv --config work/example-parser-host.json > work/sdk-plan.json
-.venv-sdk/bin/wealth-ledger-source-parsers work/sdk-input.csv --config work/example-parser-host.json --verify work/sdk-plan.json
+.venv-sdk/bin/kurafolio-source-parsers work/sdk-input.csv --config work/example-parser-host.json > work/sdk-plan.json
+.venv-sdk/bin/kurafolio-source-parsers work/sdk-input.csv --config work/example-parser-host.json --verify work/sdk-plan.json
 ```
 
-Windows uses `Scripts\wealth-ledger-source-parsers.exe`. The equivalent checkout
+Windows uses `Scripts\kurafolio-source-parsers.exe`. The equivalent checkout
 wrapper remains `python scripts/source_parsers.py`. Keep receipts private. For Web,
 the host administrator writes `<instance>/admin/source-parsers.json`; the API never
 enables Python packages from browser uploads. Stop API/worker before changing the
@@ -177,8 +178,8 @@ public image tag:
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 USER root
-COPY wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl /tmp/wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl
-RUN python -m pip install --no-index --no-deps --no-cache-dir --no-compile /tmp/wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl
+COPY kurafolio_synthetic_parser-0.1.0-py3-none-any.whl /tmp/kurafolio_synthetic_parser-0.1.0-py3-none-any.whl
+RUN python -m pip install --no-index --no-deps --no-cache-dir --no-compile /tmp/kurafolio_synthetic_parser-0.1.0-py3-none-any.whl
 USER 10001:10001
 ```
 
@@ -193,15 +194,15 @@ To verify the source image and example together using disposable synthetic state
 
 ```bash
 python scripts/docker_context.py --output work/sdk-image-context
-docker build --tag wealth-ledger-sdk-base:test work/sdk-image-context
-python scripts/check_plugin_image.py --base-image wealth-ledger-sdk-base:test --wheel work/sdk-dist/wealth_ledger_synthetic_parser-0.1.0-py3-none-any.whl
+docker build --tag kurafolio-sdk-base:test work/sdk-image-context
+python scripts/check_plugin_image.py --base-image kurafolio-sdk-base:test --wheel work/sdk-dist/kurafolio_synthetic_parser-0.1.0-py3-none-any.whl
 ```
 
 This creates/removes only a uniquely named derived test image, runs seven example
 and API/worker tests with no network, a read-only filesystem and temporary state,
 and never mounts a financial volume. The supplied base image is retained. These
 commands need a running Docker daemon; CI also runs them on Linux. Source images
-use `python -m wealth_ledger.source_cli` rather than the wheel-installed console.
+use `python -m kurafolio.source_cli` rather than the wheel-installed console.
 
 Retain nonroot/read-only operation, resource limits, isolated workers and backup
 contracts. Restoring data never installs missing plugins; reading frozen reports
@@ -224,7 +225,7 @@ checkout. It exercises 35 canonical foundation tests, 29 built-in/context tests,
 the independent v1 plugin tests, real child/CLI/API paths and three report locales.
 Build artifacts remain subject to source/member audits before any publication.
 
-The installed core also exposes `wealth-ledger-source-ingestion` for explicit frozen
+The installed core also exposes `kurafolio-source-ingestion` for explicit frozen
 preview/confirmation and receipt-only recovery. Its [B2 guide](source-ingestion.md#frozen-submission-and-recovery-src-004b2)
 requires exact account mapping review and the no-report acknowledgement. This does
 not change the v1 example plugin's nonbooking contract. Installed acceptance invokes

@@ -8,14 +8,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from wealth_ledger.fund_sources import (holding,parse_blackrock,parse_vaneck,parse_fidelity,parse_ci,
+from kurafolio.fund_sources import (holding,parse_blackrock,parse_vaneck,parse_fidelity,parse_ci,
                                       parse_bmo,parse_invesco,vanguard,weight,fetch_fund,REGISTRY)
-from wealth_ledger.lookthrough import calculate,attach_analysis,normalize_name
+from kurafolio.lookthrough import calculate,attach_analysis,normalize_name
 from test_core import write_holdings,FX
-from wealth_ledger.core import import_holdings,make_payload
+from kurafolio.core import import_holdings,make_payload
 import test_workbook as wbfixtures
-from wealth_ledger.workbook import build_workbook,BASELINE_CHART_KEYS,verify_workbook,NS,tag
-from wealth_ledger.validation import validate_formula_caches
+from kurafolio.workbook import build_workbook,BASELINE_CHART_KEYS,verify_workbook,NS,tag
+from kurafolio.validation import validate_formula_caches
 
 PROJECT = Path(__file__).resolve().parents[1]
 FIXTURES = PROJECT/'tests/fixtures/fund_sources'
@@ -104,7 +104,7 @@ class IssuerTests(unittest.TestCase):
     def test_age_is_flagged_without_claiming_fresh_date(self):
         from datetime import date
         data=self.load('fidelity.json')
-        with patch('wealth_ledger.fund_sources.Client') as client:
+        with patch('kurafolio.fund_sources.Client') as client:
             client.return_value.json.return_value=data;client.return_value.evidence=[]
             result=fetch_fund('XTSE:FBTC','unused',today=date(2027,2,1))
             self.assertEqual(result['status'],'stale');self.assertTrue(result['latest_checked'])
@@ -203,7 +203,7 @@ class WorkbookLookthroughTests(unittest.TestCase):
     payload = wbfixtures.WorkbookTests.payload
     chart_fixture = wbfixtures.WorkbookTests.chart_fixture
     def test_report_status_respects_saved_classification_availability(self):
-        from wealth_ledger.reporting import _sections
+        from kurafolio.reporting import _sections
         p=self.payload()
         r=calculate(p,{'XTSE:ETF':fund('XTSE:ETF',[holding('Apple Inc',100,country='US',gics_sector='Information Technology')])},ALIASES)
         r['run_id']=1;p['lookthrough']=r

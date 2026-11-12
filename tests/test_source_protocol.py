@@ -6,7 +6,7 @@ import hashlib
 import json
 import unittest
 
-from wealth_ledger.source_protocol import (
+from kurafolio.source_protocol import (
     AccountKey, AssetKey, Money, RecordKey, Holding, CashFlow, CryptoLeg,
     CryptoTransaction, Coverage, SourceEvidence, AdapterInfo, Detection,
     NormalizedBatch, SourceAdapter, validate_batch, validate_info,

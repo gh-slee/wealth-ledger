@@ -7,10 +7,10 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from wealth_ledger.data_sources.contract_v1 import (ContractError, MAX_COUNTER, adapter_input,
+from kurafolio.data_sources.contract_v1 import (ContractError, MAX_COUNTER, adapter_input,
     canonical, context_bytes, decode_context, fingerprint, installation_id, primitive)
-from wealth_ledger.data_sources.catalog_v1 import decode_catalog, validate_transition
-from wealth_ledger.data_sources.lifecycle_v1 import effective_status
+from kurafolio.data_sources.catalog_v1 import decode_catalog, validate_transition
+from kurafolio.data_sources.lifecycle_v1 import effective_status
 
 FIXTURES = Path(__file__).parent / "fixtures" / "source_capabilities"
 
@@ -56,7 +56,7 @@ class SourceCapabilitiesTests(unittest.TestCase):
                 decode_context(canonical(value))
 
     def test_catalog_discovery_never_loads_factories_and_is_canonical(self):
-        with patch("wealth_ledger.source_registry.build_registry", side_effect=AssertionError("No dispatch")):
+        with patch("kurafolio.source_registry.build_registry", side_effect=AssertionError("No dispatch")):
             catalog = decode_catalog((FIXTURES / "catalog.json").read_bytes())
         self.assertEqual(len(catalog.definitions), 1)
         self.assertEqual(len(catalog.installations), 2)

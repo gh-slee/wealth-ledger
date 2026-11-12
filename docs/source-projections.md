@@ -1,6 +1,6 @@
 # Source-neutral projection model
 
-SRC-004C1 implements `wealth_ledger.source_projection.project_sources`. This is an
+SRC-004C1 implements `kurafolio.source_projection.project_sources`. This is an
 **internal, read-only analysis model**, not a report payload, new public API route,
 browser feature or daily-workflow switch. It reads verified canonical-v2 archives
 and financial state without executing a parser, downloading references, initializing
@@ -14,7 +14,7 @@ or as authorization to import/migrate a real portfolio.
 
 ```python
 from pathlib import Path
-from wealth_ledger.source_projection import project_sources
+from kurafolio.source_projection import project_sources
 
 model = project_sources(
     Path("/path/to/disposable/synthetic-workspace"),
@@ -139,7 +139,7 @@ same tests outside the checkout. See [ingestion](source-ingestion.md),
 
 ## Legacy and wallet compatibility (SRC-004C2)
 
-`wealth_ledger.source_legacy_projection.project_compatible_sources` is a separate
+`kurafolio.source_legacy_projection.project_compatible_sources` is a separate
 **read-only internal model**, composed over C1. It is not the production report
 payload or a new CLI/HTTP/browser route. C1 remains canonical-only; its flags and
 behavior are unchanged. C2 returns `legacy_merge_ready: true` only after its
@@ -148,7 +148,7 @@ supported compatibility checks succeed, while `report_projection_ready` and
 
 ```python
 from pathlib import Path
-from wealth_ledger.source_legacy_projection import project_compatible_sources
+from kurafolio.source_legacy_projection import project_compatible_sources
 
 model = project_compatible_sources(
     Path("/path/to/disposable/synthetic-workspace"),
@@ -367,11 +367,11 @@ A rendered development bundle is not a published Web report or a daily-use switc
 
 ```python
 from pathlib import Path
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.workspace import resolve_workspace
-from wealth_ledger.source_valuation import read_source_valuation
-from wealth_ledger.reporting import generate_reports
-from wealth_ledger.workbook import build_workbook
+from kurafolio.application import ApplicationService
+from kurafolio.workspace import resolve_workspace
+from kurafolio.source_valuation import read_source_valuation
+from kurafolio.reporting import generate_reports
+from kurafolio.workbook import build_workbook
 
 # Use a disposable synthetic workspace while evaluating this developer interface.
 workspace = resolve_workspace(explicit=Path("work/synthetic-ledger"))
@@ -565,7 +565,7 @@ cutover acceptance remain C3C2.
 Use a disposable synthetic ledger while evaluating this pre-release interface.
 Create its directory first and keep it separate from installation code. The
 checkout command is `python scripts/source_reports.py`; an installed wheel supplies
-`wealth-ledger-source-reports` with the same subcommands. This example assumes
+`kurafolio-source-reports` with the same subcommands. This example assumes
 private `context.json`, `bindings.json`, parser configuration and source CSVs have
 already been prepared using the SDK/B2 formats.
 

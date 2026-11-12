@@ -3,8 +3,8 @@ import asyncio
 import time
 import unittest
 
-from wealth_ledger.ingestion.contracts import IngestionError, MAX_RAW
-from wealth_ledger.web_v2.imports import receive_raw, upload_length
+from kurafolio.ingestion.contracts import IngestionError, MAX_RAW
+from kurafolio.web_v2.imports import receive_raw, upload_length
 
 
 def headers(length=b'3'):

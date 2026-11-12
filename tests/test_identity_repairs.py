@@ -13,18 +13,18 @@ import uuid
 from unittest.mock import patch
 
 from test_identity_support import IdentityCase
-from wealth_ledger.persistence.context import Database,execute
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.identity import IdentityError,IdentityStore
-from wealth_ledger.persistence.migration import migrate,migrate_identity,finalize_identity_restore
-from wealth_ledger.web_v2.auth import Auth,digest
-from wealth_ledger.web_v2.config import Settings
+from kurafolio.persistence.context import Database,execute
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.identity import IdentityError,IdentityStore
+from kurafolio.persistence.migration import migrate,migrate_identity,finalize_identity_restore
+from kurafolio.web_v2.auth import Auth,digest
+from kurafolio.web_v2.config import Settings
 
 
 class IdentityReviewRepairs(IdentityCase):
     def test_database_owner_roles_refuse_startup_readiness_and_operator_changes(self):
         from fastapi.testclient import TestClient
-        from wealth_ledger.web_v2.api import create_app
+        from kurafolio.web_v2.api import create_app
         import subprocess
         self.bootstrap()
         settings=Settings(self.configs['identity'],self.configs['runtime'],self.key,'http://localhost')
@@ -60,7 +60,7 @@ class IdentityReviewRepairs(IdentityCase):
 
     def test_missing_revision_denies_direct_gateway_and_already_running_http(self):
         from fastapi.testclient import TestClient
-        from wealth_ledger.web_v2.api import create_app
+        from kurafolio.web_v2.api import create_app
         app=create_app(Settings(self.configs['identity'],self.configs['runtime'],self.key,'http://localhost'))
         with TestClient(app,base_url='http://localhost') as client:
             self.sql('DELETE FROM wl_pg.alembic_version')
@@ -180,7 +180,7 @@ class IdentityReviewRepairs(IdentityCase):
         self.assertTrue(self.login('AdminExample')[1].is_instance_admin)
 
     def test_late_readiness_failure_is_consumed_after_timeout(self):
-        from wealth_ledger.web_v2.api import Boundary
+        from kurafolio.web_v2.api import Boundary
         started=threading.Event();release=threading.Event()
         class Fake:
             def ready(self):
@@ -195,7 +195,7 @@ class IdentityReviewRepairs(IdentityCase):
             scope={'type':'http','headers':[(b'host',b'localhost')],'path':'/readyz','method':'GET','query_string':b''}
             async def receive():return {'type':'http.request','body':b''}
             async def send(message):pass
-            with patch('wealth_ledger.web_v2.api.asyncio.wait_for',side_effect=fast_probe):
+            with patch('kurafolio.web_v2.api.asyncio.wait_for',side_effect=fast_probe):
                 await boundary(scope,receive,send)
             self.assertTrue(started.is_set());release.set()
             await asyncio.sleep(.05)

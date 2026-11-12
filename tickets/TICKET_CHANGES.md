@@ -165,7 +165,7 @@ finish them before WL-P0-011A starts.
 | `frontend/src/App.tsx` | UX-P1-009, 010, 015, UX-P2-007, WL-P0-011A | `frontend-shell` lock; shipped-shell tickets first |
 | `frontend/src/components/analysis.tsx` | UX-P1-008, 012, UX-P2-006, 008 | `frontend-analysis` lock |
 | `frontend/src/components/imports.tsx` | UX-P1-013, 014 | `frontend-imports-ui` lock |
-| `src/wealth_ledger/web_v2/schemas.py`, `api.py` | WL-P0-011E, 011G, 012A, 013A, WL-P0-007E | Different resources; rebase before the PR, DTO blocks are additive |
+| `src/kurafolio/web_v2/schemas.py`, `api.py` | WL-P0-011E, 011G, 012A, 013A, WL-P0-007E | Different resources; rebase before the PR, DTO blocks are additive |
 | Migration numbering | WL-P0-011E, WL-P0-007D | `migration-order` lock |
 | README screenshots | every UI ticket | Each ticket refreshes only its own page |
 

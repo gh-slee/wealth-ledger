@@ -22,18 +22,18 @@ class PublicationPolicyTests(unittest.TestCase):
         for path in ('build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'docs/parser-sdk.md',
                      'examples/parser-plugin/pyproject.toml', 'examples/parser-plugin/LICENSE',
                      'examples/parser-plugin/tests/test_installed_api.py',
-                     'README.md', 'PRODUCT.md', 'DESIGN.md', 'docs/ux-p0-002-status-design.md', 'src/wealth_ledger/core.py', 'scripts/update.py',
+                     'README.md', 'PRODUCT.md', 'DESIGN.md', 'docs/ux-p0-002-status-design.md', 'src/kurafolio/core.py', 'scripts/update.py',
                      'tests/test_publication.py', 'config/publish.example.toml',
                      'docs/development.md', '.githooks/pre-push', 'examples/data/wealthsimple-holdings.csv',
                      'examples/data/bull-orders.csv', 'examples/data/fx.json',
                      'examples/data/btc-price.json', 'examples/templates/btc_events.csv',
                      'examples/templates/cash_flows.csv', 'THIRD_PARTY_NOTICES.md',
                      '.github/pull_request_template.md', 'config/local.example.toml',
-                     'docs/i18n-plan.md', 'docs/self-hosted-webapp.md', 'docs/agent-development.md', 'docs/web-imports.md', 'src/wealth_ledger/locales/en-CA.json',
-                     'src/wealth_ledger/locales/zh-CN.json', 'src/wealth_ledger/locales/legacy.json',
+                     'docs/i18n-plan.md', 'docs/self-hosted-webapp.md', 'docs/agent-development.md', 'docs/web-imports.md', 'src/kurafolio/locales/en-CA.json',
+                     'src/kurafolio/locales/zh-CN.json', 'src/kurafolio/locales/legacy.json',
                      'assets/fonts/NotoSansSC-Regular.ttf', 'assets/fonts/OFL-SC.txt',
                      'assets/fonts/NotoSansSC-provenance.json',
-                     'assets/readme/wealth-ledger-mark.svg', 'assets/readme/report-preview.png',
+                     'assets/readme/kurafolio-mark.svg', 'assets/readme/report-preview.png',
                      'assets/readme/README.md', 'frontend/package-lock.json', 'frontend/src/App.tsx',
                      'frontend/src/locales/zh-TW.json', 'docs/web-frontend.md',
                      'frontend/scripts/capture-readme.mjs', 'assets/readme/web-overview.png',
@@ -93,19 +93,19 @@ class PublicationPolicyTests(unittest.TestCase):
     def test_private_and_unknown_paths(self):
         for path in ('data/raw/export.csv', 'reports/report.md', 'backups/history.db',
                      'config/publish.local.toml', 'docs/session-handoff.md', 'private/readme.md',
-                     'src/wealth_ledger/__pycache__/core.py', 'scripts/token.key',
+                     'src/kurafolio/__pycache__/core.py', 'scripts/token.key',
                      'tests/fixtures/user.csv', 'examples/data/user-holdings.csv',
                      'examples/templates/private.csv', 'examples/arbitrary/example.csv',
                      'examples/parser-plugin/build/lib/synthetic_parser/__init__.py',
                      'examples/parser-plugin/private.csv', 'examples/parser-plugin/.env',
-                     'examples/parser-plugin/AGENTS.override.md', 'src/wealth_ledger/_bundle/private.json',
+                     'examples/parser-plugin/AGENTS.override.md', 'src/kurafolio/_bundle/private.json',
                      'examples/demo.csv', 'PRODUCT.local.md', 'DESIGN.local.md', 'unreviewed.md', '../README.md', '/README.md',
-                     'src\\wealth_ledger\\core.py', '.github/workflows/deploy.yml',
-                     'src/wealth_ledger/locales/user.json', 'assets/fonts/downloaded-font.ttf',
+                     'src\\kurafolio\\core.py', '.github/workflows/deploy.yml',
+                     'src/kurafolio/locales/user.json', 'assets/fonts/downloaded-font.ttf',
                      'assets/readme/private-screenshot.png', 'assets/readme/export.csv',
                      'docs/private-webapp-notes.md', 'AGENTS.override.md',
-                     'docs/AGENTS.override.md', 'src/wealth_ledger/AGENTS.override.md',
-                     'src/wealth_ledger/locales/AGENTS.override.md',
+                     'docs/AGENTS.override.md', 'src/kurafolio/AGENTS.override.md',
+                     'src/kurafolio/locales/AGENTS.override.md',
                      'scripts/AGENTS.OVERRIDE.MD', 'frontend/AGENTS.override.md',
                      'frontend/src/AGENTS.override.md', 'frontend/.env', 'frontend/dist/index.html',
                      'frontend/node_modules/private.json', 'frontend/src/user.json', 'frontend/public/wallet.csv',
@@ -240,6 +240,31 @@ create_pr = true
         self.assertTrue(guard.scan_staged(self.root)['passed'])
         self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
 
+    def test_pre_rename_paths_pass_only_in_history_and_keep_content_checks(self):
+        old = 'src/wealth_ledger/example.py'
+        self.assertFalse(guard.path_allowed(old))
+        self.assertEqual(guard.current_name(old), 'src/kurafolio/example.py')
+        self.assertEqual(guard.current_name('.agents/skills/wealthledger-qa-automation/SKILL.md'),
+                         '.agents/skills/kurafolio-qa-automation/SKILL.md')
+        self.write(old, '"""Synthetic module."""\n')
+        self.run_git('add', '--', old)
+        self.assertFalse(guard.scan_staged(self.root)['passed'])
+        self.assertFalse(guard.scan_worktree(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic pre-rename module')
+        self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
+        self.write(old, 'PRIVATE_' + 'FINANCIAL_FIXTURE\n')
+        self.run_git('add', '--', old)
+        self.run_git('commit', '-m', 'Synthetic pre-rename secret')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
+
+    def test_old_path_beside_its_renamed_form_fails_history(self):
+        self.assertEqual(guard.current_name('src/wealth_ledger/a.py', {'src/kurafolio/b.py'}), 'src/wealth_ledger/a.py')
+        self.write('src/kurafolio/current.py', '"""Synthetic module."""\n')
+        self.write('src/wealth_ledger/stale.py', '"""Synthetic module."""\n')
+        self.run_git('add', '--', 'src/kurafolio/current.py', 'src/wealth_ledger/stale.py')
+        self.run_git('commit', '-m', 'Synthetic stale reintroduction')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
+
     def test_exact_role_skills_are_public_and_not_ignored(self):
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
         for relative in sorted(guard.PUBLIC_ROLE_SKILLS):
@@ -259,12 +284,12 @@ create_pr = true
         # Test exact patterns independent of macOS Git's case-folding option.
         self.run_git('config', 'core.ignorecase', 'false')
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
-        role = '.agents/skills/wealthledger-fullstack-developer/'
+        role = '.agents/skills/kurafolio-fullstack-developer/'
         paths = ('.agents/notes.md', '.agents/skills/extra-role/SKILL.md',
                  role + 'nested/SKILL.md', role + 'skill.md', role + 'SKILL.md.backup',
                  role + 'AGENTS.override.md', role + 'agents/openai.yaml',
-                 '.agents/skills/wealthledger-fullstack-developer-copy/SKILL.md',
-                 '.codex/skills/wealthledger-fullstack-developer/SKILL.md',
+                 '.agents/skills/kurafolio-fullstack-developer-copy/SKILL.md',
+                 '.codex/skills/kurafolio-fullstack-developer/SKILL.md',
                  'docs/specs/wealth-ledger-v2/workflow/notes.md',
                  'planning-input/notes.md')
         for relative in paths:
@@ -314,11 +339,11 @@ create_pr = true
 
     def test_casefolding_git_cannot_publish_a_role_lookalike(self):
         self.run_git('config', 'core.ignorecase', 'true')
-        relative = '.agents/skills/wealthledger-fintech-pm/skill.md'
+        relative = '.agents/skills/kurafolio-fintech-pm/skill.md'
         self.write(relative, '# Synthetic case-only lookalike\n')
         result = guard.scan_worktree(self.root)
         self.assertNotIn(relative, {row['path'] for row in result['files']})
-        approved = '.agents/skills/wealthledger-fintech-pm/SKILL.md'
+        approved = '.agents/skills/kurafolio-fintech-pm/SKILL.md'
         self.assertNotIn(approved, {row['path'] for row in result['files']})
         self.run_git('add', '-f', '--', relative)
         self.assertFalse(guard.scan_staged(self.root)['passed'])
@@ -341,7 +366,7 @@ create_pr = true
         self.assertTrue(guard.PUBLIC_ROLE_SKILLS <= {row['path'] for row in result['violations']})
 
     def test_role_and_ancestor_symlinks_are_rejected_before_any_target_read(self):
-        relative = '.agents/skills/wealthledger-fullstack-developer/SKILL.md'
+        relative = '.agents/skills/kurafolio-fullstack-developer/SKILL.md'
         parts = Path(relative).parts
         read_bytes = Path.read_bytes
         for length in range(1, len(parts) + 1):
@@ -374,7 +399,7 @@ create_pr = true
                     self.assertNotIn(relative, {row['path'] for row in result['files']})
 
     def test_nonregular_role_candidates_and_file_ancestors_fail_closed(self):
-        role = '.agents/skills/wealthledger-fullstack-developer'
+        role = '.agents/skills/kurafolio-fullstack-developer'
         self.write(role, 'Synthetic non-directory ancestor')
         self.assertFalse(guard.scan_worktree(self.root)['passed'])
         (self.root / role).unlink()
@@ -385,8 +410,8 @@ create_pr = true
         self.assertFalse(guard.scan_worktree(self.root)['passed'])
 
     def test_force_staged_role_symlink_and_ancestor_symlink_fail_history(self):
-        for relative in ('.agents/skills/wealthledger-fintech-pm/SKILL.md',
-                         '.agents/skills/wealthledger-software-architect'):
+        for relative in ('.agents/skills/kurafolio-fintech-pm/SKILL.md',
+                         '.agents/skills/kurafolio-software-architect'):
             link = self.root / relative
             link.parent.mkdir(parents=True, exist_ok=True)
             link.symlink_to(self.root / 'private/missing')
@@ -423,7 +448,7 @@ create_pr = true
 
     def test_private_overrides_are_ignored_and_omitted_from_worktree_manifest(self):
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
-        paths = ('AGENTS.override.md', 'src/wealth_ledger/AGENTS.override.md')
+        paths = ('AGENTS.override.md', 'src/kurafolio/AGENTS.override.md')
         for path in paths:
             self.write(path, 'Private synthetic owner guidance.\n')
             self.run_git('check-ignore', '-q', '--', path)
@@ -447,7 +472,7 @@ create_pr = true
 
     def test_deleted_nested_override_still_blocks_history_and_pre_push(self):
         base = self.run_git('rev-parse', 'HEAD')
-        path = 'src/wealth_ledger/AGENTS.override.md'
+        path = 'src/kurafolio/AGENTS.override.md'
         self.write('.gitignore', 'AGENTS.override.md\n')
         self.write(path, 'Private synthetic owner guidance.\n')
         self.run_git('add', '-f', '--', path)
@@ -466,7 +491,7 @@ create_pr = true
     def test_design_state_is_ignored_and_excluded_from_worktree(self):
         self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
         paths = ('.impeccable/critique/synthetic.json',
-                 'src/wealth_ledger/.impeccable/capture.py')
+                 'src/kurafolio/.impeccable/capture.py')
         for path in paths:
             self.write(path, 'Private synthetic design state.\n')
             self.run_git('check-ignore', '-q', '--', path)
@@ -477,7 +502,7 @@ create_pr = true
 
     def test_force_added_design_state_blocks_index_and_history(self):
         self.write('.gitignore', '.impeccable/\n')
-        path = 'src/wealth_ledger/.impeccable/capture.py'
+        path = 'src/kurafolio/.impeccable/capture.py'
         self.write(path, '# Private synthetic design state\n')
         self.run_git('add', '-f', '--', path)
         self.assertFalse(guard.scan_staged(self.root)['passed'])
@@ -836,9 +861,9 @@ create_pr = true
 class TypedSchemaPrivacyTests(unittest.TestCase):
     def test_secretstr_field_declarations_do_not_hide_literal_credentials(self):
         schema = b'class Login:\n    password: SecretStr = Field(min_length=1, max_length=256)\n'
-        self.assertEqual(guard.content_issues(schema, 'src/wealth_ledger/web/api.py'), [])
+        self.assertEqual(guard.content_issues(schema, 'src/kurafolio/web/api.py'), [])
         raw = b'class Login:\n    password: SecretStr = Field(default="not-a-public-credential")\n'
-        self.assertIn('possible credential assignment', guard.content_issues(raw, 'src/wealth_ledger/web/api.py'))
+        self.assertIn('possible credential assignment', guard.content_issues(raw, 'src/kurafolio/web/api.py'))
 
     def test_prompted_password_reader_does_not_allow_a_quoted_credential(self):
         source = b'password = getpass.getpass("Owner password: ")\n'

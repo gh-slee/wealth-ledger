@@ -36,7 +36,7 @@ migration requires its own reviewed plan and authorization.
 
 ## Contract version 2
 
-`wealth_ledger.source_v2` imports the same `AccountKey`, `AssetKey`, `Money`,
+`kurafolio.source_v2` imports the same `AccountKey`, `AssetKey`, `Money`,
 `RecordKey`, `CryptoLeg`, `Detection` and `AdapterInfo` primitives as v1. Adapters
 must explicitly declare `api_version=2`. V1 normalization/validation and canonical
 serialization are unchanged; v1 batches are not coerced into v2.
@@ -92,7 +92,7 @@ source authority, accepted-head decision or balance arithmetic is implemented.
 
 ## Planning, identities and commit
 
-The trusted API in `wealth_ledger.source_ingestion` provides:
+The trusted API in `kurafolio.source_ingestion` provides:
 
 1. `SourceInput(batch, raw)`: original bytes and a validated v2 batch.
 2. `Binding(account, ledger_account_id, target_kind)` or `new_binding(account)`:
@@ -255,7 +255,7 @@ to the input at the same position. External enablement still follows the strict
 python scripts/source_parsers.py examples/data/wealthsimple-holdings.csv examples/data/bull-orders.csv --config work/parsers.json --context work/source-context.json
 ```
 
-An installed wheel uses `wealth-ledger-source-parsers` with the same arguments.
+An installed wheel uses `kurafolio-source-parsers` with the same arguments.
 Either single input is accepted with exactly one corresponding context; Bull still
 requires its alias. `--select 1=wealthsimple.holdings` resolves explicit selection.
 `--verify work/saved-plan.json` checks a saved summary and rejects any changed
@@ -339,7 +339,7 @@ remain rejected; this does not broaden current format support or complete cutove
 ### CLI: inspect, freeze, confirm and recover
 
 The checkout command is `python scripts/source_ingestion.py`; the installed console
-is `wealth-ledger-source-ingestion`. All subcommands require an explicit existing
+is `kurafolio-source-ingestion`. All subcommands require an explicit existing
 `--workspace`. They never fall back to an installation or the maintainer's workspace.
 The following example uses only the public synthetic Bull fixture.
 

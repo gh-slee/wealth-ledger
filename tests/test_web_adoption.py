@@ -10,14 +10,14 @@ from unittest.mock import patch
 import test_web as foundation
 from test_web_exports import complete_publication
 from test_web_reports import synthetic_payload
-from wealth_ledger.operations import fingerprint, start, set_state
+from kurafolio.operations import fingerprint, start, set_state
 
 if foundation.AVAILABLE:
-    from wealth_ledger.web.adoption import prepare_adoption, confirm_adoption
-    from wealth_ledger.web.backups import database_info, backup_instance, restore_instance, file_hash
-    from wealth_ledger.web.storage import Store
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.jobs import digest
+    from kurafolio.web.adoption import prepare_adoption, confirm_adoption
+    from kurafolio.web.backups import database_info, backup_instance, restore_instance, file_hash
+    from kurafolio.web.storage import Store
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.jobs import digest
 
 
 @unittest.skipUnless(foundation.AVAILABLE,'Optional Web dependencies are not installed')
@@ -92,7 +92,7 @@ class AdoptionTests(unittest.TestCase):
 
     def test_install_failure_rolls_back_only_new_target(self):
         self.prepare()
-        with patch('wealth_ledger.web.adoption.os.replace',side_effect=OSError('Synthetic install failure')):
+        with patch('kurafolio.web.adoption.os.replace',side_effect=OSError('Synthetic install failure')):
             with self.assertRaises(OSError):self.confirm()
         self.assertFalse((self.root/'portfolios'/self.pid).exists());self.assertEqual(self.hashes(),self.before)
         self.assertEqual(self.confirm()['status'],'adopted')

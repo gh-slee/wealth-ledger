@@ -14,11 +14,11 @@ from unittest.mock import patch
 import uuid
 
 from test_source_v2 import ACCOUNT, META, POSITION, KEY, AT, RAW, CONTEXT, INFO, CAD, BTC, batch, funding, purchase
-from wealth_ledger import source_ingestion as ingestion, source_v2 as v2
-from wealth_ledger.core import initialize
-from wealth_ledger.source_protocol import AccountKey, Money
-from wealth_ledger.workspace import resolve_workspace
-from wealth_ledger.operations import fingerprint
+from kurafolio import source_ingestion as ingestion, source_v2 as v2
+from kurafolio.core import initialize
+from kurafolio.source_protocol import AccountKey, Money
+from kurafolio.workspace import resolve_workspace
+from kurafolio.operations import fingerprint
 
 
 def file_hashes(root):
@@ -30,7 +30,7 @@ class CanonicalIngestionTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(prefix="synthetic-canonical-")
         self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name).resolve()/"ledger"; self.root.mkdir()
-        self.environment=patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="a"*64)
+        self.environment=patch("kurafolio.source_ingestion.environment_fingerprint",return_value="a"*64)
         self.environment.start(); self.addCleanup(self.environment.stop)
 
     def plan(self, value=None, *, raw=RAW, bindings=None):
@@ -236,7 +236,7 @@ class CanonicalIngestionTests(unittest.TestCase):
         with self.assertRaises(ingestion.IngestionError) as caught:ingestion.commit_ingestion(resolve_workspace(explicit=self.root),plan)
         self.assertEqual(caught.exception.code,"stale_plan")
         plan=self.plan()
-        with patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="b"*64),self.assertRaises(ingestion.IngestionError):
+        with patch("kurafolio.source_ingestion.environment_fingerprint",return_value="b"*64),self.assertRaises(ingestion.IngestionError):
             ingestion.commit_ingestion(resolve_workspace(explicit=self.root),plan)
         self.assertEqual(self.query("SELECT COUNT(*) FROM src_records")[0][0],2)
 
@@ -246,7 +246,7 @@ class CanonicalIngestionTests(unittest.TestCase):
         def fail_after_first(record):
             if isinstance(record,v2.CryptoTransaction):raise RuntimeError("Synthetic injected failure")
             return original(record)
-        with patch("wealth_ledger.source_ingestion._effect_rows",side_effect=fail_after_first),self.assertRaises(RuntimeError):
+        with patch("kurafolio.source_ingestion._effect_rows",side_effect=fail_after_first),self.assertRaises(RuntimeError):
             ingestion.commit_ingestion(resolve_workspace(explicit=self.root),plan)
         self.assertEqual(self.query("SELECT name FROM sqlite_master WHERE name LIKE 'src_%'"),[])
         self.assertEqual(ingestion.verify_store(self.root)["schema_version"],0)
@@ -256,20 +256,20 @@ class CanonicalIngestionTests(unittest.TestCase):
         plan=self.plan(batch((funding(),)))
         op="OP-"+uuid.uuid4().hex
         first=ingestion.commit_ingestion(resolve_workspace(explicit=self.root),plan,operation_id=op)
-        with patch("wealth_ledger.source_ingestion.environment_fingerprint",side_effect=AssertionError("Committed replay must not inspect new code")):
+        with patch("kurafolio.source_ingestion.environment_fingerprint",side_effect=AssertionError("Committed replay must not inspect new code")):
             second=ingestion.commit_ingestion(resolve_workspace(explicit=self.root),plan,operation_id=op)
         self.assertEqual(first,second)
         self.assertEqual(len(ingestion.read_facts(self.root)["effects"]),1)
 
     def test_response_failure_after_commit_replays_the_durable_receipt(self):
-        from wealth_ledger import operations
+        from kurafolio import operations
         plan=self.plan(batch((funding(),)))
         operation_id="OP-"+uuid.uuid4().hex
         atomic=operations.atomic_data
         def fail_after_commit(*args,**kwargs):
             atomic(*args,**kwargs)
             raise RuntimeError("Synthetic delivery failure after commit")
-        with patch("wealth_ledger.operations.atomic_data",side_effect=fail_after_commit),self.assertRaises(RuntimeError):
+        with patch("kurafolio.operations.atomic_data",side_effect=fail_after_commit),self.assertRaises(RuntimeError):
             ingestion.commit_ingestion(resolve_workspace(explicit=self.root),plan,operation_id=operation_id)
         self.assertEqual(self.query("SELECT status FROM update_operations WHERE operation_id=?",(operation_id,))[0][0],"data_only_complete")
         result=ingestion.commit_ingestion(resolve_workspace(explicit=self.root),plan,operation_id=operation_id)
@@ -293,8 +293,8 @@ class CanonicalIngestionTests(unittest.TestCase):
         with self.assertRaises(ingestion.IngestionError):self.plan()
 
     def test_legacy_ids_rows_archives_and_frozen_reports_survive_explicit_binding(self):
-        from wealth_ledger.core import import_holdings,make_payload
-        from wealth_ledger.combined import make_combined_payload
+        from kurafolio.core import import_holdings,make_payload
+        from kurafolio.combined import make_combined_payload
         project=Path(__file__).resolve().parents[1]
         fx=json.loads((project/"examples/data/fx.json").read_text())
         import_holdings(self.root,project/"examples/data/wealthsimple-holdings.csv","baseline",fx)
@@ -314,7 +314,7 @@ class CanonicalIngestionTests(unittest.TestCase):
             self.assertEqual(caught.exception.code,"report_projection_unavailable")
 
     def test_database_backup_rolls_back_new_schema_without_reimport(self):
-        from wealth_ledger.publishing import database_backup
+        from kurafolio.publishing import database_backup
         initialize(self.root)
         old=fingerprint(self.root)
         backup=self.root/database_backup(self.root,"synthetic-before-source-store")

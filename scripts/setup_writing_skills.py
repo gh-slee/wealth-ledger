@@ -45,7 +45,7 @@ def fetch(url: str) -> bytes:
     opener = urllib.request.build_opener(
         NoRedirect(), urllib.request.HTTPSHandler(context=context))
     request = urllib.request.Request(url, headers={
-        'User-Agent': 'wealth-ledger-writing-setup', 'Accept': 'application/json, text/plain'})
+        'User-Agent': 'kurafolio-writing-setup', 'Accept': 'application/json, text/plain'})
     with opener.open(request, timeout=15) as response:
         data = response.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:

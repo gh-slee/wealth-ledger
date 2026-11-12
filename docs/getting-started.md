@@ -1,6 +1,6 @@
 # Start tracking a new portfolio
 
-This guide is for a new user with no Wealth Ledger history. You can begin from the
+This guide is for a new user with no Kurafolio history. You can begin from the
 holdings or order exports you have today; you do not need to reconstruct your whole
 financial life before recording the first observation. Missing costs/contributions
 stay unknown and limit related analysis.

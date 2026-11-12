@@ -43,10 +43,10 @@ Issues record remote execution, and PRs record reviewed implementation.
 | Independent QA | Independently derive/check expected results, negative/fault/user acceptance and evidence; report defects, retest and hand to Gate B. |
 
 Role guidance lives in exactly four repository skill files:
-[PM](../.agents/skills/wealthledger-fintech-pm/SKILL.md),
-[Architect](../.agents/skills/wealthledger-software-architect/SKILL.md),
-[Developer](../.agents/skills/wealthledger-fullstack-developer/SKILL.md),
-[QA](../.agents/skills/wealthledger-qa-automation/SKILL.md).
+[PM](../.agents/skills/kurafolio-fintech-pm/SKILL.md),
+[Architect](../.agents/skills/kurafolio-software-architect/SKILL.md),
+[Developer](../.agents/skills/kurafolio-fullstack-developer/SKILL.md),
+[QA](../.agents/skills/kurafolio-qa-automation/SKILL.md).
 Use an explicitly assigned role or an authorized SDD workflow. Discovering these
 files does not launch four agents. Delegate only with explicit authorization;
 scale independent review to risk. A low-risk text edit need not run four concurrent

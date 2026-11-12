@@ -50,8 +50,8 @@ report, ledger volume, app session or personal instance is read or mounted.
 Run the actual integration suite:
 
 ```bash
-WEALTH_LEDGER_PG_TEST=1 \
-WEALTH_LEDGER_PG_TEST_CONFIG="$PWD/work/pg-tests/test-config.json" \
+KURAFOLIO_PG_TEST=1 \
+KURAFOLIO_PG_TEST_CONFIG="$PWD/work/pg-tests/test-config.json" \
 PYTHONPATH=src .venv-pg/bin/python -m unittest discover -s tests -p 'test_postgres_*.py' -v
 ```
 
@@ -88,8 +88,8 @@ behavior. To verify the optional PG runtime dependencies explicitly:
 
 ```bash
 python scripts/docker_context.py --output work/pg-image-context
-docker build --build-arg WEALTH_LEDGER_POSTGRES=1 \
-  --tag wealth-ledger:pg-foundation work/pg-image-context
+docker build --build-arg KURAFOLIO_POSTGRES=1 \
+  --tag kurafolio:pg-foundation work/pg-image-context
 ```
 
 The default build argument is zero. The PG runtime lock contains SQLAlchemy and

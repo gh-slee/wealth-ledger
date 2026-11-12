@@ -18,7 +18,7 @@ from test_identity_support import IdentityCase
 
 class IdentityTransport(IdentityCase):
     def test_cli_bind_origin_tls_matrix_before_database_activation(self):
-        from wealth_ledger.web_v2.__main__ import main
+        from kurafolio.web_v2.__main__ import main
         base=['serve','--identity-file','identity.conninfo','--financial-file','finance.conninfo',
               '--key-file','instance.key','--port','54321']
         for secure,bind,tls,accepted in [(False,'0.0.0.0',False,False),(True,'0.0.0.0',False,False),
@@ -26,9 +26,9 @@ class IdentityTransport(IdentityCase):
                   (True,'0.0.0.0',True,True),(False,'127.0.0.1',True,False)]:
             args=base+['--origin',('https' if secure else 'http')+'://localhost','--host',bind]
             if tls:args+=['--tls-cert-file','certificate.pem','--tls-key-file','transport.key']
-            with patch('wealth_ledger.web_v2.config.Settings.from_files',return_value=SimpleNamespace(secure=secure)), \
-                 patch('wealth_ledger.web_v2.config.private_bytes',return_value=b'synthetic'), \
-                 patch('ssl.SSLContext'),patch('wealth_ledger.web_v2.api.create_app') as app, \
+            with patch('kurafolio.web_v2.config.Settings.from_files',return_value=SimpleNamespace(secure=secure)), \
+                 patch('kurafolio.web_v2.config.private_bytes',return_value=b'synthetic'), \
+                 patch('ssl.SSLContext'),patch('kurafolio.web_v2.api.create_app') as app, \
                  patch('uvicorn.run') as run,redirect_stderr(io.StringIO()):
                 self.assertEqual(main(args),0 if accepted else 2,(secure,bind,tls))
                 self.assertEqual(run.called,accepted)
@@ -51,7 +51,7 @@ class IdentityTransport(IdentityCase):
             with socket.socket() as listener:
                 listener.bind(('127.0.0.1',0));port=listener.getsockname()[1]
             origin='https://localhost:'+str(port)
-            child=subprocess.Popen([sys.executable,'-m','wealth_ledger.web_v2','serve','--identity-file',str(files['identity']),
+            child=subprocess.Popen([sys.executable,'-m','kurafolio.web_v2','serve','--identity-file',str(files['identity']),
                     '--financial-file',str(files['finance']),'--key-file',str(files['key']),'--origin',origin,
                     '--host','127.0.0.1','--port',str(port),'--tls-cert-file',str(cert),'--tls-key-file',str(tls_key)],
                     stdout=subprocess.PIPE,stderr=subprocess.PIPE)

@@ -6,19 +6,19 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from wealth_ledger.core import import_holdings,make_payload
-from wealth_ledger.crypto import import_bull_orders
-from wealth_ledger.combined import make_combined_payload
-from wealth_ledger.reporting import generate_reports
-from wealth_ledger.workbook import build_workbook, verify_workbook
-from wealth_ledger.validation import validate_formula_caches
+from kurafolio.core import import_holdings,make_payload
+from kurafolio.crypto import import_bull_orders
+from kurafolio.combined import make_combined_payload
+from kurafolio.reporting import generate_reports
+from kurafolio.workbook import build_workbook, verify_workbook
+from kurafolio.validation import validate_formula_caches
 from test_core import FX,write_holdings
 from test_crypto import FIELDS,ASSUMPTIONS,order
 
 
 def quote(as_of):
     from datetime import timedelta
-    from wealth_ledger.prices import parse_time
+    from kurafolio.prices import parse_time
     stamp=parse_time(as_of)
     return {"provider":"offline-test","pair":"BTC-USD","as_of":as_of,"close":"100000",
             "candle_start":(stamp-timedelta(minutes=1)).isoformat(),"candle_end":stamp.isoformat(),
@@ -46,7 +46,7 @@ class CombinedTests(unittest.TestCase):
 
     def payload(self,as_of=None):
         effective=as_of or make_payload(self.root)["meta"]["as_of"]
-        with patch("wealth_ledger.combined.resolve_btc_price",return_value=quote(effective)):
+        with patch("kurafolio.combined.resolve_btc_price",return_value=quote(effective)):
             return make_combined_payload(self.root,as_of=as_of)
 
     def test_combined_totals_include_quantity_and_remaining_cash_once(self):

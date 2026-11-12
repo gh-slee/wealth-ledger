@@ -11,13 +11,13 @@ from test_source_pipeline import RAW, synthetic_plan
 
 AVAILABLE = foundation.AVAILABLE and importlib.util.find_spec("huey") is not None
 if AVAILABLE:
-    from wealth_ledger.operations import fingerprint
-    from wealth_ledger.source_pipeline import SourcePlanError, host_config
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.worker import execute_job, reconcile
-    from wealth_ledger.web.backups import backup_instance, restore_instance
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.storage import Store
+    from kurafolio.operations import fingerprint
+    from kurafolio.source_pipeline import SourcePlanError, host_config
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.worker import execute_job, reconcile
+    from kurafolio.web.backups import backup_instance, restore_instance
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.storage import Store
 
 
 @unittest.skipUnless(AVAILABLE, "Optional Web dependencies are not installed")
@@ -42,7 +42,7 @@ class WebSourcePlanTests(unittest.TestCase):
         self.assertIsNone(upload.json()["provider"])
 
     def enqueue(self, *, body=None, key="synthetic-source-plan-key", expected=202):
-        with patch("wealth_ledger.web.source_plans.environment_fingerprint",return_value="a"*64):
+        with patch("kurafolio.web.source_plans.environment_fingerprint",return_value="a"*64):
             response=self.mutate("POST",self.prefix+"/source-plans",
                 body=body or {"upload_ids":[self.upload]},headers={"Idempotency-Key":key})
         self.assertEqual(response.status_code,expected,response.text)
@@ -56,7 +56,7 @@ class WebSourcePlanTests(unittest.TestCase):
         return result
 
     def execute(self, job):
-        with patch("wealth_ledger.web.source_plans.plan_sources",side_effect=self.fake_runner):
+        with patch("kurafolio.web.source_plans.plan_sources",side_effect=self.fake_runner):
             execute_job(self.settings,job["id"])
         return self.jobs.get(self.pid,job["id"])
 
@@ -101,7 +101,7 @@ class WebSourcePlanTests(unittest.TestCase):
         self.prepare()
         job=self.enqueue()
         (self.root/"admin/source-parsers.json").write_text('{"schema_version":1,"enabled":[],"bindings":[]}\n')
-        with patch("wealth_ledger.web.source_plans.plan_sources",side_effect=AssertionError("Stale config executed")):
+        with patch("kurafolio.web.source_plans.plan_sources",side_effect=AssertionError("Stale config executed")):
             execute_job(self.settings,job["id"])
         row=self.jobs.get(self.pid,job["id"])
         self.assertEqual((row["status"],row["error_code"]),("blocked","stale_plan"))
@@ -140,7 +140,7 @@ class WebSourcePlanTests(unittest.TestCase):
     def test_real_external_plugin_has_identical_cli_and_web_plan(self):
         from functools import partial
         from test_source_pipeline import IsolatedPlanTests
-        from wealth_ledger.source_pipeline import plan_sources
+        from kurafolio.source_pipeline import plan_sources
         IsolatedPlanTests.setUpClass()
         try:
             fixture=IsolatedPlanTests("test_real_child_loads_normalizes_revalidates_and_never_books")
@@ -148,13 +148,13 @@ class WebSourcePlanTests(unittest.TestCase):
             expected=fixture.plan()
             self.prepare()
             (self.root/"admin/source-parsers.json").write_bytes(fixture.config.read_bytes())
-            with patch("wealth_ledger.web.source_plans.environment_fingerprint",return_value=expected["environment_sha256"]):
+            with patch("kurafolio.web.source_plans.environment_fingerprint",return_value=expected["environment_sha256"]):
                 response=self.mutate("POST",self.prefix+"/source-plans",body={"upload_ids":[self.upload]},headers={"Idempotency-Key":"real-external-parser-plan"})
             self.assertEqual(response.status_code,202,response.text)
             job=response.json()
             # Use the fixture's pinned isolated Python environment as the worker
             # executable; the actual shared runner/child/entry point are unmocked.
-            with patch("wealth_ledger.web.source_plans.plan_sources",partial(plan_sources,python=fixture.python)):
+            with patch("kurafolio.web.source_plans.plan_sources",partial(plan_sources,python=fixture.python)):
                 execute_job(self.settings,job["id"])
             row=self.jobs.get(self.pid,job["id"])
             self.assertEqual(row["status"],"ready",row["error_code"])
@@ -172,7 +172,7 @@ class WebSourcePlanTests(unittest.TestCase):
         archive=self.root.parent/"source-plan-backup.zip"
         backup_instance(self.settings,archive)
         target=WebSettings(self.root.parent/"restored-source-plan")
-        with patch("wealth_ledger.source_registry.build_registry",side_effect=AssertionError("Restore loaded plugins")):
+        with patch("kurafolio.source_registry.build_registry",side_effect=AssertionError("Restore loaded plugins")):
             restore_instance(target,archive)
         restored=Store(target)
         self.assertEqual((target.data_root/"admin/source-parsers.json").read_bytes(),config.read_bytes())

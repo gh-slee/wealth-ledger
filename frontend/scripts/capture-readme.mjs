@@ -35,7 +35,7 @@ await new Promise((resolve, reject) => {
 });
 await new Promise((resolve) => listener.close(resolve));
 const server = spawn(
-  process.env.WEALTH_LEDGER_TEST_PYTHON ?? "python3",
+  process.env.KURAFOLIO_TEST_PYTHON ?? "python3",
   [path.join(root, "scripts/web_browser_fixture.py")],
   {
     cwd: root,
@@ -43,7 +43,7 @@ const server = spawn(
     env: {
       ...process.env,
       PYTHONDONTWRITEBYTECODE: "1",
-      WEALTH_LEDGER_E2E_PORT: new URL(origin).port,
+      KURAFOLIO_E2E_PORT: new URL(origin).port,
     },
   },
 );
@@ -71,8 +71,8 @@ try {
   }
   if (!ready) throw new Error("Synthetic fixture did not become ready");
   browser = await chromium.launch(
-    process.env.WEALTH_LEDGER_BROWSER_CHANNEL
-      ? { channel: process.env.WEALTH_LEDGER_BROWSER_CHANNEL }
+    process.env.KURAFOLIO_BROWSER_CHANNEL
+      ? { channel: process.env.KURAFOLIO_BROWSER_CHANNEL }
       : {},
   );
   const page = await browser.newPage({

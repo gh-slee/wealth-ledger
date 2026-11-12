@@ -7,7 +7,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
 
 ## Current building blocks
 
-- [Evidence admission](../src/wealth_ledger/ingestion/codec.py) checks bounded
+- [Evidence admission](../src/kurafolio/ingestion/codec.py) checks bounded
   canonical JSON, closed fields, exact decimal tokens, source times, whole
   satoshis, local references, cash-flow shape and required unsupported-data
   reasons. Unknown fees and absent membership stay null. A selected coverage
@@ -15,7 +15,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   Exact date-only or legacy assertions can agree within supplied evidence without
   granting authority to install a current snapshot head. Head ordering still
   requires comparable source times, including the first head.
-- [Parser2 discovery](../src/wealth_ledger/ingestion/discovery.py) validates the
+- [Parser2 discovery](../src/kurafolio/ingestion/discovery.py) validates the
   frozen parser output against raw bytes, caller context, installation and reviewed
   wrapper profile. Its projection retains essential typed evidence and excludes
   arbitrary row archives. It does not execute a plugin or accept financial facts.
@@ -28,20 +28,22 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   still need the unfinished service integration; this helper grants no authority.
   Frozen-valid legacy timestamps retain their original token, unspecified
   precision and archive pointer; they are not promoted to precise instants.
-- [Mapping and reconciliation](../src/wealth_ledger/ingestion/reconciliation.py)
+- [Mapping and reconciliation](../src/kurafolio/ingestion/reconciliation.py)
   distinguish exact source identity, financial meaning, corrections and historical
   snapshots. Financial digests exclude archive pointers at declared lineage
   locations while preserving time tokens and economic-reference revisions. Equal
   amounts or file hashes do not establish a duplicate trade.
-- [Review validation](../src/wealth_ledger/ingestion/approval.py) requires exact
+- [Review validation](../src/kurafolio/ingestion/approval.py) requires exact
   admitted stage bytes, checks the disclosed evidence and target bodies, and binds
   the complete READY review to its Plan. Recomputed hashes alone cannot establish
   truthful disclosure. Current database authority must still be checked at commit.
-- [Transport helpers](../src/wealth_ledger/ingestion/runner_client.py) check bounded
-  frames and exact TLS peer identity. The [raw receiver](../src/wealth_ledger/web_v2/imports.py)
+- [Transport helpers](../src/kurafolio/ingestion/runner_client.py) check bounded
+  frames and exact TLS peer identity. A peer certificate carries exactly one URI
+  SAN, `urn:wealth-ledger:instance:<instance id>:peer:<api|worker|launcher>`; it
+  keeps the project's former name so certificates already issued stay valid. The [raw receiver](../src/kurafolio/web_v2/imports.py)
   enforces Content-Length and receive deadlines without a body spool. It must be
   called only after authentication, CSRF and shared database capacity admission.
-- [Storage fragments](../src/wealth_ledger/persistence/ingestion_schema.py) define
+- [Storage fragments](../src/kurafolio/persistence/ingestion_schema.py) define
   the closed table inventory, scoped foreign keys, canonical-byte checks and
   forced-RLS policies. Separate append-only and outbox trigger fragments reject
   accepted-record changes and malformed or inconsistent event envelopes. The
@@ -205,7 +207,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   DECISIONS) is rebuilt as the history DTO from its row and audit entry with zero
   fact counts. Receipts from earlier restore realms stay readable but grant
   nothing. Rate admission for these calls is left to the caller.
-  [Page cursors](../src/wealth_ledger/ingestion/cursors.py) follow the declared
+  [Page cursors](../src/kurafolio/ingestion/cursors.py) follow the declared
   token format: canonical cursor JSON and an HMAC-SHA256 over those exact bytes,
   each unpadded base64url and joined by a dot, at most 1,024 characters. The key
   is derived from the instance secret for the `wealth-ledger/ingestion-cursor-v1`
@@ -371,7 +373,7 @@ the test uses `--pull never`. It verifies nonce ownership before removing only
 its own container.
 
 ```bash
-WEALTH_LEDGER_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v
+KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v
 ```
 
 This command tests append-only records, immutable event envelopes, closed/rehashed

@@ -54,10 +54,10 @@ PUBLIC_README_PNGS = {
     'assets/readme/web-report-reader.png',
 }
 PUBLIC_ROLE_SKILLS = frozenset({
-    '.agents/skills/wealthledger-fintech-pm/SKILL.md',
-    '.agents/skills/wealthledger-software-architect/SKILL.md',
-    '.agents/skills/wealthledger-fullstack-developer/SKILL.md',
-    '.agents/skills/wealthledger-qa-automation/SKILL.md',
+    '.agents/skills/kurafolio-fintech-pm/SKILL.md',
+    '.agents/skills/kurafolio-software-architect/SKILL.md',
+    '.agents/skills/kurafolio-fullstack-developer/SKILL.md',
+    '.agents/skills/kurafolio-qa-automation/SKILL.md',
 })
 PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {
@@ -72,6 +72,7 @@ SECRET_PATTERNS = (
     ('GitHub credential', re.compile(rb'\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{30,}\b')),
     ('AWS access key', re.compile(rb'\b(?:AKIA|ASIA)[A-Z0-9]{16}\b')),
     ('credential-bearing URL', re.compile(rb'https?://[^\s/:]+:[^\s/@]+@')),
+    # Adoption plans keep their pre-Kurafolio format identifier (src/kurafolio/web/adoption.py).
     ('private adoption plan', re.compile(rb'"format"\s*:\s*"wealth-ledger-private-' + rb'adoption"')),
     ('explicit private fixture marker', re.compile(rb'\b(?:PRIVATE_' + rb'FINANCIAL_FIXTURE|DO_NOT_PUBLISH_' + rb'PERSONAL_DATA)\b')),
     ('machine-specific home path', re.compile(rb'/(?:Users|home)/[A-Za-z0-9_.-]+/')),
@@ -129,8 +130,8 @@ def path_allowed(path: str) -> bool:
         return len(parts) == 4 and parts[1:3] == ('public', 'licenses') and p.name in {
             'ibm-plex-sans-condensed.txt', 'atkinson-hyperlegible.txt', 'shadcn-ui.txt'}
     if parts[0] == 'src':
-        return (len(parts) >= 3 and parts[1] == 'wealth_ledger' and p.suffix == '.py'
-                or len(parts) == 4 and parts[1:3] == ('wealth_ledger', 'locales')
+        return (len(parts) >= 3 and parts[1] == 'kurafolio' and p.suffix == '.py'
+                or len(parts) == 4 and parts[1:3] == ('kurafolio', 'locales')
                 and p.name in {'registry.json', 'legacy.json', 'en-CA.json', 'zh-TW.json', 'zh-CN.json'})
     if parts[0] == 'scripts':
         return len(parts) == 2 and p.suffix == '.py'
@@ -160,7 +161,7 @@ def path_allowed(path: str) -> bool:
     if parts[0] == 'config':
         return len(parts) == 2 and p.name in PUBLIC_CONFIG
     if parts[:2] == ('assets', 'readme'):
-        return len(parts) == 3 and (p.name in {'wealth-ledger-mark.svg', 'README.md'} or path in PUBLIC_README_PNGS)
+        return len(parts) == 3 and (p.name in {'kurafolio-mark.svg', 'README.md'} or path in PUBLIC_README_PNGS)
     if parts[:2] == ('assets', 'fonts'):
         return len(parts) == 3 and p.name in {'NotoSansTC-Regular.ttf', 'NotoSansSC-Regular.ttf', 'NotoSansSC-provenance.json', 'OFL.txt', 'OFL-SC.txt', 'README.md'}
     if parts[0] == '.githooks':
@@ -244,9 +245,10 @@ def new_result(mode: str) -> dict:
             'limitations': ['Pattern checks cannot prove absence of personal data; review the public manifest.']}
 
 
-def record(result: dict, path: str, data: bytes | None, *, origin: str, mode: str = '100644') -> None:
+def record(result: dict, path: str, data: bytes | None, *, origin: str, mode: str = '100644',
+           allowlist_path: str | None = None) -> None:
     errors = []
-    if not path_allowed(path):
+    if not path_allowed(allowlist_path or path):
         errors.append('path is outside the public allowlist')
     if mode not in {'100644', '100755'}:
         errors.append('symlink, submodule, or unsupported Git mode')
@@ -360,6 +362,27 @@ def scan_staged(root: Path) -> dict:
     return finish(result)
 
 
+# Commits made before the Kurafolio rename (WL-P0-024) hold the same reviewed files
+# under their old paths. History scans judge such a path by its current name, but
+# only in a commit that has nothing at the new location yet, so a later commit that
+# reintroduces an old path still fails. The worktree and index must use the current
+# names only. File contents are always checked.
+RENAMED_PREFIXES = (
+    ('src/wealth_ledger/', 'src/kurafolio/'),
+    ('.agents/skills/wealthledger-', '.agents/skills/kurafolio-'),
+    ('assets/readme/wealth-ledger-mark.svg', 'assets/readme/kurafolio-mark.svg'),
+)
+
+
+def current_name(path: str, tree_paths: frozenset[str] | set[str] = frozenset()) -> str:
+    for old, new in RENAMED_PREFIXES:
+        if path.startswith(old):
+            if any(other.startswith(new) for other in tree_paths):
+                return path  # Renamed form present: the old path is not pre-rename history.
+            return new + path[len(old):]
+    return path
+
+
 def scan_history(root: Path, *, base: str | None = None, head: str = 'HEAD', all_history: bool = False) -> dict:
     result = new_result('outgoing-history')
     if not all_history and not base:
@@ -372,13 +395,16 @@ def scan_history(root: Path, *, base: str | None = None, head: str = 'HEAD', all
     commits = git(root, 'rev-list', *revisions).decode().splitlines()
     seen: set[tuple[str, str, str]] = set()
     for commit in commits:
-        for mode, oid, path in tree_entries(root, commit):
-            key = (mode, oid, path)
+        entries = tree_entries(root, commit)
+        tree_paths = {path for _, _, path in entries}
+        for mode, oid, path in entries:
+            allowlist_path = current_name(path, tree_paths)
+            key = (mode, oid, path, allowlist_path)
             if key in seen:
                 continue
             seen.add(key)
             data = git(root, 'cat-file', 'blob', oid) if mode in {'100644', '100755', '120000'} else None
-            record(result, path, data, origin=commit, mode=mode)
+            record(result, path, data, origin=commit, mode=mode, allowlist_path=allowlist_path)
         emails = git(root, 'show', '-s', '--format=%ae%n%ce', commit).decode().splitlines()
         # GitHub web merges use its public system noreply as committer.
         # Authors and locally created commits still require users.noreply identities.

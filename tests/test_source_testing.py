@@ -3,8 +3,8 @@ from dataclasses import replace
 import unittest
 
 from test_source_protocol import batch, HOLDING, INFO, RAW, EVIDENCE, KEY, AT, ACCOUNT, BTC, CAD
-from wealth_ledger.source_protocol import Detection, CashFlow, Money, CryptoTransaction, CryptoLeg
-from wealth_ledger.source_testing import check_contract, check_rejected, record_index
+from kurafolio.source_protocol import Detection, CashFlow, Money, CryptoTransaction, CryptoLeg
+from kurafolio.source_testing import check_contract, check_rejected, record_index
 from decimal import Decimal
 
 

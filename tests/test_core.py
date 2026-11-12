@@ -7,7 +7,7 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from wealth_ledger.core import (initialize, import_holdings, make_payload,
+from kurafolio.core import (initialize, import_holdings, make_payload,
                                import_cash_flows, mark_flow_period)
 
 PROJECT = Path(__file__).resolve().parents[1]

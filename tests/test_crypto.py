@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wealth_ledger.crypto import REQUIRED, import_bull_orders, make_crypto_view
+from kurafolio.crypto import REQUIRED, import_bull_orders, make_crypto_view
 
 
 STAGE = Path(__file__).resolve().parents[1]

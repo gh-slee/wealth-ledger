@@ -1,7 +1,7 @@
 """Invented offline API/file adapter; never installed in a production catalog."""
-from wealth_ledger.data_sources import contract_v1 as s
-from wealth_ledger.domain import canonical_v1 as c
-from wealth_ledger.domain.validation_v1 import encode_domain_v1
+from kurafolio.data_sources import contract_v1 as s
+from kurafolio.domain import canonical_v1 as c
+from kurafolio.domain.validation_v1 import encode_domain_v1
 
 
 def normalize(raw, adapter_context, *, transport):

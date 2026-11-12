@@ -128,7 +128,7 @@ test("complete report reading, grouped editions, deep links and dark/system them
     page.getByRole("heading", { name: "分析报告", exact: true }),
   ).toBeVisible();
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([
-    "wealth-ledger-theme",
+    "kurafolio-theme",
   ]);
   await page.screenshot({ path: "test-results/report-reader-dark-mobile.png" });
   expect(

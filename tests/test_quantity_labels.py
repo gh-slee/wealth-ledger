@@ -1,6 +1,6 @@
 """Reported baseline labels must not turn into unsupported wallet verification."""
 import unittest
-from wealth_ledger.wallet_reports import quantity_basis_label
+from kurafolio.wallet_reports import quantity_basis_label
 
 
 class QuantityLabelTests(unittest.TestCase):

@@ -54,16 +54,16 @@ def free_port():
         return connection.getsockname()[1]
 
 
-@unittest.skipUnless(os.environ.get("WEALTH_LEDGER_DOCKER_TEST") == "1", "Docker runtime acceptance is explicitly opt-in")
+@unittest.skipUnless(os.environ.get("KURAFOLIO_DOCKER_TEST") == "1", "Docker runtime acceptance is explicitly opt-in")
 class DockerRuntimeTests(unittest.TestCase):
     def test_nonroot_readonly_image_and_restart_persistence(self):
         subprocess.run(["docker", "info"], check=True, capture_output=True)
-        token = "wealth-ledger-test-" + uuid.uuid4().hex
+        token = "kurafolio-test-" + uuid.uuid4().hex
         volume, container, image = token + "-data", token + "-web", token + ":test"
         volume_created = False
         port = free_port(); origin = f"http://localhost:{port}"
         try:
-            with tempfile.TemporaryDirectory(prefix="wealth-ledger-context-") as temporary:
+            with tempfile.TemporaryDirectory(prefix="kurafolio-context-") as temporary:
                 context = Path(temporary) / "context"
                 manifest = prepare_context(ROOT, context)
                 self.assertTrue(all(not p.startswith(("data/", "private/", "reports/")) for p in manifest["files"]))
@@ -78,7 +78,7 @@ class DockerRuntimeTests(unittest.TestCase):
             subprocess.run(["docker", "run", "--detach", "--name", container, "--read-only", "--cap-drop=ALL",
                 "--security-opt=no-new-privileges", "--pids-limit=256", "--memory=1g",
                 "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700",
-                "--publish", f"127.0.0.1:{port}:8000", "--env", "WEALTH_LEDGER_PUBLIC_ORIGIN="+origin,
+                "--publish", f"127.0.0.1:{port}:8000", "--env", "KURAFOLIO_PUBLIC_ORIGIN="+origin,
                 "--volume", volume+":/data", image], check=True, capture_output=True)
             wait_ready(origin)
             client = http_client()
@@ -100,7 +100,7 @@ class DockerRuntimeTests(unittest.TestCase):
             platform = subprocess.run(["docker", "exec", container, "python", "-c",
                 "import platform,sys; assert sys.platform=='linux'; assert platform.machine() in ('aarch64','x86_64'); print(platform.machine())"],
                 check=True, capture_output=True, text=True).stdout.strip()
-            expected_platform = os.environ.get("WEALTH_LEDGER_EXPECT_ARCH")
+            expected_platform = os.environ.get("KURAFOLIO_EXPECT_ARCH")
             if expected_platform:
                 self.assertEqual(platform, expected_platform)
             print("Synthetic Docker acceptance architecture: " + platform, flush=True)
@@ -132,10 +132,10 @@ class DockerRuntimeTests(unittest.TestCase):
 
     def test_compose_health_and_container_replacement_preserve_state(self):
         subprocess.run(["docker", "info"], check=True, capture_output=True)
-        token = "wealth-ledger-test-" + uuid.uuid4().hex
+        token = "kurafolio-test-" + uuid.uuid4().hex
         image = token + ":compose"
         port = free_port(); origin = f"http://localhost:{port}"
-        with tempfile.TemporaryDirectory(prefix="wealth-ledger-compose-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="kurafolio-compose-") as temporary:
             base = Path(temporary)
             context = base / "context"
             prepare_context(ROOT, context)
@@ -152,11 +152,11 @@ class DockerRuntimeTests(unittest.TestCase):
             web["build"]["context"] = str(context)
             web["ports"] = [{"host_ip": "127.0.0.1", "target": 8000,
                              "published": str(port), "protocol": "tcp"}]
-            web["environment"]["WEALTH_LEDGER_PUBLIC_ORIGIN"] = origin
+            web["environment"]["KURAFOLIO_PUBLIC_ORIGIN"] = origin
             web["restart"] = "no"
             web["healthcheck"].update(interval="1s", start_period="1s")
             model["services"]["worker"]["image"] = image
-            model["services"]["worker"]["environment"]["WEALTH_LEDGER_PUBLIC_ORIGIN"] = origin
+            model["services"]["worker"]["environment"]["KURAFOLIO_PUBLIC_ORIGIN"] = origin
             model["services"]["worker"]["restart"] = "no"
             config = base / "compose.json"
             config.write_text(json.dumps(model))
@@ -268,9 +268,9 @@ class DockerRuntimeTests(unittest.TestCase):
                 adoption_script = """
 from pathlib import Path
 import json, shutil
-from wealth_ledger.web.config import WebSettings
-from wealth_ledger.web.adoption import prepare_adoption, confirm_adoption
-from wealth_ledger.web.backups import database_info
+from kurafolio.web.config import WebSettings
+from kurafolio.web.adoption import prepare_adoption, confirm_adoption
+from kurafolio.web.backups import database_info
 root=Path('/data'); source=root/'portfolios'/PORTFOLIO
 legacy=Path('/tmp/stopped-cli'); legacy.mkdir(mode=0o700)
 for name in ('data','reports','config','backups'):
@@ -357,7 +357,7 @@ print(json.dumps(result))
                 canonical_seed="""
 from pathlib import Path
 import hashlib,json
-from wealth_ledger.source_ingestion import read_facts,require_report_projection,IngestionError
+from kurafolio.source_ingestion import read_facts,require_report_projection,IngestionError
 project=Path('/data/portfolios')/PORTFOLIO
 try:require_report_projection(project)
 except IngestionError as exc:assert exc.code=='report_projection_unavailable'
@@ -373,10 +373,10 @@ print(hashlib.sha256(json.dumps(read_facts(project),sort_keys=True).encode()).he
 from pathlib import Path
 from datetime import datetime
 import sqlite3
-from wealth_ledger.source_builtin import WealthsimpleHoldings, WS_FORMAT
-from wealth_ledger.source_v2 import ParseContext
-from wealth_ledger.source_ingestion import Binding, SourceInput, prepare_ingestion, commit_ingestion
-from wealth_ledger.workspace import resolve_workspace
+from kurafolio.source_builtin import WealthsimpleHoldings, WS_FORMAT
+from kurafolio.source_v2 import ParseContext
+from kurafolio.source_ingestion import Binding, SourceInput, prepare_ingestion, commit_ingestion
+from kurafolio.workspace import resolve_workspace
 project=Path('/data/portfolios')/PORTFOLIO
 with sqlite3.connect(project/'data/db/portfolio.sqlite3') as conn:
     name,stamp=conn.execute('SELECT o.path,s.as_of FROM snapshots s JOIN sources o ON o.id=s.source_id ORDER BY s.id LIMIT 1').fetchone()
@@ -390,7 +390,7 @@ print('synthetic-legacy-overlap-recorded')
                 seeded=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",legacy_seed,capture_output=True)
                 self.assertEqual(seeded.stdout.decode().strip(),"synthetic-legacy-overlap-recorded")
                 projection_check=("import json; from pathlib import Path; "
-                    "from wealth_ledger.source_legacy_projection import project_compatible_sources; "
+                    "from kurafolio.source_legacy_projection import project_compatible_sources; "
                     "models={p:project_compatible_sources(Path('/data/portfolios')/p,as_of='2024-03-01T12:00:00Z',period_start='2023-12-31T00:00:00Z') for p in "
                     +repr([canonical_id,adopted_id])+"}; "
                     "assert all(not m['report_projection_ready'] for m in models.values()); "
@@ -402,9 +402,9 @@ print('synthetic-legacy-overlap-recorded')
                 valuation_seed = """
 import json
 from pathlib import Path
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.workspace import resolve_workspace
-from wealth_ledger.source_valuation import read_source_valuation
+from kurafolio.application import ApplicationService
+from kurafolio.workspace import resolve_workspace
+from kurafolio.source_valuation import read_source_valuation
 fx={'usd_cad':'1.5','usd_twd':'30','usd_cad_date':'2024-01-30','usd_twd_date':'2024-01-30','usd_cad_source':'synthetic-fixed','usd_twd_source':'synthetic-fixed'}
 inputs={'as_of':'2024-03-01T12:00:00Z','period_start':'2023-12-31T00:00:00Z','generated_at':'2024-03-01T12:00:00Z','fx':fx,
  'btc_price':{'provider':'synthetic-fixed','pair':'BTC-USD','close':'100000','as_of':'2024-03-01T12:00:00Z','candle_start':'2024-03-01T11:59:00Z','candle_end':'2024-03-01T12:00:00Z','source_url':'https://example.test/quote'}}
@@ -417,7 +417,7 @@ print('synthetic-source-valuations-frozen')
 """.replace('PORTFOLIOS',repr([canonical_id,adopted_id]))
                 frozen=compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",valuation_seed,capture_output=True)
                 self.assertEqual(frozen.stdout.decode().strip(),"synthetic-source-valuations-frozen")
-                valuation_check=("import hashlib,json; from pathlib import Path; from wealth_ledger.source_valuation import read_source_valuation; "
+                valuation_check=("import hashlib,json; from pathlib import Path; from kurafolio.source_valuation import read_source_valuation; "
                     "print(json.dumps({p:hashlib.sha256(json.dumps(read_source_valuation(Path('/data/portfolios')/p,1),sort_keys=True).encode()).hexdigest() for p in "
                     +repr([canonical_id,adopted_id])+"},sort_keys=True))")
                 frozen_hashes=json.loads(compose("run","--rm","--no-deps","-T","--entrypoint","python","web","-c",valuation_check,capture_output=True).stdout)
@@ -425,15 +425,15 @@ print('synthetic-source-valuations-frozen')
                 publication_seed = """
 import json
 from pathlib import Path
-from wealth_ledger.source_publication import verify_source_publications
-from wealth_ledger.web.source_reports import enqueue_preview,confirm_preview
-from wealth_ledger.web.worker import execute_job
-from wealth_ledger.web.storage import Store
-from wealth_ledger.web.jobs import Jobs
-from wealth_ledger.web.config import WebSettings
+from kurafolio.source_publication import verify_source_publications
+from kurafolio.web.source_reports import enqueue_preview,confirm_preview
+from kurafolio.web.worker import execute_job
+from kurafolio.web.storage import Store
+from kurafolio.web.jobs import Jobs
+from kurafolio.web.config import WebSettings
 import uuid
-from wealth_ledger.lookthrough import attach_analysis
-from wealth_ledger.fund_sources import holding
+from kurafolio.lookthrough import attach_analysis
+from kurafolio.fund_sources import holding
 from unittest.mock import patch
 fx={'usd_cad':'1.5','usd_twd':'30','usd_cad_date':'2024-01-30','usd_twd_date':'2024-01-30','usd_cad_source':'synthetic-fixed','usd_twd_source':'synthetic-fixed'}
 inputs={'as_of':'2024-03-01T12:00:00Z','period_start':'2023-12-31T00:00:00Z','generated_at':'2024-03-01T12:00:00Z','fx':fx,
@@ -446,12 +446,12 @@ settings=WebSettings.from_environment();store=Store(settings);jobs=Jobs(store);p
 for portfolio in PORTFOLIOS:
     project=Path('/data/portfolios')/portfolio
     if portfolio == SOURCE_CASH_PORTFOLIO:
-        from wealth_ledger.source_builtin import WealthsimpleHoldings, WS_FORMAT
-        from wealth_ledger.source_v2 import ParseContext
-        from wealth_ledger.source_ingestion import SourceInput, new_binding, prepare_ingestion, commit_ingestion
-        from wealth_ledger.application import ApplicationService
-        from wealth_ledger.workspace import resolve_workspace
-        from wealth_ledger.core import import_cash_flows, mark_flow_period
+        from kurafolio.source_builtin import WealthsimpleHoldings, WS_FORMAT
+        from kurafolio.source_v2 import ParseContext
+        from kurafolio.source_ingestion import SourceInput, new_binding, prepare_ingestion, commit_ingestion
+        from kurafolio.application import ApplicationService
+        from kurafolio.workspace import resolve_workspace
+        from kurafolio.core import import_cash_flows, mark_flow_period
         from datetime import datetime
         raw=HOLDINGS_RAW
         batch=WealthsimpleHoldings().normalize(raw,export_version=WS_FORMAT,
@@ -469,7 +469,7 @@ for portfolio in PORTFOLIOS:
     assert preview['status']=='ready',preview['error_code']
     approval=json.loads(preview['result_json'])['approval_sha256']
     job=confirm_preview(store,portfolio,{'preview_id':preview['id'],'approval_sha256':approval},uuid.uuid4().hex)
-    with patch('wealth_ledger.lookthrough.attach_analysis',side_effect=lambda p,v:original(p,v,fetcher=synthetic_fund)):
+    with patch('kurafolio.lookthrough.attach_analysis',side_effect=lambda p,v:original(p,v,fetcher=synthetic_fund)):
         execute_job(settings,job['id'])
     assert jobs.get(portfolio,job['id'])['status']=='published'
     publications[portfolio]=job['id']
@@ -490,7 +490,7 @@ print(json.dumps(publications))
                 source_financial=request_json(client,origin,f"/api/v1/portfolios/{source_cash_id}/financial")
                 self.assertEqual(source_financial['cash_flows'][0]['amount_cad'],'125')
                 self.assertTrue(source_financial['cash_flows'][0]['account_id'].startswith('src_'))
-                publication_check=("import hashlib,json; from pathlib import Path; from wealth_ledger.source_publication import verify_source_publications; "
+                publication_check=("import hashlib,json; from pathlib import Path; from kurafolio.source_publication import verify_source_publications; "
                     "roots=[Path('/data/portfolios')/p for p in "+repr([canonical_id,adopted_id,source_cash_id])+ "]; "
                     "[verify_source_publications(p) for p in roots]; "
                     "print(json.dumps({p.name:{str(f.relative_to(p)):hashlib.sha256(f.read_bytes()).hexdigest() for folder in ('data/raw/source-publications','reports') for f in (p/folder).rglob('*') if f.is_file() and not f.is_symlink()} for p in roots},sort_keys=True))")
@@ -510,12 +510,12 @@ print(json.dumps(publications))
                 self.assertEqual(json.loads(restored.stdout)["status"],"restored")
                 subprocess.run([*isolated,image,"worker","--once"],check=True,capture_output=True)
                 canonical_check=("import hashlib,json; from pathlib import Path; "
-                    "from wealth_ledger.source_ingestion import read_facts; "
+                    "from kurafolio.source_ingestion import read_facts; "
                     "print(hashlib.sha256(json.dumps(read_facts(Path('/data/portfolios')/"+repr(canonical_id)+"),sort_keys=True).encode()).hexdigest())")
                 recovered=subprocess.run([*isolated,"--entrypoint","python",image,"-c",canonical_check],check=True,capture_output=True,text=True)
                 self.assertEqual(recovered.stdout.strip(),canonical_hash)
-                receipt_check=("from wealth_ledger.web.storage import Store; from wealth_ledger.web.config import WebSettings; "
-                    "from wealth_ledger.web.jobs import Jobs; from wealth_ledger.web.source_submissions import completed_result; from pathlib import Path; "
+                receipt_check=("from kurafolio.web.storage import Store; from kurafolio.web.config import WebSettings; "
+                    "from kurafolio.web.jobs import Jobs; from kurafolio.web.source_submissions import completed_result; from pathlib import Path; "
                     "store=Store(WebSettings(Path('/data'))); row=Jobs(store).get("+repr(canonical_id)+","+repr(canonical_job["id"])+"); "
                     "assert row['status']=='recorded'; result=completed_result(store,row); assert result['operation_id']=="+repr(canonical_job["core_operation_id"])+"; print('source-receipt-restored')")
                 receipt=subprocess.run([*isolated,"--entrypoint","python",image,"-c",receipt_check],check=True,capture_output=True,text=True)
@@ -532,7 +532,7 @@ print(json.dumps(publications))
                     "--security-opt=no-new-privileges","--pids-limit=256","--memory=1g",
                     "--tmpfs","/tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700",
                     "--volume",restore_volume+":/data","--publish",f"127.0.0.1:{new_port}:8000",
-                    "--env","WEALTH_LEDGER_PUBLIC_ORIGIN="+new_origin,image],check=True,capture_output=True)
+                    "--env","KURAFOLIO_PUBLIC_ORIGIN="+new_origin,image],check=True,capture_output=True)
                 wait_ready(new_origin)
                 try:
                     request_json(client,new_origin,"/api/v1/auth/session")

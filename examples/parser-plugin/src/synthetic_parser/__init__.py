@@ -5,11 +5,11 @@ from decimal import Decimal, InvalidOperation
 import hashlib
 import io
 
-from wealth_ledger.source_protocol import (
+from kurafolio.source_protocol import (
     AccountKey, AdapterInfo, AssetKey, Coverage, Detection, Holding, Money,
     NormalizedBatch, RecordKey, SourceEvidence, validate_batch,
 )
-from wealth_ledger.source_registry import AdapterRegistration, ProviderInfo, MAX_INPUT_BYTES
+from kurafolio.source_registry import AdapterRegistration, ProviderInfo, MAX_INPUT_BYTES
 
 FIELDS = ("format", "account", "id", "revision", "supersedes", "change", "as_of",
           "symbol", "market", "currency", "quantity", "value", "cost", "scope_revision")

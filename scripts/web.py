@@ -17,7 +17,7 @@ sys.path.insert(0, str(CODE_ROOT / "src"))
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, help="Dedicated absolute Web instance directory; or WEALTH_LEDGER_DATA_ROOT")
+    parser.add_argument("--data-root", type=Path, help="Dedicated absolute Web instance directory; or KURAFOLIO_DATA_ROOT")
     parser.add_argument("--public-origin", help="Exact browser origin; default http://localhost:8000")
     commands = parser.add_subparsers(dest="command", required=True)
     create = commands.add_parser("init-owner", help="Initialize a dedicated instance and its sole owner offline")
@@ -52,20 +52,20 @@ def main():
     serve.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     try:
-        from wealth_ledger.web.config import WebSettings
-        from wealth_ledger.web.storage import WebError
-        root = args.data_root or os.environ.get("WEALTH_LEDGER_DATA_ROOT")
+        from kurafolio.web.config import WebSettings
+        from kurafolio.web.storage import WebError
+        root = args.data_root or os.environ.get("KURAFOLIO_DATA_ROOT")
         if not root:
-            raise ValueError("Specify --data-root or WEALTH_LEDGER_DATA_ROOT; no personal-ledger default")
-        settings = WebSettings(Path(root), args.public_origin or os.environ.get("WEALTH_LEDGER_PUBLIC_ORIGIN", "http://localhost:8000"))
+            raise ValueError("Specify --data-root or KURAFOLIO_DATA_ROOT; no personal-ledger default")
+        settings = WebSettings(Path(root), args.public_origin or os.environ.get("KURAFOLIO_PUBLIC_ORIGIN", "http://localhost:8000"))
         if args.command == "adopt-preview":
-            from wealth_ledger.web.adoption import prepare_adoption
+            from kurafolio.web.adoption import prepare_adoption
             print(json.dumps(prepare_adoption(settings,args.workspace,args.name,args.output,allow_legacy_reports=args.allow_legacy_reports)))
         elif args.command == "adopt-confirm":
-            from wealth_ledger.web.adoption import confirm_adoption
+            from kurafolio.web.adoption import confirm_adoption
             print(json.dumps(confirm_adoption(settings,args.plan,args.plan_sha256)))
         elif args.command == "backup":
-            from wealth_ledger.web.backups import backup_instance
+            from kurafolio.web.backups import backup_instance
             if args.stdout:
                 import shutil
                 target = settings.data_root / "cache" / ("backup-" + uuid.uuid4().hex + ".zip")
@@ -80,7 +80,7 @@ def main():
             else:
                 print(json.dumps(backup_instance(settings, args.output, timeout=args.timeout)))
         elif args.command == "restore":
-            from wealth_ledger.web.backups import restore_instance, MAX_TOTAL, MAX_MANIFEST
+            from kurafolio.web.backups import restore_instance, MAX_TOTAL, MAX_MANIFEST
             if args.stdin:
                 root = settings.data_root
                 if root.exists() and any(root.iterdir()):
@@ -102,26 +102,26 @@ def main():
             else:
                 print(json.dumps(restore_instance(settings, args.archive)))
         elif args.command == "maintenance-clear":
-            from wealth_ledger.web.maintenance import clear_maintenance
-            from wealth_ledger.web.storage import validate_identity
+            from kurafolio.web.maintenance import clear_maintenance
+            from kurafolio.web.storage import validate_identity
             validate_identity(settings)
             clear_maintenance(settings.data_root)
             print(json.dumps({"status":"maintenance_cleared"}))
         elif args.command == "upgrade":
-            from wealth_ledger.web.storage import upgrade_instance
+            from kurafolio.web.storage import upgrade_instance
             upgrade_instance(settings)
             print(json.dumps({"status": "metadata_ready"}))
         elif args.command == "worker":
-            from wealth_ledger.web.worker import run_worker
+            from kurafolio.web.worker import run_worker
             run_worker(settings, once=args.once)
         elif args.command == "serve":
             import uvicorn
-            from wealth_ledger.web.api import create_app
+            from kurafolio.web.api import create_app
             uvicorn.run(create_app(settings), host=args.host, port=args.port, proxy_headers=False,
                         access_log=False, server_header=False, workers=1)
         else:
-            from wealth_ledger.web.auth import password_hash, valid_username
-            from wealth_ledger.web.storage import prepare_instance, Store
+            from kurafolio.web.auth import password_hash, valid_username
+            from kurafolio.web.storage import prepare_instance, Store
             if args.command == "init-owner" and not valid_username(args.username):
                 raise ValueError("Username must be 1-64 ASCII letters, numbers, dots, hyphens or underscores")
             if args.password_stdin:
@@ -135,7 +135,7 @@ def main():
                     raise ValueError("Passwords do not match")
             hashed = password_hash(supplied)
             del supplied
-            from wealth_ledger.web.maintenance import instance_activity
+            from kurafolio.web.maintenance import instance_activity
             existing = (settings.data_root / "admin/instance.json").is_file()
             with instance_activity(settings.data_root) if existing else nullcontext():
                 if args.command == "init-owner":

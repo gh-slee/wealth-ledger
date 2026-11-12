@@ -6,8 +6,8 @@ import json
 import unittest
 from unittest.mock import patch
 
-from wealth_ledger.domain import canonical_v1 as c
-from wealth_ledger.domain import validation_v1 as v
+from kurafolio.domain import canonical_v1 as c
+from kurafolio.domain import validation_v1 as v
 
 TENANT = "10000000-0000-4000-8000-000000000001"
 PORTFOLIO = "10000000-0000-4000-8000-000000000002"

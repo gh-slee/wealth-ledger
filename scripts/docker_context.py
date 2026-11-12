@@ -27,10 +27,10 @@ def prepare_context(root, output):
     if output.is_relative_to(root) and not output.is_relative_to(root / "work"):
         raise ValueError("In-checkout Docker contexts must be under ignored work/")
     names = list(FIXED)
-    for path in sorted((root / "src/wealth_ledger").rglob("*")):
+    for path in sorted((root / "src/kurafolio").rglob("*")):
         relative = path.relative_to(root).as_posix()
         if "__pycache__" not in path.parts and (path.suffix == ".py" or
-                path.parent == root / "src/wealth_ledger/locales" and path.suffix == ".json"):
+                path.parent == root / "src/kurafolio/locales" and path.suffix == ".json"):
             names.append(relative)
     for path in sorted((root / "frontend/src").rglob("*")):
         if path.suffix in {".ts", ".tsx", ".css", ".json"} and path_allowed(path.relative_to(root).as_posix()):

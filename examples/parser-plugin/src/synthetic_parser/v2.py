@@ -4,8 +4,8 @@ from datetime import datetime
 from decimal import Decimal
 import hashlib
 
-from wealth_ledger import source_v2 as v2
-from wealth_ledger.source_registry import AdapterRegistration, ProviderInfo
+from kurafolio import source_v2 as v2
+from kurafolio.source_registry import AdapterRegistration, ProviderInfo
 from . import FIELDS, _reader
 
 VERSION="synthetic-holdings-v2"

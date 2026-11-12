@@ -15,7 +15,7 @@ Parser authors can extend supported formats through the trusted Python SDK.
 
 ## Product Purpose
 
-Wealth Ledger preserves financial source evidence, dated observations and explicit
+Kurafolio preserves financial source evidence, dated observations and explicit
 financial declarations, then produces reusable portfolio analysis and downloadable
 ODS, Markdown and PDF reports. Success means understanding what the recorded assets
 are worth, what changed, and which conclusions the supplied evidence supports.
@@ -67,7 +67,7 @@ owns storage, finance rules, confirmation and immutable report publication.
 
 ## Brand Commitments
 
-The name is Wealth Ledger. Its voice is factual and calm: distinguish observations,
+The name is Kurafolio. Its voice is factual and calm: distinguish observations,
 estimates and unknowns, and describe a concrete next step without implying trading
 advice or unsupported assurance.
 

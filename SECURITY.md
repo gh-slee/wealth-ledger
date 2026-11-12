@@ -1,6 +1,6 @@
 # Security and privacy
 
-Wealth Ledger stores investment and transaction data locally. SQLite is unencrypted
+Kurafolio stores investment and transaction data locally. SQLite is unencrypted
 by default. Ignore rules and publication checks reduce accidental commits; they do
 not encrypt files or guarantee complete detection of personal information.
 

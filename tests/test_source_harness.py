@@ -18,10 +18,10 @@ import unittest
 from unittest.mock import patch
 import uuid
 
-from wealth_ledger.data_sources import contract_v1 as s
-from wealth_ledger.data_sources.catalog_v1 import verify_installation
-from wealth_ledger.data_sources.compatibility_v1 import builtin_descriptors
-from wealth_ledger.data_sources.transport_v1 import make_envelope,validate_transport
+from kurafolio.data_sources import contract_v1 as s
+from kurafolio.data_sources.catalog_v1 import verify_installation
+from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
+from kurafolio.data_sources.transport_v1 import make_envelope,validate_transport
 
 FIXTURES=Path(__file__).parent/'fixtures/source_capabilities'
 ROOT=Path(__file__).resolve().parents[1]
@@ -50,12 +50,12 @@ class Harness:
     def run(self,value,*,cancel_after=None):
         frame=value if type(value) is bytes else s.canonical(value)
         if len(frame)>16*1024*1024:raise ValueError('Synthetic input exceeds limit')
-        name='wealth-ledger-source-child-'+uuid.uuid4().hex
+        name='kurafolio-source-child-'+uuid.uuid4().hex
         setup_started=time.monotonic();owned=False;process=None;readers=[];writer=None
         output=[bytearray(),bytearray()];limits=[8*1024*1024,64*1024];overflow=threading.Event()
         outcome=None;started=None;kill_at=None;reap_at=None;state=None
         try:
-            docker('create','--name',name,'--label','wealth-ledger.test=source-harness','-i',*PROFILE,self.image)
+            docker('create','--name',name,'--label','kurafolio.test=source-harness','-i',*PROFILE,self.image)
             owned=True;configuration=inspect_container(name)
             process=subprocess.Popen(['docker','start','--attach','--interactive',name],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             def collect(index,stream):
@@ -135,26 +135,26 @@ class Harness:
         return return_value
 
 
-ENABLED=os.environ.get('WEALTH_LEDGER_SOURCE_HARNESS_TEST')=='1'
+ENABLED=os.environ.get('KURAFOLIO_SOURCE_HARNESS_TEST')=='1'
 
 
 @unittest.skipUnless(ENABLED,'Explicit native source harness acceptance required')
 class SourceHarnessTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.base=os.environ['WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE']
+        cls.base=os.environ['KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE']
         if not re.fullmatch('sha256:[0-9a-f]{64}',cls.base):raise RuntimeError('Exact immutable source image required')
-        manifest=json.loads(Path(os.environ['WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT']).read_bytes())
+        manifest=json.loads(Path(os.environ['KURAFOLIO_SOURCE_HARNESS_CONTEXT']).read_bytes())
         files={name[4:]:digest for name,digest in manifest['files'].items() if name.startswith('src/')}
         if not files:raise RuntimeError('Source context manifest required')
         for name,digest in files.items():
             if hashlib.sha256((ROOT/'src'/name).read_bytes()).hexdigest()!=digest:raise RuntimeError('Source image context is stale')
-        artifact=s.canonical({'format':'source-content-v1','package_distribution':'wealth-ledger','package_version':'0.1.0',
-            'entry_points':[{'name':'wealthsimple.holdings','target':'wealth_ledger.source_builtin:registrations'},
-                            {'name':'bullbitcoin.orders','target':'wealth_ledger.source_builtin:registrations'}],
+        artifact=s.canonical({'format':'source-content-v1','package_distribution':'kurafolio','package_version':'0.1.0',
+            'entry_points':[{'name':'wealthsimple.holdings','target':'kurafolio.source_builtin:registrations'},
+                            {'name':'bullbitcoin.orders','target':'kurafolio.source_builtin:registrations'}],
             'files':[{'path':name,'sha256':digest} for name,digest in sorted(files.items())]})
-        descriptor=builtin_descriptors(package_distribution='wealth-ledger',package_version='0.1.0',artifact_sha256=hashlib.sha256(artifact).hexdigest(),
-            execution_image_digest=cls.base[7:],entry_point_target='wealth_ledger.source_builtin:registrations')[0]
+        descriptor=builtin_descriptors(package_distribution='kurafolio',package_version='0.1.0',artifact_sha256=hashlib.sha256(artifact).hexdigest(),
+            execution_image_digest=cls.base[7:],entry_point_target='kurafolio.source_builtin:registrations')[0]
         verify_installation(descriptor,artifact,image_root='/app/src')
         suffix=uuid.uuid4().hex;cls.directory=ROOT/'work'/('source-harness-'+suffix);cls.directory.mkdir(mode=0o700,parents=True)
         context=cls.directory/'context';context.mkdir()
@@ -163,11 +163,11 @@ class SourceHarnessTests(unittest.TestCase):
             path=FIXTURES/name
             if path.is_symlink():raise RuntimeError('Static test fixture required')
             raw=path.read_bytes();hashes[name]=hashlib.sha256(raw).hexdigest();(context/name).write_bytes(raw)
-        tag='wealth-ledger-source-base-'+suffix+':test'
+        tag='kurafolio-source-base-'+suffix+':test'
         # Removing the sole tag can delete an otherwise untagged candidate ID.
         # Retain a separate owned alias before creating/removing the temporary
         # FROM alias; neither candidate nor evidence images are pruned here.
-        retention='wealth-ledger-source-retained-'+suffix+':test'
+        retention='kurafolio-source-retained-'+suffix+':test'
         docker('tag',cls.base,retention);docker('tag',cls.base,tag)
         try:
             if json.loads(docker('image','inspect',tag))[0]['Id']!=cls.base:raise RuntimeError('Base tag identity changed')
@@ -189,7 +189,7 @@ class SourceHarnessTests(unittest.TestCase):
 
     def test_effective_environment_runtime_settings_and_host_canaries(self):
         # These invented canaries exist on the test host, never in image/input.
-        with tempfile.TemporaryDirectory(prefix='wealth-ledger-source-host-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='kurafolio-source-host-') as temporary:
             canary=Path(temporary)/'source-host-canary';canary.write_text('invented canary only')
             sock=socket.socket(socket.AF_UNIX);sock.bind(str(Path(temporary)/'source-host.sock'));self.addCleanup(sock.close)
             with patch.dict(os.environ,{'SOURCE_TEST_HOST_SECRET':'invented host marker'}):
@@ -229,7 +229,7 @@ class SourceHarnessTests(unittest.TestCase):
 
     def test_actual_builtin_normalization_preserves_frozen_archive_bytes(self):
         from test_domain_bridge_v1 import WS_RAW,WS_ARCHIVE,BULL_RAW,BULL_ARCHIVE
-        from wealth_ledger import source_v2
+        from kurafolio import source_v2
         for raw,archive in ((WS_RAW,WS_ARCHIVE),(BULL_RAW,BULL_ARCHIVE)):
             batch=source_v2.decode_batch(archive,raw)
             context={'context_version':1,'payload_kind':'parser_v2','context':s.primitive(s.ParserBinding('parser2_context_v1',batch.evidence.context))}
@@ -241,7 +241,7 @@ class SourceHarnessTests(unittest.TestCase):
 
     def test_offline_file_and_api_semantic_parity_and_nonbooking_admission(self):
         from test_source_transport import direct_case
-        from wealth_ledger.domain.validation_v1 import decode_domain_v1
+        from kurafolio.domain.validation_v1 import decode_domain_v1
         raw=b'{"btc_received":"0.01000000","cad_paid":"700.00"}'
         _,original,_=direct_case();outputs=[]
         for transport,operation in (('FILE_IMPORT','fake_file'),('PULL_API','fake_api')):

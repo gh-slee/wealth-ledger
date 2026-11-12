@@ -16,10 +16,10 @@ import uuid
 AVAILABLE = all(importlib.util.find_spec(name) for name in ("fastapi", "pwdlib", "httpx"))
 if AVAILABLE:
     from fastapi.testclient import TestClient
-    from wealth_ledger.web.api import create_app
-    from wealth_ledger.web.auth import Auth, password_hash, ABSOLUTE_SECONDS, IDLE_SECONDS
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.storage import Store, prepare_instance, contained, WebError
+    from kurafolio.web.api import create_app
+    from kurafolio.web.auth import Auth, password_hash, ABSOLUTE_SECONDS, IDLE_SECONDS
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.storage import Store, prepare_instance, contained, WebError
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_PASSWORD = "example-test-only-strong-password"
@@ -241,9 +241,9 @@ class WebTests(unittest.TestCase):
             body={"locale": "zh-TW", "btc_cost_policy": "bull_average_proxy"})
         self.assertEqual(result.status_code, 200, result.text)
         self.assertIn('custom = "synthetic-preserved"', path.read_text())
-        from wealth_ledger.workspace import resolve_workspace
-        from wealth_ledger.application import ApplicationService
-        from wealth_ledger.settings import report_locale, btc_cost_policy
+        from kurafolio.workspace import resolve_workspace
+        from kurafolio.application import ApplicationService
+        from kurafolio.settings import report_locale, btc_cost_policy
         workspace = resolve_workspace(explicit=path.parent.parent)
         self.assertEqual(report_locale(workspace.workspace_root), "zh-TW")
         self.assertEqual(btc_cost_policy(workspace.workspace_root), "bull_average_proxy")
@@ -403,8 +403,8 @@ class BlockWeb:
         if fullname.split('.')[0] in {'fastapi','starlette','pydantic','pwdlib','uvicorn'}:
             raise AssertionError('Financial CLI imported optional API dependency')
 sys.meta_path.insert(0, BlockWeb())
-import wealth_ledger.core, wealth_ledger.workflow, wealth_ledger.application
-import wealth_ledger.reporting, wealth_ledger.workbook
+import kurafolio.core, kurafolio.workflow, kurafolio.application
+import kurafolio.reporting, kurafolio.workbook
 """
         response = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
             env={**os.environ, 'PYTHONPATH': str(ROOT/'src'), 'PYTHONDONTWRITEBYTECODE':'1'})

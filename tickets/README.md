@@ -1,6 +1,6 @@
 # Tickets and the parallel agent workflow
 
-This directory is the single tracked backlog for Wealth Ledger. Any coding agent
+This directory is the single tracked backlog for Kurafolio. Any coding agent
 (Codex, Claude Code, opencode with DeepSeek or another model, or a human) can pick
 up any ticket, including one another agent started and could not finish. Several
 agents can work on different tickets at the same time.
@@ -80,7 +80,7 @@ script or by review, not by trust.
    names, PostgreSQL test environments (`scripts/postgres.py test-environment
    --output work/pg-tests-<isolation_id>`), temp directories and queues. Use
    ports from `port_base` to `port_base + 99`. When running the browser suite
-   in parallel, set `WEALTH_LEDGER_E2E_PORT` to your claim's `port_base` before
+   in parallel, set `KURAFOLIO_E2E_PORT` to your claim's `port_base` before
    running `npm --prefix frontend run test:e2e` in your own worktree. The browser
    suite uses port 8765 when the variable is unset.
 
@@ -182,12 +182,12 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   1. Start a reviewer with a fresh context (a subagent or a separate session).
      Give it the ticket file, the diff against the base branch and the repository
      rules. Do not give it your conversation or your reasoning.
-  2. The reviewer follows `.agents/skills/wealthledger-qa-automation/SKILL.md` on
+  2. The reviewer follows `.agents/skills/kurafolio-qa-automation/SKILL.md` on
      every ticket. For `risk: high` or `critical`, a second reviewer follows
-     `.agents/skills/wealthledger-software-architect/SKILL.md`. For a ticket that
+     `.agents/skills/kurafolio-software-architect/SKILL.md`. For a ticket that
      changes a page or user-facing wording, one reviewer also checks it against
      [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md) with
-     `.agents/skills/wealthledger-fintech-pm/SKILL.md`.
+     `.agents/skills/kurafolio-fintech-pm/SKILL.md`.
   3. The reviewer gives a verdict for each acceptance criterion, runs the Verify
      commands it can, and lists what it could not check. It does not edit the
      branch. Its findings go on the PR as a comment and in one ticket Log line.

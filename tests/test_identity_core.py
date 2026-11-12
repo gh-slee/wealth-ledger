@@ -16,18 +16,18 @@ class Deny(importlib.abc.MetaPathFinder):
  def find_spec(self,fullname,path=None,target=None):
   if fullname.split('.')[0] in {'sqlalchemy','psycopg','fastapi','pwdlib','uvicorn','alembic'}: raise ImportError('Optional import denied')
 sys.meta_path.insert(0,Deny())
-import wealth_ledger.web_v2
-import wealth_ledger.web_v2.__main__ as entry
-import wealth_ledger.persistence.identity
+import kurafolio.web_v2
+import kurafolio.web_v2.__main__ as entry
+import kurafolio.persistence.identity
 entry.main(['--help'])
 """
         result=subprocess.run([sys.executable,'-c',script],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertIn('migrate',subprocess.check_output([sys.executable,'-m','wealth_ledger.web_v2','operator','--help'],text=True))
+        self.assertIn('migrate',subprocess.check_output([sys.executable,'-m','kurafolio.web_v2','operator','--help'],text=True))
 
     def test_password_stdin_preserves_interior_newlines_and_rejects_oversize(self):
         import io
-        from wealth_ledger.web_v2.operator import read_password,OperatorError
+        from kurafolio.web_v2.operator import read_password,OperatorError
         value='synthetic interior\nnewline password'
         stream=io.TextIOWrapper(io.BytesIO(value.encode()+b'\n'))
         with patch('sys.stdin',stream):self.assertEqual(read_password(stdin=True),value)
@@ -36,7 +36,7 @@ entry.main(['--help'])
             with self.assertRaises(OperatorError):read_password(stdin=True)
 
     def test_private_export_does_not_replace_files_or_links(self):
-        from wealth_ledger.web_v2.operator import new_private,OperatorError
+        from kurafolio.web_v2.operator import new_private,OperatorError
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'key'
             new_private(path,b'synthetic')
@@ -50,7 +50,7 @@ entry.main(['--help'])
 @unittest.skipUnless(importlib.util.find_spec('fastapi'),'Optional typed Web schemas')
 class GrammarTests(unittest.TestCase):
     def test_passwords_preserve_spaces_unicode_and_literal_forms(self):
-        from wealth_ledger.web_v2.schemas import Login,Setup,ChangePassword
+        from kurafolio.web_v2.schemas import Login,Setup,ChangePassword
         code='x'*43
         for value in [' '*15,'a'*256,'e\u0301'*8,'\u00e9'*15]:
             model=Setup(setup_token=code,username='A.b-_',password=value)
@@ -65,8 +65,8 @@ class GrammarTests(unittest.TestCase):
         with self.assertRaises(Exception):Login(username='valid',password='x',tenant_id='forged')
 
     def test_uuid_is_canonical_nonzero_and_query_rejects_duplicates(self):
-        from wealth_ledger.web_v2.schemas import InviteIssue
-        from wealth_ledger.web_v2.api import query
+        from kurafolio.web_v2.schemas import InviteIssue
+        from kurafolio.web_v2.api import query
         for value in ['00000000-0000-0000-0000-000000000000','ABCDEFAB-1234-4321-8888-abcdefabcdef','123']:
             with self.assertRaises(Exception):InviteIssue(issue_request_id=value)
         for value in [b'a=1&a=2',b'x=%GG',b'x=%FF',b'bare']:
@@ -74,8 +74,8 @@ class GrammarTests(unittest.TestCase):
 
     @unittest.skipUnless(importlib.util.find_spec('psycopg'),'Optional explicit PG config')
     def test_configuration_refuses_implicit_or_mismatched_targets(self):
-        from wealth_ledger.persistence.config import PostgresConfig
-        from wealth_ledger.web_v2.config import Settings
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.web_v2.config import Settings
         base='host=127.0.0.1 port=5432 dbname=synthetic user=synthetic_gateway password=synthetic_example sslmode=disable'
         a=PostgresConfig(base);b=PostgresConfig(base.replace('synthetic_gateway','synthetic_finance'))
         with patch.dict('os.environ',{},clear=True):

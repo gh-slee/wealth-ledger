@@ -8,10 +8,10 @@ import uuid
 from datetime import timedelta
 
 from test_identity_support import IdentityCase
-from wealth_ledger.persistence.context import execute
-from wealth_ledger.persistence.identity import IdentityError,Principal
-from wealth_ledger.persistence.migration import finalize_identity_restore
-from wealth_ledger.web_v2.auth import digest
+from kurafolio.persistence.context import execute
+from kurafolio.persistence.identity import IdentityError,Principal
+from kurafolio.persistence.migration import finalize_identity_restore
+from kurafolio.web_v2.auth import digest
 
 
 class IdentityRestore(IdentityCase):
@@ -100,14 +100,14 @@ class IdentityRestore(IdentityCase):
             self.gateway.call('login_commit_v1',a.user_id,a.credential_version,nonce,'b'*64)
         with self.assertRaisesRegex(IdentityError,'session_changed'):
             self.gateway.call('register_commit_v1','a'*64,'AfterRestore',self.encoded,nonce)
-        from wealth_ledger.persistence.context import RequestDatabase
-        from wealth_ledger.persistence.repositories import Candidates
+        from kurafolio.persistence.context import RequestDatabase
+        from kurafolio.persistence.repositories import Candidates
         with self.assertRaises(Exception):Candidates(RequestDatabase(self.financial,a)).read(a.context,str(uuid.uuid4()))
 
     def test_actual_empty_restore_lost_key_uses_new_private_file_and_manifest(self):
-        from wealth_ledger.web_v2.operator import new_private
-        from wealth_ledger.web_v2.auth import Auth
-        from wealth_ledger.web_v2.config import Settings
+        from kurafolio.web_v2.operator import new_private
+        from kurafolio.web_v2.auth import Auth
+        from kurafolio.web_v2.config import Settings
         _,a=self.bootstrap();_,b=self.member()
         self.operator.call('set_user_enabled_v1',b.user_id,False)
         source_key=self.operator.status()['key_digest']
@@ -119,7 +119,7 @@ class IdentityRestore(IdentityCase):
         new_key=secrets.token_bytes(32);key_path=evidence/'new-instance.key';new_private(key_path,new_key)
         key_digest=hashlib.sha256(new_key).hexdigest()
         finalized=finalize_identity_restore(operator.database,self.config['runtime_role'],self.config['identity_role'],key_digest,replace_missing_key=True)
-        manifest={'format':'wealth-ledger-synthetic-key-recovery','dump_sha256':hashlib.sha256(dump).hexdigest(),
+        manifest={'format':'kurafolio-synthetic-key-recovery','dump_sha256':hashlib.sha256(dump).hexdigest(),
                   'old_key_sha256':source_key,'new_key_sha256':key_digest,'key_mode':key_path.stat().st_mode&0o777,'old_key_supplied_to_recovery':False,
                   'target_incarnation':finalized['incarnation'],'target_epoch':finalized['restore_epoch']}
         new_private(evidence/'manifest.json',json.dumps(manifest,indent=2).encode())

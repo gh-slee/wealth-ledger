@@ -7,9 +7,9 @@ import sys
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(PROJECT/'src'))
-from wealth_ledger.cli import make_parser, run_main
-from wealth_ledger.crypto_opening import import_opening, latest_opening
-from wealth_ledger.application import ApplicationService
+from kurafolio.cli import make_parser, run_main
+from kurafolio.crypto_opening import import_opening, latest_opening
+from kurafolio.application import ApplicationService
 
 
 def main():

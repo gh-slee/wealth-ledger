@@ -12,12 +12,12 @@ import test_web as foundation
 from test_web import AVAILABLE
 
 if AVAILABLE:
-    from wealth_ledger.core import import_holdings
-    from wealth_ledger.crypto import import_bull_orders
-    from wealth_ledger.combined import make_combined_payload
-    from wealth_ledger.lookthrough import attach_analysis
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.api import create_app
+    from kurafolio.core import import_holdings
+    from kurafolio.crypto import import_bull_orders
+    from kurafolio.combined import make_combined_payload
+    from kurafolio.lookthrough import attach_analysis
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.api import create_app
     from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,7 +68,7 @@ class PublicationTests(unittest.TestCase):
         self.prepare()
         before = self.file.read_bytes()
         with patch("urllib.request.urlopen", side_effect=AssertionError("No network on viewing")), \
-             patch("wealth_ledger.combined.make_combined_payload", side_effect=AssertionError("No valuation on viewing")):
+             patch("kurafolio.combined.make_combined_payload", side_effect=AssertionError("No valuation on viewing")):
             views = []
             for locale in ("en-CA", "zh-TW", "zh-CN"):
                 response = self.client.get(self.prefix + "/" + self.report, params={"locale": locale})
@@ -87,7 +87,7 @@ class PublicationTests(unittest.TestCase):
     def test_wallet_only_total_does_not_invent_a_bull_source(self):
         self.login(); pid = self.portfolio("Synthetic wallet-only")
         _, project = self.store.portfolio(pid)
-        from wealth_ledger.wallet import add_balance
+        from kurafolio.wallet import add_balance
         data = ROOT / "examples/data"
         cutoff = json.loads((data / "btc-price.json").read_text())["as_of"]
         add_balance(project, "0.01", cutoff, source="example-test-balance")

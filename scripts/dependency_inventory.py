@@ -94,7 +94,7 @@ def inventory(root=ROOT, lock="requirements-web.lock", distribution=importlib.me
     unknown = [{"ecosystem": kind, "name": row["name"], "version": row["version"]}
                for kind, rows in (("python", python_rows), ("npm", npm_rows))
                for row in rows if not row["license_declared"]]
-    return {"format": "wealth-ledger-dependency-inventory", "version": 1, "python_lock": lock,
+    return {"format": "kurafolio-dependency-inventory", "version": 1, "python_lock": lock,
             "scope": "Installed locked Python distributions; all npm lock entries including optional platform/build tools; bundled notices",
             "limitations": "Upstream license declarations, not legal approval, vulnerability scanning or a complete OS/image SBOM. Retain upstream license files.",
             "python": python_rows, "npm": npm_rows, "bundled_notice_sha256": hashes, "undeclared": unknown}
