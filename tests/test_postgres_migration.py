@@ -4067,6 +4067,42 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
                 if ready:
                     self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
 
+    def test_initial_prepare_cannot_store_ready_before_explicit_decisions(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, validate
+        plan, seed, _ = self.accept_seed()
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;DELETE FROM wl_ingestion.decisions;"
+                 "UPDATE wl_ingestion.roots SET control_generation=0;"
+                 "UPDATE wl_ingestion.sets SET state='NORMALIZING',revision=1,realm_digest='" + realm +
+                 "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        ready = deepcopy(ORACLE['review-bundle-first-use.json'])
+        ready['plan'].update(expires_at=plan['expires_at'], realm_digest=realm,
+                             expected_set_revision='2', expected_control_generation='0')
+        ready['review'].update(expires_at=plan['expires_at'], set_revision='2', control_generation='0',
+                               plan_digest=digest(ready['plan']))
+        validate(ready, 'ReviewBundle')
+        initial = deepcopy(ORACLE['review-bundle-initial.json'])
+        initial['review']['expires_at'] = plan['expires_at']
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + self.rejects("UPDATE wl_ingestion.sets SET state='READY',revision=2," + self.CLEAR_PREPARE_ORIGIN)
+            + self.prepare_preview_call('premature', ready, ready=False)
+            + "SELECT 'UNCHANGED '||jsonb_build_array("
+              "(SELECT state FROM wl_ingestion.sets),(SELECT revision FROM wl_ingestion.sets),"
+              "(SELECT state FROM wl_ingestion.leases WHERE work_kind='prepare'),"
+              "(SELECT count(*) FROM wl_ingestion.leases WHERE last_result_bytes IS NOT NULL),"
+              "(SELECT count(*) FROM wl_ingestion.previews),(SELECT count(*) FROM wl_ingestion.decisions),"
+              "(SELECT count(*) FROM wl_ingestion.source_revisions))::text;"
+            + self.prepare_preview_call('initial', initial, ready=False))
+        self.assertEqual({'ok': False, 'code': 'import_mapping_required'}, out['PREMATURE'])
+        self.assertEqual(['NORMALIZING', 1, 'active', 0, 0, 0, 0], out['UNCHANGED'])
+        self.assertTrue(out['INITIAL']['ok'], out['INITIAL'])
+        self.assertEqual(('NEEDS_MAPPING', '1', None), (out['INITIAL']['value']['state'],
+                         out['INITIAL']['value']['set_revision'], out['INITIAL']['value']['plan_digest']))
+
     def test_initial_preview_requires_choices_and_every_compatible_existing_candidate(self):
         from copy import deepcopy
         from kurafolio.ingestion.codec import digest

@@ -4084,6 +4084,8 @@ BEGIN
  BYTE_CHECK
  IF NOT BUNDLE_SHAPE THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
  review:=payload->'review';plan:=NULLIF(payload->'plan','null'::jsonb);rows:=review#>'{content,rows}';
+ IF selected.state='NORMALIZING' AND review->>'state'='READY' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_mapping_required'; END IF;
  preview_id:=(review->>'id')::uuid;
  result_revision:=selected.revision+CASE WHEN review->>'state'='READY' THEN 1 ELSE 0 END;
  IF (review->>'set_id',review->>'set_revision',review->>'accepted_generation',review->>'mapping_generation',
@@ -4932,7 +4934,7 @@ BEGIN
   ELSE
    IF NEW.state<>OLD.state THEN
     allowed:=CASE OLD.state WHEN 'RECEIVING' THEN ARRAY['NORMALIZING']
-     WHEN 'NORMALIZING' THEN ARRAY['NEEDS_MAPPING','CONFLICT','READY']
+     WHEN 'NORMALIZING' THEN ARRAY['NEEDS_MAPPING','CONFLICT']
      WHEN 'RECONCILING' THEN ARRAY['NEEDS_MAPPING','CONFLICT','READY']
      WHEN 'NEEDS_MAPPING' THEN ARRAY['RECONCILING'] WHEN 'CONFLICT' THEN ARRAY['RECONCILING']
      WHEN 'READY' THEN ARRAY['RECONCILING','COMMITTED'] ELSE ARRAY[]::text[] END

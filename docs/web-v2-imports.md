@@ -390,8 +390,11 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   ID and revision alongside the decision and evidence references. Page reads
   retain no lease result. The `prepare_preview_v1` fragment checks the review
   against the admitted stages, live pins and prior authority choices. A READY
-  preview also passes the existing Plan and accepted-reference checks. The
-  function stores the immutable preview and returns the saved result on a
+  preview requires explicit Decisions, even when every existing mapping can
+  be reused. Initial preparation presents a NEEDS_MAPPING or CONFLICT review
+  without an executable Plan. After the user confirms the decisions, the READY
+  preview passes the existing Plan and accepted-reference checks. The function
+  stores the immutable preview and returns the saved result on a
   valid retry. WL-P0-007F wires these private calls into the worker, and
   WL-P0-007D verifies the installed functions and grants.
   These fragments are not a complete migration provider and install no application
