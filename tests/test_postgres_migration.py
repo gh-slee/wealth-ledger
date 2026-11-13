@@ -3876,6 +3876,64 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(encode(page), encode(out['FIRST']['value']))
         self.assertEqual(out['FIRST'], out['AGAIN'])
 
+    def test_prepare_basis_byte_limit_splits_whole_admitted_inputs(self):
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.ingestion.contracts import MAX_PAGE
+        plan, seed, _ = self.accept_seed()
+        first = plan['inputs'][0]['member_id']
+        second = 'e1000000-0000-4000-8000-000000000002'
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        fixture = encode(ORACLE['large-basis-page.json']['rows'][0]['minimal']).hex()
+        seed += f"""
+DELETE FROM wl_ingestion.previews;
+UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,member_count=2,realm_digest='{realm}',
+ prepare_session_digest=repeat('1',64),prepare_credential_version=1;
+CREATE TEMP TABLE large_stage AS
+ WITH template AS (SELECT convert_from(decode('{fixture}','hex'),'UTF8')::jsonb AS evidence),
+ payload AS (SELECT jsonb_set(evidence,'{{assets}}',(
+  SELECT jsonb_agg(asset ORDER BY i) FROM (
+   SELECT 0 i,evidence->'assets'->0 asset UNION ALL SELECT 1,evidence->'assets'->1 UNION ALL
+   SELECT i,jsonb_set(jsonb_set(evidence->'assets'->0,'{{local_id}}',to_jsonb(i::text)),
+    '{{source_descriptor}}',to_jsonb(repeat('A',4096))) FROM generate_series(2,502) i
+  ) a)) AS evidence FROM template)
+ SELECT wl_ingestion._canonical_v1(evidence) AS data FROM payload;
+UPDATE wl_ingestion.stages SET minimal_bytes=(SELECT data FROM large_stage),
+ digest=(SELECT encode(sha256(data),'hex') FROM large_stage);
+UPDATE wl_ingestion.members SET stage_digest=(SELECT digest FROM wl_ingestion.stages);
+INSERT INTO wl_ingestion.members(tenant_id,portfolio_id,set_id,id,ordinal,connection_id,connection_version,
+ installation_id,format_version,context_bytes,context_digest,connection_generation,enablement_generation,
+ availability_generation,wrapper_profile_digest,raw_digest,raw_bytes,state,fence,stage_digest)
+ SELECT tenant_id,portfolio_id,set_id,'{second}',1,connection_id,connection_version,installation_id,format_version,
+ context_bytes,context_digest,connection_generation,enablement_generation,availability_generation,
+ wrapper_profile_digest,raw_digest,raw_bytes,state,fence,stage_digest FROM wl_ingestion.members;
+INSERT INTO wl_ingestion.stages(tenant_id,portfolio_id,set_id,member_id,codec,minimal_bytes,digest,created_at,purge_at)
+ SELECT tenant_id,portfolio_id,set_id,'{second}',codec,minimal_bytes,digest,created_at,purge_at FROM wl_ingestion.stages;
+SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex'))::text FROM large_stage;
+"""
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        def read(label, **kwargs):
+            call = self.basis_call(label, limit=2, set_id=repr(plan['set_id']), **kwargs)
+            value = self.previous(label, '{value}')
+            return call.split("SELECT '" + label.upper() + " '")[0] + (
+                f"SELECT '{label.upper()} '||jsonb_build_array(jsonb_array_length(({value})->'rows'),"
+                f"octet_length(wl_ingestion._canonical_v1({value})),({value})->'next_cursor',"
+                f"({value})#>>'{{rows,0,id}}',({value})#>>'{{rows,0,digest}}',"
+                f"encode(sha256(wl_ingestion._canonical_v1(({value})#>'{{rows,0,minimal}}')),'hex'))::text;")
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'") + read('first')
+            + read('replay') + read('second', cursor=self.previous('first', '{value,next_cursor}')))
+        size, digest = out['STAGE']
+        self.assertGreater(size * 2, MAX_PAGE)
+        self.assertLessEqual(size, 4194304)
+        self.assertEqual(out['FIRST'], out['REPLAY'])
+        self.assertIsNotNone(out['FIRST'][2])
+        self.assertIsNone(out['SECOND'][2])
+        for label, member in (('FIRST', first), ('SECOND', second)):
+            count, page_size, _, actual_member, row_digest, evidence_digest = out[label]
+            self.assertLessEqual(page_size, MAX_PAGE)
+            self.assertEqual((1, member, digest, digest), (count, actual_member, row_digest, evidence_digest))
+
     def test_prepare_basis_reads_only_the_current_decision_with_all_item_types(self):
         from copy import deepcopy
         from kurafolio.ingestion.codec import digest, validate

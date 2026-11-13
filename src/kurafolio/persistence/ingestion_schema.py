@@ -1063,7 +1063,7 @@ BEGIN
    pg_catalog.encode(pg_catalog.sha256(stage.minimal_bytes),'hex') IS DISTINCT FROM stage.digest THEN
    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale';
   END IF;
-  evidence:=wl_ingestion._validate_minimal_v1(stage.minimal_bytes);
+  evidence:=pg_catalog.convert_from(stage.minimal_bytes,'UTF8')::jsonb;
   staged:=pg_catalog.jsonb_set(staged,ARRAY[member.id::text],evidence);
   IF evidence->'provenance'->>'raw_sha256' IS DISTINCT FROM input->>'raw_digest' OR
    evidence->'provenance'->>'discovery_sha256' IS DISTINCT FROM input->>'discovery_digest' OR
@@ -3483,13 +3483,16 @@ _PREPARE_ACTIVE_CHECK = r"""
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
 """
 
+# Admitted stages are immutable and admission validates the original bytes.
+# Bind those bytes to the locked member digest before projecting the evidence.
 _PREPARE_STAGE_CHECK = r"""
  admitted:=0;
  FOR mem IN SELECT * FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio
   AND set_id=selected.id ORDER BY id LOOP
   IF mem.state<>'admitted' OR NOT EXISTS(SELECT 1 FROM wl_ingestion.stages g
    WHERE (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)=
-    (tenant,portfolio,selected.id,mem.id,mem.stage_digest)) THEN
+    (tenant,portfolio,selected.id,mem.id,mem.stage_digest)
+    AND pg_catalog.encode(pg_catalog.sha256(g.minimal_bytes),'hex')=g.digest) THEN
    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
   MEMBER_PINS
   admitted:=admitted+1;
@@ -3534,7 +3537,7 @@ _PREPARE_SCOPE_DECLARATIONS = """
 
 _BASIS_INPUT_ROWS = r"""
  SELECT m.id::text AS key,pg_catalog.jsonb_build_object('kind','input','id',m.id::text,'digest',g.digest,
-  'minimal',wl_ingestion._validate_minimal_v1(g.minimal_bytes)) AS data
+  'minimal',pg_catalog.convert_from(g.minimal_bytes,'UTF8')::jsonb) AS data
  FROM wl_ingestion.members m JOIN wl_ingestion.stages g
   ON (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)=(m.tenant_id,m.portfolio_id,m.set_id,m.id,m.stage_digest)
  WHERE resource='inputs' AND m.tenant_id=tenant AND m.portfolio_id=portfolio AND m.set_id=selected.id
@@ -3580,7 +3583,7 @@ _BASIS_ENTITY_CTES = r"""
 """
 
 _BASIS_ENTITIES = _BASIS_ENTITY_CTES.replace('STAGED_EVIDENCE',
-    'wl_ingestion._validate_minimal_v1(g.minimal_bytes)').replace(
+    "pg_catalog.convert_from(g.minimal_bytes,'UTF8')::jsonb").replace(
     'STAGED_FILTER', "resource IN ('entities','mappings') AND") + r"""
  plan_documents AS (
   SELECT pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb AS document,p.created_at,p.id
@@ -3700,6 +3703,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_te
 DECLARE
  SCOPE_DECLARATIONS
  resource text;row_limit integer;after_key text;position_found boolean;next_row record;
+ rows_bytes bigint:=0;empty_page_bytes bigint;
  rows jsonb:='[]'::jsonb;cursor_fields jsonb;page_fields jsonb;next_cursor jsonb;
  candidate jsonb;result jsonb;code text;
 BEGIN
@@ -3727,6 +3731,8 @@ BEGIN
   STORED_DECISIONS
  END IF;
  page_fields:=(cursor_fields-'expires_at')||pg_catalog.jsonb_build_object('version',1);
+ empty_page_bytes:=pg_catalog.octet_length(wl_ingestion._canonical_v1(
+  page_fields||pg_catalog.jsonb_build_object('rows',rows,'next_cursor',NULL)));
  FOR next_row IN WITH ENTITY_CTES basis_rows AS (
    INPUT_ROWS
    UNION ALL
@@ -3736,7 +3742,10 @@ BEGIN
    UNION ALL
    CONTEXT_ROW
   )
-  SELECT key,data,pg_catalog.lead(key) OVER(ORDER BY key COLLATE "C") AS following
+  SELECT key,data,pg_catalog.lead(key) OVER(ORDER BY key COLLATE "C") AS following,
+   CASE WHEN resource='inputs' THEN (SELECT pg_catalog.octet_length(g.minimal_bytes)-2
+    FROM wl_ingestion.stages g WHERE g.tenant_id=tenant AND g.portfolio_id=portfolio AND g.set_id=selected.id
+     AND g.member_id=page_rows.key::uuid AND g.digest=page_rows.data->>'digest') END AS input_bytes
    FROM (SELECT key,data FROM basis_rows WHERE after_key IS NULL OR key COLLATE "C">=after_key COLLATE "C"
      ORDER BY key COLLATE "C" LIMIT row_limit+2) page_rows ORDER BY key COLLATE "C"
  LOOP
@@ -3744,19 +3753,31 @@ BEGIN
    position_found:=next_row.key=after_key AND next_row.following IS NOT NULL;
    CONTINUE;
   END IF;
-  IF next_row.data IS NULL OR NOT ROW_SHAPE THEN
+  IF next_row.data IS NULL OR (resource<>'inputs' AND NOT ROW_SHAPE) THEN
    RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+  -- For inputs, the locked digest binds the fully validated admitted Minimal.
+  -- Its canonical bytes also give its exact size without re-encoding. Encode the
+  -- small row envelope with an empty object and add the stored payload size.
+  IF next_row.input_bytes IS NOT NULL THEN
+   rows_bytes:=rows_bytes+next_row.input_bytes+pg_catalog.octet_length(wl_ingestion._canonical_v1(
+    pg_catalog.jsonb_set(next_row.data,'{minimal}','{}'::jsonb)));
+  ELSE
+   rows_bytes:=rows_bytes+pg_catalog.octet_length(wl_ingestion._canonical_v1(next_row.data));
+  END IF;
+  IF pg_catalog.jsonb_array_length(rows)>0 THEN rows_bytes:=rows_bytes+1; END IF;
+  IF empty_page_bytes+rows_bytes>PAGE_MAX THEN
+   IF result IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_limit'; END IF;
+   EXIT;
+  END IF;
   rows:=rows||pg_catalog.jsonb_build_array(next_row.data);
   next_cursor:=NULL;
   IF next_row.following IS NOT NULL THEN
    next_cursor:=cursor_fields||pg_catalog.jsonb_build_object('after_key',next_row.key);
   END IF;
   candidate:=page_fields||pg_catalog.jsonb_build_object('rows',rows,'next_cursor',next_cursor);
-  IF pg_catalog.octet_length(wl_ingestion._canonical_v1(candidate))<=PAGE_MAX THEN
+  IF empty_page_bytes+rows_bytes+(CASE WHEN next_cursor IS NULL THEN 0
+    ELSE pg_catalog.octet_length(wl_ingestion._canonical_v1(next_cursor))-4 END)<=PAGE_MAX THEN
    result:=candidate;
-  ELSIF pg_catalog.octet_length(wl_ingestion._canonical_v1(
-   page_fields||pg_catalog.jsonb_build_object('rows',rows,'next_cursor',NULL)))>PAGE_MAX THEN
-   EXIT;
   END IF;
   EXIT WHEN pg_catalog.jsonb_array_length(rows)>=row_limit;
  END LOOP;
@@ -3818,7 +3839,7 @@ _PREPARE_REVIEW_ROWS = r"""
   JOIN wl_ingestion.members m ON (m.tenant_id,m.portfolio_id,m.set_id,m.id,m.stage_digest)=
    (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)
   WHERE g.tenant_id=tenant AND g.portfolio_id=portfolio AND g.set_id=selected.id LOOP
-  evidence:=wl_ingestion._validate_minimal_v1(stage.minimal_bytes);
+  evidence:=pg_catalog.convert_from(stage.minimal_bytes,'UTF8')::jsonb;
   staged:=pg_catalog.jsonb_set(staged,ARRAY[stage.member_id::text],evidence);
   entity_count:=entity_count+pg_catalog.jsonb_array_length(evidence->'accounts')
    +pg_catalog.jsonb_array_length(evidence->'assets')+pg_catalog.jsonb_array_length(evidence->'issuers');
