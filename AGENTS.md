@@ -70,7 +70,8 @@ Markdown file per ticket; [tickets/ROADMAP.md](tickets/ROADMAP.md) orders it. Se
 agents (any vendor or model) may work at once, one ticket each:
 
 - When the owner asks you to pick up work without naming a ticket, do this without
-  further prompting: `git fetch origin`, run `next` with your own tier (see the
+  further prompting: `git fetch origin`, run `cleanup` to remove merged ticket
+  worktrees, run `next` with your own tier (see the
   [tier table](tickets/README.md#capability-tiers); if unsure, use `standard`), take
   the first ticket listed, claim it and follow the
   [quick start](tickets/README.md#quick-start-for-an-agent). If `next` lists nothing,

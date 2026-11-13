@@ -21,6 +21,7 @@ Git directory itself, so it works from the primary checkout or any worktree.
 
 ```bash
 git fetch origin
+python3 scripts/tickets.py cleanup
 python3 scripts/tickets.py next --tier standard
 python3 scripts/tickets.py resume WL-P0-018
 python3 scripts/tickets.py claim WL-P0-018 --agent opencode/deepseek-flash --worktree
@@ -43,8 +44,11 @@ all work there, never in the primary checkout. Then:
    `done` on `main` only after the merge. While the PR is open, its branch copy
    and the live claim show it as under review. If review requests changes, keep
    the claim and set `status: in_review` until the repair is pushed.
-6. After the merge, run `python3 scripts/tickets.py release <ID>`. If the PR is
-   closed without merging, set the ticket back to `ready` with a Log line.
+6. After the merge, run `python3 scripts/tickets.py release <ID>` if you are still
+   around. Agents usually stop before the owner merges, so the next agent's
+   `cleanup` at pickup removes the merged worktree and its local branch and releases
+   the leftover stale claim. If the PR is closed without merging, set the ticket
+   back to `ready` with a Log line.
 
 ## Capability tiers
 
@@ -215,6 +219,16 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
 | `heartbeat ID [--note TEXT]` | Refresh the claim from the owning worktree. |
 | `takeover ID --agent NAME [--worktree] --reason TEXT` | Take a stale claim; records the previous owner. |
 | `release ID` | Drop the claim and its resources. |
+| `cleanup [--base origin/main] [--dry-run]` | Remove merged ticket worktrees and their local branches (see below). |
+
+`cleanup` only touches worktrees under `work/worktrees/`. It removes one when its
+HEAD reached the base through a merge commit, it has no uncommitted or untracked
+changes and no live claim. It also releases a stale claim on that worktree. It
+keeps the worktree you run it from, a branch with commits that are not on the base
+yet, a new branch that still points at the base tip, and a squash-merged branch.
+Ignored files inside a removed worktree, such as `node_modules/` or `work/`
+evidence, are deleted with it, so move anything you still need first. Run
+`git fetch origin` before it so the base is current.
 
 Agent names use `tool/model`, for example `codex/gpt-5.5`, `claude/opus-5.5` or
 `opencode/deepseek-flash`. The board uses them to show who is working.
