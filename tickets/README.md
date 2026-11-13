@@ -34,21 +34,32 @@ all work there, never in the primary checkout. Then:
    Read only the docs the ticket links, plus AGENTS.md.
 2. Set `status: in_progress` and `updated:`, add a Log line, and commit.
 3. Work through the Plan checkboxes. After each meaningful step, update Handoff,
-   commit (WIP commits are fine on a ticket branch) and run
+   commit (WIP commits are fine on a ticket branch; the owner squashes them at
+   merge) and run
    `python3 scripts/tickets.py heartbeat <ID> --note "<one line>"`.
 4. Before you stop for any reason, write the Handoff (see below), commit and push
    the ticket branch. Assume you can be cut off at any moment by a usage limit.
 5. When the acceptance criteria pass and any required independent review is
    recorded, set `status: done` and `pr:` in the PR's final commit, then open the
-   PR using the repository PR rules. Because only the owner merges, the ticket reads
+   PR using the repository PR rules. Write the PR title as a one-line summary of the
+   change, because it becomes the subject of the squashed commit on `main` and the
+   PR description becomes its body. Because only the owner merges, the ticket reads
    `done` on `main` only after the merge. While the PR is open, its branch copy
    and the live claim show it as under review. If review requests changes, keep
    the claim and set `status: in_review` until the repair is pushed.
-6. After the merge, run `python3 scripts/tickets.py release <ID>` if you are still
-   around. Agents usually stop before the owner merges, so the next agent's
-   `cleanup` at pickup removes the merged worktree and its local branch and releases
-   the leftover stale claim. If the PR is closed without merging, set the ticket
-   back to `ready` with a Log line.
+6. Work on one ticket per session, so the session's context holds only that
+   ticket. Until the PR is merged, use the session only for that ticket: review
+   repairs, CI fixes and the owner's questions about it. Do not claim a second
+   ticket or take on unrelated work in it. File a follow-up ticket instead, or ask
+   the owner to start a new session for the other work.
+7. End the session once the owner has merged the PR and nothing on the ticket is
+   outstanding: no unanswered review finding or owner question, no failing check,
+   no unpushed commit and no unfiled follow-up. Run
+   `python3 scripts/tickets.py release <ID>`, report the merge and stop. Do not pick
+   up the next ticket; it starts in a new session. If the PR is closed without
+   merging, set the ticket back to `ready` with a Log line, release it and stop. If
+   a session stops before the merge, the next agent's `cleanup` at pickup removes
+   the merged worktree and its local branch and releases the leftover stale claim.
 
 ## Capability tiers
 
@@ -201,6 +212,12 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   5. If the tool cannot start a reviewer, write "NOT RUN" with the reason in the
      PR and the Handoff. Never describe your own checks as independent review.
   The owner reviews last, on GitHub, and is the only one who merges.
+- **Squash merge:** every PR lands on `main` as one squashed commit, so a branch's
+  WIP and Handoff commits stay off the main history. While a PR is open, bring in
+  newer `main` with `git merge origin/main`, never a rebase, because agents do not
+  force-push. Once a PR is merged, its branch is finished: do not push more commits
+  to it. Repairs and follow-ups start a new branch from `origin/main`, under a new
+  ticket where one is needed.
 - **Public repository:** ticket text is public. Never write credentials, financial
   data, account names, personal paths or private approval transcripts. Detailed
   private evidence stays under ignored `work/`; reference it only by a relative path.
@@ -222,10 +239,14 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
 | `cleanup [--base origin/main] [--dry-run]` | Remove merged ticket worktrees and their local branches (see below). |
 
 `cleanup` only touches worktrees under `work/worktrees/`. It removes one when its
-HEAD reached the base through a merge commit, it has no uncommitted or untracked
-changes and no live claim. It also releases a stale claim on that worktree. It
-keeps the worktree you run it from, a branch with commits that are not on the base
-yet, a new branch that still points at the base tip, and a squash-merged branch.
+branch has landed on the base, it has no uncommitted or untracked changes and no
+live claim. A branch has landed when the base reached its tip through a merge
+commit, or when it was squash- or rebase-merged: it changes something, and merging
+it into the base now would not change the base. It also releases a stale claim on
+that worktree. It keeps the worktree you run it from, a branch with changes that are
+not on the base yet, a branch with no net changes, and a new branch that still
+points at the base tip. If `main` later edited the same lines as a squash-merged
+branch, that branch is kept too; check its PR is merged and remove it by hand.
 Ignored files inside a removed worktree, such as `node_modules/` or `work/`
 evidence, are deleted with it, so move anything you still need first. Run
 `git fetch origin` before it so the base is current.
