@@ -289,9 +289,11 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                                check=True, capture_output=True, timeout=45)
 
     def _verify_targets(self, operator, path, fixture, roles):
+        import sys
+
         from psycopg.conninfo import make_conninfo
 
-        from kurafolio.data_sources.contract_v1 import CatalogSnapshot
+        from kurafolio.data_sources.contract_v1 import CatalogSnapshot, canonical, primitive
         from kurafolio.persistence import ingestion_migration as migration
         from kurafolio.persistence.config import PostgresConfig
         from kurafolio.persistence.context import Database, execute
@@ -349,8 +351,23 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                 ''')
 
             expected = {'schema_revision': '0004_ingestion', 'functions': 68, 'ready': False}
-            for database in (fresh, upgrade):
-                self.assertEqual(expected, migration.migrate_ingestion(database, *roles, key, catalog))
+            catalog_file = path / 'synthetic-catalog.json'
+            catalog_file.write_bytes(canonical(primitive(catalog)))
+            catalog_file.chmod(0o600)
+            operator_file = path / 'fresh-operator.conninfo'
+            operator_file.write_text(make_conninfo(**dict(operator, dbname='synthetic_fresh')))
+            operator_file.chmod(0o600)
+            root = Path(__file__).resolve().parents[1]
+            command = subprocess.run(
+                [sys.executable, '-m', 'kurafolio.web_v2', 'operator', 'migrate-ingestion',
+                 '--secret-file', str(operator_file), '--key-file', str(path / 'identity.key'),
+                 '--source-catalog-file', str(catalog_file), '--runtime-role', runtime,
+                 '--identity-role', gateway, '--worker-role', worker],
+                cwd=root, env={**os.environ, 'PYTHONPATH': str(root / 'src')},
+                check=True, capture_output=True, timeout=30,
+            )
+            self.assertEqual(expected, json.loads(command.stdout))
+            self.assertEqual(expected, migration.migrate_ingestion(upgrade, *roles, key, catalog))
             self.assertEqual(expected, migration.migrate_ingestion(fresh, *roles, key, catalog))
             arguments = dict(runtime_role=runtime, gateway_role=gateway, worker_role=worker)
             with fresh.engine.begin() as conn:
