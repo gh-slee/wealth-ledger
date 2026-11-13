@@ -195,6 +195,41 @@ class ClaimProtocolTest(unittest.TestCase):
         self.assertIn('kept wl-p1-004', out)
         self.assertIn('not merged into main', out)
 
+    def test_cleanup_removes_squash_merged_worktree_only_when_its_changes_landed(self):
+        squashed, squashed_branch = self.worktree_with_commit('WL-P1-001')
+        (squashed / 'WL-P1-001.txt').write_text('change\nmore\n')
+        self.git(squashed, 'commit', '-q', '-am', 'second commit')
+        partial, _ = self.worktree_with_commit('WL-P1-004')
+        (partial / 'extra.txt').write_text('not on main\n')
+        self.git(partial, 'add', 'extra.txt')
+        self.git(partial, 'commit', '-q', '-m', 'unlanded follow-up')
+        self.git(self.repo, 'merge', '-q', '--squash', squashed_branch)
+        self.git(self.repo, 'commit', '-q', '-m', 'squash WL-P1-001')
+        (self.repo / 'WL-P1-004.txt').write_text('change\n')
+        self.git(self.repo, 'add', 'WL-P1-004.txt')
+        self.git(self.repo, 'commit', '-q', '-m', 'squash only the first WL-P1-004 commit')
+        with mock.patch.object(tickets, 'STALE_MINUTES', -1):
+            code, out, _ = run(self.repo, 'cleanup', '--base', 'main')
+        self.assertEqual(code, 0, out)
+        self.assertIn('removed wl-p1-001', out)
+        self.assertFalse(squashed.exists())
+        self.assertEqual(self.git(self.repo, 'branch', '--list', squashed_branch), '')
+        self.assertTrue(partial.exists())
+        self.assertIn('kept wl-p1-004', out)
+        self.assertIn('not merged into main', out)
+
+    def test_cleanup_keeps_branch_without_net_changes(self):
+        wt, _ = self.worktree_with_commit('WL-P1-001')
+        self.git(wt, 'revert', '--no-edit', 'HEAD')
+        (self.repo / 'other.txt').write_text('main moved on\n')
+        self.git(self.repo, 'add', 'other.txt')
+        self.git(self.repo, 'commit', '-q', '-m', 'main moved on')
+        with mock.patch.object(tickets, 'STALE_MINUTES', -1):
+            code, out, _ = run(self.repo, 'cleanup', '--base', 'main')
+        self.assertEqual(code, 0, out)
+        self.assertTrue(wt.exists())
+        self.assertIn('not merged into main', out)
+
     def test_cleanup_keeps_live_dirty_and_fresh_worktrees(self):
         live, live_branch = self.worktree_with_commit('WL-P1-001')
         dirty, dirty_branch = self.worktree_with_commit('WL-P1-004')

@@ -76,6 +76,12 @@ agents (any vendor or model) may work at once, one ticket each:
   the first ticket listed, claim it and follow the
   [quick start](tickets/README.md#quick-start-for-an-agent). If `next` lists nothing,
   report that and what `list` shows as blocking; do not invent work.
+- One ticket per session, so unrelated work does not fill the context. Claim at most
+  one ticket in a session and use the session only for it, including review and CI
+  repairs. File a ticket for unrelated work, or ask the owner to start a new session
+  for it. Once the owner merges the PR and nothing on the ticket is outstanding,
+  release the claim, report and stop; the next ticket starts in a new session. See
+  [steps 6 and 7 of the quick start](tickets/README.md#quick-start-for-an-agent).
 - Before a product, UX or analysis ticket, read
   [tickets/PRODUCT_CONTEXT.md](tickets/PRODUCT_CONTEXT.md) for the owner's intent and
   recorded decisions.
