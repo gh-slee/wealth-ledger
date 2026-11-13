@@ -215,3 +215,15 @@ They are `ready` and are offered when their dependencies are done.
 | WL-P1-012 | New | A browser test fails intermittently on unrelated changes |
 | `AGENTS.md`, `tickets/README.md` | Reviews rule | The implementer starts fresh-context QA, Architect and PM review itself; the owner reviews last |
 
+## Remaining P0 backlog released (2026-11-12)
+
+| Ticket | Change | Why |
+|---|---|---|
+| WL-P0-011E | Ready; decisions recorded | Owner: language, time zone and currency on the server; no session list |
+| WL-P0-011F, 012E, 013B, 023 | Ready; current-behaviour notes refreshed now that the V2 shell exists | Owner Gate A |
+| WL-P0-011H | Ready; adds `asset_classes` to the source catalog; depends on WL-P0-012A instead of 008 | Owner decision on how a page decides to offer "Enable a source" |
+| WL-P0-013A | Ready; Excel added; data formats moved out | Owner: PDF, Excel, ODS and Markdown for go-live |
+| WL-P1-013 | New, backlog | CSV, JSON, PNG and ZIP exports |
+| WL-P0-022 | Ready | No gate; should land before more import SQL |
+| WL-P0-007M | Ready for the options write-up | The owner still makes the decision |
+

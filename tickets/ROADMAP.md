@@ -163,19 +163,25 @@ securities, crypto and total. Context: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
 | 4 | WL-P0-012A (first version), then 012B, 012C, 012D | Securities valued from the import's own market values, or live quotes where WL-P0-009A is enabled; Bitcoin from the existing live price; CAD, USD and TWD from the existing daily FX |
 | 5 | WL-P0-021, WL-P0-007G | Deployable instance; independent acceptance |
 
-After the MVP, planned in detail and approved by the owner on 2026-11-11:
+WL-P0-022 (import SQL tests in CI) is ready and should merge before WL-P0-007D
+and 007N change more import SQL.
+
+After the MVP, planned in detail and approved by the owner on 2026-11-11 and
+2026-11-12 (WL-P0-011E, 011F, 011H, 012E, 013A, 013B, 023):
 
 | Order | Tickets | Note |
 |---|---|---|
 | 1 | WL-P0-009B | Market store, refresh process, Refresh route. After 009A and 012A |
 | 1 | WL-P0-009E | Official provider spike and adapter. Parallel with everything else in this table |
 | 1 | WL-P0-011E, then 011F | Preferences, Settings and Profile |
+| 1 | WL-P0-011H | Pages decide "Enable a source" from declared asset classes and holdings. After 012A |
 | 2 | WL-P0-009C | Currency list and daily FX. After 009B |
 | 2 | WL-P0-010A | Fund holdings store. After 009B; parallel with 009C |
 | 3 | WL-P0-009D | Daily value curve. After 009B and 009C |
 | 3 | WL-P0-010B, then 012E | Exposure endpoint, then the page |
-| 3 | WL-P0-013A, then 013B | Downloads |
+| 3 | WL-P0-013A, then 013B | Downloads: PDF, Excel, ODS and Markdown |
 | 4 | WL-P0-014 | Fresh-start guide and its test |
+| 4 | WL-P0-023 | Real V2 browser suite in CI. After the MVP pages; WL-P0-015 depends on it |
 | 5 | WL-P0-015 | Release acceptance on an Apple Silicon Mac with Docker Desktop |
 
 Owner decisions of 2026-11-11: existing SQLite data is not migrated. A V2 account
