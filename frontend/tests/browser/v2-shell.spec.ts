@@ -12,12 +12,33 @@ const destinations = [
   ["/app/profile", "Profile"],
 ] as const;
 
+// A signed-in synthetic member; WL-P0-011B covers the identity pages.
+async function mockSession(page: Page) {
+  await page.route("**/api/v2/me", (route) =>
+    route.fulfill({
+      json: {
+        authenticated: true,
+        user: {
+          id: "00000000-0000-4000-8000-000000000002",
+          username: "example-member",
+          role: "member",
+        },
+        portfolio: { id: "00000000-0000-4000-8000-0000000000ff" },
+      },
+    }),
+  );
+  await page.route("**/api/v2/auth/activity", (route) =>
+    route.fulfill({ status: 204 }),
+  );
+}
+
 async function mockV2(page: Page) {
   await page.route("**/api/v2/auth/csrf", (route) =>
     route.fulfill({
       json: { authenticated: true, csrf_token: "a".repeat(64) },
     }),
   );
+  await mockSession(page);
 }
 
 test("V2 routes preserve the eight destinations and nested Exposures", async ({
@@ -169,6 +190,7 @@ test("V2 remembers the interface language across reloads", async ({ page }) => {
 test("a failed V2 probe can retry without opening the SQLite shell", async ({
   page,
 }) => {
+  await mockSession(page);
   let attempts = 0;
   await page.route("**/api/v2/auth/csrf", (route) => {
     attempts++;
@@ -189,6 +211,7 @@ test("a failed V2 probe can retry without opening the SQLite shell", async ({
 test("the startup probe explains maintenance in the remembered language", async ({
   page,
 }) => {
+  await mockSession(page);
   await page.addInitScript(() =>
     localStorage.setItem("kurafolio-v2-locale", "zh-TW"),
   );

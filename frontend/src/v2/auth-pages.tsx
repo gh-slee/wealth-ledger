@@ -22,11 +22,7 @@ import { Language } from "./language";
 import "./identity.css";
 
 export type LoginNotice =
-  | "signedOut"
-  | "signOutFailed"
-  | "expired"
-  | "setupDone"
-  | "registered";
+  "signedOut" | "signOutFailed" | "expired" | "setupDone" | "registered";
 export type LoginState = { notice?: LoginNotice; username?: string };
 
 const notices: Record<LoginNotice, Message> = {
@@ -125,9 +121,11 @@ function Alert({ message }: { message: string }) {
 }
 
 export function LoginPage({
+  notice: sessionNotice,
   onSignedIn,
   onRetrySignOut,
 }: {
+  notice?: LoginNotice;
   onSignedIn: (me: Me) => void;
   onRetrySignOut: () => Promise<void>;
 }) {
@@ -139,7 +137,8 @@ export function LoginPage({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Message | null>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
-  const notice = state.notice && notices[state.notice];
+  const shownNotice = sessionNotice ?? state.notice;
+  const notice = shownNotice && notices[shownNotice];
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -169,7 +168,7 @@ export function LoginPage({
   return (
     <AuthLayout title={t("login")}>
       {notice && !failure && <p role="status">{t(notice)}</p>}
-      {state.notice === "signOutFailed" && (
+      {shownNotice === "signOutFailed" && (
         <Button
           variant="secondary"
           disabled={busy}
@@ -218,11 +217,7 @@ export function LoginPage({
 
 type Kind = "setup" | "register";
 type Blocked =
-  | "missing"
-  | "setupRejected"
-  | "setupClosed"
-  | "setupRequired"
-  | "signedIn";
+  "missing" | "setupRejected" | "setupClosed" | "setupRequired" | "signedIn";
 
 const blockedMessages: Record<Kind, Record<Blocked, Message>> = {
   setup: {
@@ -297,11 +292,7 @@ export function CredentialsPage({
   const title = t(
     kind === "setup" ? "wlP0011b.setup.title" : "wlP0011b.register.title",
   );
-  const shown: Blocked | null = !token
-    ? "missing"
-    : me
-      ? "signedIn"
-      : blocked;
+  const shown: Blocked | null = !token ? "missing" : me ? "signedIn" : blocked;
 
   if (shown) {
     const message = t(blockedMessages[kind][shown]).replace(

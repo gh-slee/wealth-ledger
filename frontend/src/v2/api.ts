@@ -106,8 +106,7 @@ async function transport<T>(
       }
       throw new V2Error(response.status, code);
     }
-    const value =
-      response.status === 204 ? undefined : await response.json();
+    const value = response.status === 204 ? undefined : await response.json();
     changed(started);
     return value as T;
   } finally {

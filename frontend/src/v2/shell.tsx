@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -28,8 +34,15 @@ import { Button } from "../components/ui/button";
 import type { Locale } from "../lib/api";
 import { LocaleContext, useI18n, type Message } from "../lib/i18n";
 import { preferredLocale, rememberLocale } from "./locale";
-import { clearTransport, mutate, read, UNAUTHORIZED_EVENT, V2Error, type Me } from "./api";
-import { CredentialsPage, LoginPage, type LoginState } from "./auth-pages";
+import {
+  clearTransport,
+  mutate,
+  read,
+  UNAUTHORIZED_EVENT,
+  V2Error,
+  type Me,
+} from "./api";
+import { CredentialsPage, LoginPage, type LoginNotice } from "./auth-pages";
 import { InvitationManager } from "./invitations";
 import { Language } from "./language";
 import { PageEmpty, PageError, PageLoading } from "./page-state";
@@ -314,6 +327,9 @@ function V2Routes() {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session>({ state: "checking" });
   const [attempt, setAttempt] = useState(0);
+  // Kept here, not in the route state: the catch-all route's redirect to
+  // sign-in can replace the location before a navigation that carries it.
+  const [notice, setNotice] = useState<LoginNotice | undefined>();
   const signedIn = session.state === "signed-in";
 
   useEffect(() => {
@@ -345,8 +361,8 @@ function V2Routes() {
     const ended = () => {
       void forget();
       setSession({ state: "signed-out" });
-      const state: LoginState = { notice: "expired" };
-      navigate("/login", { replace: true, state });
+      setNotice("expired");
+      navigate("/login", { replace: true });
     };
     window.addEventListener(UNAUTHORIZED_EVENT, ended);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, ended);
@@ -385,11 +401,9 @@ function V2Routes() {
   // never redirects to sign-in without the notice.
   async function signOut() {
     const confirmed = await endSession();
-    const state: LoginState = {
-      notice: confirmed ? "signedOut" : "signOutFailed",
-    };
+    setNotice(confirmed ? "signedOut" : "signOutFailed");
     setSession({ state: "signed-out" });
-    navigate("/login", { replace: true, state });
+    navigate("/login", { replace: true });
   }
 
   async function signOutHere() {
@@ -399,6 +413,7 @@ function V2Routes() {
 
   async function signIn(me: Me) {
     await forget();
+    setNotice(undefined);
     setSession({ state: "signed-in", me });
     navigate("/app", { replace: true });
   }
@@ -429,28 +444,24 @@ function V2Routes() {
           me ? (
             <Navigate replace to="/app" />
           ) : (
-            <LoginPage onSignedIn={signIn} onRetrySignOut={signOut} />
+            <LoginPage
+              notice={notice}
+              onSignedIn={signIn}
+              onRetrySignOut={signOut}
+            />
           )
         }
       />
       <Route
         path="/setup"
         element={
-          <CredentialsPage
-            kind="setup"
-            me={me}
-            onSignOut={signOutHere}
-          />
+          <CredentialsPage kind="setup" me={me} onSignOut={signOutHere} />
         }
       />
       <Route
         path="/register"
         element={
-          <CredentialsPage
-            kind="register"
-            me={me}
-            onSignOut={signOutHere}
-          />
+          <CredentialsPage kind="register" me={me} onSignOut={signOutHere} />
         }
       />
       <Route

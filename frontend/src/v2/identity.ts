@@ -35,8 +35,7 @@ export function passwordProblem(
     return "invalid";
   if (points.length < PASSWORD_MINIMUM) return "short";
   if (points.length > PASSWORD_MAXIMUM) return "long";
-  if (confirmation !== undefined && confirmation !== value)
-    return "mismatch";
+  if (confirmation !== undefined && confirmation !== value) return "mismatch";
   return null;
 }
 

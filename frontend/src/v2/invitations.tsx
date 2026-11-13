@@ -153,7 +153,9 @@ export function InvitationManager({ userId }: { userId: string }) {
           return (
             <span
               className={
-                status.tone === "neutral" ? "status" : `status status-${status.tone}`
+                status.tone === "neutral"
+                  ? "status"
+                  : `status status-${status.tone}`
               }
             >
               {t(status.label)}
@@ -163,7 +165,9 @@ export function InvitationManager({ userId }: { userId: string }) {
       },
       {
         id: "action",
-        header: () => <span className="sr-only">{t("wlP0011b.invite.action")}</span>,
+        header: () => (
+          <span className="sr-only">{t("wlP0011b.invite.action")}</span>
+        ),
         enableSorting: false,
         cell: ({ row }) =>
           invitationStatus(row.original).revocable ? (
@@ -201,9 +205,7 @@ export function InvitationManager({ userId }: { userId: string }) {
           </h3>
           <p>{t("wlP0011b.invite.once")}</p>
           <div className="v2-field">
-            <label htmlFor="invitation-link">
-              {t("wlP0011b.invite.link")}
-            </label>
+            <label htmlFor="invitation-link">{t("wlP0011b.invite.link")}</label>
             <div className="v2-copy-row">
               <input
                 ref={linkInput}
