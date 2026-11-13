@@ -20,7 +20,7 @@ def parser():
     serve.add_argument('--tls-key-file',type=Path)
     serve.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
     serve.add_argument('--source-catalog-file',type=Path)
-    for action,operations in [('operator',['migrate-identity','migrate-sources','migrate-ingestion']),('identity',['status','finalize-restore']),
+    for action,operations in [('operator',['migrate-identity','migrate-sources','migrate-ingestion','backup-ingestion','restore-ingestion']),('identity',['status','finalize-restore']),
                                ('sources',['status','catalog-apply','finalize-restore']),
                                ('setup',['arm','revoke']),('invite',['issue','revoke']),
                                ('account',['reset-password','disable','enable'])]:
@@ -34,8 +34,14 @@ def parser():
                 item.add_argument('--key-file',required=True,type=Path)
             if action in {'setup','invite','account'} or action=='identity' and operation=='status':
                 item.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
-            if operation=='migrate-ingestion':
+            if operation in {'migrate-ingestion','backup-ingestion','restore-ingestion'}:
                 item.add_argument('--worker-role',required=True)
+            if operation in {'backup-ingestion','restore-ingestion'}:
+                item.add_argument('--runtime-role',required=True)
+                item.add_argument('--identity-role',required=True)
+                item.add_argument('--backup-directory',required=True,type=Path)
+            if operation=='restore-ingestion':
+                item.add_argument('--manifest-sha256',required=True)
             if action=='sources' or operation in {'migrate-sources','migrate-ingestion'}:
                 item.add_argument('--source-catalog-file',required=True,type=Path)
                 if operation not in {'status','migrate-ingestion'}:item.add_argument('--source-proof-file',type=Path)

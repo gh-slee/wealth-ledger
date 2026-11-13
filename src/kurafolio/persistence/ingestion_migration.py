@@ -218,7 +218,7 @@ def verify_functions(conn):
     return len(seen)
 
 
-def _structure_digest(conn, runtime_role, *, predecessor=False):
+def _structure_digest(conn, runtime_role, *, predecessor=False, restored=False):
     """Fingerprint the installed ingestion objects using stable catalog names."""
     import hashlib
 
@@ -293,6 +293,9 @@ def _structure_digest(conn, runtime_role, *, predecessor=False):
     for key, query in queries.items():
         if predecessor:
             query = query.replace(",'wl_ingestion'", "")
+        if restored and key == "constraints":
+            query = query.replace("pg_catalog.pg_get_constraintdef(k.oid)",
+                                  "pg_catalog.pg_get_constraintdef(k.oid, true)")
         parameters = {"runtime": runtime_role} if key == "policies" else {}
         snapshot[key] = [list(row) for row in execute(conn, query, **parameters).all()]
     return hashlib.sha256(canonical(snapshot)).hexdigest()
@@ -303,7 +306,12 @@ EXPECTED_PREDECESSOR_SHA256 = "e000ca387b3e063fbfa5e27f1d7992d1a1bfbed0ea5ad9fcf
 EXPECTED_STRUCTURE_SHA256 = "bfa65a6614b9c31be0acbaf2ee4ead29cfc814f18eae2b89267c6a2e5e67a9f3"
 
 
-def verify_grants(conn, runtime_role, gateway_role, worker_role):
+# pg_dump round-trips flatten nested boolean expressions in CHECK definitions.
+# The pretty deparser renders both reviewed catalogs with the same parentheses.
+EXPECTED_RESTORED_STRUCTURE_SHA256 = "7008e006523e3bb88f72b7816061f4658f1eade29958c411ecf78479608e7d67"
+
+
+def verify_grants(conn, runtime_role, gateway_role, worker_role, *, quarantined=False):
     """Reject extra ACLs, grant options, role powers, or missing grants."""
     from . import identity_schema
     from .context import execute
@@ -332,6 +340,8 @@ def verify_grants(conn, runtime_role, gateway_role, worker_role):
         ("wl_ingestion", ingestion.WORKER, worker_role),
     ):
         expected.update((namespace, "function", name, role, "EXECUTE") for name in names)
+    if quarantined:
+        expected.clear()
     rows = execute(conn, """
         WITH namespaces AS (
             SELECT * FROM pg_catalog.pg_namespace
@@ -374,7 +384,7 @@ def verify_grants(conn, runtime_role, gateway_role, worker_role):
             raise PersistenceError("migration_target_invalid")
 
 
-def verify_inventory(conn, *, runtime_role, gateway_role, worker_role):
+def verify_inventory(conn, *, runtime_role, gateway_role, worker_role, quarantined=False):
     """Verify the explicit 0004 catalog before enabling the profile."""
     from .context import execute
     from .errors import PersistenceError
@@ -396,10 +406,11 @@ def verify_inventory(conn, *, runtime_role, gateway_role, worker_role):
         raise PersistenceError("migration_target_invalid")
     _identity_target_inventory(conn, "0002_identity")
     if (source_structure_digest(conn) != SOURCE_STRUCTURE_SHA256
-            or _structure_digest(conn, runtime_role) != EXPECTED_STRUCTURE_SHA256):
+            or _structure_digest(conn, runtime_role, restored=quarantined) != (
+                EXPECTED_RESTORED_STRUCTURE_SHA256 if quarantined else EXPECTED_STRUCTURE_SHA256)):
         raise PersistenceError("migration_target_invalid")
     functions = verify_functions(conn)
-    verify_grants(conn, runtime_role, gateway_role, worker_role)
+    verify_grants(conn, runtime_role, gateway_role, worker_role, quarantined=quarantined)
     return {"schema_revision": ingestion.REVISION, "functions": functions}
 
 

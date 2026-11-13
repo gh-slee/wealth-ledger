@@ -279,9 +279,15 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                 runtime, gateway, worker = fixture['runtime_role'], fixture['identity_role'], 'synthetic_ingestion_worker'
                 with psycopg.connect(**admin, autocommit=True) as conn:
                     conn.execute(sql.SQL('CREATE ROLE {} LOGIN').format(sql.Identifier(worker)))
-                    for name in ('synthetic_fresh', 'synthetic_upgrade', 'synthetic_restore_one', 'synthetic_restore_two'):
+                    for name in ('synthetic_fresh', 'synthetic_upgrade', 'synthetic_restore_one',
+                                 'synthetic_restore_two', 'synthetic_restore_fault',
+                                 'synthetic_restore_changed', 'synthetic_restore_corrupt',
+                                 'synthetic_restore_identity_fault', 'synthetic_restore_commit_fault'):
+                        target = sql.Identifier(name)
                         conn.execute(sql.SQL('CREATE DATABASE {} OWNER {}').format(
-                            sql.Identifier(name), sql.Identifier(fixture['migration_role'])))
+                            target, sql.Identifier(fixture['migration_role'])))
+                        if name.startswith('synthetic_restore_'):
+                            conn.execute(sql.SQL('REVOKE CONNECT,TEMP ON DATABASE {} FROM PUBLIC').format(target))
                 self._verify_targets(operator, path, fixture, (runtime, gateway, worker))
             finally:
                 subprocess.run([sys.executable, str(script), 'cleanup-test-environment',
@@ -382,18 +388,155 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                 with self.assertRaisesRegex(PersistenceError, 'migration_target_invalid'):
                     migration.verify_inventory(conn, **arguments)
                 changed.rollback()
-            self._verify_inactive_restores(operator, fixture, runtime, gateway, worker)
+            self._verify_inactive_restores(operator, path, fixture, runtime, gateway, worker)
         finally:
             fresh.close()
             upgrade.close()
 
 
-    def _verify_inactive_restores(self, operator, fixture, runtime, gateway, worker):
+    def _seed_restore_history(self, conn):
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.persistence.context import execute
+
+        minimal = ORACLE['minimal-native.json']
+        plan = ORACLE['plan-first-use.json']
+        raw = encode(minimal)
+        plan_bytes = encode(plan)
+        tenant, portfolio = execute(conn, 'SELECT id,portfolio_id FROM wl_identity.users').one()
+        identity = dict(t=tenant, p=portfolio)
+        ids = {name: uuid.uuid4() for name in ('input', 'plan', 'receipt', 'preview', 'operation',
+                                               'account', 'connection_id', 'first', 'second', 'head', 'member')}
+        descriptor = encode(dict(plugin_id='synthetic.restore', provider_id='synthetic.restore',
+                                 adapter_id='synthetic.restore'))
+        install = hashlib.sha256(descriptor).hexdigest()
+        execute(conn, """
+            INSERT INTO wl_sources.installations VALUES(
+              :install,'synthetic.restore','synthetic.restore','synthetic.restore',:descriptor,now())
+        """, install=install, descriptor=descriptor)
+        execute(conn, "INSERT INTO wl_sources.lifecycle_roots VALUES(:t,:p,1,now())", **identity)
+        execute(conn, """
+            INSERT INTO wl_sources.enablements VALUES(
+              :t,:p,'synthetic.restore','FILE_IMPORT','synthetic.restore',:install,true,1,1,now(),now())
+        """, **identity, install=install)
+        execute(conn, """
+            INSERT INTO wl_pg.connections VALUES(:t,:p,:connection_id,repeat('4',64),'{}',
+              'synthetic.restore',encode(sha256(convert_to('synthetic.restore','UTF8')),'hex'),'FILE_IMPORT',0)
+        """, **identity, **ids)
+        execute(conn, """
+            INSERT INTO wl_sources.connection_lifecycle VALUES(:t,:p,:connection_id,repeat('4',64),
+              'synthetic.restore','synthetic.restore','FILE_IMPORT',:install,'Synthetic',NULL,true,1,now(),now())
+        """, **identity, **ids, install=install)
+        execute(conn, """
+            INSERT INTO wl_pg.accounts VALUES(
+              :t,:p,:account,repeat('5',64),'{}','BROKERAGE','investment','Synthetic')
+        """, **identity, **ids)
+        execute(conn, """
+            INSERT INTO wl_ingestion.accepted_inputs VALUES(
+              :t,:p,:input,'minimal-evidence-v1',:raw,:digest,:raw_digest,:discovery,:install,now())
+        """, **identity, **ids, raw=raw, digest=hashlib.sha256(raw).hexdigest(),
+                raw_digest=minimal['provenance']['raw_sha256'],
+                discovery=minimal['provenance']['discovery_sha256'], install=install)
+        plan_digest = hashlib.sha256(plan_bytes).hexdigest()
+        execute(conn, """
+            INSERT INTO wl_ingestion.accepted_plans VALUES(
+              :t,:p,:plan,:preview,'acceptance-plan-v1',:body,:digest,:receipt,now())
+        """, **identity, **ids, body=plan_bytes, digest=plan_digest)
+        execute(conn, """
+            INSERT INTO wl_ingestion.receipts
+            SELECT :t,:p,:receipt,incarnation,restore_epoch,:operation,'ACCEPT',repeat('6',64),
+                   :preview,:plan,:digest,convert_to('{}','UTF8'),now()
+            FROM wl_pg.instance_state
+        """, **identity, **ids, digest=plan_digest)
+        typed = encode(minimal['records'][0])
+        for index, (revision, parent, change) in enumerate((
+                (ids['first'], None, 'original'), (ids['second'], ids['first'], 'correction'))):
+            execute(conn, """
+                INSERT INTO wl_ingestion.source_revisions VALUES(
+                  :t,:p,:revision,repeat('7',64),:token,repeat('8',64),:change,:change,:parent,
+                  :input,'records','0',:typed,:digest,now())
+            """, **identity, **ids, revision=revision, parent=parent, change=change,
+                    token=str(index), typed=typed, digest=hashlib.sha256(typed).hexdigest())
+        execute(conn, """
+            INSERT INTO wl_ingestion.activity_heads VALUES(:t,:p,:head,:second,true)
+        """, **identity, **ids)
+        execute(conn, """
+            INSERT INTO wl_ingestion.lineage VALUES(:t,:p,:first,:raw_digest,:install,
+              :digest,:input,'records','0',convert_to('{}','UTF8'))
+        """, **identity, **ids, raw_digest=minimal['provenance']['raw_sha256'],
+                install=install, digest=hashlib.sha256(typed).hexdigest())
+        execute(conn, """
+            INSERT INTO wl_ingestion.mappings(
+              tenant_id,portfolio_id,id,revision,connection_id,source_key,entity_kind,
+              evidence_digest,plan_id,account_id,account_version)
+            VALUES(:t,:p,:head,1,:connection_id,repeat('9',64),'account',repeat('a',64),
+                   :plan,:account,repeat('5',64))
+        """, **identity, **ids)
+        execute(conn, """
+            INSERT INTO wl_ingestion.audit VALUES(:t,:p,:head,:receipt,'ACCEPTED',0,1,0,1,now())
+        """, **identity, **ids)
+        execute(conn, """
+            WITH event AS (
+                SELECT date_trunc('second', now()) AS instant,
+                    wl_ingestion._canonical_v1(jsonb_build_object(
+                      'version',1,'type','facts.accepted.v1','tenant_id',CAST(:t AS uuid),
+                      'portfolio_id',CAST(:p AS uuid),'receipt_id',CAST(:receipt AS uuid),
+                      'accepted_generation','1','mapping_generation','1','plan_digest',CAST(:digest AS text),
+                      'changed_revision_ids',jsonb_build_array(CAST(:second AS uuid)),
+                      'changed_head_keys','[]'::jsonb,'accepted_at',jsonb_build_object(
+                        'tag','instant','token',to_char(date_trunc('second',now()) AT TIME ZONE 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS')||'+00:00','zone',NULL,'fractional_digits',0))) AS body
+            ) INSERT INTO wl_ingestion.outbox
+            SELECT :t,:p,:head,:receipt,1,'facts.accepted.v1',1,:digest,body,encode(sha256(body),'hex'),
+                   instant,NULL FROM event
+        """, **identity, **ids, digest=plan_digest)
+        execute(conn, """
+            UPDATE wl_ingestion.roots SET accepted_generation=1,mapping_generation=1
+        """)
+        execute(conn, """
+            INSERT INTO wl_ingestion.members(
+              tenant_id,portfolio_id,set_id,id,ordinal,connection_id,connection_version,installation_id,
+              format_version,context_digest,context_bytes,state,fence,connection_generation,
+              enablement_generation,availability_generation,wrapper_profile_digest)
+            SELECT :t,:p,id,:member,0,:connection_id,repeat('4',64),:install,
+                   'synthetic-v1',encode(sha256(convert_to('{}','UTF8')),'hex'),
+                   convert_to('{}','UTF8'),'waiting',1,0,1,1,repeat('b',64)
+            FROM wl_ingestion.sets
+        """, **identity, **ids, install=install)
+        execute(conn, "SELECT wl_ingestion._quota_v1(:t,:p,'raw',1,0)", **identity)
+        execute(conn, """
+            INSERT INTO wl_ingestion.leases(
+              tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,
+              session_digest,credential_version,incarnation,restore_epoch,created_at,expires_at,state,raw_slot)
+            SELECT :t,:p,:head,s.id,:member,'normalize',1,1,w.id,repeat('1',64),1,
+                   s.incarnation,s.restore_epoch,now(),now()+interval '30 seconds','offered','held'
+            FROM wl_ingestion.sets s CROSS JOIN wl_ingestion.workers w
+        """, **identity, **ids)
+        execute(conn, "UPDATE wl_ingestion.members SET state='receiving'")
+        execute(conn, """
+            UPDATE wl_ingestion.members SET state='normalizing',raw_digest=repeat('c',64),raw_bytes=10
+        """)
+        execute(conn, """
+            INSERT INTO wl_ingestion.stages
+            SELECT tenant_id,portfolio_id,set_id,id,encode(sha256(:raw),'hex'),
+                   'minimal-evidence-v1',:raw,now(),(SELECT expires_at FROM wl_ingestion.sets)
+            FROM wl_ingestion.members
+        """, raw=raw)
+        execute(conn, """
+            UPDATE wl_ingestion.sets SET state='NORMALIZING',prepare_session_digest=repeat('1',64),
+                                        prepare_credential_version=1
+        """)
+        return raw, plan_bytes
+
+    def _verify_inactive_restores(self, operator, path, fixture, runtime, gateway, worker):
+        import sys
+        from unittest.mock import patch
+
         from psycopg.conninfo import make_conninfo
 
         from kurafolio.persistence.config import PostgresConfig
         from kurafolio.persistence.context import Database, execute
-        from kurafolio.persistence.ingestion_migration import verify_functions
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_restore import backup_ingestion, restore_ingestion
 
         source = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_fresh'))))
         self.addCleanup(source.close)
@@ -419,29 +562,167 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                 FROM wl_identity.users u CROSS JOIN wl_pg.instance_state st
             ''', set=uuid.uuid4(), operation=uuid.uuid4())
 
-        container = fixture['container']
-        dump = subprocess.run(['docker', 'exec', container, 'pg_dump', '-U', 'postgres',
-                               '--format=custom', '--no-owner', '--no-acl', '--dbname=synthetic_fresh'],
-                              check=True, capture_output=True, timeout=45).stdout
-        for name in ('synthetic_restore_one', 'synthetic_restore_two'):
-            with self.subTest(restore=name):
-                database = Database(PostgresConfig(make_conninfo(**dict(operator, dbname=name))))
-                self.addCleanup(database.close)
-                with database.engine.connect() as conn:
-                    self.assertIsNone(execute(conn, "SELECT to_regnamespace('wl_ingestion')").scalar_one())
-                subprocess.run(['docker', 'exec', '-i', container, 'pg_restore', '-U', 'postgres',
-                                '--exit-on-error', '--no-owner', '--no-acl',
-                                '--role=' + fixture['migration_role'], '--dbname=' + name],
-                               input=dump, check=True, capture_output=True, timeout=45)
-                with database.engine.connect() as conn:
-                    self.assertEqual(68, verify_functions(conn))
-                    self.assertFalse(execute(conn, 'SELECT ready FROM wl_ingestion.instance_state').scalar_one())
-                    self.assertEqual(1, execute(conn, 'SELECT count(*) FROM wl_ingestion.workers').scalar_one())
-                    self.assertEqual('RECEIVING', execute(conn, 'SELECT state FROM wl_ingestion.sets').scalar_one())
-                    for role in (runtime, gateway, worker):
-                        self.assertFalse(execute(conn, """
-                            SELECT pg_catalog.has_schema_privilege(:role,'wl_ingestion','USAGE')
-                        """, role=role).scalar_one())
+            execute(conn, """
+                SELECT wl_ingestion._quota_v1(id,portfolio_id,'storage',1,0) FROM wl_identity.users
+            """)
+            execute(conn, "UPDATE wl_ingestion.instance_state SET ready=true")
+            execute(conn, """
+                INSERT INTO wl_identity.sessions
+                SELECT repeat('1',64),'anonymous',NULL,NULL,now(),now(),now()+interval '600 seconds',
+                       incarnation,restore_epoch,false FROM wl_pg.instance_state
+            """)
+            execute(conn, """
+                INSERT INTO wl_identity.invites
+                SELECT :id,repeat('2',64),NULL,now(),now()+interval '86400 seconds',
+                       incarnation,restore_epoch,'issued',NULL,NULL FROM wl_pg.instance_state
+            """, id=uuid.uuid4())
+            source_realm = execute(conn, "SELECT incarnation,restore_epoch FROM wl_pg.instance_state").one()
+            expected_input, expected_plan = self._seed_restore_history(conn)
+
+        tools = path / 'postgres-tools'
+        tools.mkdir()
+        for name in ('pg_dump', 'pg_restore'):
+            wrapper = tools / name
+            # Use the pinned PostgreSQL 18 tools in this test's container. The
+            # tools connect to the same database through its container-local TCP.
+            wrapper.write_text(
+                '#!/bin/sh\n'
+                'export PGHOST=127.0.0.1 PGPORT=5432\n'
+                'exec docker exec -i -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER '
+                '-e PGPASSWORD -e PGSSLMODE -e PGCLIENTENCODING '
+                + fixture['container'] + ' ' + name + ' "$@"\n'
+            )
+            wrapper.chmod(0o700)
+        backup = path.resolve() / 'backup'
+        backup.mkdir(mode=0o700)
+        roles = dict(runtime_role=runtime, gateway_role=gateway, worker_role=worker)
+
+        def config(name):
+            return PostgresConfig(make_conninfo(**dict(operator, dbname=name)))
+
+        def cli(operation, database_name, *extra):
+            secret = path / (database_name + '.conninfo')
+            secret.touch(mode=0o600, exist_ok=False)
+            secret.write_text(config(database_name).conninfo)
+            result = subprocess.run(
+                [sys.executable, '-m', 'kurafolio.web_v2', 'operator', operation,
+                 '--secret-file', str(secret), '--backup-directory', str(backup),
+                 '--runtime-role', runtime, '--identity-role', gateway, '--worker-role', worker, *extra],
+                check=True, capture_output=True, timeout=45,
+            )
+            return json.loads(result.stdout)
+
+        with patch.dict(os.environ, {'PATH': str(tools) + os.pathsep + os.environ['PATH']}):
+            receipt = cli('backup-ingestion', 'synthetic_fresh')['manifest_sha256']
+            with self.assertRaisesRegex(PersistenceError, 'private_export_failed'):
+                backup_ingestion(config('synthetic_fresh'), backup, roles)
+            self.assertEqual(receipt, hashlib.sha256((backup / 'manifest.json').read_bytes()).hexdigest())
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_one'), backup, '0' * 64, roles)
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_fresh'), backup, receipt, roles)
+            manifest_file = backup / 'manifest.json'
+            archive_file = backup / 'ingestion.dump'
+            original_manifest = manifest_file.read_bytes()
+            original_archive = archive_file.read_bytes()
+            for raw in (original_manifest + b'\n', original_manifest.replace(b'"initialized":true', b'"initialized":1'),
+                        original_manifest[:-1] + b',"initialized":true}'):
+                manifest_file.write_bytes(raw)
+                with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                    restore_ingestion(config('synthetic_restore_one'), backup, hashlib.sha256(raw).hexdigest(), roles)
+            manifest_file.write_bytes(original_manifest)
+            archive_file.write_bytes(original_archive[:50])
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_one'), backup, receipt, roles)
+
+            def manifest_variant(update):
+                changed = json.loads(original_manifest)
+                update(changed)
+                raw = json.dumps(changed, separators=(',', ':'), sort_keys=True).encode()
+                manifest_file.write_bytes(raw)
+                return hashlib.sha256(raw).hexdigest()
+
+            corrupt_receipt = manifest_variant(
+                lambda body: body.update(dump_sha256=hashlib.sha256(original_archive[:50]).hexdigest()))
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_corrupt'), backup, corrupt_receipt, roles)
+            archive_file.write_bytes(original_archive)
+            changed_receipt = manifest_variant(
+                lambda body: body['relations']['wl_ingestion.accepted_inputs'].update(sha256='0' * 64))
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_changed'), backup, changed_receipt, roles)
+            manifest_file.write_bytes(original_manifest)
+            with source.engine.begin() as conn:
+                execute(conn, 'UPDATE wl_ingestion.roots SET accepted_generation=accepted_generation+1')
+            restored_realms = set()
+            for name in ('synthetic_restore_one', 'synthetic_restore_two'):
+                with self.subTest(restore=name):
+                    expected = {'schema_revision': '0004_ingestion', 'ready': False, 'quarantined': True}
+                    self.assertEqual(expected, cli('restore-ingestion', name, '--manifest-sha256', receipt))
+                    database = Database(config(name))
+                    try:
+                        with database.engine.connect() as conn:
+                            realm = execute(conn, 'SELECT incarnation,restore_epoch FROM wl_pg.instance_state').one()
+                            self.assertNotEqual(source_realm.incarnation, realm.incarnation)
+                            self.assertEqual(source_realm.restore_epoch + 1, realm.restore_epoch)
+                            restored_realms.add(realm.incarnation)
+                            self.assertFalse(execute(conn, 'SELECT ready FROM wl_pg.instance_state').scalar_one())
+                            self.assertFalse(execute(conn, 'SELECT ready FROM wl_ingestion.instance_state').scalar_one())
+                            self.assertFalse(execute(conn, 'SELECT enabled FROM wl_ingestion.workers').scalar_one())
+                            self.assertTrue(execute(conn, 'SELECT revoked FROM wl_identity.sessions').scalar_one())
+                            self.assertEqual('revoked', execute(conn, 'SELECT status FROM wl_identity.invites').scalar_one())
+                            self.assertEqual('CANCELLED', execute(conn, 'SELECT state FROM wl_ingestion.sets').scalar_one())
+                            self.assertEqual(1, execute(conn, 'SELECT accepted_generation FROM wl_ingestion.roots').scalar_one())
+                            self.assertEqual(expected_input, execute(conn, '''
+                                SELECT canonical_bytes FROM wl_ingestion.accepted_inputs
+                            ''').scalar_one())
+                            self.assertEqual(expected_plan, execute(conn, '''
+                                SELECT canonical_bytes FROM wl_ingestion.accepted_plans
+                            ''').scalar_one())
+                            self.assertEqual(0, execute(conn, 'SELECT count(*) FROM wl_ingestion.stages').scalar_one())
+                            self.assertIsNone(execute(conn, 'SELECT context_bytes FROM wl_ingestion.members').scalar_one())
+                            self.assertEqual(('cancelled', 'held'), execute(conn, '''
+                                SELECT state,raw_slot FROM wl_ingestion.leases
+                            ''').one())
+                            self.assertEqual(1, execute(conn, '''
+                                SELECT lease_count FROM wl_ingestion.instance_budgets WHERE bucket='raw'
+                            ''').scalar_one())
+                            for role in roles.values():
+                                self.assertFalse(execute(conn, """
+                                    SELECT pg_catalog.has_database_privilege(:role,current_database(),'CONNECT')
+                                """, role=role).scalar_one())
+                    finally:
+                        database.close()
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        restore_ingestion(config(name), backup, receipt, roles)
+            self.assertEqual(2, len(restored_realms))
+
+            for name, boundary in (
+                ('synthetic_restore_fault', 'after_restore_epoch'),
+                ('synthetic_restore_identity_fault', 'after_identity_invalidation'),
+                ('synthetic_restore_commit_fault', 'before_restore_commit'),
+            ):
+                with self.subTest(fault=boundary):
+                    def fault(phase):
+                        if phase == boundary:
+                            raise RuntimeError('synthetic restore rollback')
+
+                    failed = config(name)
+                    with self.assertRaisesRegex(RuntimeError, 'synthetic restore rollback'):
+                        restore_ingestion(failed, backup, receipt, roles, fault=fault)
+                    database = Database(failed)
+                    try:
+                        with database.engine.connect() as conn:
+                            realm = execute(conn, 'SELECT incarnation,restore_epoch FROM wl_pg.instance_state').one()
+                            self.assertEqual(source_realm, realm)
+                            self.assertFalse(execute(conn, 'SELECT revoked FROM wl_identity.sessions').scalar_one())
+                            self.assertEqual('NORMALIZING', execute(conn, 'SELECT state FROM wl_ingestion.sets').scalar_one())
+                            self.assertEqual(1, execute(conn, 'SELECT count(*) FROM wl_ingestion.stages').scalar_one())
+                            self.assertFalse(execute(conn, """
+                                SELECT pg_catalog.has_database_privilege(:role,current_database(),'CONNECT')
+                            """, role=worker).scalar_one())
+                    finally:
+                        database.close()
 
 
 @unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',

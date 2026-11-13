@@ -123,6 +123,15 @@ def execute_command(args):
     from kurafolio.persistence.identity import IdentityStore
     from kurafolio.persistence.migration import migrate_identity, finalize_identity_restore
     from .config import private_bytes
+    if args.action == 'operator' and args.operation in {'backup-ingestion', 'restore-ingestion'}:
+        from kurafolio.persistence.ingestion_restore import backup_ingestion, restore_ingestion
+
+        config = PostgresConfig.from_secret_file(args.secret_file)
+        roles = dict(runtime_role=args.runtime_role, gateway_role=args.identity_role,
+                     worker_role=args.worker_role)
+        if args.operation == 'backup-ingestion':
+            return backup_ingestion(config, args.backup_directory, roles)
+        return restore_ingestion(config, args.backup_directory, args.manifest_sha256, roles)
     if args.action == 'operator' and args.operation == 'migrate-ingestion':
         from kurafolio.data_sources.catalog_v1 import read_catalog_file
         from kurafolio.persistence.context import Database

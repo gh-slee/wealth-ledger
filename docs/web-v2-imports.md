@@ -417,18 +417,42 @@ The command verifies inherited and new definitions, applies the profile's
 read-only financial grants and checked function grants, and commits only after
 the installed inventory matches. It leaves ingestion inactive pending runtime
 profile and launcher readiness. Existing 0001–0003 clients refuse the newer
-revision. The migration has no destructive downgrade. A synthetic backup restored without
-ACLs into two empty targets retained an inactive ingestion marker and gave
-application roles no ingestion schema access. This verifies quarantine for an
-inactive profile. Restore finalization and readiness for a previously active
-profile require further verification.
+revision. The migration has no destructive downgrade.
+
+## Verify a synthetic 0004 backup and restore
+
+Use PostgreSQL 18 `pg_dump` and `pg_restore` on PATH and explicit operator
+connection files. Create a new private directory with mode 0700 and a physical
+path without symlinks. Run `backup-ingestion` with the same role arguments
+as `migrate-ingestion`, plus `--secret-file` for the source and
+`--backup-directory` for that directory. The command writes `ingestion.dump`
+and `manifest.json`. Retain the returned `manifest_sha256` separately from both
+files. The archive and manifest describe the same database snapshot.
+
+Run `restore-ingestion` with the same role names, the target operator's
+`--secret-file`, the `--backup-directory`, and `--manifest-sha256` from the
+separately retained receipt. Use an independently empty UTF-8 PostgreSQL 18
+database owned by the operator. Fence connections before running the command.
+Only the operator and trusted cluster administrators may have access, and no
+other session may be connected. The role names referenced by restored RLS
+policies must match the source.
+
+The command verifies the archive before loading it, checks accepted records
+and installed definitions, and rotates the realm. Old sessions and leases lose
+authority. The restore removes transient review payloads and preserves held
+raw reservations pending launcher cleanup. Both readiness flags stay off and
+the connection fence remains in place. If finalization fails or is interrupted,
+retain the failed target under isolation and use a new empty target for a new
+attempt. The verified snapshot excludes subsequent accepted writes. This
+workflow is for synthetic database acceptance. Application artifacts and
+production restore remain separate.
 
 ## Remaining acceptance
 
-Ingestion restore finalization, runtime profile readiness, authenticated routes,
-the dedicated worker and trusted launcher remain unfinished. Real acceptance must exercise atomic effects,
-replay, shared capacity, races, cleanup, effective Linux containment and restore
-into two independently empty targets.
+Runtime profile readiness, authenticated routes, the dedicated worker and
+trusted launcher remain unfinished. End-to-end acceptance must exercise
+atomic effects, replay, shared capacity, races, cleanup, effective Linux
+containment and receipt history after authorized activation.
 
 The new backend does not yet calculate portfolio balances, quotes or reports.
 Frontend delivery, report parity and existing-workspace adoption are separate
