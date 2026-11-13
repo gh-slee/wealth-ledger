@@ -47,11 +47,19 @@ all work there, never in the primary checkout. Then:
    `done` on `main` only after the merge. While the PR is open, its branch copy
    and the live claim show it as under review. If review requests changes, keep
    the claim and set `status: in_review` until the repair is pushed.
-6. After the merge, run `python3 scripts/tickets.py release <ID>` if you are still
-   around. Agents usually stop before the owner merges, so the next agent's
-   `cleanup` at pickup removes the merged worktree and its local branch and releases
-   the leftover stale claim. If the PR is closed without merging, set the ticket
-   back to `ready` with a Log line.
+6. Work on one ticket per session, so the session's context holds only that
+   ticket. Until the PR is merged, use the session only for that ticket: review
+   repairs, CI fixes and the owner's questions about it. Do not claim a second
+   ticket or take on unrelated work in it. File a follow-up ticket instead, or ask
+   the owner to start a new session for the other work.
+7. End the session once the owner has merged the PR and nothing on the ticket is
+   outstanding: no unanswered review finding or owner question, no failing check,
+   no unpushed commit and no unfiled follow-up. Run
+   `python3 scripts/tickets.py release <ID>`, report the merge and stop. Do not pick
+   up the next ticket; it starts in a new session. If the PR is closed without
+   merging, set the ticket back to `ready` with a Log line, release it and stop. If
+   a session stops before the merge, the next agent's `cleanup` at pickup removes
+   the merged worktree and its local branch and releases the leftover stale claim.
 
 ## Capability tiers
 
