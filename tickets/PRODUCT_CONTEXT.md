@@ -174,7 +174,7 @@ colours or wording are copied.
 | Remaining P0 backlog | Gate A approved for WL-P0-011E, 011F, 011H, 012E, 013A, 013B and 023; WL-P0-007M released for its options write-up; WL-P0-022 released | Those tickets are `ready` |
 | Preferences stored on the server | Interface language, time zone and reporting currency. Appearance stays in the browser. No session list in the first release | WL-P0-011E, 011F |
 | When a page offers "Enable a source" | Each plugin declares its asset classes; the offer appears only when no enabled source declares that class and there are no holdings of it. Imported holdings always count | WL-P0-011H |
-| Export formats for go-live | PDF, Excel (.xlsx), ODS and Markdown. CSV, JSON, PNG and ZIP come later | WL-P0-013A, 013B; WL-P1-013 |
+| Export formats for go-live | PDF, Excel (.xlsx), ODS and Markdown. CSV, JSON, PNG and ZIP come later | WL-P0-013A, 013B; WL-P1-014 |
 
 ## Still open
 

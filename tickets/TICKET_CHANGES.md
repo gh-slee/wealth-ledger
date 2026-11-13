@@ -223,7 +223,7 @@ They are `ready` and are offered when their dependencies are done.
 | WL-P0-011F, 012E, 013B, 023 | Ready; current-behaviour notes refreshed now that the V2 shell exists | Owner Gate A |
 | WL-P0-011H | Ready; adds `asset_classes` to the source catalog; depends on WL-P0-012A instead of 008 | Owner decision on how a page decides to offer "Enable a source" |
 | WL-P0-013A | Ready; Excel added; data formats moved out | Owner: PDF, Excel, ODS and Markdown for go-live |
-| WL-P1-013 | New, backlog | CSV, JSON, PNG and ZIP exports |
+| WL-P1-014 | New, backlog | CSV, JSON, PNG and ZIP exports |
 | WL-P0-022 | Ready | No gate; should land before more import SQL |
 | WL-P0-007M | Ready for the options write-up | The owner still makes the decision |
 
