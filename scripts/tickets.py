@@ -525,14 +525,35 @@ def _worktrees(root: Path) -> list[dict]:
     return entries
 
 
+def _unlanded_reason(root: Path, head: str, base: str, first_parent: set[str]) -> str | None:
+    """Return why ``head`` has not landed on ``base``, or None when it has.
+
+    A branch has landed when the base reached its tip through a merge commit
+    (an ancestor that is not on the base's first-parent line), or when it was
+    squash- or rebase-merged: it changes something relative to its merge base,
+    and merging it into the base now would leave the base tree unchanged. If the
+    base later edited the same lines, that merge conflicts and the branch is kept.
+    """
+    if _git_ok(root, 'merge-base', '--is-ancestor', head, base):
+        return f'no commits of its own on {base}' if head in first_parent else None
+    fork = git(root, 'merge-base', head, base, check=False)
+    if not fork or _git_ok(root, 'diff', '--quiet', fork, head):
+        return f'not merged into {base}'
+    merged = subprocess.run(['git', '-C', str(root), 'merge-tree', '--write-tree', base, head],
+                            capture_output=True, text=True)
+    tree = merged.stdout.split('\n', 1)[0].strip()
+    if merged.returncode or tree != git(root, 'rev-parse', f'{base}^{{tree}}'):
+        return f'not merged into {base}'
+    return None
+
+
 def cmd_cleanup(root: Path, args) -> int:
     """Remove ticket worktrees whose branch tip was merged into the base branch.
 
     A worktree is removed only when it lives under ``work/worktrees/``, has no
-    uncommitted or untracked changes, has no live claim, and its HEAD reached the
-    base through a merge (an ancestor of the base that is not on the base's
-    first-parent line). A fresh branch that still points at the base tip, a
-    squash-merged branch and a branch with unmerged commits are all kept.
+    uncommitted or untracked changes, has no live claim, and its branch has
+    landed on the base (see ``_unlanded_reason``). A fresh branch that still
+    points at the base tip and a branch with unmerged changes are kept.
     """
     main_root = Path(git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir')).parent
     managed = (main_root / 'work' / 'worktrees').resolve()
@@ -563,10 +584,8 @@ def cmd_cleanup(root: Path, args) -> int:
             reason = 'detached HEAD'
         elif owner and not is_stale(owner[1]):
             reason = f'live claim on {owner[0]} by {owner[1].get("agent")}'
-        elif not _git_ok(root, 'merge-base', '--is-ancestor', head, args.base):
-            reason = f'not merged into {args.base}'
-        elif head in first_parent:
-            reason = f'no commits of its own on {args.base}'
+        elif landed := _unlanded_reason(root, head, args.base, first_parent):
+            reason = landed
         elif git(path, 'status', '--porcelain', check=False):
             reason = 'uncommitted or untracked changes'
         if reason:
@@ -577,7 +596,7 @@ def cmd_cleanup(root: Path, args) -> int:
             removed += 1
             continue
         git(root, 'worktree', 'remove', str(path))
-        git(root, 'branch', '-D', branch)  # its tip is already in the base
+        git(root, 'branch', '-D', branch)  # its changes are already in the base
         if owner:
             _drop_claim(locks, owner[0], owner[1])
         print(f'removed {name} ({branch})' + (f'; released stale claim on {owner[0]}' if owner else ''))
