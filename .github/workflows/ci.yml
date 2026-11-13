@@ -176,7 +176,7 @@ jobs:
       # Skips: the 103 ingestion fragment tests (job postgres-ingestion) and the
       # runtime-image test (next step).
       - name: Verify real SQL precision, privileges, races, jobs and double empty restore
-        run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 104 -- discover -s tests -p 'test_postgres_*.py'
+        run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 117 -- discover -s tests -p 'test_postgres_*.py'
       - name: Build the explicit source-only PG runtime profile
         run: |
           python scripts/docker_context.py --output work/pg-runtime-context
