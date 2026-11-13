@@ -19,9 +19,9 @@ PREDECESSOR = "0003_source_lifecycle"
 
 _TABLES = (
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"accepted_generation","nullable":false,"type":"bigint"},{"name":"mapping_generation","nullable":false,"type":"bigint"},{"name":"control_generation","nullable":false,"type":"bigint"}],"immutable":false,"name":"roots","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
-    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"actor_user_id","nullable":false,"type":"uuid"},{"name":"creation_operation_id","nullable":false,"type":"uuid"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"state","nullable":false,"type":"text"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"member_count","nullable":false,"type":"integer"},{"name":"reserved_bytes","nullable":false,"type":"bigint"},{"name":"receipt_id","nullable":true,"type":"uuid"},{"name":"cleanup_state","nullable":false,"type":"text"}],"immutable":false,"name":"sets","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
+    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"actor_user_id","nullable":false,"type":"uuid"},{"name":"creation_operation_id","nullable":false,"type":"uuid"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"state","nullable":false,"type":"text"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"member_count","nullable":false,"type":"integer"},{"name":"reserved_bytes","nullable":false,"type":"bigint"},{"name":"receipt_id","nullable":true,"type":"uuid"},{"name":"cleanup_state","nullable":false,"type":"text"},{"name":"prepare_session_digest","nullable":true,"type":"text"},{"name":"prepare_credential_version","nullable":true,"type":"bigint"}],"immutable":false,"name":"sets","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"ordinal","nullable":false,"type":"integer"},{"name":"connection_id","nullable":false,"type":"uuid"},{"name":"connection_version","nullable":false,"type":"text"},{"name":"installation_id","nullable":false,"type":"text"},{"name":"format_version","nullable":false,"type":"text"},{"name":"context_digest","nullable":false,"type":"text"},{"name":"context_bytes","nullable":true,"type":"bytea"},{"name":"raw_digest","nullable":true,"type":"text"},{"name":"raw_bytes","nullable":true,"type":"bigint"},{"name":"state","nullable":false,"type":"text"},{"name":"error_code","nullable":true,"type":"text"},{"name":"stage_digest","nullable":true,"type":"text"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"connection_generation","nullable":false,"type":"bigint"},{"name":"enablement_generation","nullable":false,"type":"bigint"},{"name":"availability_generation","nullable":false,"type":"bigint"},{"name":"wrapper_profile_digest","nullable":false,"type":"text"},{"name":"raw_deadline","nullable":true,"type":"timestamptz"}],"immutable":false,"name":"members","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
-    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":true,"type":"uuid"},{"name":"work_kind","nullable":false,"type":"text"},{"name":"attempt","nullable":false,"type":"bigint"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"worker_id","nullable":false,"type":"uuid"},{"name":"token_digest","nullable":true,"type":"text"},{"name":"session_digest","nullable":false,"type":"text"},{"name":"credential_version","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"state","nullable":false,"type":"text"},{"name":"claim_request_id","nullable":true,"type":"uuid"},{"name":"claim_request_digest","nullable":true,"type":"text"},{"name":"last_request_id","nullable":true,"type":"uuid"},{"name":"last_request_digest","nullable":true,"type":"text"},{"name":"last_result_bytes","nullable":true,"type":"bytea"},{"name":"raw_slot","nullable":true,"type":"text"},{"name":"cleanup_proof_bytes","nullable":true,"type":"bytea"}],"immutable":false,"name":"leases","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
+    '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":true,"type":"uuid"},{"name":"work_kind","nullable":false,"type":"text"},{"name":"attempt","nullable":false,"type":"bigint"},{"name":"fence","nullable":false,"type":"bigint"},{"name":"worker_id","nullable":false,"type":"uuid"},{"name":"token_digest","nullable":true,"type":"text"},{"name":"session_digest","nullable":false,"type":"text"},{"name":"credential_version","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"state","nullable":false,"type":"text"},{"name":"claim_request_id","nullable":true,"type":"uuid"},{"name":"claim_request_digest","nullable":true,"type":"text"},{"name":"last_request_id","nullable":true,"type":"uuid"},{"name":"last_request_digest","nullable":true,"type":"text"},{"name":"last_result_bytes","nullable":true,"type":"bytea"},{"name":"raw_slot","nullable":true,"type":"text"},{"name":"cleanup_proof_bytes","nullable":true,"type":"bytea"},{"name":"prepare_set_revision","nullable":true,"type":"bigint"},{"name":"prepare_accepted_generation","nullable":true,"type":"bigint"},{"name":"prepare_mapping_generation","nullable":true,"type":"bigint"},{"name":"prepare_control_generation","nullable":true,"type":"bigint"}],"immutable":false,"name":"leases","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":false,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"member_id","nullable":false,"type":"uuid"},{"name":"digest","nullable":false,"type":"text"},{"name":"codec","nullable":false,"type":"text"},{"name":"minimal_bytes","nullable":false,"type":"bytea"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"}],"immutable":false,"name":"stages","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","member_id","digest"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"revision","nullable":false,"type":"bigint"},{"name":"request_digest","nullable":false,"type":"text"},{"name":"canonical_bytes","nullable":false,"type":"bytea"},{"name":"digest","nullable":false,"type":"text"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"}],"immutable":false,"name":"decisions","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","set_id","revision"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
     '{"columns":[{"name":"tenant_id","nullable":false,"type":"uuid"},{"name":"portfolio_id","nullable":false,"type":"uuid"},{"name":"id","nullable":false,"type":"uuid"},{"name":"set_id","nullable":false,"type":"uuid"},{"name":"set_revision","nullable":false,"type":"bigint"},{"name":"decision_revision","nullable":false,"type":"bigint"},{"name":"plan_bytes","nullable":true,"type":"bytea"},{"name":"plan_digest","nullable":true,"type":"text"},{"name":"expected_accepted_generation","nullable":false,"type":"bigint"},{"name":"expected_mapping_generation","nullable":false,"type":"bigint"},{"name":"expected_control_generation","nullable":false,"type":"bigint"},{"name":"incarnation","nullable":false,"type":"uuid"},{"name":"restore_epoch","nullable":false,"type":"bigint"},{"name":"realm_digest","nullable":false,"type":"text"},{"name":"expires_at","nullable":false,"type":"timestamptz"},{"name":"created_at","nullable":false,"type":"timestamptz"},{"name":"purge_at","nullable":false,"type":"timestamptz"},{"name":"review_bytes","nullable":false,"type":"bytea"},{"name":"review_digest","nullable":false,"type":"text"}],"immutable":false,"name":"previews","policies":["runtime_scope","operator_scope"],"primary_key":["tenant_id","portfolio_id","id"],"purgeable_transient":true,"rls":"ENABLED_AND_FORCED","scope":"tenant"}',
@@ -243,7 +243,7 @@ class _SchemaPredicate:
         from ..ingestion.contracts import definition
         schema = definition('Minimal') if schema is None else schema
         allowed = {'$ref', 'additionalProperties', 'anyOf', 'enum', 'items', 'maxItems',
-                   'maxLength', 'maximum', 'minimum', 'pattern', 'properties', 'required', 'type'}
+                   'maxLength', 'maximum', 'minItems', 'minimum', 'pattern', 'properties', 'required', 'type'}
         if schema.keys() - allowed:
             raise ValueError('Unknown schema keyword')
         if '$ref' in schema:
@@ -292,6 +292,8 @@ class _SchemaPredicate:
             self.ordinal += 1
             alias = 'child_' + str(self.ordinal)
             checks.append('pg_catalog.jsonb_array_length(' + value + ')<=' + str(schema['maxItems']))
+            if 'minItems' in schema:
+                checks.append('pg_catalog.jsonb_array_length(' + value + ')>=' + str(schema['minItems']))
             predicate = self.compile(alias + '.value', schema['items'], namespace, trail)
             checks.append('NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(' + value + ') '
                           + alias + '(value) WHERE NOT ' + predicate + ')')
@@ -474,7 +476,10 @@ class _MinimalErrorPredicate(_MinimalScalarPredicate):
             self.ordinal += 1
             alias = 'error_child_' + str(self.ordinal)
             child = self.status(alias + '.value', schema['items'], namespace, trail)
-            inner = 'CASE WHEN pg_catalog.jsonb_array_length(' + value + ')>' + str(schema['maxItems']) + ' THEN 2 ELSE COALESCE((SELECT x.status FROM (SELECT ' + child + ' AS status,' + alias + '.ordinal FROM pg_catalog.jsonb_array_elements(' + value + ') WITH ORDINALITY ' + alias + '(value,ordinal)) x WHERE x.status<>0 ORDER BY x.ordinal LIMIT 1),0) END'
+            length = 'pg_catalog.jsonb_array_length(' + value + ')'
+            minimum = (' WHEN ' + length + '<' + str(schema['minItems']) + ' THEN 1'
+                       if 'minItems' in schema else '')
+            inner = 'CASE WHEN ' + length + '>' + str(schema['maxItems']) + ' THEN 2' + minimum + ' ELSE COALESCE((SELECT x.status FROM (SELECT ' + child + ' AS status,' + alias + '.ordinal FROM pg_catalog.jsonb_array_elements(' + value + ') WITH ORDINALITY ' + alias + '(value,ordinal)) x WHERE x.status<>0 ORDER BY x.ordinal LIMIT 1),0) END'
         elif kind == 'string':
             text = self.text(value)
             inner = 'CASE WHEN pg_catalog.length(' + text + ')>' + str(schema.get('maxLength', 4096)) + ' THEN 2 WHEN ' + self.compile(value, schema, namespace, trail) + ' THEN 0 ELSE 1 END'
@@ -1058,7 +1063,7 @@ BEGIN
    pg_catalog.encode(pg_catalog.sha256(stage.minimal_bytes),'hex') IS DISTINCT FROM stage.digest THEN
    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale';
   END IF;
-  evidence:=wl_ingestion._validate_minimal_v1(stage.minimal_bytes);
+  evidence:=pg_catalog.convert_from(stage.minimal_bytes,'UTF8')::jsonb;
   staged:=pg_catalog.jsonb_set(staged,ARRAY[member.id::text],evidence);
   IF evidence->'provenance'->>'raw_sha256' IS DISTINCT FROM input->>'raw_digest' OR
    evidence->'provenance'->>'discovery_sha256' IS DISTINCT FROM input->>'discovery_digest' OR
@@ -1898,7 +1903,9 @@ SESSION_RECHECK
   (n>=selected.expires_at OR n>=preview.expires_at) THEN
   -- Expiry wins under the set lock; it fences work and accepts nothing.
   IF n>=selected.expires_at THEN
-   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+    prepare_session_digest=NULL,prepare_credential_version=NULL
+    WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
    UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
     AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
    UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
@@ -2218,12 +2225,15 @@ def _instant_sql(expression):
             ") AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US')||'+00:00','zone',null,'fractional_digits',6)")
 
 
+_MEMBER_RESULT_SQL = ("pg_catalog.jsonb_build_object('id',m.id::text,'ordinal',m.ordinal,"
+    "'connection_id',m.connection_id::text,'installation_id',m.installation_id,"
+    "'format_version',m.format_version,'state',m.state,'error_code',m.error_code,'cleanup_state',SET_CLEANUP_STATE)")
+
 # Public SetResult for one locked set; members follow their ordinal.
 _SET_RESULT_SQL = ("pg_catalog.jsonb_build_object('id',x.id::text,'state',x.state,'revision',x.revision::text,"
     "'created_at'," + _instant_sql('x.created_at') + ",'expires_at'," + _instant_sql('x.expires_at') + ","
-    "'members',COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id',m.id::text,"
-    "'ordinal',m.ordinal,'connection_id',m.connection_id::text,'installation_id',m.installation_id,"
-    "'format_version',m.format_version,'state',m.state,'error_code',m.error_code,'cleanup_state',x.cleanup_state)"
+    "'members',COALESCE((SELECT pg_catalog.jsonb_agg("
+    + _MEMBER_RESULT_SQL.replace('SET_CLEANUP_STATE', 'x.cleanup_state') +
     " ORDER BY m.ordinal) FROM wl_ingestion.members m WHERE m.tenant_id=x.tenant_id AND "
     "m.portfolio_id=x.portfolio_id AND m.set_id=x.id),'[]'::jsonb),"
     "'preview_id',(SELECT v.id::text FROM wl_ingestion.previews v WHERE v.tenant_id=x.tenant_id AND "
@@ -2294,7 +2304,9 @@ SESSION_RECHECK
  IF selected.state IN ('CANCELLED','REJECTED') THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
  IF n>=selected.expires_at THEN
   -- Expiry wins under the set lock; it fences work and records no cancellation.
-  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+   prepare_session_digest=NULL,prepare_credential_version=NULL
+   WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
   UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
    AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
   UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
@@ -2305,7 +2317,8 @@ SESSION_RECHECK
   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
  -- A winning cancellation advances the set revision and control generation once,
  -- fences every member attempt and live lease, and leaves cleanup to the worker.
- UPDATE wl_ingestion.sets SET state='CANCELLED',revision=revision+1,cleanup_state='pending'
+ UPDATE wl_ingestion.sets SET state='CANCELLED',revision=revision+1,cleanup_state='pending',
+  prepare_session_digest=NULL,prepare_credential_version=NULL
   WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
  UPDATE wl_ingestion.members SET state='cancelled',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
   AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
@@ -2407,7 +2420,9 @@ SESSION_RECHECK
  IF selected.state='EXPIRED' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_expired'); END IF;
  IF selected.state IN ('COMMITTED','CANCELLED','REJECTED') THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_stale'); END IF;
  IF n>=selected.expires_at THEN
-  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+  UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+   prepare_session_digest=NULL,prepare_credential_version=NULL
+   WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
   UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=tenant AND portfolio_id=portfolio
    AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
   UPDATE wl_ingestion.leases SET state='cancelled' WHERE tenant_id=tenant AND portfolio_id=portfolio
@@ -2424,7 +2439,9 @@ SESSION_RECHECK
   RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_limit'); END IF;
  SELECT pg_catalog.max(d.revision) INTO latest FROM wl_ingestion.decisions d
   WHERE d.tenant_id=tenant AND d.portfolio_id=portfolio AND d.set_id=selected.id;
- UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1 WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+ UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1,
+  prepare_session_digest=ss.token_digest,prepare_credential_version=ss.credential_version
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
  INSERT INTO wl_ingestion.decisions(tenant_id,portfolio_id,set_id,revision,request_digest,canonical_bytes,digest,created_at,purge_at)
   VALUES(tenant,portfolio,selected.id,COALESCE(latest,0)+1,request_digest,document,
    pg_catalog.encode(pg_catalog.sha256(document),'hex'),n,selected.expires_at);
@@ -2800,15 +2817,17 @@ def _second_sql(expression):
 
 
 # The set's pins as a Plan's pinned_sources entries, in member-ID order (the
-# order acceptance uses), hashed canonically. The worker can compare it with the
-# pins in a later Plan without reading any member row.
-_FINGERPRINT_SQL = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(COALESCE((SELECT "
+# order acceptance uses). The claim fingerprint and context page use the
+# same pins so the worker can verify the context before constructing a Plan.
+_PINNED_SOURCES_SQL = ("COALESCE((SELECT "
     "pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('member_id',p.id::text,'connection_id',p.connection_id::text,"
     "'connection_version',p.connection_version,'connection_generation',p.connection_generation::text,"
     "'enablement_generation',p.enablement_generation::text,'availability_generation',p.availability_generation::text,"
     "'installation_id',p.installation_id,'wrapper_profile_digest',p.wrapper_profile_digest,'format_version',"
     "p.format_version,'context_digest',p.context_digest) ORDER BY p.id::text COLLATE \"C\") FROM wl_ingestion.members p "
-    "WHERE p.tenant_id=tenant AND p.portfolio_id=portfolio AND p.set_id=selected.id),'[]'::jsonb))),'hex')")
+    "WHERE p.tenant_id=tenant AND p.portfolio_id=portfolio AND p.set_id=selected.id),'[]'::jsonb)")
+_FINGERPRINT_SQL = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1("
+    + _PINNED_SOURCES_SQL + ")),'hex')")
 
 
 def _raising(fragment):
@@ -2927,7 +2946,9 @@ MEMBER_PINS
   -- The last admitted member hands the set to preparation.
   IF NOT EXISTS(SELECT 1 FROM wl_ingestion.members m WHERE m.tenant_id=tenant AND m.portfolio_id=portfolio AND
     m.set_id=selected.id AND m.state<>'admitted') THEN
-   UPDATE wl_ingestion.sets SET state='NORMALIZING' WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+   UPDATE wl_ingestion.sets SET state='NORMALIZING',
+    prepare_session_digest=held.session_digest,prepare_credential_version=held.credential_version
+    WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
   END IF;
  ELSIF p_request->>'outcome'='reupload_required' THEN
   UPDATE wl_ingestion.members SET state='reupload_required',error_code=p_request->>'error_code'
@@ -3155,15 +3176,126 @@ CLEANUP_SESSION_DIGEST = hashlib.sha256(b'kurafolio.ingestion.cleanup-lease.v1')
 _TERMINAL_SQL = "('COMMITTED','REJECTED','CANCELLED','EXPIRED')"
 
 _WORKER_CODES_SQL = ("('import_invalid','import_conflict','import_stale','import_expired','import_busy','not_found',"
-                     "'authentication_required','credentials_changed','instance_not_ready')")
+                     "'authentication_required','credentials_changed','instance_not_ready','session_changed','source_unavailable')")
 
-# claim_plan_v1 hands out one cleanup lease at a time. Preparation claims are
-# refused until their own worker functions exist (WL-P0-007L).
+_PREPARE_AUTH_STATE_LOCK = r"""
+ PERFORM 1 FROM wl_identity.instance_auth_state WHERE id=1 AND bootstrap_closed FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='instance_not_ready'; END IF;
+"""
+
+_PREPARE_SCOPED_AUTHORITY_LOCKS = (
+    _identity.user_lock('tenant') + _identity.session_lock('origin_digest') + r"""
+ PERFORM 1 FROM wl_sources.catalog_state WHERE id=1 FOR SHARE;
+ PERFORM 1 FROM wl_pg.portfolios WHERE tenant_id=tenant AND portfolio_id=portfolio FOR KEY SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='session_changed'; END IF;
+ PERFORM 1 FROM wl_sources.lifecycle_roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR SHARE;
+ PERFORM 1 FROM wl_sources.enablements WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY plugin_id,capability FOR SHARE;
+ PERFORM 1 FROM wl_pg.connections WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id,version FOR SHARE;
+ PERFORM 1 FROM wl_sources.connection_lifecycle WHERE tenant_id=tenant AND portfolio_id=portfolio ORDER BY id FOR SHARE;
+""")
+
+_PREPARE_ORIGIN_CHECK = (
+    ' SELECT * INTO st FROM wl_pg.instance_state WHERE id=1;\n'
+    + _raising(_identity.check_user(version='origin_version', code='session_changed') + _identity.check_session())
+    + r"""
+ IF u.portfolio_id IS DISTINCT FROM portfolio OR ss.user_id IS DISTINCT FROM selected.actor_user_id OR
+  ss.credential_version IS DISTINCT FROM origin_version THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='session_changed'; END IF;
+""")
+
+_PREPARE_CLAIM_SQL = r"""
+ -- Candidate reads identify which authority to lock. They do not grant scope.
+ -- A skipped candidate rolls back its subtransaction, releasing the locks it took.
+ FOR candidate IN SELECT x.* FROM wl_ingestion.sets x WHERE
+  (replay AND (x.tenant_id,x.portfolio_id,x.id)=(held.tenant_id,held.portfolio_id,held.set_id)) OR
+  (NOT replay AND x.state IN ('NORMALIZING','RECONCILING') AND x.expires_at>n AND
+   x.realm_digest=guard#>>'{value,realm_digest}' AND NOT EXISTS(
+    SELECT 1 FROM wl_ingestion.leases l WHERE (l.tenant_id,l.portfolio_id,l.set_id)=(x.tenant_id,x.portfolio_id,x.id)
+     AND l.work_kind='prepare' AND l.state IN ('offered','active') AND l.expires_at>n))
+  ORDER BY x.created_at,x.id::text COLLATE "C" LOOP
+  BEGIN
+   tenant:=candidate.tenant_id;portfolio:=candidate.portfolio_id;
+   origin_digest:=candidate.prepare_session_digest;origin_version:=candidate.prepare_credential_version;
+   IF origin_digest IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   PREPARE_AUTHORITY_LOCKS
+   SELECT * INTO root FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio FOR UPDATE SKIP LOCKED;
+   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy'; END IF;
+   SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND id=candidate.id FOR UPDATE;
+   PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+    ORDER BY id FOR UPDATE;
+   PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+    ORDER BY id FOR UPDATE;
+   n:=wl_identity._clock_timestamp_v1();
+   IF selected.id IS NULL OR selected.state NOT IN ('NORMALIZING','RECONCILING') OR n>=selected.expires_at OR
+    selected.realm_digest IS DISTINCT FROM guard#>>'{value,realm_digest}' OR
+    selected.incarnation::text IS DISTINCT FROM guard#>>'{value,incarnation}' OR
+    selected.restore_epoch::text IS DISTINCT FROM guard#>>'{value,restore_epoch}' OR
+    (selected.prepare_session_digest,selected.prepare_credential_version) IS DISTINCT FROM
+     (origin_digest,origin_version) THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   PREPARE_ORIGIN_CHECK
+   admitted:=0;
+   FOR mem IN SELECT * FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND set_id=selected.id ORDER BY id LOOP
+    IF mem.state<>'admitted' OR NOT EXISTS(SELECT 1 FROM wl_ingestion.stages g
+     WHERE (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)=
+      (tenant,portfolio,selected.id,mem.id,mem.stage_digest)) THEN
+     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+    MEMBER_PINS
+    admitted:=admitted+1;
+   END LOOP;
+   IF admitted<>selected.member_count THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   IF replay THEN
+    SELECT * INTO held FROM wl_ingestion.leases l WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.id=held.id;
+    IF held.id IS NULL OR held.state<>'active' OR n>=held.expires_at OR
+     (held.session_digest,held.credential_version) IS DISTINCT FROM (origin_digest,origin_version) OR
+     (held.prepare_set_revision,held.prepare_accepted_generation,held.prepare_mapping_generation,
+      held.prepare_control_generation) IS DISTINCT FROM
+      (selected.revision,root.accepted_generation,root.mapping_generation,root.control_generation) THEN
+     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+    RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,
+     'outcome','already_claimed','lease',PREPARE_ACK_HELD));
+   END IF;
+   UPDATE wl_ingestion.leases SET state='expired' WHERE tenant_id=tenant AND portfolio_id=portfolio
+    AND set_id=selected.id AND work_kind='prepare' AND state IN ('offered','active') AND expires_at<=n;
+   IF EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE (l.tenant_id,l.portfolio_id,l.set_id)=(tenant,portfolio,selected.id)
+    AND l.work_kind='prepare' AND l.state IN ('offered','active')) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_busy'; END IF;
+   SELECT COALESCE(pg_catalog.max(l.fence),0)+1 INTO next_fence FROM wl_ingestion.leases l
+    WHERE (l.tenant_id,l.portfolio_id,l.set_id)=(tenant,portfolio,selected.id) AND l.work_kind='prepare';
+   until:=pg_catalog.date_trunc('second',LEAST(n+interval '60 seconds',selected.expires_at,ss.expires_at,
+    ss.last_activity+interval '1800 seconds'));
+   IF until<=n THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired'; END IF;
+   INSERT INTO wl_ingestion.leases(tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,
+    token_digest,session_digest,credential_version,incarnation,restore_epoch,created_at,expires_at,state,
+    claim_request_id,claim_request_digest,prepare_set_revision,prepare_accepted_generation,prepare_mapping_generation,
+    prepare_control_generation)
+   VALUES(tenant,portfolio,pg_catalog.gen_random_uuid(),selected.id,NULL,'prepare',next_fence,next_fence,p_worker,
+    guard#>>'{value,token_digest}',origin_digest,origin_version,selected.incarnation,selected.restore_epoch,n,until,'active',
+    (p_request->>'claim_request_id')::uuid,request_digest,selected.revision,root.accepted_generation,
+    root.mapping_generation,root.control_generation) RETURNING * INTO held;
+   RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,
+    'outcome','claimed','lease',PREPARE_ACK_CLAIMED));
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+   IF replay OR SQLERRM NOT IN ('import_busy','import_stale','import_expired','session_changed',
+    'credentials_changed','source_unavailable') THEN RAISE; END IF;
+  END;
+ END LOOP;
+ IF replay THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,
+  'outcome','no_work','lease',NULL));
+"""
+
 CLAIM_PLAN_DDL = r"""
 CREATE FUNCTION wl_ingestion.claim_plan_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $claim_plan$
 DECLARE guard jsonb;selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%ROWTYPE;candidate record;
  n timestamptz;until timestamptz;request_digest text;code text;next_fence bigint;lease uuid;
+ replay boolean;tenant uuid;portfolio uuid;origin_digest text;origin_version bigint;admitted integer;generation bigint;
+ root wl_ingestion.roots%ROWTYPE;mem wl_ingestion.members%ROWTYPE;
+ st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;u wl_identity.users%ROWTYPE;
+ cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
+ cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;catalog jsonb;wrappers jsonb;
 BEGIN
  IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
   ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>
@@ -3176,17 +3308,32 @@ BEGIN
  END IF;
  guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
  IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
- IF p_request->>'work_kind'<>'cleanup' THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
  -- The live-lease and selection rechecks rely on READ COMMITTED snapshots.
  IF pg_catalog.current_setting('transaction_isolation')<>'read committed' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
  request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
+ -- Take the existing authority lock before looking up a prepare request so
+ -- a concurrent retry can see the lease committed by the first claimant.
+ IF p_request->>'work_kind'='prepare' THEN
+  PREPARE_AUTH_STATE_LOCK
+ END IF;
  -- A lost acknowledgement: the same claim request finds its own lease again. A
  -- claim request ID this worker already used for other work is a conflict.
  SELECT * INTO held FROM wl_ingestion.leases l WHERE l.worker_id=p_worker AND
   l.claim_request_id=(p_request->>'claim_request_id')::uuid;
- IF held.id IS NOT NULL AND held.work_kind<>'cleanup' THEN
+ IF held.id IS NOT NULL AND held.work_kind<>p_request->>'work_kind' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+ IF p_request->>'work_kind'='prepare' THEN
+  replay:=held.id IS NOT NULL;
+  IF replay THEN
+   IF held.token_digest IS DISTINCT FROM guard#>>'{value,token_digest}' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='authentication_required'; END IF;
+   IF held.claim_request_digest IS DISTINCT FROM request_digest THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  END IF;
+  n:=wl_identity._clock_timestamp_v1();
+  PREPARE_CLAIM
+ END IF;
  IF held.id IS NOT NULL THEN
   PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id FOR UPDATE;
   SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=held.tenant_id AND portfolio_id=held.portfolio_id
@@ -3225,7 +3372,8 @@ BEGIN
   n:=wl_identity._clock_timestamp_v1();
   IF selected.state NOT IN TERMINAL AND n>=selected.expires_at THEN
    -- Expiry wins under the set lock; it fences work and accepts nothing.
-   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending' WHERE tenant_id=selected.tenant_id AND
+   UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',
+    prepare_session_digest=NULL,prepare_credential_version=NULL WHERE tenant_id=selected.tenant_id AND
     portfolio_id=selected.portfolio_id AND id=selected.id;
    UPDATE wl_ingestion.members SET state='expired',fence=fence+1 WHERE tenant_id=selected.tenant_id AND
     portfolio_id=selected.portfolio_id AND set_id=selected.id AND state NOT IN ('rejected','cancelled','expired','committed');
@@ -3272,17 +3420,737 @@ REVOKE ALL ON FUNCTION wl_ingestion.claim_plan_v1(uuid,text,jsonb,bytea) FROM PU
 """
 
 
-def _cleanup_ack_sql(outcome):
+def _plan_lease_ack_sql(outcome, fingerprint):
     return ("pg_catalog.jsonb_build_object('version',1,'job_id',held.id::text,'set_id',held.set_id::text,'member_id',NULL,"
-            "'work_kind','cleanup','fence',held.fence::text,'credential_epoch',guard#>>'{value,credential_epoch}',"
+            "'work_kind',held.work_kind,'fence',held.fence::text,'credential_epoch',guard#>>'{value,credential_epoch}',"
             "'expires_at'," + _second_sql('held.expires_at') + ",'outcome','" + outcome +
-            "','source_fingerprint',selected.request_digest)")
+            "','source_fingerprint'," + fingerprint + ")")
 
 
-CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('ACK_HELD', _cleanup_ack_sql('already_claimed'))
-                  .replace('ACK_CLAIMED', _cleanup_ack_sql('claimed')).replace('TERMINAL', _TERMINAL_SQL)
+CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('ACK_HELD', _plan_lease_ack_sql('already_claimed', 'selected.request_digest'))
+                  .replace('ACK_CLAIMED', _plan_lease_ack_sql('claimed', 'selected.request_digest'))
+                  .replace('PREPARE_AUTH_STATE_LOCK', _PREPARE_AUTH_STATE_LOCK)
+                  .replace('PREPARE_CLAIM', _PREPARE_CLAIM_SQL
+                           .replace('PREPARE_AUTHORITY_LOCKS', _PREPARE_SCOPED_AUTHORITY_LOCKS)
+                           .replace('PREPARE_ORIGIN_CHECK', _PREPARE_ORIGIN_CHECK)
+                           .replace('MEMBER_PINS', _MEMBER_PIN_SQL)
+                           .replace('PREPARE_ACK_HELD', _plan_lease_ack_sql('already_claimed', _FINGERPRINT_SQL))
+                           .replace('PREPARE_ACK_CLAIMED', _plan_lease_ack_sql('claimed', _FINGERPRINT_SQL)))
+                  .replace('TERMINAL', _TERMINAL_SQL)
                   .replace('CLEANUP_SESSION', CLEANUP_SESSION_DIGEST).replace('CODES', _WORKER_CODES_SQL)
                   .replace('UUID_RE', _UUID_RE))
+
+# Preparation calls derive scope from a stored lease before locking the origin.
+# The unlocked lookup is a hint. All authority is checked under the locks.
+_PREPARE_LEASE_LOCKS = r"""
+ SELECT count(*),(pg_catalog.array_agg(l.tenant_id))[1],(pg_catalog.array_agg(l.portfolio_id))[1]
+  INTO scopes,tenant,portfolio FROM wl_ingestion.leases l WHERE l.id=(p_request->>'job_id')::uuid
+  AND l.set_id=(p_request->>'set_id')::uuid AND l.work_kind='prepare' AND l.worker_id=p_worker;
+ IF scopes<>1 THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ SELECT * INTO held FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND id=(p_request->>'job_id')::uuid;
+ IF held.token_digest IS DISTINCT FROM guard#>>'{value,token_digest}' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='authentication_required'; END IF;
+ origin_digest:=held.session_digest;origin_version:=held.credential_version;
+ AUTHORITY_LOCKS
+ SELECT * INTO root FROM wl_ingestion.roots WHERE tenant_id=tenant AND portfolio_id=portfolio ROW_LOCK;
+ SELECT * INTO selected FROM wl_ingestion.sets WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND id=(p_request->>'set_id')::uuid ROW_LOCK;
+ PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+  ORDER BY id ROW_LOCK;
+ SELECT * INTO held FROM wl_ingestion.leases WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND id=(p_request->>'job_id')::uuid ROW_LOCK;
+ n:=wl_identity._clock_timestamp_v1();
+ IF root.tenant_id IS NULL OR selected.id IS NULL OR held.id IS NULL OR n IS NULL OR NOT pg_catalog.isfinite(n) OR
+  held.fence::text IS DISTINCT FROM p_request->>'fence' OR held.worker_id IS DISTINCT FROM p_worker OR
+  held.token_digest IS DISTINCT FROM guard#>>'{value,token_digest}' OR held.work_kind<>'prepare' OR
+  held.set_id<>selected.id OR selected.realm_digest IS DISTINCT FROM guard#>>'{value,realm_digest}' OR
+  selected.incarnation::text IS DISTINCT FROM guard#>>'{value,incarnation}' OR
+  selected.restore_epoch::text IS DISTINCT FROM guard#>>'{value,restore_epoch}' OR
+  held.incarnation<>selected.incarnation OR held.restore_epoch<>selected.restore_epoch OR
+  (held.session_digest,held.credential_version) IS DISTINCT FROM (origin_digest,origin_version) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ ORIGIN_CHECK
+""".replace('AUTHORITY_LOCKS', _PREPARE_AUTH_STATE_LOCK + _PREPARE_SCOPED_AUTHORITY_LOCKS).replace('ORIGIN_CHECK', _PREPARE_ORIGIN_CHECK)
+
+_PREPARE_ACTIVE_CHECK = r"""
+ IF n IS NULL OR NOT pg_catalog.isfinite(n) OR held.state<>'active' OR selected.state NOT IN ('NORMALIZING','RECONCILING') OR
+  n>=held.expires_at OR n>=selected.expires_at OR
+  (selected.prepare_session_digest,selected.prepare_credential_version) IS DISTINCT FROM (origin_digest,origin_version) OR
+  (held.prepare_set_revision,held.prepare_accepted_generation,held.prepare_mapping_generation,
+   held.prepare_control_generation) IS DISTINCT FROM
+  (selected.revision,root.accepted_generation,root.mapping_generation,root.control_generation) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+"""
+
+# Admitted stages are immutable and admission validates the original bytes.
+# Bind those bytes to the locked member digest before projecting the evidence.
+_PREPARE_STAGE_CHECK = r"""
+ admitted:=0;
+ FOR mem IN SELECT * FROM wl_ingestion.members WHERE tenant_id=tenant AND portfolio_id=portfolio
+  AND set_id=selected.id ORDER BY id LOOP
+  IF mem.state<>'admitted' OR NOT EXISTS(SELECT 1 FROM wl_ingestion.stages g
+   WHERE (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)=
+    (tenant,portfolio,selected.id,mem.id,mem.stage_digest)
+    AND pg_catalog.encode(pg_catalog.sha256(g.minimal_bytes),'hex')=g.digest) THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  MEMBER_PINS
+  admitted:=admitted+1;
+ END LOOP;
+ IF admitted<>selected.member_count THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+""".replace('MEMBER_PINS', _MEMBER_PIN_SQL)
+
+
+def _stored_decisions_sql():
+    from ..ingestion.contracts import definition
+    shape = _MinimalScalarPredicate().compile('decisions', definition('Decisions'))
+    return r"""
+ SELECT * INTO decision FROM wl_ingestion.decisions d WHERE d.tenant_id=tenant AND d.portfolio_id=portfolio
+  AND d.set_id=selected.id ORDER BY d.revision DESC LIMIT 1;
+ IF selected.state='NORMALIZING' THEN
+  IF decision.revision IS NOT NULL THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+ ELSE
+  IF decision.revision IS NULL OR decision.purge_at<>selected.expires_at THEN
+   RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+  BEGIN
+   decisions:=pg_catalog.convert_from(decision.canonical_bytes,'UTF8')::jsonb;
+   IF NOT DECISIONS_SHAPE OR decision.canonical_bytes<>wl_ingestion._canonical_v1(decisions) OR
+    decision.digest<>pg_catalog.encode(pg_catalog.sha256(decision.canonical_bytes),'hex') OR
+    (decisions->>'expected_set_revision')::numeric+1<>held.prepare_set_revision THEN
+    RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+  EXCEPTION WHEN data_exception THEN
+   RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+  END;
+ END IF;
+""".replace('DECISIONS_SHAPE', shape)
+
+
+_PREPARE_SCOPE_DECLARATIONS = """
+ guard jsonb;tenant uuid;portfolio uuid;origin_digest text;origin_version bigint;n timestamptz;
+ scopes integer;admitted integer;generation bigint;
+ selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%ROWTYPE;root wl_ingestion.roots%ROWTYPE;
+ st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;u wl_identity.users%ROWTYPE;
+ mem wl_ingestion.members%ROWTYPE;cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
+ cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;catalog jsonb;wrappers jsonb;
+ decision wl_ingestion.decisions%ROWTYPE;decisions jsonb;
+"""
+
+_BASIS_INPUT_ROWS = r"""
+ SELECT m.id::text AS key,pg_catalog.jsonb_build_object('kind','input','id',m.id::text,'digest',g.digest,
+  'minimal',pg_catalog.convert_from(g.minimal_bytes,'UTF8')::jsonb) AS data
+ FROM wl_ingestion.members m JOIN wl_ingestion.stages g
+  ON (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)=(m.tenant_id,m.portfolio_id,m.set_id,m.id,m.stage_digest)
+ WHERE resource='inputs' AND m.tenant_id=tenant AND m.portfolio_id=portfolio AND m.set_id=selected.id
+"""
+
+_BASIS_DECISION_ROWS = r"""
+ SELECT '0',pg_catalog.jsonb_build_object('kind','decisions_header','decision_revision',decision.revision::text,
+  'digest',decision.digest,'version',decisions->'version','operation_id',decisions->'operation_id',
+  'expected_set_revision',decisions->'expected_set_revision','counts',(
+   SELECT pg_catalog.jsonb_object_agg(c.name,pg_catalog.jsonb_array_length(decisions->c.name))
+   FROM (VALUES ('authorities'),('mappings'),('new_entities'),('parents')) c(name)))
+ WHERE resource='decisions' AND decisions IS NOT NULL
+ UNION ALL
+ SELECT c.prefix||pg_catalog.lpad((j.ordinal-1)::text,3,'0'),pg_catalog.jsonb_build_object('kind','decision_item',
+  'collection',c.name,'ordinal',j.ordinal-1,'value',j.value)
+ FROM (VALUES ('authorities','1:'),('mappings','2:'),('new_entities','3:'),('parents','4:')) c(name,prefix)
+ CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(decisions->c.name) WITH ORDINALITY j(value,ordinal)
+ WHERE resource='decisions'
+"""
+
+
+_BASIS_ENTITY_CTES = r"""
+ scoped_stages AS MATERIALIZED (
+  SELECT m.id,m.connection_id,STAGED_EVIDENCE AS evidence
+  FROM wl_ingestion.members m JOIN wl_ingestion.stages g
+   ON (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)=(m.tenant_id,m.portfolio_id,m.set_id,m.id,m.stage_digest)
+  WHERE STAGED_FILTER m.tenant_id=tenant AND m.portfolio_id=portfolio AND m.set_id=selected.id
+ ),
+ source_entities AS (
+  SELECT m.id AS member_id,m.connection_id,k.kind,m.evidence,src.value AS body,
+   m.id::text||':'||k.kind||':'||pg_catalog.lpad(src.value->>'local_id',8,'0') AS key
+  FROM scoped_stages m
+  CROSS JOIN (VALUES ('account','accounts'),('instrument','assets'),('issuer','issuers')) k(kind,collection)
+  CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(m.evidence->k.collection) src(value)
+ ),
+ scoped_targets AS (
+  SELECT 'account' AS kind,e.id,e.version,e.body FROM wl_pg.accounts e WHERE e.tenant_id=tenant AND e.portfolio_id=portfolio
+  UNION ALL
+  SELECT 'instrument',e.id,e.version,e.body FROM wl_pg.instruments e WHERE e.tenant_id=tenant AND e.portfolio_id=portfolio
+  UNION ALL
+  SELECT 'issuer',e.id,e.version,e.body FROM wl_pg.issuers e WHERE e.tenant_id=tenant AND e.portfolio_id=portfolio
+ ),
+"""
+
+_BASIS_ENTITIES = _BASIS_ENTITY_CTES.replace('STAGED_EVIDENCE',
+    "pg_catalog.convert_from(g.minimal_bytes,'UTF8')::jsonb").replace(
+    'STAGED_FILTER', "resource IN ('entities','mappings') AND") + r"""
+ plan_documents AS (
+  SELECT pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb AS document,p.created_at,p.id
+   FROM wl_ingestion.accepted_plans p WHERE resource IN ('revisions','heads')
+   AND p.tenant_id=tenant AND p.portfolio_id=portfolio
+ ),
+ current_heads AS (
+  SELECT 'activity' AS kind,h.revision_id AS target,NULL::uuid AS complete_base,h.active,
+   pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(pg_catalog.jsonb_build_object(
+    'version',1,'tenant_id',tenant::text,'portfolio_id',portfolio::text,'economic_group_id',h.economic_group_id::text))),'hex') AS digest
+   FROM wl_ingestion.activity_heads h WHERE resource='heads' AND h.tenant_id=tenant AND h.portfolio_id=portfolio
+  UNION ALL
+  SELECT 'snapshot',h.latest_revision_id,h.complete_base_revision_id,true,h.key_digest
+   FROM wl_ingestion.snapshot_heads h WHERE resource='heads' AND h.tenant_id=tenant AND h.portfolio_id=portfolio
+ ),
+"""
+
+_BASIS_ENTITY_ROWS = r"""
+ SELECT s.key||':'||e.id::text||':'||e.version AS key,
+  pg_catalog.jsonb_build_object('kind','entity','candidate',pg_catalog.jsonb_build_object(
+   'member_id',s.member_id::text,'entity_kind',s.kind,'local_id',s.body->'local_id',
+   'target',pg_catalog.jsonb_build_object('mode','existing','id',e.id::text,'version',e.version),'body',e.body)) AS data FROM source_entities s JOIN scoped_targets e ON e.kind=s.kind
+ WHERE ENTITY_FILTER CASE s.kind
+ WHEN 'account' THEN (e.body->'category',e.body->'role')=(s.body->'category',s.body->'role')
+ WHEN 'issuer' THEN e.body->'label'=s.body->'label'
+ ELSE
+  (e.body->'kind',e.body->'currency',e.body->'ticker',e.body->'mic',e.body->'symbol',e.body->'network',
+   e.body->'settlement_identity')=(s.body->'kind',s.body->'currency',s.body->'ticker',s.body->'mic',
+   CASE WHEN s.body->>'kind' IN ('CASH','SECURITY') THEN 'null'::jsonb ELSE s.body->'symbol' END,
+   s.body->'network',CASE WHEN s.body->>'kind'='CRYPTO' AND s.body->'settlement_identity'='null'::jsonb
+     THEN s.body->'network' ELSE s.body->'settlement_identity' END)
+  AND (CASE WHEN s.body->'issuer_local_id'='null'::jsonb THEN e.body->'issuer'='null'::jsonb
+   ELSE EXISTS(SELECT 1 FROM wl_pg.issuers i WHERE i.tenant_id=tenant AND i.portfolio_id=portfolio
+     AND i.id=(e.body#>>'{issuer,value}')::uuid AND i.body->'label'=
+      s.evidence->'issuers'->((s.body->>'issuer_local_id')::integer)->'label') END)
+  AND (CASE WHEN s.body->'identifier'<>'null'::jsonb THEN EXISTS(
+    SELECT 1 FROM pg_catalog.jsonb_array_elements(e.body->'identifiers') i(value) WHERE i.value->'value'=s.body->'identifier')
+   ELSE (SELECT pg_catalog.jsonb_agg(i.value ORDER BY i.value->>'scheme' COLLATE "C",i.value->>'value' COLLATE "C")
+     FROM pg_catalog.jsonb_array_elements(e.body->'identifiers') i(value)) IS NOT DISTINCT FROM
+    (SELECT pg_catalog.jsonb_agg(i.value ORDER BY i.value->>'scheme' COLLATE "C",i.value->>'value' COLLATE "C")
+     FROM pg_catalog.jsonb_array_elements(s.body->'identifiers') i(value)) END)
+ END
+"""
+
+_BASIS_ACCEPTED_ROWS = _BASIS_ENTITY_ROWS.replace('ENTITY_FILTER', "resource='entities' AND") + r"""
+ UNION ALL
+ SELECT s.key,pg_catalog.jsonb_build_object('kind','mapping','mapping',pg_catalog.jsonb_build_object(
+  'member_id',s.member_id::text,'entity_kind',s.kind,'local_id',s.body->'local_id',
+  'target',pg_catalog.jsonb_build_object('mode','existing','id',m.entity_id::text,'version',m.entity_version)))
+ FROM source_entities s JOIN LATERAL (
+  SELECT m.entity_id,m.entity_version FROM wl_ingestion.mappings m
+  WHERE m.tenant_id=tenant AND m.portfolio_id=portfolio AND m.connection_id=s.connection_id AND m.entity_kind=s.kind
+   AND m.source_key=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(pg_catalog.jsonb_build_object(
+    'version',1,'tenant_id',tenant::text,'portfolio_id',portfolio::text,'connection_id',s.connection_id::text,'entity_kind',s.kind,
+    'source_identity',CASE WHEN s.kind='account' THEN pg_catalog.jsonb_build_object('source_account_key',s.body->'source_account_key')
+     ELSE s.body-ARRAY['local_id','identifier','issuer_local_id','source_descriptor'] END))),'hex')
+  ORDER BY m.revision DESC LIMIT 1
+ ) m ON true WHERE resource='mappings'
+ UNION ALL
+ SELECT r.id::text,CASE WHEN l.source_claim_bytes IS NOT NULL AND effect.value IS NOT NULL
+  THEN pg_catalog.jsonb_build_object('kind','revision','revision',pg_catalog.jsonb_build_object(
+   'id',r.id::text,'input_id',r.input_id::text,'collection',r.collection,'local_id',r.local_id,
+   'source',((claim.data->'source')-ARRAY['version','tenant_id','portfolio_id','connection_id','collection'])
+    ||pg_catalog.jsonb_build_object('revision',claim.data->'revision'),
+   'source_key_digest',r.source_key,'financial_digest',r.financial_digest,'economic_group_id',effect.value->'economic_group_id',
+   'parent_revision_id',r.parent_id::text,'accepted_change',r.accepted_change,
+   'typed',pg_catalog.convert_from(r.typed_bytes,'UTF8')::jsonb)) END
+ FROM wl_ingestion.source_revisions r
+ LEFT JOIN wl_ingestion.lineage l ON (l.tenant_id,l.portfolio_id,l.source_revision_id,l.input_id,l.collection,l.local_id)=
+  (r.tenant_id,r.portfolio_id,r.id,r.input_id,r.collection,r.local_id)
+ CROSS JOIN LATERAL (SELECT pg_catalog.convert_from(l.source_claim_bytes,'UTF8')::jsonb AS data) claim
+ LEFT JOIN LATERAL (
+  SELECT f.value FROM plan_documents p CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(p.document->'facts') f(value)
+  WHERE f.value->>'accepted_revision_id'=r.id::text AND f.value->>'action'<>'duplicate'
+  ORDER BY p.created_at,p.id LIMIT 1
+ ) effect ON true
+ WHERE resource='revisions' AND r.tenant_id=tenant AND r.portfolio_id=portfolio
+ UNION ALL
+ SELECT h.kind||':'||h.digest,CASE WHEN effect.value IS NOT NULL
+  THEN pg_catalog.jsonb_build_object('kind','head','head',effect.value) END
+ FROM current_heads h LEFT JOIN LATERAL (
+  SELECT f.value FROM plan_documents p CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(p.document->'heads') f(value)
+  WHERE f.value->>'next_revision_id'=h.target::text AND f.value->>'key_digest'=h.digest AND f.value->>'kind'=h.kind
+   AND f.value->>'complete_base_id' IS NOT DISTINCT FROM h.complete_base::text
+   AND (f.value->>'active')::boolean=h.active ORDER BY p.created_at DESC,p.id DESC LIMIT 1
+ ) effect ON true WHERE resource='heads'
+ UNION ALL
+ SELECT a.id::text,pg_catalog.jsonb_build_object('kind','authority','link_id',a.id::text,
+  'link_revision',a.revision::text,'authority',pg_catalog.jsonb_build_object(
+  'kind',a.decision_kind,'evidence_reference',a.evidence_reference,
+  'left',pg_catalog.jsonb_build_object('form','accepted','accepted_revision_id',a.left_revision_id::text),
+  'right',CASE WHEN a.right_revision_id IS NOT NULL THEN
+   pg_catalog.jsonb_build_object('form','accepted','accepted_revision_id',a.right_revision_id::text) END))
+ FROM wl_ingestion.authority_links a WHERE resource='authorities' AND a.tenant_id=tenant AND a.portfolio_id=portfolio
+  AND NOT EXISTS(SELECT 1 FROM wl_ingestion.authority_links newer
+   WHERE (newer.tenant_id,newer.portfolio_id,newer.id)=(a.tenant_id,a.portfolio_id,a.id) AND newer.revision>a.revision)
+"""
+
+
+_BASIS_CONTEXT_ROW = r"""
+ SELECT '0',pg_catalog.jsonb_build_object('kind','prepare_context','tenant_id',tenant::text,
+  'portfolio_id',portfolio::text,'set_id',selected.id::text,'realm_digest',selected.realm_digest,
+  'incarnation',selected.incarnation::text,'restore_epoch',selected.restore_epoch::text,
+  'set_expires_at',SET_EXPIRY,'pinned_sources',PINNED_SOURCES)
+ WHERE resource='context'
+""".replace('SET_EXPIRY', _instant_sql('selected.expires_at')).replace('PINNED_SOURCES', _PINNED_SOURCES_SQL)
+
+
+def read_plan_basis_ddl():
+    """Render the checked, uncached basis reader for the prepared scope."""
+    from ..ingestion.contracts import MAX_PAGE, definition
+    request_shape = _MinimalScalarPredicate().compile('p_request', definition('ReadBasisRequest', 'wire'), 'wire')
+    row_shape = _MinimalScalarPredicate().compile('next_row.data', definition('BasisRow', 'wire'), 'wire')
+    return r"""
+CREATE FUNCTION wl_ingestion.read_plan_basis_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $basis$
+DECLARE
+ SCOPE_DECLARATIONS
+ resource text;row_limit integer;after_key text;position_found boolean;next_row record;
+ rows_bytes bigint:=0;empty_page_bytes bigint;
+ rows jsonb:='[]'::jsonb;cursor_fields jsonb;page_fields jsonb;next_cursor jsonb;
+ candidate jsonb;result jsonb;code text;
+BEGIN
+ IF p_bytes IS NOT NULL OR NOT REQUEST_SHAPE OR p_request->>'work_kind'<>'prepare' OR
+  p_request->'member_id'<>'null'::jsonb THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
+ guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ LEASE_LOCKS
+ ACTIVE_CHECK
+ STAGE_CHECK
+ resource:=p_request->>'resource';
+ row_limit:=(p_request->>'limit')::integer;
+ cursor_fields:=pg_catalog.jsonb_build_object('job_id',held.id::text,'fence',held.fence::text,'resource',resource,
+  'set_revision',held.prepare_set_revision::text,'accepted_generation',held.prepare_accepted_generation::text,
+  'mapping_generation',held.prepare_mapping_generation::text,'control_generation',held.prepare_control_generation::text,
+  'expires_at',EXPIRY_INSTANT);
+ IF p_request->'cursor'<>'null'::jsonb THEN
+  IF (p_request->'cursor')-'after_key' IS DISTINCT FROM cursor_fields THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  after_key:=p_request#>>'{cursor,after_key}';
+ END IF;
+ position_found:=after_key IS NULL;
+ IF resource='decisions' THEN
+  STORED_DECISIONS
+ END IF;
+ page_fields:=(cursor_fields-'expires_at')||pg_catalog.jsonb_build_object('version',1);
+ empty_page_bytes:=pg_catalog.octet_length(wl_ingestion._canonical_v1(
+  page_fields||pg_catalog.jsonb_build_object('rows',rows,'next_cursor',NULL)));
+ FOR next_row IN WITH ENTITY_CTES basis_rows AS (
+   INPUT_ROWS
+   UNION ALL
+   DECISION_ROWS
+   UNION ALL
+   ACCEPTED_ROWS
+   UNION ALL
+   CONTEXT_ROW
+  )
+  SELECT key,data,pg_catalog.lead(key) OVER(ORDER BY key COLLATE "C") AS following,
+   CASE WHEN resource='inputs' THEN (SELECT pg_catalog.octet_length(g.minimal_bytes)-2
+    FROM wl_ingestion.stages g WHERE g.tenant_id=tenant AND g.portfolio_id=portfolio AND g.set_id=selected.id
+     AND g.member_id=page_rows.key::uuid AND g.digest=page_rows.data->>'digest') END AS input_bytes
+   FROM (SELECT key,data FROM basis_rows WHERE after_key IS NULL OR key COLLATE "C">=after_key COLLATE "C"
+     ORDER BY key COLLATE "C" LIMIT row_limit+2) page_rows ORDER BY key COLLATE "C"
+ LOOP
+  IF NOT position_found THEN
+   position_found:=next_row.key=after_key AND next_row.following IS NOT NULL;
+   CONTINUE;
+  END IF;
+  IF next_row.data IS NULL OR (resource<>'inputs' AND NOT ROW_SHAPE) THEN
+   RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+  -- For inputs, the locked digest binds the fully validated admitted Minimal.
+  -- Its canonical bytes also give its exact size without re-encoding. Encode the
+  -- small row envelope with an empty object and add the stored payload size.
+  IF next_row.input_bytes IS NOT NULL THEN
+   rows_bytes:=rows_bytes+next_row.input_bytes+pg_catalog.octet_length(wl_ingestion._canonical_v1(
+    pg_catalog.jsonb_set(next_row.data,'{minimal}','{}'::jsonb)));
+  ELSE
+   rows_bytes:=rows_bytes+pg_catalog.octet_length(wl_ingestion._canonical_v1(next_row.data));
+  END IF;
+  IF pg_catalog.jsonb_array_length(rows)>0 THEN rows_bytes:=rows_bytes+1; END IF;
+  IF empty_page_bytes+rows_bytes>PAGE_MAX THEN
+   IF result IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_limit'; END IF;
+   EXIT;
+  END IF;
+  rows:=rows||pg_catalog.jsonb_build_array(next_row.data);
+  next_cursor:=NULL;
+  IF next_row.following IS NOT NULL THEN
+   next_cursor:=cursor_fields||pg_catalog.jsonb_build_object('after_key',next_row.key);
+  END IF;
+  candidate:=page_fields||pg_catalog.jsonb_build_object('rows',rows,'next_cursor',next_cursor);
+  IF empty_page_bytes+rows_bytes+(CASE WHEN next_cursor IS NULL THEN 0
+    ELSE pg_catalog.octet_length(wl_ingestion._canonical_v1(next_cursor))-4 END)<=PAGE_MAX THEN
+   result:=candidate;
+  END IF;
+  EXIT WHEN pg_catalog.jsonb_array_length(rows)>=row_limit;
+ END LOOP;
+ IF NOT position_found THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ IF result IS NULL THEN
+  IF pg_catalog.jsonb_array_length(rows)>0 THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_limit'; END IF;
+  result:=page_fields||pg_catalog.jsonb_build_object('rows',rows,'next_cursor',NULL);
+ END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ ORIGIN_CHECK
+ ACTIVE_CHECK
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',result);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ code:=SQLERRM;
+ IF code NOT IN ('import_invalid','import_limit','import_stale','import_evidence_unsupported','import_conflict',
+  'authentication_required','credentials_changed','instance_not_ready','session_changed','source_unavailable') THEN
+  RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $basis$;
+REVOKE ALL ON FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) FROM PUBLIC;
+""".replace('SCOPE_DECLARATIONS', _PREPARE_SCOPE_DECLARATIONS).replace('REQUEST_SHAPE', request_shape).replace(
+        'LEASE_LOCKS', _PREPARE_LEASE_LOCKS.replace('ROW_LOCK', 'FOR SHARE')).replace(
+        'ACTIVE_CHECK', _PREPARE_ACTIVE_CHECK).replace('STAGE_CHECK', _PREPARE_STAGE_CHECK).replace(
+        'EXPIRY_INSTANT', _second_sql('held.expires_at')).replace('STORED_DECISIONS', _stored_decisions_sql()).replace(
+        'INPUT_ROWS', _BASIS_INPUT_ROWS).replace('DECISION_ROWS', _BASIS_DECISION_ROWS).replace(
+        'ENTITY_CTES', _BASIS_ENTITIES).replace('ACCEPTED_ROWS', _BASIS_ACCEPTED_ROWS).replace(
+        'CONTEXT_ROW', _BASIS_CONTEXT_ROW).replace('PAGE_MAX', str(MAX_PAGE)).replace(
+        'ROW_SHAPE', row_shape).replace('ORIGIN_CHECK', _PREPARE_ORIGIN_CHECK)
+
+
+_INITIAL_REVIEW_CANDIDATES = r"""
+ IF selected.state='NORMALIZING' AND plan IS NULL THEN
+  IF (SELECT pg_catalog.count(DISTINCT (j.value#>>'{candidate,member_id}',
+       j.value#>>'{candidate,entity_kind}',j.value#>>'{candidate,local_id}'))
+      FROM pg_catalog.jsonb_array_elements(rows) j(value) WHERE j.value->>'type'='target_candidate')<>entity_count
+   OR EXISTS (
+    WITH ENTITY_CTES eligible AS (
+     ENTITY_ROWS
+    ), disclosed AS (
+     SELECT j.value->'candidate' AS candidate
+     FROM pg_catalog.jsonb_array_elements(rows) j(value)
+     WHERE j.value->>'type'='target_candidate' AND j.value#>>'{candidate,target,mode}'='existing'
+    )
+    SELECT 1 FROM eligible e FULL JOIN disclosed d ON e.data->'candidate'=d.candidate
+    WHERE e.data IS NULL OR d.candidate IS NULL
+   ) THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ END IF;
+""".replace('ENTITY_CTES', _BASIS_ENTITY_CTES.replace('STAGED_FILTER', '').replace(
+    'STAGED_EVIDENCE', 'staged->(m.id::text)')).replace(
+    'ENTITY_ROWS', _BASIS_ENTITY_ROWS.replace('ENTITY_FILTER', ''))
+
+
+# Validate the disclosed review against the staged evidence and immutable
+# candidate bodies. The READY Plan goes through the existing full validators.
+_PREPARE_REVIEW_ROWS = r"""
+ FOR stage IN SELECT g.member_id,g.minimal_bytes,g.digest FROM wl_ingestion.stages g
+  JOIN wl_ingestion.members m ON (m.tenant_id,m.portfolio_id,m.set_id,m.id,m.stage_digest)=
+   (g.tenant_id,g.portfolio_id,g.set_id,g.member_id,g.digest)
+  WHERE g.tenant_id=tenant AND g.portfolio_id=portfolio AND g.set_id=selected.id LOOP
+  evidence:=pg_catalog.convert_from(stage.minimal_bytes,'UTF8')::jsonb;
+  staged:=pg_catalog.jsonb_set(staged,ARRAY[stage.member_id::text],evidence);
+  entity_count:=entity_count+pg_catalog.jsonb_array_length(evidence->'accounts')
+   +pg_catalog.jsonb_array_length(evidence->'assets')+pg_catalog.jsonb_array_length(evidence->'issuers');
+  fact_count:=fact_count+pg_catalog.jsonb_array_length(evidence->'records')
+   +pg_catalog.jsonb_array_length(evidence->'coverage')+pg_catalog.jsonb_array_length(evidence->'snapshots')
+   +CASE WHEN evidence->'membership'='null'::jsonb THEN 0 ELSE 1 END;
+ END LOOP;
+ FOR item IN SELECT j.value,j.ordinal FROM pg_catalog.jsonb_array_elements(rows) WITH ORDINALITY j(value,ordinal) LOOP
+  row_data:=item.value;
+  IF row_data->>'ordinal'<>(item.ordinal-1)::text THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+  CASE row_data->>'type'
+  WHEN 'member' THEN
+   key:=row_data#>>'{member,id}';
+   IF seen_members ? key OR NOT EXISTS (
+    SELECT 1 FROM wl_ingestion.members m WHERE m.tenant_id=tenant AND m.portfolio_id=portfolio
+     AND m.set_id=selected.id AND m.id=key::uuid AND row_data->'member'=MEMBER_RESULT
+   ) THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+   seen_members:=pg_catalog.jsonb_set(seen_members,ARRAY[key],'true'::jsonb);
+  WHEN 'source_entity' THEN
+   collection:=CASE row_data->>'entity_kind' WHEN 'account' THEN 'accounts' WHEN 'instrument' THEN 'assets' ELSE 'issuers' END;
+   source:=staged->(row_data->>'member_id')->collection->((row_data->>'local_id')::integer);
+   key:=(row_data->>'member_id')||':'||(row_data->>'entity_kind')||':'||(row_data->>'local_id');
+   IF source IS DISTINCT FROM row_data->'source' OR seen_entities ? key THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+   seen_entities:=pg_catalog.jsonb_set(seen_entities,ARRAY[key],'true'::jsonb);
+   disclosed_entities:=disclosed_entities+1;
+  WHEN 'fact' THEN
+   evidence:=staged->(row_data->>'member_id');
+   collection:=row_data->>'collection';
+   source:=CASE WHEN collection='membership' AND row_data->>'local_id'='0' THEN evidence->'membership'
+    WHEN collection<>'membership' THEN evidence->collection->((row_data->>'local_id')::integer) END;
+   key:=(row_data->>'member_id')||':'||collection||':'||(row_data->>'local_id');
+   IF source IS NULL OR source='null'::jsonb OR seen_facts ? key OR
+    (CASE WHEN collection='records' THEN pg_catalog.jsonb_build_array(row_data->'record',row_data->'scope')
+      IS DISTINCT FROM pg_catalog.jsonb_build_array(source,NULL)
+     ELSE pg_catalog.jsonb_build_array(row_data->'record',row_data->'scope')
+      IS DISTINCT FROM pg_catalog.jsonb_build_array(NULL,source) END) OR
+    (review->>'state'='READY' AND (row_data->>'action'='conflict' OR row_data->'required_decision'<>'null'::jsonb)) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+   seen_facts:=pg_catalog.jsonb_set(seen_facts,ARRAY[key],'true'::jsonb);
+   disclosed_facts:=disclosed_facts+1;
+  WHEN 'target_candidate' THEN
+   candidate:=row_data->'candidate';target:=candidate->'target';kind:=candidate->>'entity_kind';
+   local_id:=candidate->>'local_id';
+   evidence:=staged->(candidate->>'member_id');
+   source:=evidence->CASE kind WHEN 'account' THEN 'accounts' WHEN 'instrument' THEN 'assets' ELSE 'issuers' END
+    ->(local_id::integer);
+   key:=(candidate->>'member_id')||':'||kind||':'||local_id||':'||(target->>'mode')||':'||
+    (target->>'id')||':'||(target->>'version');
+   IF source IS NULL OR seen_candidates ? key OR target->>'version' IS DISTINCT FROM
+    pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(candidate->'body')),'hex') THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+   seen_candidates:=pg_catalog.jsonb_set(seen_candidates,ARRAY[key],'true'::jsonb);
+   identity:=pg_catalog.jsonb_build_object('tenant_id',tenant::text,'portfolio_id',portfolio::text,'kind',kind,'value',target->>'id');
+   IF candidate->'body'->'id' IS DISTINCT FROM identity THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+   IF target->>'mode'='proposed' THEN
+    SELECT COALESCE(pg_catalog.jsonb_object_agg((j.value->>'entity_kind')||':'||(j.value->>'local_id'),j.value->'target'),
+     '{}'::jsonb) INTO refs FROM pg_catalog.jsonb_array_elements(COALESCE(plan->'mappings','[]'::jsonb)) j(value)
+     WHERE j.value->'member_id'=candidate->'member_id';
+    IF kind='instrument' AND source->'issuer_local_id'<>'null'::jsonb THEN
+     key:='issuer:'||(source->>'issuer_local_id');
+     IF NOT refs ? key THEN
+      SELECT count(*),(pg_catalog.array_agg(j.value->'candidate'->'target'))[1] INTO matches,issuer_target
+       FROM pg_catalog.jsonb_array_elements(rows) j(value)
+       WHERE j.value->>'type'='target_candidate' AND j.value#>'{candidate,member_id}'=candidate->'member_id'
+       AND j.value#>>'{candidate,entity_kind}'='issuer' AND j.value#>'{candidate,local_id}'=source->'issuer_local_id'
+       AND j.value#>'{candidate,target,id}'=candidate#>'{body,issuer,value}';
+      IF matches<>1 THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_mapping_required'; END IF;
+      refs:=pg_catalog.jsonb_set(refs,ARRAY[key],issuer_target);
+     END IF;
+    END IF;
+    PROPOSED_BODY
+    IF body IS DISTINCT FROM candidate->'body' THEN
+     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+   ELSE
+    CASE kind
+    WHEN 'account' THEN
+     SELECT e.body INTO body FROM wl_pg.accounts e WHERE e.tenant_id=tenant AND e.portfolio_id=portfolio
+      AND e.id=(target->>'id')::uuid AND e.version=target->>'version';
+    WHEN 'issuer' THEN
+     SELECT e.body INTO body FROM wl_pg.issuers e WHERE e.tenant_id=tenant AND e.portfolio_id=portfolio
+      AND e.id=(target->>'id')::uuid AND e.version=target->>'version';
+    ELSE
+     SELECT e.body INTO body FROM wl_pg.instruments e WHERE e.tenant_id=tenant AND e.portfolio_id=portfolio
+      AND e.id=(target->>'id')::uuid AND e.version=target->>'version';
+    END CASE;
+    IF body IS DISTINCT FROM candidate->'body' THEN
+     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+   END IF;
+   IF kind='account' AND (body->'category',body->'role') IS DISTINCT FROM (source->'category',source->'role') OR
+    kind='issuer' AND body->'label' IS DISTINCT FROM source->'label' OR
+    kind='instrument' AND (
+     (body->'kind',body->'currency',body->'ticker',body->'mic',body->'symbol',body->'network',
+      body->'settlement_identity') IS DISTINCT FROM (source->'kind',source->'currency',source->'ticker',source->'mic',
+      CASE WHEN source->>'kind' IN ('CASH','SECURITY') THEN 'null'::jsonb ELSE source->'symbol' END,
+      source->'network',CASE WHEN source->>'kind'='CRYPTO' AND source->'settlement_identity'='null'::jsonb
+       THEN source->'network' ELSE source->'settlement_identity' END) OR
+     CASE WHEN source->'identifier'<>'null'::jsonb THEN NOT EXISTS(
+      SELECT 1 FROM pg_catalog.jsonb_array_elements(body->'identifiers') j(value) WHERE j.value->'value'=source->'identifier')
+     ELSE (SELECT pg_catalog.jsonb_agg(j.value ORDER BY j.value->>'scheme' COLLATE "C",j.value->>'value' COLLATE "C")
+      FROM pg_catalog.jsonb_array_elements(body->'identifiers') j(value)) IS DISTINCT FROM
+      (SELECT pg_catalog.jsonb_agg(j.value ORDER BY j.value->>'scheme' COLLATE "C",j.value->>'value' COLLATE "C")
+      FROM pg_catalog.jsonb_array_elements(source->'identifiers') j(value)) END) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  WHEN 'authority' THEN
+   authority:=row_data->'authority';
+   IF NOT COALESCE((decisions->'authorities') @> pg_catalog.jsonb_build_array(authority),false) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+   authority_left:=NULL;authority_right:=NULL;
+   FOREACH side IN ARRAY ARRAY['left','right'] LOOP
+    reference:=authority->side;resolved:=NULL;
+    IF reference->>'form'='accepted' THEN
+     resolved:=(reference->>'accepted_revision_id')::uuid;
+     IF NOT EXISTS(SELECT 1 FROM wl_ingestion.source_revisions r
+      WHERE r.tenant_id=tenant AND r.portfolio_id=portfolio AND r.id=resolved) THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+    ELSIF reference->>'form'='incoming' AND plan IS NOT NULL THEN
+     SELECT (j.value->>'accepted_revision_id')::uuid INTO resolved
+     FROM pg_catalog.jsonb_array_elements(plan->'facts') j(value)
+     WHERE (j.value->'member_id',j.value->'collection',j.value->'local_id')=
+      (reference->'member_id',reference->'collection',reference->'local_id');
+     IF resolved IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+    END IF;
+    IF side='left' THEN authority_left:=resolved; ELSE authority_right:=resolved; END IF;
+   END LOOP;
+   prior_link:=NULL;
+   IF authority_left IS NOT NULL AND (authority_right IS NOT NULL OR authority->'right'='null'::jsonb) THEN
+    SELECT a.* INTO prior_link FROM wl_ingestion.authority_links a
+    WHERE a.tenant_id=tenant AND a.portfolio_id=portfolio AND
+     ((a.left_revision_id=authority_left AND a.right_revision_id IS NOT DISTINCT FROM authority_right)
+      OR (authority_right IS NOT NULL AND a.left_revision_id=authority_right AND a.right_revision_id=authority_left))
+    ORDER BY a.revision DESC LIMIT 1;
+   END IF;
+   IF (row_data->>'prior_link_id',row_data->>'prior_link_revision',row_data->>'prior_choice') IS DISTINCT FROM
+    (prior_link.id::text,prior_link.revision::text,prior_link.decision_kind) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  ELSE NULL;
+  END CASE;
+ END LOOP;
+ IF disclosed_entities<>entity_count OR (plan IS NOT NULL AND disclosed_facts<>fact_count) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ -- Diagnostics are a multiset of the exact admitted, member-scoped values.
+ IF EXISTS (
+  WITH disclosed AS (
+   SELECT j.value->>'member_id' AS member_id,j.value->'diagnostic' AS diagnostic,pg_catalog.count(*) AS copies
+   FROM pg_catalog.jsonb_array_elements(rows) j(value) WHERE j.value->>'type'='diagnostic'
+   GROUP BY 1,2
+  ), admitted AS (
+   SELECT m.key AS member_id,d.value AS diagnostic,pg_catalog.count(*) AS copies
+   FROM pg_catalog.jsonb_each(staged) m(key,value)
+   CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(m.value#>'{provenance,diagnostics}') d(value)
+   GROUP BY 1,2
+  )
+  SELECT 1 FROM admitted a FULL JOIN disclosed d USING (member_id,diagnostic)
+  WHERE a.copies IS DISTINCT FROM d.copies
+ ) THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ INITIAL_REVIEW_CANDIDATES
+ IF plan IS NOT NULL THEN
+  -- Bind the visible action and revision to the executable effect for each fact.
+  IF (SELECT pg_catalog.jsonb_agg(j.value-ARRAY['type','ordinal','record','scope','required_decision']
+       ORDER BY j.value->>'member_id',j.value->>'collection',j.value->>'local_id')
+      FROM pg_catalog.jsonb_array_elements(rows) j(value) WHERE j.value->>'type'='fact') IS DISTINCT FROM
+     (SELECT pg_catalog.jsonb_agg(j.value-ARRAY['economic_group_id','financial_digest','parent_revision_id']
+       ORDER BY j.value->>'member_id',j.value->>'collection',j.value->>'local_id')
+      FROM pg_catalog.jsonb_array_elements(plan->'facts') j(value)) THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+  FOR item IN SELECT * FROM (VALUES ('mapping','mappings'),('authority','authorities'),('parent','parents'),
+    ('effect','facts'),('head','heads')) r(kind,collection) LOOP
+   IF (SELECT COALESCE(pg_catalog.jsonb_agg(j.value->item.kind ORDER BY j.ordinal),'[]'::jsonb)
+    FROM pg_catalog.jsonb_array_elements(rows) WITH ORDINALITY j(value,ordinal) WHERE j.value->>'type'=item.kind)
+     IS DISTINCT FROM plan->item.collection THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+  END LOOP;
+  FOR candidate IN SELECT j.value FROM pg_catalog.jsonb_array_elements(plan->'mappings') j(value) LOOP
+   target:=candidate->'target';
+   key:=(candidate->>'member_id')||':'||(candidate->>'entity_kind')||':'||(candidate->>'local_id')||':'||
+    (target->>'mode')||':'||(target->>'id')||':'||(target->>'version');
+   IF NOT seen_candidates ? key THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+  END LOOP;
+ END IF;
+""".replace('PROPOSED_BODY', _ENTITY_BODY_SQL.replace('p_tenant', 'tenant').replace('p_portfolio', 'portfolio')).replace(
+    'INITIAL_REVIEW_CANDIDATES', _INITIAL_REVIEW_CANDIDATES).replace(
+    'MEMBER_RESULT', _MEMBER_RESULT_SQL.replace('SET_CLEANUP_STATE', 'selected.cleanup_state'))
+
+
+def prepare_preview_ddl():
+    """Render the checked preview write with no accepted-fact mutation."""
+    from ..ingestion.contracts import MAX_SET, definition
+    request_shape = _MinimalScalarPredicate().compile('p_request', definition('PreparePreviewRequest', 'wire'), 'wire')
+    bundle_shape = _MinimalScalarPredicate().compile('payload', definition('ReviewBundle', 'wire'), 'wire')
+    return r"""
+CREATE FUNCTION wl_ingestion.prepare_preview_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $prepare$
+DECLARE
+ SCOPE_DECLARATIONS
+ payload jsonb;cursor integer;depth integer:=0;quoted boolean:=false;escaped boolean:=false;current_byte integer;
+ review jsonb;plan jsonb;rows jsonb;stage record;item record;row_data jsonb;
+ authority jsonb;reference jsonb;side text;resolved uuid;authority_left uuid;authority_right uuid;
+ prior_link wl_ingestion.authority_links%ROWTYPE;
+ candidate jsonb;target jsonb;issuer_target jsonb;source jsonb;identity jsonb;issuer jsonb;refs jsonb;body jsonb;evidence jsonb;
+ staged jsonb:='{}'::jsonb;seen_members jsonb:='{}'::jsonb;
+ seen_entities jsonb:='{}'::jsonb;seen_facts jsonb:='{}'::jsonb;seen_candidates jsonb:='{}'::jsonb;
+ entity_count integer:=0;fact_count integer:=0;disclosed_entities integer:=0;disclosed_facts integer:=0;matches integer;
+ kind text;local_id text;collection text;key text;code text;request_digest text;ack jsonb;result_revision bigint;
+ review_bytes bytea;plan_bytes bytea;preview_id uuid;preview wl_ingestion.previews%ROWTYPE;
+BEGIN
+ IF NOT REQUEST_SHAPE OR p_request->>'work_kind'<>'prepare' OR p_request->'member_id'<>'null'::jsonb OR
+  p_bytes IS NULL OR pg_catalog.octet_length(p_bytes)<>(p_request->>'payload_bytes')::integer THEN
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid'); END IF;
+ guard:=wl_ingestion._guard_worker_v1(p_worker,p_token,p_request);
+ IF guard->>'ok' IS DISTINCT FROM 'true' THEN RETURN guard; END IF;
+ LEASE_LOCKS
+ IF (p_request->>'expected_set_revision',p_request->>'accepted_generation',p_request->>'mapping_generation',
+  p_request->>'control_generation') IS DISTINCT FROM
+  (held.prepare_set_revision::text,held.prepare_accepted_generation::text,held.prepare_mapping_generation::text,
+   held.prepare_control_generation::text) OR
+  (root.accepted_generation,root.mapping_generation,root.control_generation) IS DISTINCT FROM
+  (held.prepare_accepted_generation,held.prepare_mapping_generation,held.prepare_control_generation) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ IF pg_catalog.encode(pg_catalog.sha256(p_bytes),'hex')<>p_request->>'bundle_digest' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
+ IF held.state='finished' THEN
+  IF held.last_request_id IS DISTINCT FROM (p_request->>'request_id')::uuid OR n>=selected.expires_at THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  IF held.last_request_digest IS DISTINCT FROM request_digest THEN
+   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_conflict'; END IF;
+  ack:=pg_catalog.convert_from(held.last_result_bytes,'UTF8')::jsonb;
+  SELECT * INTO preview FROM wl_ingestion.previews WHERE tenant_id=tenant AND portfolio_id=portfolio AND set_id=selected.id
+   AND id=(ack->>'preview_id')::uuid FOR SHARE;
+  IF preview.id IS NULL OR preview.set_revision<>selected.revision OR selected.state IS DISTINCT FROM ack->>'state' OR
+   preview.review_digest IS DISTINCT FROM ack->>'review_digest' OR preview.plan_digest IS DISTINCT FROM ack->>'plan_digest'
+   OR n>=preview.expires_at THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+  STAGE_CHECK
+  RETURN pg_catalog.jsonb_build_object('ok',true,'value',ack||pg_catalog.jsonb_build_object('outcome','already_prepared'));
+ END IF;
+ ACTIVE_CHECK
+ STAGE_CHECK
+ STORED_DECISIONS
+ BYTE_CHECK
+ IF NOT BUNDLE_SHAPE THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ review:=payload->'review';plan:=NULLIF(payload->'plan','null'::jsonb);rows:=review#>'{content,rows}';
+ IF selected.state='NORMALIZING' AND review->>'state'='READY' THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_mapping_required'; END IF;
+ preview_id:=(review->>'id')::uuid;
+ result_revision:=selected.revision+CASE WHEN review->>'state'='READY' THEN 1 ELSE 0 END;
+ IF (review->>'set_id',review->>'set_revision',review->>'accepted_generation',review->>'mapping_generation',
+  review->>'control_generation') IS DISTINCT FROM
+  (selected.id::text,result_revision::text,root.accepted_generation::text,root.mapping_generation::text,
+   root.control_generation::text) OR (review#>>'{expires_at,token}')::timestamptz IS DISTINCT FROM selected.expires_at THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ IF review->>'content_digest' IS DISTINCT FROM pg_catalog.encode(
+  pg_catalog.sha256(wl_ingestion._canonical_v1(review->'content')),'hex') OR
+  (plan IS NOT NULL)<>(review->>'state'='READY') THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ plan_bytes:=CASE WHEN plan IS NOT NULL THEN wl_ingestion._canonical_v1(plan) END;
+ IF review->>'plan_digest' IS DISTINCT FROM pg_catalog.encode(pg_catalog.sha256(plan_bytes),'hex') OR
+  (plan IS NOT NULL AND (plan->>'preview_id' IS DISTINCT FROM review->>'id' OR
+   plan->'expires_at' IS DISTINCT FROM review->'expires_at' OR
+   plan->>'review_content_digest' IS DISTINCT FROM review->>'content_digest')) THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
+ REVIEW_ROWS
+ review_bytes:=wl_ingestion._canonical_v1(review);
+ IF HELD_BYTES+pg_catalog.octet_length(review_bytes)+COALESCE(pg_catalog.octet_length(plan_bytes),0)>selected.reserved_bytes THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_limit'; END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ ORIGIN_CHECK
+ ACTIVE_CHECK
+ UPDATE wl_ingestion.sets SET state=review->>'state',revision=result_revision,
+  prepare_session_digest=NULL,prepare_credential_version=NULL
+  WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=selected.id;
+ INSERT INTO wl_ingestion.previews(tenant_id,portfolio_id,id,set_id,set_revision,decision_revision,plan_bytes,plan_digest,
+  expected_accepted_generation,expected_mapping_generation,expected_control_generation,incarnation,restore_epoch,realm_digest,
+  expires_at,created_at,purge_at,review_bytes,review_digest)
+ VALUES(tenant,portfolio,preview_id,selected.id,result_revision,COALESCE(decision.revision,0),plan_bytes,review->>'plan_digest',
+  root.accepted_generation,root.mapping_generation,root.control_generation,selected.incarnation,selected.restore_epoch,
+  selected.realm_digest,selected.expires_at,n,selected.expires_at,review_bytes,
+  pg_catalog.encode(pg_catalog.sha256(review_bytes),'hex'));
+ IF plan IS NOT NULL THEN PERFORM wl_ingestion._references_v1(tenant,portfolio,preview_id); END IF;
+ n:=wl_identity._clock_timestamp_v1();
+ ORIGIN_CHECK
+ IF n IS NULL OR NOT pg_catalog.isfinite(n) OR n>=held.expires_at OR n>=selected.expires_at THEN
+  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_stale'; END IF;
+ ack:=pg_catalog.jsonb_build_object('version',1,'job_id',held.id::text,'fence',held.fence::text,
+  'preview_id',preview_id::text,'review_digest',pg_catalog.encode(pg_catalog.sha256(review_bytes),'hex'),
+  'plan_digest',review->'plan_digest','set_revision',result_revision::text,'state',review->'state','outcome','prepared');
+ UPDATE wl_ingestion.leases SET state='finished',last_request_id=(p_request->>'request_id')::uuid,
+  last_request_digest=request_digest,last_result_bytes=wl_ingestion._canonical_v1(ack)
+ WHERE tenant_id=tenant AND portfolio_id=portfolio AND id=held.id;
+ RETURN pg_catalog.jsonb_build_object('ok',true,'value',ack);
+EXCEPTION WHEN SQLSTATE '22023' THEN
+ code:=SQLERRM;
+ IF code NOT IN ('import_invalid','import_limit','import_stale','import_expired','import_evidence_unsupported','import_conflict',
+  'import_mapping_required','authentication_required','credentials_changed','instance_not_ready','session_changed','source_unavailable') THEN
+  RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+ RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict');
+WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+WHEN serialization_failure OR deadlock_detected OR lock_not_available OR query_canceled THEN RAISE;
+WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
+END $prepare$;
+REVOKE ALL ON FUNCTION wl_ingestion.prepare_preview_v1(uuid,text,jsonb,bytea) FROM PUBLIC;
+""".replace('SCOPE_DECLARATIONS', _PREPARE_SCOPE_DECLARATIONS).replace('REQUEST_SHAPE', request_shape).replace(
+        'LEASE_LOCKS', _PREPARE_LEASE_LOCKS.replace('ROW_LOCK', 'FOR UPDATE')).replace(
+        'ACTIVE_CHECK', _PREPARE_ACTIVE_CHECK).replace('STAGE_CHECK', _PREPARE_STAGE_CHECK).replace(
+        'STORED_DECISIONS', _stored_decisions_sql()).replace('BYTE_CHECK', _checked_bytes_sql(MAX_SET)).replace(
+        'BUNDLE_SHAPE', bundle_shape).replace('REVIEW_ROWS', _PREPARE_REVIEW_ROWS).replace(
+        'HELD_BYTES', _HELD_BYTES_SQL).replace('ORIGIN_CHECK', _PREPARE_ORIGIN_CHECK)
+
 
 # The normalize job ID of a held attempt: its member's database-built context.
 _ATTEMPT_JOB_SQL = "pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id'"
@@ -4057,14 +4925,16 @@ BEGIN
    (OLD.tenant_id,OLD.portfolio_id,OLD.id,OLD.actor_user_id,OLD.creation_operation_id,
     OLD.request_digest,OLD.incarnation,OLD.restore_epoch,OLD.realm_digest,OLD.created_at,
     OLD.expires_at,OLD.member_count,OLD.reserved_bytes) OR
-   (OLD.receipt_id IS NOT NULL AND NEW.receipt_id IS DISTINCT FROM OLD.receipt_id) THEN REJECT; END IF;
+   (OLD.receipt_id IS NOT NULL AND NEW.receipt_id IS DISTINCT FROM OLD.receipt_id) OR
+   (NEW.state=OLD.state AND (NEW.prepare_session_digest,NEW.prepare_credential_version) IS DISTINCT FROM
+    (OLD.prepare_session_digest,OLD.prepare_credential_version)) THEN REJECT; END IF;
   IF OLD.state=ANY(terminal) THEN
    -- A terminal set is never revived; only its transient cleanup progresses.
    IF NEW.state<>OLD.state OR NEW.revision<>OLD.revision THEN REJECT; END IF;
   ELSE
    IF NEW.state<>OLD.state THEN
     allowed:=CASE OLD.state WHEN 'RECEIVING' THEN ARRAY['NORMALIZING']
-     WHEN 'NORMALIZING' THEN ARRAY['NEEDS_MAPPING','CONFLICT','READY']
+     WHEN 'NORMALIZING' THEN ARRAY['NEEDS_MAPPING','CONFLICT']
      WHEN 'RECONCILING' THEN ARRAY['NEEDS_MAPPING','CONFLICT','READY']
      WHEN 'NEEDS_MAPPING' THEN ARRAY['RECONCILING'] WHEN 'CONFLICT' THEN ARRAY['RECONCILING']
      WHEN 'READY' THEN ARRAY['RECONCILING','COMMITTED'] ELSE ARRAY[]::text[] END
@@ -4149,6 +5019,15 @@ BEGIN
    IF member.id IS NULL THEN REJECT; END IF;
   END IF;
   IF TG_OP='INSERT' THEN
+   IF NEW.work_kind='prepare' THEN
+    SELECT * INTO root FROM wl_ingestion.roots r WHERE r.tenant_id=NEW.tenant_id AND r.portfolio_id=NEW.portfolio_id;
+    IF NEW.state<>'active' OR parent.state NOT IN ('NORMALIZING','RECONCILING') OR root.tenant_id IS NULL OR
+     (NEW.session_digest,NEW.credential_version) IS DISTINCT FROM
+      (parent.prepare_session_digest,parent.prepare_credential_version) OR
+     (NEW.prepare_set_revision,NEW.prepare_accepted_generation,NEW.prepare_mapping_generation,
+      NEW.prepare_control_generation) IS DISTINCT FROM
+      (parent.revision,root.accepted_generation,root.mapping_generation,root.control_generation) THEN REJECT; END IF;
+   END IF;
    IF worker.id IS NULL OR NOT worker.enabled OR NEW.state NOT IN ('offered','active') OR
     NEW.created_at>n OR NEW.expires_at<=n OR NEW.incarnation<>parent.incarnation OR
     NEW.restore_epoch<>parent.restore_epoch OR NEW.last_request_id IS NOT NULL OR
@@ -4172,10 +5051,12 @@ BEGIN
   END IF;
   IF (NEW.tenant_id,NEW.portfolio_id,NEW.id,NEW.set_id,NEW.member_id,NEW.work_kind,NEW.attempt,
     NEW.fence,NEW.worker_id,NEW.session_digest,NEW.credential_version,NEW.incarnation,
-    NEW.restore_epoch,NEW.created_at) IS DISTINCT FROM
+    NEW.restore_epoch,NEW.created_at,NEW.prepare_set_revision,NEW.prepare_accepted_generation,
+    NEW.prepare_mapping_generation,NEW.prepare_control_generation) IS DISTINCT FROM
    (OLD.tenant_id,OLD.portfolio_id,OLD.id,OLD.set_id,OLD.member_id,OLD.work_kind,OLD.attempt,
     OLD.fence,OLD.worker_id,OLD.session_digest,OLD.credential_version,OLD.incarnation,
-    OLD.restore_epoch,OLD.created_at) THEN REJECT; END IF;
+    OLD.restore_epoch,OLD.created_at,OLD.prepare_set_revision,OLD.prepare_accepted_generation,
+    OLD.prepare_mapping_generation,OLD.prepare_control_generation) THEN REJECT; END IF;
   -- A raw slot is released once, only by a fenced attempt that was never bound
   -- (and whose fixed 120-second raw deadline from reserve has passed, so the API
   -- holds no raw buffer) or whose recorded proofs for this fence all show no
@@ -4470,6 +5351,9 @@ def _value_rules(table):
             'revision>=1', 'member_count BETWEEN 1 AND 4', 'actor_user_id=tenant_id',
             "expires_at=created_at+interval '86400 seconds'", 'reserved_bytes<=16777216',
             "(state='COMMITTED')=(receipt_id IS NOT NULL)",
+            '(prepare_session_digest IS NULL)=(prepare_credential_version IS NULL)',
+            "(prepare_session_digest IS NOT NULL)=(state IN ('NORMALIZING','RECONCILING'))",
+            'prepare_credential_version>=1',
             _enum('cleanup_state', ('not_needed','pending','complete','failed'))],
         'members': [
             'ordinal BETWEEN 0 AND 3', 'raw_bytes BETWEEN 1 AND 10485760',
@@ -4485,6 +5369,11 @@ def _value_rules(table):
             '(claim_request_id IS NULL)=(claim_request_digest IS NULL)',
             '(last_request_id IS NULL)=(last_request_digest IS NULL)',
             '(last_request_id IS NULL)=(last_result_bytes IS NULL)',
+            "(work_kind='prepare')=(prepare_set_revision IS NOT NULL)",
+            "(work_kind='prepare')=(prepare_accepted_generation IS NOT NULL)",
+            "(work_kind='prepare')=(prepare_mapping_generation IS NOT NULL)",
+            "(work_kind='prepare')=(prepare_control_generation IS NOT NULL)",
+            'prepare_set_revision>=1',
             # Each normalize attempt took one raw slot at reserve; this records
             # whether it still holds it. Proofs belong to normalize attempts only.
             "(work_kind='normalize')=(raw_slot IS NOT NULL)", "raw_slot IN ('held','released')",

@@ -106,6 +106,8 @@ def _shape(value, schema, namespace, path):
     elif kind == 'array':
         if len(value) > schema.get('maxItems', 50000):
             raise IngestionError('import_limit', path)
+        if len(value) < schema.get('minItems', 0):
+            raise IngestionError('import_invalid', path)
         for item in value:
             _shape(item, schema['items'], namespace, path + '[]')
     elif kind == 'string':

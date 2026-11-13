@@ -352,8 +352,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   `already_claimed`; a claim request ID the worker already used for other work
   returns `import_conflict`; with nothing eligible the result is `no_work`. A
   lapsed cleanup lease is closed as expired before the set is handed out again.
-  Cleanup leases last 30 seconds and cannot be renewed yet. Prepare
-  claims return `import_invalid` until WL-P0-007L adds them.
+  Cleanup leases last 30 seconds and cannot be renewed yet.
   `cleanup_set_v1` takes the lease's job ID and fence, the same token, and up to
   twelve proofs. Each proof must name a normalize attempt of this set that was
   bound to a handoff token, at most three times. A proof's `checked_at` must be a
@@ -376,6 +375,28 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   before claim, expiry before claim, a slot already released by finish, pending
   and failed proofs, oldest-first selection, replay and every refusal leaving
   the lease and slot unchanged. No worker process calls them yet.
+  The `prepare` branch of `claim_plan_v1` verifies the session that completed
+  the last admitted upload or submitted the current decision. It also checks
+  every admitted stage and its source pins. It records the set revision and
+  accepted, mapping and control generations on the lease. Claim replay returns
+  the same job while the lease, session and generations remain current.
+  The checked `read_plan_basis_v1` fragment pages admitted inputs and scoped
+  accepted evidence under the live prepare lease. Its private `decisions`
+  resource returns a header with the stored digest and ordered typed items
+  so a worker can reconstruct the current decisions. The `context` resource
+  returns one row with the Plan scope, set expiry and ordered member source
+  pins. The worker can compare the pins' canonical digest with the prepare
+  claim fingerprint. Each `authorities` row includes the latest accepted link
+  ID and revision alongside the decision and evidence references. Page reads
+  retain no lease result. The `prepare_preview_v1` fragment checks the review
+  against the admitted stages, live pins and prior authority choices. A READY
+  preview requires explicit Decisions, even when every existing mapping can
+  be reused. Initial preparation presents a NEEDS_MAPPING or CONFLICT review
+  without an executable Plan. After the user confirms the decisions, the READY
+  preview passes the existing Plan and accepted-reference checks. The function
+  stores the immutable preview and returns the saved result on a
+  valid retry. WL-P0-007F wires these private calls into the worker, and
+  WL-P0-007D verifies the installed functions and grants.
   These fragments are not a complete migration provider and install no application
   grants. Never use them to enable a real instance.
 
