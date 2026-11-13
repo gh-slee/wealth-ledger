@@ -167,6 +167,15 @@ colours or wording are copied.
 | Project name | Kurafolio: kura (the kanji U+8535), the storehouse where a family kept its valuables, plus "folio". Rename everything, old names stop working, done alone before parallel work. The README explains the name | WL-P0-024 |
 | When the MVP is usable | The pull request of WL-P0-021 must say so, with the start command and first-use steps | WL-P0-021 |
 
+## Owner answers recorded on 2026-11-12
+
+| Topic | Decision | Consequence |
+|---|---|---|
+| Remaining P0 backlog | Gate A approved for WL-P0-011E, 011F, 011H, 012E, 013A, 013B and 023; WL-P0-007M released for its options write-up; WL-P0-022 released | Those tickets are `ready` |
+| Preferences stored on the server | Interface language, time zone and reporting currency. Appearance stays in the browser. No session list in the first release | WL-P0-011E, 011F |
+| When a page offers "Enable a source" | Each plugin declares its asset classes; the offer appears only when no enabled source declares that class and there are no holdings of it. Imported holdings always count | WL-P0-011H |
+| Export formats for go-live | PDF, Excel (.xlsx), ODS and Markdown. CSV, JSON, PNG and ZIP come later | WL-P0-013A, 013B; WL-P1-014 |
+
 ## Still open
 
 1. The named unofficial market-data endpoint, to be proposed by the WL-P0-009A
