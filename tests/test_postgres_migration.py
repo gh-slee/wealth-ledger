@@ -256,6 +256,178 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertNotIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.CLEANUP_SET_DDL)
 
 @unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
+                     'Opt-in isolated ingestion PostgreSQL provider acceptance')
+class IngestionProviderPostgresTests(unittest.TestCase):
+    def test_install_upgrade_grants_and_transactional_refusal(self):
+        import sys
+
+        import psycopg
+        from psycopg import sql
+        from psycopg.conninfo import conninfo_to_dict
+
+        from kurafolio.persistence.config import PostgresConfig
+
+        script = Path(__file__).resolve().parents[1] / 'scripts/postgres.py'
+        with tempfile.TemporaryDirectory(prefix='wl007d-provider-') as directory:
+            path = Path(directory) / 'fixture'
+            subprocess.run([sys.executable, str(script), 'test-identity-environment', '--output', str(path)],
+                           check=True, capture_output=True, timeout=120)
+            try:
+                fixture = json.loads((path / 'test-config.json').read_text())
+                operator = conninfo_to_dict(PostgresConfig.from_secret_file(path / 'migration.conninfo').conninfo)
+                admin = dict(operator, user='postgres', password=(path / 'bootstrap.secret').read_text())
+                runtime, gateway, worker = fixture['runtime_role'], fixture['identity_role'], 'synthetic_ingestion_worker'
+                with psycopg.connect(**admin, autocommit=True) as conn:
+                    conn.execute(sql.SQL('CREATE ROLE {} LOGIN').format(sql.Identifier(worker)))
+                    for name in ('synthetic_fresh', 'synthetic_upgrade', 'synthetic_restore_one', 'synthetic_restore_two'):
+                        conn.execute(sql.SQL('CREATE DATABASE {} OWNER {}').format(
+                            sql.Identifier(name), sql.Identifier(fixture['migration_role'])))
+                self._verify_targets(operator, path, fixture, (runtime, gateway, worker))
+            finally:
+                subprocess.run([sys.executable, str(script), 'cleanup-test-environment',
+                                '--config', str(path / 'test-config.json')],
+                               check=True, capture_output=True, timeout=45)
+
+    def _verify_targets(self, operator, path, fixture, roles):
+        from psycopg.conninfo import make_conninfo
+
+        from kurafolio.data_sources.contract_v1 import CatalogSnapshot
+        from kurafolio.persistence import ingestion_migration as migration
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.context import Database, execute
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.source_migration import migrate_sources
+
+        runtime, gateway, worker = roles
+        fresh = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_fresh'))),
+                         schema_mode='sources')
+        upgrade = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_upgrade'))),
+                           schema_mode='sources')
+        try:
+            key = hashlib.sha256((path / 'identity.key').read_bytes()).hexdigest()
+            catalog = CatalogSnapshot(1, '0', (), (), ())
+            with self.assertRaisesRegex(PersistenceError, 'schema_unsupported'):
+                migration.migrate_ingestion(fresh, *roles, key, catalog)
+            for database in (fresh, upgrade):
+                migrate_sources(database, runtime, gateway, key, catalog)
+                with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                    migration.migrate_ingestion(database, *roles, key, catalog)
+                with database.engine.begin() as conn:
+                    owner, portfolio = uuid.uuid4(), uuid.uuid4()
+                    execute(conn, 'INSERT INTO wl_pg.tenant_roots(tenant_id,portfolio_id) VALUES(:t,:p)',
+                            t=owner, p=portfolio)
+                    execute(conn, 'INSERT INTO wl_pg.portfolios(tenant_id,portfolio_id) VALUES(:t,:p)',
+                            t=owner, p=portfolio)
+                    execute(conn, """
+                        INSERT INTO wl_identity.users(id,portfolio_id,username,username_key,argon_hash,
+                                                     credential_incarnation,credential_epoch,created_at)
+                        SELECT :t,:p,'SyntheticOperator','syntheticoperator','synthetic-unused',
+                               incarnation,restore_epoch,clock_timestamp() FROM wl_pg.instance_state WHERE id=1
+                    """, t=owner, p=portfolio)
+                    execute(conn, """
+                        UPDATE wl_identity.instance_auth_state
+                        SET bootstrap_closed=true,admin_user_id=:t WHERE id=1
+                    """, t=owner)
+
+            def fault(phase):
+                if phase == 'after_grants':
+                    raise RuntimeError('synthetic rollback')
+
+            with self.assertRaisesRegex(RuntimeError, 'synthetic rollback'):
+                migration.migrate_ingestion(upgrade, *roles, key, catalog, fault=fault)
+            self.assertEqual('0003_source_lifecycle', upgrade.status()['schema_revision'])
+            with upgrade.engine.begin() as conn:
+                self.assertIsNone(execute(conn, "SELECT to_regnamespace('wl_ingestion')").scalar_one())
+                execute(conn, 'ALTER POLICY scope ON wl_pg.portfolios USING (true)')
+            with self.assertRaisesRegex(PersistenceError, 'migration_target_invalid'):
+                migration.migrate_ingestion(upgrade, *roles, key, catalog)
+            with upgrade.engine.begin() as conn:
+                execute(conn, '''
+                    ALTER POLICY scope ON wl_pg.portfolios USING(
+                        tenant_id::text=NULLIF(current_setting('ledger.tenant_id',true),'')
+                        AND portfolio_id::text=NULLIF(current_setting('ledger.portfolio_id',true),''))
+                ''')
+
+            expected = {'schema_revision': '0004_ingestion', 'functions': 68, 'ready': False}
+            for database in (fresh, upgrade):
+                self.assertEqual(expected, migration.migrate_ingestion(database, *roles, key, catalog))
+            self.assertEqual(expected, migration.migrate_ingestion(fresh, *roles, key, catalog))
+            arguments = dict(runtime_role=runtime, gateway_role=gateway, worker_role=worker)
+            with fresh.engine.begin() as conn:
+                self.assertEqual(0, execute(conn, 'SELECT count(*) FROM wl_ingestion.workers').scalar_one())
+                self.assertEqual(expected['functions'], migration.verify_inventory(conn, **arguments)['functions'])
+                execute(conn, 'GRANT EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) TO PUBLIC')
+                with self.assertRaisesRegex(PersistenceError, 'migration_target_invalid'):
+                    migration.verify_inventory(conn, **arguments)
+                execute(conn, 'REVOKE EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) FROM PUBLIC')
+                changed = conn.begin_nested()
+                execute(conn, 'ALTER FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) RESET search_path')
+                with self.assertRaisesRegex(PersistenceError, 'migration_target_invalid'):
+                    migration.verify_inventory(conn, **arguments)
+                changed.rollback()
+            self._verify_inactive_restores(operator, fixture, runtime, gateway, worker)
+        finally:
+            fresh.close()
+            upgrade.close()
+
+
+    def _verify_inactive_restores(self, operator, fixture, runtime, gateway, worker):
+        from psycopg.conninfo import make_conninfo
+
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.context import Database, execute
+        from kurafolio.persistence.ingestion_migration import verify_functions
+
+        source = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_fresh'))))
+        self.addCleanup(source.close)
+        with source.engine.begin() as conn:
+            execute(conn, """
+                INSERT INTO wl_ingestion.instance_state VALUES
+                (1,convert_to('[]','UTF8'),encode(sha256(convert_to('[]','UTF8')),'hex'),repeat('a',64),false)
+            """)
+            execute(conn, 'INSERT INTO wl_ingestion.workers VALUES(:id,:role,:peer,true,1)',
+                    id=uuid.uuid4(), role=worker, peer='synthetic-peer')
+            execute(conn, '''
+                INSERT INTO wl_ingestion.roots(tenant_id,portfolio_id,accepted_generation,mapping_generation,control_generation)
+                SELECT id,portfolio_id,0,0,0 FROM wl_identity.users
+            ''')
+            execute(conn, '''
+                INSERT INTO wl_ingestion.sets(
+                    tenant_id,portfolio_id,id,actor_user_id,creation_operation_id,request_digest,
+                    incarnation,restore_epoch,realm_digest,state,revision,created_at,expires_at,
+                    member_count,reserved_bytes,cleanup_state)
+                SELECT u.id,u.portfolio_id,:set,u.id,:operation,repeat('b',64),st.incarnation,
+                       st.restore_epoch,repeat('c',64),'RECEIVING',1,now(),now()+interval '86400 seconds',
+                       1,0,'not_needed'
+                FROM wl_identity.users u CROSS JOIN wl_pg.instance_state st
+            ''', set=uuid.uuid4(), operation=uuid.uuid4())
+
+        container = fixture['container']
+        dump = subprocess.run(['docker', 'exec', container, 'pg_dump', '-U', 'postgres',
+                               '--format=custom', '--no-owner', '--no-acl', '--dbname=synthetic_fresh'],
+                              check=True, capture_output=True, timeout=45).stdout
+        for name in ('synthetic_restore_one', 'synthetic_restore_two'):
+            with self.subTest(restore=name):
+                database = Database(PostgresConfig(make_conninfo(**dict(operator, dbname=name))))
+                self.addCleanup(database.close)
+                with database.engine.connect() as conn:
+                    self.assertIsNone(execute(conn, "SELECT to_regnamespace('wl_ingestion')").scalar_one())
+                subprocess.run(['docker', 'exec', '-i', container, 'pg_restore', '-U', 'postgres',
+                                '--exit-on-error', '--no-owner', '--no-acl',
+                                '--role=' + fixture['migration_role'], '--dbname=' + name],
+                               input=dump, check=True, capture_output=True, timeout=45)
+                with database.engine.connect() as conn:
+                    self.assertEqual(68, verify_functions(conn))
+                    self.assertFalse(execute(conn, 'SELECT ready FROM wl_ingestion.instance_state').scalar_one())
+                    self.assertEqual(1, execute(conn, 'SELECT count(*) FROM wl_ingestion.workers').scalar_one())
+                    self.assertEqual('RECEIVING', execute(conn, 'SELECT state FROM wl_ingestion.sets').scalar_one())
+                    for role in (runtime, gateway, worker):
+                        self.assertFalse(execute(conn, """
+                            SELECT pg_catalog.has_schema_privilege(:role,'wl_ingestion','USAGE')
+                        """, role=role).scalar_one())
+
+
+@unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
                      'Opt-in isolated ingestion PostgreSQL fragment acceptance')
 class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     """Real SQL fragment checks; incomplete deferred-parent inserts roll back."""

@@ -397,15 +397,36 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   stores the immutable preview and returns the saved result on a
   valid retry. WL-P0-007F wires these private calls into the worker, and
   WL-P0-007D verifies the installed functions and grants.
-  These fragments are not a complete migration provider and install no application
-  grants. Never use them to enable a real instance.
+## Explicit 0004 installation
+
+The operator command installs the schema on a verified PostgreSQL 18
+`0003_source_lifecycle` instance with completed identity setup. Use a synthetic
+instance and separate operator, financial reader, identity/source gateway and
+ingestion worker roles. The source catalog and identity key must match the
+initialized instance.
+
+```sh
+python -m kurafolio.web_v2 operator migrate-ingestion \
+  --secret-file operator.conninfo --key-file identity.key \
+  --source-catalog-file source-catalog.json \
+  --runtime-role financial_reader --identity-role identity_gateway \
+  --worker-role ingestion_worker
+```
+
+The command verifies inherited and new definitions, applies the profile's
+read-only financial grants and checked function grants, and commits only after
+the installed inventory matches. It leaves ingestion inactive pending runtime
+profile and launcher readiness. Existing 0001–0003 clients refuse the newer
+revision. The migration has no destructive downgrade. A synthetic backup restored without
+ACLs into two empty targets retained an inactive ingestion marker and gave
+application roles no ingestion schema access. This verifies quarantine for an
+inactive profile. Restore finalization and readiness for a previously active
+profile require further verification.
 
 ## Remaining acceptance
 
-Remaining checked database functions and guards, operator upgrade/inventory verification,
-live source/profile checks around native admission and Plan preparation,
-authenticated routes, the dedicated worker and
-trusted launcher remain unfinished. Real acceptance must exercise atomic effects,
+Ingestion restore finalization, runtime profile readiness, authenticated routes,
+the dedicated worker and trusted launcher remain unfinished. Real acceptance must exercise atomic effects,
 replay, shared capacity, races, cleanup, effective Linux containment and restore
 into two independently empty targets.
 

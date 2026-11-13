@@ -20,7 +20,7 @@ def parser():
     serve.add_argument('--tls-key-file',type=Path)
     serve.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
     serve.add_argument('--source-catalog-file',type=Path)
-    for action,operations in [('operator',['migrate-identity','migrate-sources']),('identity',['status','finalize-restore']),
+    for action,operations in [('operator',['migrate-identity','migrate-sources','migrate-ingestion']),('identity',['status','finalize-restore']),
                                ('sources',['status','catalog-apply','finalize-restore']),
                                ('setup',['arm','revoke']),('invite',['issue','revoke']),
                                ('account',['reset-password','disable','enable'])]:
@@ -28,15 +28,17 @@ def parser():
         for operation in operations:
             item=group.add_parser(operation)
             item.add_argument('--secret-file',required=True,type=Path)
-            if operation in {'migrate-identity','migrate-sources','finalize-restore'} or action=='sources':
+            if operation in {'migrate-identity','migrate-sources','migrate-ingestion','finalize-restore'} or action=='sources':
                 item.add_argument('--runtime-role',required=True)
                 item.add_argument('--identity-role',required=True)
                 item.add_argument('--key-file',required=True,type=Path)
             if action in {'setup','invite','account'} or action=='identity' and operation=='status':
                 item.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
-            if action=='sources' or operation=='migrate-sources':
+            if operation=='migrate-ingestion':
+                item.add_argument('--worker-role',required=True)
+            if action=='sources' or operation in {'migrate-sources','migrate-ingestion'}:
                 item.add_argument('--source-catalog-file',required=True,type=Path)
-                if operation!='status':item.add_argument('--source-proof-file',type=Path)
+                if operation not in {'status','migrate-ingestion'}:item.add_argument('--source-proof-file',type=Path)
             if action=='sources' and operation=='catalog-apply':
                 item.add_argument('--expected-catalog-revision',required=True)
             if operation=='finalize-restore':
