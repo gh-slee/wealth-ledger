@@ -51,7 +51,8 @@ PUBLIC_README_PNGS = {
     'assets/readme/web-bitcoin.png', 'assets/readme/web-imports.png',
     'assets/readme/web-records.png', 'assets/readme/web-reports.png',
     'assets/readme/web-settings.png', 'assets/readme/web-overview-dark.png',
-    'assets/readme/web-report-reader.png',
+    'assets/readme/web-report-reader.png', 'assets/readme/web-v2-shell.png',
+    'assets/readme/web-v2-shell-phone.png',
 }
 PUBLIC_ROLE_SKILLS = frozenset({
     '.agents/skills/kurafolio-fintech-pm/SKILL.md',
