@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -41,7 +42,14 @@ def parse_arguments(argv: list[str]) -> argparse.Namespace:
 
 def run_suite(unittest_args: list[str], stream=None) -> unittest.TestResult:
     """Run unittest exactly as ``python -m unittest <args> -v`` would and return the result."""
-    runner = unittest.TextTestRunner(stream=stream or sys.stderr, verbosity=2)
+    output = stream or sys.stderr
+
+    # TestProgram applies -f, -b, -c and --locals only when given a runner class.
+    class Runner(unittest.TextTestRunner):
+        def __init__(self, **options):
+            super().__init__(stream=output, **options)
+
+    runner = Runner
     program = unittest.TestProgram(module=None, argv=['python -m unittest', *unittest_args],
                                    testRunner=runner, exit=False, verbosity=2)
     return program.result
@@ -72,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
     # modules cannot shadow test or application modules of the same name.
     sys.path[:] = [entry for entry in sys.path
                    if Path(entry or '.').resolve() != SCRIPT_DIRECTORY]
+    # Like python -m unittest, find named test modules in the working directory.
+    sys.path.insert(0, os.getcwd())
     result = run_suite(options.unittest_args)
     skipped = len(result.skipped)
     print('Skip guard: {} run, {} skipped (expected {}), {} failed, {} errors'.format(

@@ -39,10 +39,11 @@ class SkipGuardTests(unittest.TestCase):
         (self.root / name).write_text(textwrap.dedent(source), encoding='utf-8')
 
     def run_guard(self, *args, gate=None):
-        environment = {key: value for key, value in os.environ.items() if key != 'SYNTHETIC_GATE'}
+        # No PYTHONPATH: named modules must resolve from the working directory, as with unittest.
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in ('SYNTHETIC_GATE', 'PYTHONPATH')}
         if gate is not None:
             environment['SYNTHETIC_GATE'] = gate
-        environment['PYTHONPATH'] = str(self.root)
         return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=self.root, env=environment,
                               capture_output=True, text=True, timeout=60)
 
@@ -112,6 +113,22 @@ class SkipGuardTests(unittest.TestCase):
         result = self.run_guard('--expect-skipped', '0', '--', 'test_gated.Always', gate='1')
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn('Skip guard: 1 run, 0 skipped', result.stdout)
+
+    def test_passes_unittest_runner_flags_through(self):
+        self.write('test_two_failures.py', '''
+            import unittest
+
+
+            class TwoFailures(unittest.TestCase):
+                def test_a(self):
+                    self.fail('first')
+
+                def test_b(self):
+                    self.fail('second')
+        ''')
+        result = self.run_guard('--expect-skipped', '0', '--', '-f', 'test_two_failures')
+        self.assertEqual(1, result.returncode)
+        self.assertIn('1 failed', result.stdout)
 
     def test_rejects_missing_or_negative_arguments(self):
         for args in (('--expect-skipped', '0'), ('--expect-skipped', '-1', '--', 'test_gated'),

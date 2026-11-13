@@ -488,8 +488,7 @@ python scripts/postgres.py cleanup-test-environment --config "$KURAFOLIO_IDENTIT
 Use unique new context/target/tag names on later runs; helpers refuse overwriting
 private evidence. A context/image must match current source hashes; rebuild after
 source changes. Keep exact reviewed candidate receipts separate from development
-self-test snapshots. The seven-job workflow adds `postgres-sources` alongside the
-six existing jobs. Its source feature tests must execute without skips. A default
+self-test snapshots. The workflow runs `postgres-sources` as its own job. Its source feature tests must execute without skips. A default
 suite's opt-in skips are not evidence of PostgreSQL/native containment acceptance.
 
 Tests cover strict raw-SQL/HTTP contracts, scoped roles, canonical capacity and
@@ -498,6 +497,8 @@ migration/finalization fault rollback, matching double empty-target restore and
 two real HTTP processes sharing SQL budgets. The running test worker adds native
 file/socket/environment/network/resource/cancellation/cleanup probes and real
 builtin normalization/offline API parity. Read the [frozen test recipe](../tests/fixtures/source_capabilities/README.md).
+It is not a production runner or arbitrary hostile-code sandbox. Final reviewed
+image/independent evidence and actual merged CI remain separate acceptance gates.
 
 ## Gated CI suites and the skip guard
 
@@ -519,5 +520,3 @@ KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tes
 When you add, remove or regate a test in one of these suites, update that step's
 expected count in `.github/workflows/ci.yml` in the same change and say why in
 the pull request. A comment next to each nonzero count names the tests it covers.
-It is not a production runner or arbitrary hostile-code sandbox. Final reviewed
-image/independent evidence and actual merged CI remain separate acceptance gates.
