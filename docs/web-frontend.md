@@ -54,9 +54,38 @@ those states. Stock/Bond, Exposures and Crypto offer "Enable a source" until
 the WL-P0-008 positions contract lets the shell detect holdings. All eight
 destinations stay in the navigation either way.
 
+### V2 sign-in, setup and invitations
+
+After the probe, the V2 app reads `GET /api/v2/me`. Without a session, every
+`/app` route goes to `/login`. `/setup?token=…` creates the first administrator
+and `/register?token=…` redeems an invitation; both read the token once and
+remove it from the address bar, then send the person to sign-in. The
+administrator manages invitations on Profile: a new invitation's link is shown
+once, kept only in that page's memory, and never saved in browser storage.
+Members never request the admin routes.
+
+The V2 client in `frontend/src/v2/api.ts` keeps the CSRF token in memory and
+gets a new one when the server clears the session cookie. Sign-in, setup and
+registration retry once when their ten-minute anonymous session has lapsed. A
+signed-in request is never resent: a rejected CSRF token means another tab
+signed out or in, so this window ends its session. Signing out, a session the
+server ended, or another user signing in aborts open requests and clears the
+query cache before the next page renders. Error codes are mapped to
+messages and never shown. Password reset and account enable or disable remain
+host commands ([V2 identity](web-v2-identity.md)).
+
+The registration API answers an expired, revoked or used invitation and a
+taken username with the same code after submit, so the page names both
+causes in one message. WL-P0-011I tracks telling them apart.
+
+The browser specs intercept `/api/v2` with a stateful synthetic fake. The
+SQLite fixture serves the bundle only at `/` and `/login`, so
+`v2-identity.spec.ts` answers `/setup` and `/register` with the same document,
+as the V2 server does.
+
 ```bash
 npm --prefix frontend run build
-npm --prefix frontend run test:e2e -- v2-shell.spec.ts
+npm --prefix frontend run test:e2e -- v2-shell.spec.ts v2-identity.spec.ts
 ```
 
 ## Daily use

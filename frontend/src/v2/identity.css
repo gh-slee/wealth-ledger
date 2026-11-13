@@ -1,0 +1,123 @@
+.v2-auth > header {
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.v2-auth > header > label {
+  min-width: 10rem;
+}
+.v2-auth-main {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 10vh 1.5rem 4rem;
+}
+.v2-auth-main h1 {
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  line-height: 1.15;
+  margin: 0 0 1rem;
+}
+.v2-auth-main > .login-panel > p {
+  margin-block: 0 1rem;
+}
+.v2-auth-alert {
+  margin-block: 1rem;
+}
+.v2-auth-note {
+  margin-block: 1.4rem 0;
+}
+.v2-auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block-start: 1.2rem;
+}
+.v2-field {
+  display: grid;
+  gap: 0.45rem;
+}
+.v2-field input[aria-invalid="true"] {
+  border-color: var(--error-ink);
+  border-width: 2px;
+}
+.v2-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--error-ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.v2-field-error svg {
+  flex: none;
+  margin-block-start: 0.1rem;
+}
+.v2-account {
+  display: grid;
+  gap: 0.5rem;
+}
+.v2-account p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.v2-menu .v2-account {
+  margin-block-start: 1rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--border);
+}
+.v2-invitations {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+  margin-block-start: 1.5rem;
+}
+.v2-invitations > h2 {
+  margin: 0;
+}
+.v2-invitations > p {
+  margin: 0;
+}
+.v2-invitations > .v2-state,
+.v2-invitations > .table-scroll,
+.v2-invitations > .v2-issued,
+.v2-invitations > .v2-auth-alert {
+  justify-self: stretch;
+  margin-block: 0;
+}
+.v2-issued {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--teal);
+  border-radius: 6px;
+}
+.v2-issued h3,
+.v2-issued p {
+  margin: 0;
+}
+.v2-issued > .button {
+  justify-self: start;
+}
+.v2-copy-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.v2-copy-row input {
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+.v2-copy-row .button {
+  flex: none;
+}
+
+@media (max-width: 700px) {
+  .v2-auth-main {
+    padding: 2rem 1rem 3rem;
+  }
+  .v2-copy-row {
+    flex-direction: column;
+  }
+}

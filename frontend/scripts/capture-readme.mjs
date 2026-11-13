@@ -166,6 +166,19 @@ try {
         json: { authenticated: true, csrf_token: "0".repeat(64) },
       }),
     );
+    await v2.route(origin + "/api/v2/me", (route) =>
+      route.fulfill({
+        json: {
+          authenticated: true,
+          user: {
+            id: "00000000-0000-4000-8000-000000000002",
+            username: "example-member",
+            role: "member",
+          },
+          portfolio: { id: "00000000-0000-4000-8000-0000000000ff" },
+        },
+      }),
+    );
     async function shot(filename) {
       if (new URL(v2.url()).origin !== origin)
         throw new Error("Unexpected capture origin");

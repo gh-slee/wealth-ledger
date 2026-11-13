@@ -2,9 +2,10 @@
 
 This separate backend was merged in [PR #19](https://github.com/gh-slee/kurafolio/pull/19).
 It is opt-in development infrastructure, not an upgrade path for the existing SQLite Web App. Do not change a running ledger's
-entry point or database to try it. The setup wizard, registration UI and invitation
-pages belong to a later frontend slice; no V2 financial import/export service is
-claimed here. See [capabilities](capability-status.md) and [the PG foundation](postgres-foundation.md).
+entry point or database to try it. The browser pages for first setup, invitation
+registration, sign-in and invitation management are described in
+[the frontend guide](web-frontend.md#v2-sign-in-setup-and-invitations); no V2
+financial import/export service is claimed here. See [capabilities](capability-status.md) and [the PG foundation](postgres-foundation.md).
 
 ## Model and trust boundary
 
@@ -75,6 +76,12 @@ PYTHONPATH=src python -m kurafolio.web_v2 serve \
 ```
 
 These are new, explicit commands; the default Compose/CLI Web entry stays unchanged.
+
+To finish setup in a browser, open `<origin>/setup?token=<code>`, where `<code>` is
+the single line `setup arm` wrote to its output file and `<origin>` is the configured
+`--origin`. The code lasts 30 minutes and works once. An invitation issued on the
+host works the same way at `<origin>/register?token=<code>`. Both pages read the code
+once and remove it from the address bar; treat the full link as the secret.
 An HTTP listener must bind a literal loopback address (`localhost` is pinned to
 127.0.0.1). Any non-loopback bind requires an HTTPS origin **and actual TLS** through
 `--tls-cert-file /path/to/private/certificate.pem --tls-key-file /path/to/private/transport.key`.

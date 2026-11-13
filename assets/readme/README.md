@@ -92,7 +92,8 @@ Use `node frontend/scripts/capture-readme.mjs --imports-only` for only
 Use `node frontend/scripts/capture-readme.mjs --v2-shell-only` for only the two
 `web-v2-shell*.png` images, with receipt `work/readme-capture/v2-shell-provenance.json`.
 The fixture is a SQLite instance, so this mode answers only the V2 startup probe with
-a synthetic token; the placeholder pages request no finance data.
+a synthetic token and the session read with a synthetic member; the placeholder
+pages request no finance data.
 
 The four selective modes are mutually exclusive; no URL, portfolio or source-file
 arguments are accepted. None of these modes submits financial input. The first-run mode never creates financial records in
