@@ -3857,7 +3857,7 @@ BEGIN
  IF TG_TABLE_SCHEMA<>'wl_ingestion' OR TG_TABLE_NAME NOT IN
   ('accepted_inputs','accepted_plans','source_revisions','mappings',
    'authority_links','lineage','receipts','audit') OR TG_WHEN<>'BEFORE'
-  OR TG_LEVEL<>'ROW' OR TG_OP<>'INSERT' THEN
+  OR TG_LEVEL<>'ROW' OR TG_OP NOT IN ('INSERT','UPDATE') THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
  END IF;
  -- Direct application DML remains denied by the profile grants. This trigger
