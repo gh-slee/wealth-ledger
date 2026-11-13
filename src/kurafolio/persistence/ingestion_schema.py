@@ -3797,11 +3797,13 @@ _INITIAL_REVIEW_CANDIDATES = r"""
    OR EXISTS (
     WITH ENTITY_CTES eligible AS (
      ENTITY_ROWS
+    ), disclosed AS (
+     SELECT j.value->'candidate' AS candidate
+     FROM pg_catalog.jsonb_array_elements(rows) j(value)
+     WHERE j.value->>'type'='target_candidate' AND j.value#>>'{candidate,target,mode}'='existing'
     )
-    SELECT 1 FROM eligible e WHERE NOT seen_candidates ? (
-     (e.data#>>'{candidate,member_id}')||':'||(e.data#>>'{candidate,entity_kind}')||':'||
-     (e.data#>>'{candidate,local_id}')||':existing:'||(e.data#>>'{candidate,target,id}')||':'||
-     (e.data#>>'{candidate,target,version}'))
+    SELECT 1 FROM eligible e FULL JOIN disclosed d ON e.data->'candidate'=d.candidate
+    WHERE e.data IS NULL OR d.candidate IS NULL
    ) THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
  END IF;
 """.replace('ENTITY_CTES', _BASIS_ENTITY_CTES.replace('STAGED_FILTER', '').replace(

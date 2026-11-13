@@ -4032,6 +4032,27 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         seed += (f"INSERT INTO wl_pg.accounts(tenant_id,portfolio_id,id,version,body,category,role,label) "
                  f"SELECT '{plan['tenant_id']}','{plan['portfolio_id']}','{id_}','{version}',b,"
                  f"b->>'category',b->>'role',b->>'label' FROM (SELECT '{json.dumps(body)}'::jsonb b) q;")
+        instrument = next(row['candidate'] for row in bundle['review']['content']['rows']
+                          if row['type'] == 'target_candidate' and row['candidate']['entity_kind'] == 'instrument'
+                          and row['candidate']['body']['kind'] == 'CASH')
+        instrument_body = deepcopy(instrument['body'])
+        instrument_id = '40000000-0000-4000-8000-0000000000eb'
+        issuer_id = '40000000-0000-4000-8000-0000000000ec'
+        issuer_ref = {'kind': 'issuer', 'value': issuer_id, 'tenant_id': plan['tenant_id'],
+                      'portfolio_id': plan['portfolio_id']}
+        issuer_body = {'id': issuer_ref, 'label': 'Synthetic different issuer'}
+        instrument_body.update(issuer=issuer_ref)
+        instrument_body['id']['value'] = instrument_id
+        instrument_version = digest(instrument_body)
+        scope = f"'{plan['tenant_id']}','{plan['portfolio_id']}'"
+        seed += (f"INSERT INTO wl_pg.issuers(tenant_id,portfolio_id,id,version,body,label) VALUES "
+                 f"({scope},'{issuer_id}','{digest(issuer_body)}','{json.dumps(issuer_body)}',"
+                 "'Synthetic different issuer');"
+                 "INSERT INTO wl_pg.instruments(tenant_id,portfolio_id,id,version,body,kind,currency,ticker,mic,"
+                 "symbol,network,settlement_identity,issuer_id,issuer_version,identifiers) "
+                 f"SELECT {scope},'{instrument_id}','{instrument_version}',b,b->>'kind',b->>'currency',"
+                 f"b->>'ticker',b->>'mic',b->>'symbol',b->>'network',b->>'settlement_identity','{issuer_id}',"
+                 f"'{digest(issuer_body)}',b->'identifiers' FROM (SELECT '{json.dumps(instrument_body)}'::jsonb b) q;")
         no_choices = deepcopy(bundle)
         content = no_choices['review']['content']
         content['rows'] = [row for row in content['rows'] if row['type'] != 'target_candidate']
@@ -4043,15 +4064,22 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         content['rows'].append({'type': 'target_candidate', 'ordinal': str(len(content['rows'])),
             'candidate': dict(candidate, body=body, target={'mode': 'existing', 'id': id_, 'version': version})})
         complete['review']['content_digest'] = digest(content)
+        extra = deepcopy(complete)
+        extra_content = extra['review']['content']
+        extra_content['rows'].append({'type': 'target_candidate', 'ordinal': str(len(extra_content['rows'])),
+            'candidate': dict(instrument, body=instrument_body,
+                              target={'mode': 'existing', 'id': instrument_id, 'version': instrument_version})})
+        extra['review']['content_digest'] = digest(extra_content)
         out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
             + self.basis_call('entities', resource='entities', set_id=repr(plan['set_id']))
             + self.prepare_preview_call('no_choices', no_choices, ready=False)
             + self.prepare_preview_call('missing_existing', bundle, ready=False)
+            + self.prepare_preview_call('wrong_issuer', extra, ready=False)
             + "SELECT 'BEFORE '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
             + self.prepare_preview_call('complete', complete, ready=False))
         self.assertEqual([content['rows'][-1]['candidate']],
                          [row['candidate'] for row in out['ENTITIES']['value']['rows']])
-        for label in ('NO_CHOICES', 'MISSING_EXISTING'):
+        for label in ('NO_CHOICES', 'MISSING_EXISTING', 'WRONG_ISSUER'):
             self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label])
         self.assertEqual([0], out['BEFORE'])
         self.assertTrue(out['COMPLETE']['ok'], out['COMPLETE'])
