@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useId,
   useRef,
   useState,
@@ -50,6 +51,8 @@ type Action = {
   method: "POST" | "PUT";
   body: Record<string, unknown> & { operation_id: string };
   done: Message;
+  /** Runs after the server accepted this action, including after a retry. */
+  onDone?: () => void;
 };
 
 type Notice =
@@ -83,12 +86,16 @@ function safeLink(value: string | null): string | null {
   if (!value) return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:"
-      ? url.href
-      : null;
+    return url.protocol === "https:" ? url.href : null;
   } catch {
     return null;
   }
+}
+
+/** Return focus to the control that opened a dialog, or to the heading. */
+function restoreFocus(origin: HTMLElement | null) {
+  if (origin?.isConnected) origin.focus();
+  else document.querySelector<HTMLElement>("main h1")?.focus();
 }
 
 function fill(text: string, values: Record<string, string>) {
@@ -133,6 +140,7 @@ export function SourceStore({ userId }: { userId: string }) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const alert = useRef<HTMLDivElement>(null);
 
   const catalog = useQuery({
     queryKey: catalogKey,
@@ -151,12 +159,18 @@ export function SourceStore({ userId }: { userId: string }) {
     onSuccess: (_value, action) => {
       setConfirmation(null);
       setNotice({ kind: "done", message: action.done });
+      action.onDone?.();
     },
     onError: (error, action) => {
       setConfirmation(null);
       if (error instanceof DOMException && error.name === "AbortError") return;
       const code = error instanceof V2Error ? error.code : "";
-      if (STALE_CODES.has(code)) {
+      // A connection update is refused this way when its source was turned
+      // off or moved to another version since the list was read.
+      if (
+        STALE_CODES.has(code) ||
+        (code === "source_context_incompatible" && action.method === "PUT")
+      ) {
         setNotice({ kind: "stale" });
         return;
       }
@@ -167,20 +181,35 @@ export function SourceStore({ userId }: { userId: string }) {
         retry: again ? action : null,
       });
     },
-    onSettled: () =>
-      Promise.all([
-        client.invalidateQueries({ queryKey: catalogKey }),
-        client.invalidateQueries({ queryKey: connectionsKey }),
-      ]),
+    // Not awaited: the mutation must settle, and its controls come back,
+    // before the dialog returns focus to them.
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: catalogKey });
+      void client.invalidateQueries({ queryKey: connectionsKey });
+    },
   });
 
+  useEffect(() => {
+    if (notice && notice.kind !== "done")
+      alert.current?.scrollIntoView?.({ block: "nearest" });
+  }, [notice]);
+
+  // Controls stay focusable while a request runs (aria-disabled), so these
+  // guards, not the disabled attribute, stop a second request.
+  function start(action: Action) {
+    if (!run.isPending) run.mutate(action);
+  }
+
   function ask(value: Confirmation) {
+    if (run.isPending) return;
     opener.current = document.activeElement as HTMLElement | null;
     setConfirmation(value);
   }
 
   if (catalog.isPending) return <PageLoading />;
-  if (catalog.isError)
+  // Keep showing the last list when only a refresh failed, so a pending
+  // retry stays available.
+  if (!catalog.data)
     return (
       <PageError
         message={t("wlP0011c.loadFailed")}
@@ -201,16 +230,28 @@ export function SourceStore({ userId }: { userId: string }) {
           </p>
         )}
       </div>
+      {catalog.isError && (
+        <div className="error v2-sources-alert">
+          <p>{t("wlP0011c.refreshFailed")}</p>
+          <Button
+            variant="secondary"
+            onClick={() => void catalog.refetch()}
+            disabled={catalog.isFetching}
+          >
+            {t("wlP0011c.reload")}
+          </Button>
+        </div>
+      )}
       {notice && notice.kind !== "done" && (
-        <div role="alert" className="error v2-sources-alert">
+        <div ref={alert} role="alert" className="error v2-sources-alert">
           <p>
             {t(notice.kind === "stale" ? "wlP0011c.stale" : notice.message)}
           </p>
           {notice.kind === "failed" && notice.retry && (
             <Button
               variant="secondary"
-              disabled={run.isPending}
-              onClick={() => notice.retry && run.mutate(notice.retry)}
+              aria-disabled={run.isPending || undefined}
+              onClick={() => notice.retry && start(notice.retry)}
             >
               {t("retry")}
             </Button>
@@ -228,7 +269,7 @@ export function SourceStore({ userId }: { userId: string }) {
               realm={realm}
               busy={run.isPending}
               connections={connections}
-              onRun={(action) => run.mutate(action)}
+              onRun={start}
               onAsk={ask}
             />
           ))}
@@ -257,8 +298,7 @@ export function SourceStore({ userId }: { userId: string }) {
               event.preventDefault();
               const origin = opener.current;
               opener.current = null;
-              if (origin?.isConnected) origin.focus();
-              else document.querySelector<HTMLElement>("main h1")?.focus();
+              restoreFocus(origin);
             }}
           >
             <Dialog.Title>{confirmation?.title}</Dialog.Title>
@@ -437,7 +477,9 @@ function CapabilityRow({
         <dl className="v2-capability-facts">
           <div>
             <dt>{t("wlP0011c.version")}</dt>
-            <dd>{capability.package_version ?? t("wlP0011c.notInstalled")}</dd>
+            <dd>
+              {capability.package_version ?? t("wlP0011c.versionUnknown")}
+            </dd>
           </div>
           <div>
             <dt>{t("wlP0011c.formats")}</dt>
@@ -460,7 +502,7 @@ function CapabilityRow({
           role="switch"
           aria-checked={on}
           className="v2-switch"
-          disabled={busy}
+          aria-disabled={busy || undefined}
           aria-label={fill(t("wlP0011c.switchLabel"), values)}
           onClick={() =>
             on ? disable() : onRun(enable("wlP0011c.enabledDone"))
@@ -474,10 +516,23 @@ function CapabilityRow({
           </span>
         </button>
       )}
+      {!view.switchable &&
+        capability.capability === "FILE_IMPORT" &&
+        capability.enablement.enabled && (
+          <div className="v2-auth-actions v2-capability-actions">
+            <Button
+              variant="secondary"
+              aria-disabled={busy || undefined}
+              onClick={disable}
+            >
+              {t("wlP0011c.disableConfirm")}
+            </Button>
+          </div>
+        )}
       {view.confirmVersion !== null && (
         <div className="v2-auth-actions v2-capability-actions">
           <Button
-            disabled={busy}
+            aria-disabled={busy || undefined}
             onClick={() =>
               onAsk({
                 title: fill(t("wlP0011c.confirmTitle"), values),
@@ -490,7 +545,11 @@ function CapabilityRow({
             {fill(t("wlP0011c.reviewVersion"), values)}
           </Button>
           {capability.enablement.enabled && (
-            <Button variant="secondary" disabled={busy} onClick={disable}>
+            <Button
+              variant="secondary"
+              aria-disabled={busy || undefined}
+              onClick={disable}
+            >
               {t("wlP0011c.disableConfirm")}
             </Button>
           )}
@@ -553,7 +612,7 @@ function Connections({
       <p className="muted">{t("wlP0011c.connectionsIntro")}</p>
       {state.isPending ? (
         <PageLoading />
-      ) : state.isError ? (
+      ) : !state.data ? (
         <PageError
           message={t("wlP0011c.connectionsFailed")}
           onRetry={() => void state.refetch()}
@@ -595,7 +654,7 @@ function Connections({
                 <div className="v2-connection-actions">
                   <Button
                     variant="secondary"
-                    disabled={busy}
+                    aria-disabled={busy || undefined}
                     aria-label={fill(t("wlP0011c.renameLabel"), values)}
                     onClick={() => setRenaming(connection)}
                   >
@@ -605,7 +664,7 @@ function Connections({
                     approved &&
                     approved !== connection.installation_id && (
                       <Button
-                        disabled={busy}
+                        aria-disabled={busy || undefined}
                         aria-label={fill(t("wlP0011c.rebindLabel"), values)}
                         onClick={() => {
                           const next = action(
@@ -623,7 +682,7 @@ function Connections({
                   {connection.enabled ? (
                     <Button
                       variant="secondary"
-                      disabled={busy}
+                      aria-disabled={busy || undefined}
                       aria-label={fill(
                         t("wlP0011c.disableConnectionLabel"),
                         values,
@@ -648,24 +707,36 @@ function Connections({
                     >
                       {t("wlP0011c.disableConnection")}
                     </Button>
-                  ) : (
+                  ) : approved ? (
+                    // Turning a connection back on authorizes it again, which
+                    // the server allows only for the source's confirmed version.
                     <Button
                       variant="secondary"
-                      disabled={busy}
+                      aria-disabled={busy || undefined}
                       aria-label={fill(
                         t("wlP0011c.enableConnectionLabel"),
                         values,
                       )}
                       onClick={() => {
                         const next = action(
-                          { enabled: true },
+                          { enabled: true, installation: approved },
                           "wlP0011c.connectionEnabledDone",
                         );
                         if (next) onRun(next);
                       }}
                     >
-                      {t("wlP0011c.enableConnection")}
+                      {approved === connection.installation_id
+                        ? t("wlP0011c.enableConnection")
+                        : fill(t("wlP0011c.enableConnectionVersion"), {
+                            version: file.package_version ?? approved,
+                          })}
                     </Button>
+                  ) : (
+                    <p className="muted">
+                      {fill(t("wlP0011c.sourceOffHint"), {
+                        name: source.display_name,
+                      })}
+                    </p>
                   )}
                 </div>
               </li>
@@ -677,7 +748,7 @@ function Connections({
         <Button
           ref={addButton}
           variant="secondary"
-          disabled={busy}
+          aria-disabled={busy || undefined}
           onClick={() => setAdding(true)}
         >
           {t("wlP0011c.addConnection")}
@@ -692,10 +763,16 @@ function Connections({
             requestAnimationFrame(() => addButton.current?.focus());
           }}
           onSubmit={(label, alias) => {
+            // The form stays open, with what was typed, until the server
+            // accepts the connection.
             onRun({
               path: "/source-connections",
               method: "POST",
               done: "wlP0011c.connectionAddedDone",
+              onDone: () => {
+                setAdding(false);
+                requestAnimationFrame(() => addButton.current?.focus());
+              },
               body: {
                 ...common("0", realm),
                 plugin_id: source.plugin_id,
@@ -705,7 +782,6 @@ function Connections({
                 parser_source_alias: alias,
               },
             });
-            setAdding(false);
           }}
         />
       )}
@@ -808,6 +884,7 @@ function ConnectionForm({
   function submit(event: FormEvent) {
     event.preventDefault();
     setChecked(true);
+    if (busy) return;
     if (labelProblem || aliasProblem) {
       first.current?.focus();
       return;
@@ -836,7 +913,7 @@ function ConnectionForm({
         problem={checked ? aliasProblem : null}
       />
       <div className="v2-auth-actions">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" aria-disabled={busy || undefined}>
           {t("wlP0011c.addSubmit")}
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
@@ -899,7 +976,8 @@ function RenameDialog({
             onSubmit={(event) => {
               event.preventDefault();
               setChecked(true);
-              if (!problem && connection) onSubmit(connection, label.trim());
+              if (!problem && connection && !busy)
+                onSubmit(connection, label.trim());
             }}
           >
             <Field
@@ -915,7 +993,7 @@ function RenameDialog({
                   {t("wlP0011c.cancel")}
                 </Button>
               </Dialog.Close>
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" aria-disabled={busy || undefined}>
                 {t("wlP0011c.renameSubmit")}
               </Button>
             </div>

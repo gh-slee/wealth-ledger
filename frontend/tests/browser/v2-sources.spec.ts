@@ -67,6 +67,9 @@ type Fake = {
   loseNextResponse?: boolean;
   // Another tab changes this capability just before the next write arrives.
   concurrentChange?: boolean;
+  // Every read fails, as during a network outage.
+  failReads?: boolean;
+  refuseCreate?: string;
 };
 
 function file(overrides: Partial<Capability> = {}): Capability {
@@ -228,6 +231,8 @@ async function mockV2(page: Page, fake: Fake) {
         },
       });
     if (path === "/auth/activity") return route.fulfill({ status: 204 });
+    if (fake.failReads && method === "GET")
+      return route.abort("internetdisconnected");
     if (method === "GET" && path === "/sources") {
       fake.reads.catalog++;
       return route.fulfill({
@@ -283,7 +288,7 @@ async function mockV2(page: Page, fake: Fake) {
         fake.concurrentChange = false;
         capability.enablement.revision = bump(capability.enablement.revision);
       }
-      if (capability.status === "UNAVAILABLE")
+      if (capability.status === "UNAVAILABLE" && body.enabled === true)
         return error(route, 409, "source_unavailable");
       if (body.expected_revision !== capability.enablement.revision)
         return error(route, 409, "source_revision_conflict");
@@ -301,6 +306,7 @@ async function mockV2(page: Page, fake: Fake) {
           : "CONFIRMATION_REQUIRED";
       resource = capability.enablement;
     } else if (method === "POST" && path === "/source-connections") {
+      if (fake.refuseCreate) return error(route, 409, fake.refuseCreate);
       const created: Connection = {
         ...exchangeConnection(),
         id: "00000000-0000-4000-8000-000000000302",
@@ -319,6 +325,20 @@ async function mockV2(page: Page, fake: Fake) {
       if (!item) return error(route, 404, "not_found");
       if (body.expected_revision !== item.revision)
         return error(route, 409, "source_revision_conflict");
+      // As in source_schema.py: turning a connection on or moving its pin
+      // needs the source enabled at exactly that installation.
+      const needsAuthorization =
+        (!item.enabled && body.enabled === true) ||
+        item.installation_id !== body.installation_id;
+      const enablement = fake.sources
+        .find((source) => source.plugin_id === item.plugin_id)
+        ?.capabilities.find((c) => c.capability === "FILE_IMPORT")?.enablement;
+      if (
+        needsAuthorization &&
+        (!enablement?.enabled ||
+          enablement.installation_id !== body.installation_id)
+      )
+        return error(route, 409, "source_context_incompatible");
       Object.assign(item, {
         enabled: body.enabled,
         installation_id: body.installation_id,
@@ -426,9 +446,10 @@ test("enabling a file capability sends the DTO fields and shows Enabled", async 
   await page.keyboard.press("Space");
 
   await expect(page.getByRole("status")).toHaveText(
-    "Source turned on. You can now import its files.",
+    "Source turned on. Add a connection to import its files.",
   );
   await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(toggle).toBeFocused();
   await expect(item.getByText("Enabled", { exact: true })).toBeVisible();
   expect(fake.sent).toHaveLength(1);
   expect(fake.sent[0]).toMatchObject({
@@ -451,6 +472,9 @@ test("enabling a file capability sends the DTO fields and shows Enabled", async 
   await item.getByRole("button", { name: "Add connection" }).click();
   await expect(page.getByRole("status")).toHaveText("Connection added.");
   await expect(item).toContainText("Example joint account");
+  await expect(
+    item.getByRole("button", { name: "Add connection" }),
+  ).toBeFocused();
   expect(fake.sent[1]).toMatchObject({
     method: "POST",
     path: "/source-connections",
@@ -543,8 +567,126 @@ test("disabling a source with data says existing data stays visible", async ({
     expected_revision: "2",
   });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(toggle).toBeFocused();
   // The connection is still listed, now marked as off with its source.
   await expect(item).toContainText("Source off");
+
+  // Once the connection is off too, it cannot be turned on until the source is.
+  await item
+    .getByRole("button", { name: "Turn off Example spot orders" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Turn off Example spot orders?" })
+    .getByRole("button", { name: "Turn off" })
+    .click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Connection turned off. Its data stays readable.",
+  );
+  await expect(item).toContainText(
+    "Turn on file import for Example Exchange to use this connection again.",
+  );
+  await expect(item.getByRole("button", { name: /^Turn on/ })).toHaveCount(0);
+});
+
+test("a connection turned off before a version change turns on with the confirmed version", async ({
+  page,
+}) => {
+  const connection = { ...exchangeConnection(), installation_id: OLD };
+  connection.enabled = false;
+  const fake = newFake({ connections: [connection] });
+  await openStore(page, fake);
+  const item = sourceItem(page, "Example Exchange");
+  const button = item.getByRole("button", {
+    name: "Turn on Example spot orders",
+  });
+  await expect(button).toHaveText("Turn on with version 2.0.0");
+  await button.click();
+  await expect(page.getByRole("status")).toHaveText("Connection turned on.");
+  expect(fake.sent[0].body).toMatchObject({
+    enabled: true,
+    installation_id: NEW,
+  });
+  await expect(item.locator(".v2-connection")).toContainText("Enabled");
+});
+
+test("a refused connection keeps the form and what was typed", async ({
+  page,
+}) => {
+  const fake = newFake({ refuseCreate: "source_capacity_reached" });
+  await openStore(page, fake);
+  const item = sourceItem(page, "Example Exchange");
+  await item.getByRole("button", { name: "Add connection" }).click();
+  await item.getByLabel("Name", { exact: true }).fill("Example second stream");
+  await item.getByLabel("Alias (optional)").fill("second");
+  await item.getByRole("button", { name: "Add connection" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "You have reached the limit of 256 connections.",
+  );
+  await expect(item.getByLabel("Name", { exact: true })).toHaveValue(
+    "Example second stream",
+  );
+  await expect(item.getByLabel("Alias (optional)")).toHaveValue("second");
+});
+
+test("an enabled source that became unavailable can still be turned off", async ({
+  page,
+}) => {
+  const fake = newFake({
+    sources: [
+      brokerage(),
+      exchange(
+        file({
+          active_installation_id: NEW,
+          package_version: "2.0.0",
+          enablement: {
+            enabled: true,
+            installation_id: NEW,
+            revision: "2",
+            generation: "1",
+          },
+          status: "UNAVAILABLE",
+          reason: "source_unavailable",
+        }),
+      ),
+    ],
+  });
+  await openStore(page, fake);
+  const item = sourceItem(page, "Example Exchange");
+  await expect(item.getByRole("switch")).toHaveCount(0);
+  await item.getByRole("button", { name: "Turn off" }).first().click();
+  await page
+    .getByRole("dialog", { name: "Turn off Example Exchange?" })
+    .getByRole("button", { name: "Turn off" })
+    .click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Source turned off. Existing data stays visible.",
+  );
+  expect(fake.sent[0].body).toMatchObject({
+    enabled: false,
+    installation_id: null,
+  });
+});
+
+test("during an outage the list and the same-request retry stay available", async ({
+  page,
+}) => {
+  const fake = newFake({ loseNextResponse: true });
+  await openStore(page, fake);
+  fake.failReads = true;
+  await sourceItem(page, "Example Brokerage").getByRole("switch").click();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText(
+    "We could not confirm whether your change was saved.",
+  );
+  await expect(page.getByText("We could not refresh this list")).toBeVisible();
+  await expect(sourceItem(page, "Example Brokerage")).toBeVisible();
+  fake.failReads = false;
+  await alert.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Source turned on. Add a connection to import its files.",
+  );
+  expect(fake.sent).toHaveLength(2);
+  expect(fake.sent[1]).toEqual(fake.sent[0]);
 });
 
 test("a stale revision reloads the list and says nothing was applied", async ({
@@ -566,7 +708,7 @@ test("a stale revision reloads the list and says nothing was applied", async ({
   // Trying again uses the reloaded revision and succeeds.
   await sourceItem(page, "Example Brokerage").getByRole("switch").click();
   await expect(page.getByRole("status")).toHaveText(
-    "Source turned on. You can now import its files.",
+    "Source turned on. Add a connection to import its files.",
   );
   expect(fake.sent.at(-1)?.body.expected_revision).toBe("1");
 });
@@ -605,7 +747,7 @@ test("a retry after a lost response sends the same operation ID", async ({
   );
   await alert.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByRole("status")).toHaveText(
-    "Source turned on. You can now import its files.",
+    "Source turned on. Add a connection to import its files.",
   );
   expect(fake.sent).toHaveLength(2);
   expect(fake.sent[1]).toEqual(fake.sent[0]);
@@ -662,7 +804,7 @@ test("connections can be renamed, turned off and turned on", async ({
     enabled: false,
     expected_revision: "2",
   });
-  await expect(item.locator(".v2-connection")).toContainText("Off");
+  await expect(item.locator(".v2-connection")).toContainText("Disabled");
 
   await item
     .getByRole("button", { name: "Turn on Example margin orders" })
