@@ -498,5 +498,26 @@ migration/finalization fault rollback, matching double empty-target restore and
 two real HTTP processes sharing SQL budgets. The running test worker adds native
 file/socket/environment/network/resource/cancellation/cleanup probes and real
 builtin normalization/offline API parity. Read the [frozen test recipe](../tests/fixtures/source_capabilities/README.md).
+
+## Gated CI suites and the skip guard
+
+The `postgres-ingestion` CI job pulls the image pinned in
+`IngestionAppendOnlyPostgresTests.IMAGE`, sets `KURAFOLIO_INGESTION_TEST=1` and runs
+`test_postgres_migration.py`, so every pull request runs the real ingestion SQL
+fragment tests. Every step that runs an opt-in suite in `docker-foundation`,
+`postgres-foundation`, `postgres-ingestion`, `postgres-identity` and
+`postgres-sources` goes through `scripts/run_gated_tests.py`. The script runs
+`python -m unittest -v` with the given arguments and fails when the suite reports
+a skip count other than `--expect-skipped`, when no test runs, or when every test
+is skipped. A missing opt-in variable therefore fails the job instead of passing.
+
+```bash
+KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py \
+  --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'
+```
+
+When you add, remove or regate a test in one of these suites, update that step's
+expected count in `.github/workflows/ci.yml` in the same change and say why in
+the pull request. A comment next to each nonzero count names the tests it covers.
 It is not a production runner or arbitrary hostile-code sandbox. Final reviewed
 image/independent evidence and actual merged CI remain separate acceptance gates.
