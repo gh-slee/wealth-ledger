@@ -44,9 +44,10 @@ implementation review is accepted; all seven
 [merged-main CI jobs](https://github.com/gh-slee/kurafolio/actions/runs/40914248281)
 passed on `4867f02`. This source baseline does not establish deployment or a data migration. Inert catalogs, user-version
 confirmation and reusable connections do not import financial facts. Default
-SQLite and the optional `0002` identity profile remain separate. V2 upload/financial
-acceptance, frontend, reporting parity and existing-ledger migration remain later
-stages. The fake offline API is not an available live provider.
+SQLite and the optional `0002` identity profile remain separate. The browser Parser Plugin Store
+(`/app/sources`, WL-P0-011C) manages enablement and connections on this profile and
+imports nothing. V2 upload/financial acceptance, the remaining frontend pages, reporting
+parity and existing-ledger migration remain later stages. The fake offline API is not an available live provider.
 
 ## V2 CSV acceptance under implementation
 

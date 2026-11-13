@@ -128,14 +128,18 @@ async function csrfToken() {
   return csrf;
 }
 
-export async function mutate<T>(path: string, body: unknown = {}): Promise<T> {
+export async function mutate<T>(
+  path: string,
+  body: unknown = {},
+  method: "POST" | "PUT" = "POST",
+): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     const started = generation;
     const token = await csrfToken();
     changed(started);
     try {
       const value = await transport<T>(path, {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
         body: JSON.stringify(body),
       });

@@ -46,6 +46,7 @@ import { CredentialsPage, LoginPage, type LoginNotice } from "./auth-pages";
 import { InvitationManager } from "./invitations";
 import { Language } from "./language";
 import { PageEmpty, PageError, PageLoading } from "./page-state";
+import { SourceStore } from "./sources";
 import "./shell.css";
 
 const destinations = [
@@ -289,6 +290,11 @@ function ShellLayout({ me, onSignOut, signingOut }: { me: Me } & SignOut) {
                     <>
                       <h1 tabIndex={-1}>{t(page.label)}</h1>
                       <InvitationManager userId={me.user.id} />
+                    </>
+                  ) : page.path === "/app/sources" ? (
+                    <>
+                      <h1 tabIndex={-1}>{t(page.label)}</h1>
+                      <SourceStore userId={me.user.id} />
                     </>
                   ) : (
                     placeholder(page.label, "sourceLed" in page)

@@ -231,4 +231,13 @@ Use the locked PG test environment; see [development](development.md#optional-so
 Self-tests, independent review, merged CI and an actual deployment are distinct
 facts. Local native receipts establish only their recorded Linux architecture;
 there is no claim of native Windows/macOS containment or arbitrary hostile-plugin
-security. No UI or financial report behavior changes in this scope.
+security. No financial report behavior changes in this scope.
+
+## Browser page
+
+The V2 Parser Plugin Store at `/app/sources` (WL-P0-011C) uses only the routes above.
+It lists the installed sources, turns FILE_IMPORT on or off per user, asks the user to
+confirm a newer installed version, and adds, renames, turns off and turns on
+connections. It imports nothing and offers no upload, install or credential control;
+PULL_API is shown as planned. Each user action sends one operation ID, and a retry
+after a lost response resends the identical request.
