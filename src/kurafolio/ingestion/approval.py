@@ -1,6 +1,8 @@
 """Verify review-to-plan bindings without granting database write authority."""
 from __future__ import annotations
 
+from collections import Counter
+
 from .codec import decode, digest, encode, sha256, validate
 from .contracts import IngestionError, MAX_SET
 from .mapping import MappingIndex, compatible, proposed_body
@@ -43,9 +45,15 @@ def validate_review_bundle(data, *, stages):
         disclosed = [x[key] for x in rows if x['type'] == type_]
         if disclosed != plan[collection]:
             raise IngestionError('import_invalid', '$.review.content.rows')
-    if any(x['type'] == 'fact' and (x['action'] == 'conflict' or x['required_decision'] is not None)
-           for x in rows):
+    fact_rows = [x for x in rows if x['type'] == 'fact']
+    if any(x['action'] == 'conflict' or x['required_decision'] is not None for x in fact_rows):
         raise IngestionError('import_invalid', '$.review.state')
+
+    def fact_binding(row):
+        return tuple(row[k] for k in ('member_id', 'collection', 'local_id', 'action', 'accepted_revision_id'))
+
+    if Counter(map(fact_binding, fact_rows)) != Counter(map(fact_binding, plan['facts'])):
+        raise IngestionError('import_invalid', '$.review.content.rows')
     verify_staged_material(plan, stages)
     return bundle
 
@@ -122,6 +130,12 @@ def _review_evidence(review, plan, stages):
                                          tenant_id, portfolio_id, index)
                 if expected != body:
                     raise IngestionError('import_conflict', '$.review.content.rows')
+    admitted_diagnostics = Counter((member_id, encode(diagnostic)) for member_id, minimal in evidence.items()
+                                   for diagnostic in minimal['provenance']['diagnostics'])
+    disclosed_diagnostics = Counter((row['member_id'], encode(row['diagnostic']))
+                                    for row in review['content']['rows'] if row['type'] == 'diagnostic')
+    if admitted_diagnostics != disclosed_diagnostics:
+        raise IngestionError('import_invalid', '$.review.content.rows')
     if disclosed_entities != entities.keys() or (plan is not None and disclosed_facts != facts.keys()):
         raise IngestionError('import_invalid', '$.review.content.rows')
     if plan is not None:

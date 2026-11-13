@@ -3640,6 +3640,67 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual({'ok': False, 'code': 'import_stale'}, out['STALE'])
         self.assertEqual([None, None], out['CANCELLED'])
 
+    def test_concurrent_exact_prepare_claims_replay_the_same_lease(self):
+        from concurrent.futures import ThreadPoolExecutor
+        _, _, seed, _ = self.claim_seed()
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        db = 'prepare_claim_race'
+        self.sql(f'CREATE DATABASE {db} TEMPLATE postgres;')
+        args = ['docker', 'exec', '-i', self.container, 'psql', '-X', '-A', '-t',
+                '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1']
+
+        def execute(statement):
+            result = self.command(args, input=statement.encode())
+            self.assertEqual(0, result.returncode, 'Synthetic concurrent claim statement failed')
+            return result.stdout.decode()
+
+        def next_ack(stream, label):
+            return json.loads(next(line.partition(' ')[2] for line in stream if line.startswith(label + ' ')))
+
+        try:
+            # The fragment fixture substitutes a synthetic installation catalog.
+            marker = 'CREATE TABLE wl_sources.synthetic_installation_ids(id text PRIMARY KEY);'
+            setup = seed.replace(marker, marker +
+                'ALTER TABLE wl_ingestion.members DROP CONSTRAINT members_installation_fk;'
+                'ALTER TABLE wl_ingestion.members ADD CONSTRAINT members_installation_fk '
+                'FOREIGN KEY(installation_id) REFERENCES wl_sources.synthetic_installation_ids(id);')
+            execute('BEGIN;' + setup + 'COMMIT;')
+            with subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, text=True) as first:
+                try:
+                    first.stdin.write('BEGIN;\n' + self.plan_claim('first', work_kind="'prepare'") + '\n')
+                    first.stdin.flush()
+                    claimed = next_ack(first.stdout, 'FIRST')
+                    self.assertTrue(claimed['ok'], claimed)
+                    second_call = ("BEGIN;SET LOCAL application_name='prepare_claim_retry';"
+                                   + self.plan_claim('second', work_kind="'prepare'") + 'COMMIT;')
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        second = executor.submit(execute, second_call)
+                        waiting = False
+                        try:
+                            deadline = time.monotonic() + 8
+                            while time.monotonic() < deadline and not second.done():
+                                waiting = self.sql("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE "
+                                    "application_name='prepare_claim_retry' AND wait_event_type='Lock');") == 't'
+                                if waiting:
+                                    break
+                                time.sleep(.05)
+                        finally:
+                            first.stdin.write('COMMIT;\n\\q\n')
+                            first.stdin.flush()
+                        retried = next_ack(second.result(timeout=10).splitlines(), 'SECOND')
+                    self.assertTrue(waiting, 'The retry did not overlap the first transaction')
+                    self.assertEqual({'ok': True, 'value': {'version': 1, 'outcome': 'already_claimed',
+                        'lease': dict(claimed['value']['lease'], outcome='already_claimed')}}, retried)
+                    self.assertEqual('1', execute("SELECT count(*) FROM wl_ingestion.leases "
+                                                 "WHERE work_kind='prepare';").strip())
+                finally:
+                    if first.poll() is None:
+                        first.stdin.close()
+                    first.wait(timeout=10)
+        finally:
+            self.sql(f'DROP DATABASE {db};')
+
     def test_prepare_claim_skips_a_revoked_origin_and_stale_source(self):
         _, _, seed, _ = self.claim_seed()
         seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
@@ -3901,8 +3962,34 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                     'operation_id': '50000000-0000-4000-8000-000000000001',
                     'preview_id': bundle['review']['id'], 'preview_digest': bundle['review']['plan_digest'],
                 }, catalog) if ready else ''
+                mismatched = []
+                if ready:
+                    for label, changes in (
+                            ('wrong_action', {'action': 'duplicate'}),
+                            ('wrong_revision', {'accepted_revision_id': None})):
+                        forged = deepcopy(bundle)
+                        review, executable = forged['review'], forged['plan']
+                        fact = next(row for row in review['content']['rows'] if row['type'] == 'fact')
+                        fact.update(changes)
+                        review['content_digest'] = executable['review_content_digest'] = digest(review['content'])
+                        review['plan_digest'] = digest(executable)
+                        validate(forged, 'ReviewBundle')
+                        mismatched.append((label, self.prepare_preview_call(label, forged, ready=True)))
+                    forged = deepcopy(bundle)
+                    review, executable = forged['review'], forged['plan']
+                    rows = review['content']['rows']
+                    rows.append({'type': 'diagnostic', 'ordinal': str(len(rows)),
+                        'member_id': '20000000-0000-4000-8000-000000000099',
+                        'diagnostic': {'code': 'observed_order_rows', 'severity': 'warning',
+                                       'row_count': '10', 'duplicate_count': '9', 'record_local_ids': []}})
+                    review['content_digest'] = executable['review_content_digest'] = digest(review['content'])
+                    review['plan_digest'] = digest(executable)
+                    validate(forged, 'ReviewBundle')
+                    mismatched.append(('invented_diagnostic', self.prepare_preview_call(
+                        'invented_diagnostic', forged, ready=True)))
                 out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
                     + self.prepare_preview_call('bad', invalid, ready=ready)
+                    + ''.join(call for _, call in mismatched)
                     + "SELECT 'BEFORE '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
                     + self.prepare_preview_call('prepared', bundle, ready=ready)
                     + self.prepare_preview_call('replay', bundle, ready=ready)
@@ -3910,6 +3997,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                     + "SELECT 'FACTS '||jsonb_build_array(count(*))::text FROM wl_ingestion.source_revisions;"
                     + accept)
                 self.assertEqual({'ok': False, 'code': 'import_invalid'}, out['BAD'])
+                for label, _ in mismatched:
+                    self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label.upper()])
                 self.assertEqual([0], out['BEFORE'])
                 self.assertTrue(out['PREPARED']['ok'], out)
                 ack = validate(out['PREPARED']['value'], 'PreviewAck')
@@ -3919,6 +4008,53 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 self.assertEqual([0], out['FACTS'])
                 if ready:
                     self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
+
+    def test_initial_preview_requires_choices_and_every_compatible_existing_candidate(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest
+        plan, seed, _ = self.accept_seed()
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;DELETE FROM wl_ingestion.decisions;"
+                 "UPDATE wl_ingestion.roots SET control_generation=0;"
+                 "UPDATE wl_ingestion.sets SET state='NORMALIZING',revision=1,realm_digest='" + realm +
+                 "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        bundle = deepcopy(ORACLE['review-bundle-initial.json'])
+        bundle['review']['expires_at'] = plan['expires_at']
+        candidate = next(row['candidate'] for row in bundle['review']['content']['rows']
+                         if row['type'] == 'target_candidate' and row['candidate']['entity_kind'] == 'account')
+        body = deepcopy(candidate['body'])
+        id_ = '40000000-0000-4000-8000-0000000000ea'
+        body['id']['value'] = id_
+        version = digest(body)
+        seed += (f"INSERT INTO wl_pg.accounts(tenant_id,portfolio_id,id,version,body,category,role,label) "
+                 f"SELECT '{plan['tenant_id']}','{plan['portfolio_id']}','{id_}','{version}',b,"
+                 f"b->>'category',b->>'role',b->>'label' FROM (SELECT '{json.dumps(body)}'::jsonb b) q;")
+        no_choices = deepcopy(bundle)
+        content = no_choices['review']['content']
+        content['rows'] = [row for row in content['rows'] if row['type'] != 'target_candidate']
+        for index, row in enumerate(content['rows']):
+            row['ordinal'] = str(index)
+        no_choices['review']['content_digest'] = digest(content)
+        complete = deepcopy(bundle)
+        content = complete['review']['content']
+        content['rows'].append({'type': 'target_candidate', 'ordinal': str(len(content['rows'])),
+            'candidate': dict(candidate, body=body, target={'mode': 'existing', 'id': id_, 'version': version})})
+        complete['review']['content_digest'] = digest(content)
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + self.basis_call('entities', resource='entities', set_id=repr(plan['set_id']))
+            + self.prepare_preview_call('no_choices', no_choices, ready=False)
+            + self.prepare_preview_call('missing_existing', bundle, ready=False)
+            + "SELECT 'BEFORE '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
+            + self.prepare_preview_call('complete', complete, ready=False))
+        self.assertEqual([content['rows'][-1]['candidate']],
+                         [row['candidate'] for row in out['ENTITIES']['value']['rows']])
+        for label in ('NO_CHOICES', 'MISSING_EXISTING'):
+            self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label])
+        self.assertEqual([0], out['BEFORE'])
+        self.assertTrue(out['COMPLETE']['ok'], out['COMPLETE'])
 
     def test_prepare_authority_basis_and_preview_use_scoped_latest_history(self):
         from copy import deepcopy

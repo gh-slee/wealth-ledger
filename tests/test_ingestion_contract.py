@@ -268,6 +268,43 @@ class IngestionContractTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(IngestionError):
                 validate_review_bundle(encode(obj), stages=parser_stages())
 
+    def test_ready_fact_disclosure_must_match_executable_effect(self):
+        for changes in ({'action': 'duplicate'}, {'accepted_revision_id': None}):
+            with self.subTest(changes=changes):
+                obj = fixture('review-bundle-first-use.json')
+                review, plan = obj['review'], obj['plan']
+                fact = next(row for row in review['content']['rows'] if row['type'] == 'fact')
+                fact.update(changes)
+                review['content_digest'] = plan['review_content_digest'] = digest(review['content'])
+                review['plan_digest'] = digest(plan)
+                validate(obj, 'ReviewBundle')
+                with self.assertRaises(IngestionError) as caught:
+                    validate_review_bundle(encode(obj), stages=parser_stages())
+                self.assertEqual('import_invalid', caught.exception.code)
+
+    def test_review_diagnostics_must_match_admitted_member_evidence(self):
+        obj = fixture('review-bundle-initial.json')
+        member_id = fixture('plan-first-use.json')['inputs'][0]['member_id']
+        minimal = fixture('minimal-parser2.json')
+        diagnostic = {'code': 'observed_order_rows', 'severity': 'warning',
+                      'row_count': '10', 'duplicate_count': '9', 'record_local_ids': []}
+        minimal['provenance']['diagnostics'].append(diagnostic)
+        stages = {member_id: encode(minimal)}
+        review = obj['review']
+        rows = review['content']['rows']
+        valid = {'type': 'diagnostic', 'ordinal': str(len(rows)), 'member_id': member_id,
+                 'diagnostic': diagnostic}
+        for extra in ([], [dict(valid, member_id='20000000-0000-4000-8000-000000000099')], [valid]):
+            with self.subTest(extra=extra):
+                content = dict(review['content'], rows=rows + extra)
+                bundle = dict(obj, review=dict(review, content=content, content_digest=digest(content)))
+                if extra == [valid]:
+                    self.assertEqual(bundle, validate_review_bundle(encode(bundle), stages=stages))
+                else:
+                    with self.assertRaises(IngestionError) as caught:
+                        validate_review_bundle(encode(bundle), stages=stages)
+                    self.assertEqual('import_invalid', caught.exception.code)
+
     def test_buy_sign_and_acquired_asset_are_checked_without_lifecycle(self):
         obj = fixture('minimal-parser2.json')
         obj['records'][0]['lifecycle'] = None
