@@ -1359,21 +1359,25 @@ END $test$;
             self.rejects(update + "state='COMMITTED',revision=2,receipt_id='" + fresh + "'" + where),
             self.rejects(update + "state='READY'" + where),
             self.rejects(update + "state='NEEDS_MAPPING',revision=2" + where),
-            update + "state='READY',revision=2," + self.CLEAR_PREPARE_ORIGIN + where + ';',
-            update + "state='RECONCILING',revision=3," + self.PREPARE_ORIGIN + where + ';',
-            update + "state='READY',revision=4," + self.CLEAR_PREPARE_ORIGIN + where + ';',
+            self.rejects(update + "state='READY',revision=2," + self.CLEAR_PREPARE_ORIGIN + where),
+            update + "state='NEEDS_MAPPING'," + self.CLEAR_PREPARE_ORIGIN + where + ';',
+            update + "state='RECONCILING',revision=2," + self.PREPARE_ORIGIN + where + ';',
+            update + "state='READY',revision=3," + self.CLEAR_PREPARE_ORIGIN + where + ';',
+            update + "state='RECONCILING',revision=4," + self.PREPARE_ORIGIN + where + ';',
+            update + "state='READY',revision=5," + self.CLEAR_PREPARE_ORIGIN + where + ';',
             self.rejects(update + "cleanup_state='pending'" + where),
             self.rejects(update + 'member_count=1' + where),
             self.rejects(update + "expires_at=expires_at+interval '1 second',created_at=created_at+interval '1 second'" + where),
-            update + "state='COMMITTED',revision=5,receipt_id='" + fresh + "'" + where + ';',
-            self.rejects(update + "state='CANCELLED',revision=6" + where),
+            update + "state='COMMITTED',revision=6,receipt_id='" + fresh + "'" + where + ';',
+            self.rejects(update + "state='CANCELLED',revision=7" + where),
             self.rejects(update + "receipt_id='" + old + "'" + where),
             update + "cleanup_state='pending'" + where + ';',
             update + "cleanup_state='complete'" + where + ';',
             self.rejects(update + "cleanup_state='pending'" + where),
             self.rejects('DELETE FROM wl_ingestion.sets' + where),
             # Expiry wins over every other live transition at the DB clock.
-            self.rejects(update + "state='READY',revision=2 WHERE id='" + old + "'", 'import_expired'),
+            self.rejects(update + "state='NEEDS_MAPPING'," + self.CLEAR_PREPARE_ORIGIN
+                         + " WHERE id='" + old + "'", 'import_expired'),
             self.rejects(update + "state='EXPIRED',revision=2 WHERE id='" + old + "'"),
             update + "state='EXPIRED'," + self.CLEAR_PREPARE_ORIGIN + " WHERE id='" + old + "';",
             self.set_row(fresh),
@@ -1382,7 +1386,7 @@ END $test$;
             'UPDATE wl_ingestion.roots SET accepted_generation=1,mapping_generation=1;',
             self.rejects('DELETE FROM wl_ingestion.roots'),
             "DO $test$ BEGIN IF (SELECT pg_catalog.string_agg(state||':'||revision||':'||cleanup_state,',' "
-            "ORDER BY id) FROM wl_ingestion.sets)<>'COMMITTED:5:complete,EXPIRED:1:not_needed,RECEIVING:1:not_needed' "
+            "ORDER BY id) FROM wl_ingestion.sets)<>'COMMITTED:6:complete,EXPIRED:1:not_needed,RECEIVING:1:not_needed' "
             "THEN RAISE EXCEPTION 'unexpected_set_states'; END IF; END $test$;"])
 
     def test_transition_guard_member_fences_raw_binding_and_stale_leases(self):
