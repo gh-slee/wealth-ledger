@@ -2,9 +2,10 @@
 
 This separate backend was merged in [PR #19](https://github.com/gh-slee/kurafolio/pull/19).
 It is opt-in development infrastructure, not an upgrade path for the existing SQLite Web App. Do not change a running ledger's
-entry point or database to try it. The setup wizard, registration UI and invitation
-pages belong to a later frontend slice; no V2 financial import/export service is
-claimed here. See [capabilities](capability-status.md) and [the PG foundation](postgres-foundation.md).
+entry point or database to try it. The browser pages for first setup, invitation
+registration, sign-in and invitation management are described in
+[the frontend guide](web-frontend.md#v2-sign-in-setup-and-invitations); no V2
+financial import/export service is claimed here. See [capabilities](capability-status.md) and [the PG foundation](postgres-foundation.md).
 
 ## Model and trust boundary
 

@@ -361,16 +361,18 @@ reports and saved PNG charts keep their publication styling.
 <details>
 <summary><strong>V2 preview — the eight-destination shell in development</strong></summary>
 
-<img src="assets/readme/web-v2-shell.png" width="1200" alt="V2 shell on a wide screen with eight destinations in the sidebar, Exposures nested under Stock/Bond, and a Stock/Bond page offering to enable a source">
+<img src="assets/readme/web-v2-shell.png" width="1200" alt="V2 shell on a wide screen with eight destinations in the sidebar, Exposures nested under Stock/Bond, the signed-in account with Sign out, and a Stock/Bond page offering to enable a source">
 
-<img src="assets/readme/web-v2-shell-phone.png" width="375" alt="V2 shell at phone width in dark mode with the compact bar and the open destination menu">
+<img src="assets/readme/web-v2-shell-phone.png" width="375" alt="V2 shell at phone width in dark mode with the compact bar and the open destination menu, including the signed-in account and Sign out">
 
 The V2 application is in development and not yet the default. Its shell has eight
 destinations, with Exposures under Stock/Bond. On a phone, one compact bar opens a
 menu with every destination. These pages are placeholders: the screenshots contain
 no finance data. Stock/Bond, Exposures and Crypto always offer to enable a source until
 the positions read contract (WL-P0-008) lets the shell detect holdings.
-The same bundle opens this shell only when the server is a V2 instance.
+The same bundle opens this shell only when the server is a V2 instance. Signing in,
+first setup, invitation registration and the administrator's invitation list on
+Profile are browser pages too, so a new user needs no terminal.
 
 </details>
 
