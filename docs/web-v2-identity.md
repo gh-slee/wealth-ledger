@@ -76,6 +76,12 @@ PYTHONPATH=src python -m kurafolio.web_v2 serve \
 ```
 
 These are new, explicit commands; the default Compose/CLI Web entry stays unchanged.
+
+To finish setup in a browser, open `<origin>/setup?token=<code>`, where `<code>` is
+the single line `setup arm` wrote to its output file and `<origin>` is the configured
+`--origin`. The code lasts 30 minutes and works once. An invitation issued on the
+host works the same way at `<origin>/register?token=<code>`. Both pages read the code
+once and remove it from the address bar; treat the full link as the secret.
 An HTTP listener must bind a literal loopback address (`localhost` is pinned to
 127.0.0.1). Any non-loopback bind requires an HTTPS origin **and actual TLS** through
 `--tls-cert-file /path/to/private/certificate.pem --tls-key-file /path/to/private/transport.key`.

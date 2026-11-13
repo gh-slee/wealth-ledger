@@ -123,22 +123,24 @@ function Brand() {
   );
 }
 
-function Account({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
+type SignOut = { onSignOut: () => void; signingOut: boolean };
+
+function Account({ me, onSignOut, signingOut }: { me: Me } & SignOut) {
   const { t } = useI18n();
   return (
     <div className="v2-account">
       <p className="muted">
         {t("wlP0011b.signedInAs").replace("{username}", me.user.username)}
       </p>
-      <Button variant="secondary" onClick={onSignOut}>
+      <Button variant="secondary" onClick={onSignOut} disabled={signingOut}>
         <LogOut size={16} aria-hidden="true" />
-        {t("logout")}
+        {signingOut ? t("loading") : t("logout")}
       </Button>
     </div>
   );
 }
 
-function ShellLayout({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
+function ShellLayout({ me, onSignOut, signingOut }: { me: Me } & SignOut) {
   const { locale, t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const main = useRef<HTMLElement>(null);
@@ -217,7 +219,7 @@ function ShellLayout({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
         <Brand />
         <Navigation onNavigate={navigateFromSidebar} />
         <div className="sidebar-bottom">
-          <Account me={me} onSignOut={onSignOut} />
+          <Account me={me} onSignOut={onSignOut} signingOut={signingOut} />
           <Language />
         </div>
       </aside>
@@ -254,6 +256,7 @@ function ShellLayout({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
               <Navigation onNavigate={navigateFromMenu} />
               <Account
                 me={me}
+                signingOut={signingOut}
                 onSignOut={() => {
                   setMenuOpen(false);
                   onSignOut();
@@ -323,6 +326,7 @@ type Session =
   | { state: "signed-in"; me: Me };
 
 function V2Routes() {
+  const { t } = useI18n();
   const client = useQueryClient();
   const navigate = useNavigate();
   const [session, setSession] = useState<Session>({ state: "checking" });
@@ -385,13 +389,20 @@ function V2Routes() {
     };
   }, [signedIn]);
 
+  // A second click must not abort the first sign-out request.
+  const signingOut = useRef(false);
+  const [signOutPending, setSignOutPending] = useState(false);
+
   async function endSession(): Promise<boolean> {
     let confirmed = true;
     try {
       await mutate("/auth/logout");
     } catch (error) {
-      // A session the server already ended needs no further sign-out.
-      confirmed = error instanceof V2Error && error.status === 401;
+      // A session the server already ended, or one another tab replaced,
+      // needs no further sign-out from this window.
+      confirmed =
+        error instanceof V2Error &&
+        (error.status === 401 || error.code === "csrf_rejected");
     }
     await forget();
     return confirmed;
@@ -400,14 +411,22 @@ function V2Routes() {
   // Change the session and the route in one batch, so the catch-all route
   // never redirects to sign-in without the notice.
   async function signOut() {
+    if (signingOut.current) return;
+    signingOut.current = true;
+    setSignOutPending(true);
     const confirmed = await endSession();
+    signingOut.current = false;
+    setSignOutPending(false);
     setNotice(confirmed ? "signedOut" : "signOutFailed");
     setSession({ state: "signed-out" });
     navigate("/login", { replace: true });
   }
 
   async function signOutHere() {
+    if (signingOut.current) return;
+    signingOut.current = true;
     await endSession();
+    signingOut.current = false;
     setSession({ state: "signed-out" });
   }
 
@@ -421,13 +440,16 @@ function V2Routes() {
   if (session.state === "checking")
     return (
       <main className="workbench">
+        <h1 className="sr-only">Kurafolio</h1>
         <PageLoading />
       </main>
     );
   if (session.state === "error")
     return (
       <main className="workbench">
+        <h1 className="sr-only">Kurafolio</h1>
         <PageError
+          message={t("wlP0011b.sessionCheckFailed")}
           onRetry={() => {
             setSession({ state: "checking" });
             setAttempt((count) => count + 1);
@@ -468,7 +490,12 @@ function V2Routes() {
         path="*"
         element={
           me ? (
-            <ShellLayout key={me.user.id} me={me} onSignOut={signOut} />
+            <ShellLayout
+              key={me.user.id}
+              me={me}
+              onSignOut={signOut}
+              signingOut={signOutPending}
+            />
           ) : (
             <Navigate replace to="/login" />
           )

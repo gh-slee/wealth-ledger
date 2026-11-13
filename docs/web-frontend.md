@@ -65,9 +65,12 @@ once, kept only in that page's memory, and never saved in browser storage.
 Members never request the admin routes.
 
 The V2 client in `frontend/src/v2/api.ts` keeps the CSRF token in memory and
-gets a new one when the server clears the session cookie. Signing out, a
-session the server ended, or another user signing in aborts open requests and
-clears the query cache before the next page renders. Error codes are mapped to
+gets a new one when the server clears the session cookie. Sign-in, setup and
+registration retry once when their ten-minute anonymous session has lapsed. A
+signed-in request is never resent: a rejected CSRF token means another tab
+signed out or in, so this window ends its session. Signing out, a session the
+server ended, or another user signing in aborts open requests and clears the
+query cache before the next page renders. Error codes are mapped to
 messages and never shown. Password reset and account enable or disable remain
 host commands ([V2 identity](web-v2-identity.md)).
 

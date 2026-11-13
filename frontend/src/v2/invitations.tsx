@@ -9,7 +9,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Copy } from "lucide-react";
 import { DataTable } from "../components/data-table";
 import { Button } from "../components/ui/button";
-import { date } from "../lib/format";
 import { useI18n, type Message } from "../lib/i18n";
 import {
   mutate,
@@ -25,6 +24,21 @@ import "./identity.css";
 
 type Issued = { link: string; expiresAt: string };
 
+// Expiry matters to the hour, so show the viewer's own time zone and name it.
+function when(value: string, locale: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf())
+    ? value
+    : new Intl.DateTimeFormat(locale, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+      }).format(parsed);
+}
+
 /**
  * Invitation management for the instance administrator. Render it only for
  * that role: members must never request the admin routes.
@@ -36,11 +50,13 @@ export function InvitationManager({ userId }: { userId: string }) {
   // The raw link exists only in this component's memory. Leaving the page,
   // signing out or pressing Done discards it; the server never shows it again.
   const [issued, setIssued] = useState<Issued | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"no" | "yes" | "manual">("no");
   const [failure, setFailure] = useState<Message | null>(null);
   const [revoking, setRevoking] = useState<Invitation | null>(null);
   const linkInput = useRef<HTMLInputElement>(null);
   const issuedHeading = useRef<HTMLHeadingElement>(null);
+  const createButton = useRef<HTMLButtonElement>(null);
+  const revokeOrigin = useRef<HTMLElement | null>(null);
 
   const list = useInfiniteQuery({
     queryKey: key,
@@ -62,6 +78,9 @@ export function InvitationManager({ userId }: { userId: string }) {
           issue_request_id: id,
         });
       } catch (error) {
+        // A sign-out aborts the request; nothing should run after it.
+        if (error instanceof DOMException && error.name === "AbortError")
+          throw error;
         if (error instanceof V2Error && error.status < 500) throw error;
         // The response may have been lost after the server created the
         // invitation. Look it up by request ID; the link cannot be recovered.
@@ -77,7 +96,7 @@ export function InvitationManager({ userId }: { userId: string }) {
     onMutate: () => {
       setFailure(null);
       setIssued(null);
-      setCopied(false);
+      setCopied("no");
     },
     onSuccess: (value) => {
       setIssued({
@@ -124,11 +143,12 @@ export function InvitationManager({ userId }: { userId: string }) {
     if (!issued) return;
     try {
       await navigator.clipboard.writeText(issued.link);
-      setCopied(true);
+      setCopied("yes");
     } catch {
       // Without clipboard access, select the text so it can be copied by hand.
+      linkInput.current?.focus();
       linkInput.current?.select();
-      setCopied(false);
+      setCopied("manual");
     }
   }
 
@@ -137,12 +157,12 @@ export function InvitationManager({ userId }: { userId: string }) {
       {
         accessorKey: "created_at",
         header: t("wlP0011b.invite.created"),
-        cell: ({ getValue }) => date(getValue<string>(), locale),
+        cell: ({ getValue }) => when(getValue<string>(), locale),
       },
       {
         accessorKey: "expires_at",
         header: t("wlP0011b.invite.expires"),
-        cell: ({ getValue }) => date(getValue<string>(), locale),
+        cell: ({ getValue }) => when(getValue<string>(), locale),
       },
       {
         id: "status",
@@ -173,8 +193,15 @@ export function InvitationManager({ userId }: { userId: string }) {
           invitationStatus(row.original).revocable ? (
             <Button
               variant="secondary"
-              onClick={() => setRevoking(row.original)}
+              onClick={(event) => {
+                revokeOrigin.current = event.currentTarget;
+                setRevoking(row.original);
+              }}
               disabled={revoke.isPending}
+              aria-label={t("wlP0011b.invite.revokeLabel").replace(
+                "{date}",
+                when(row.original.expires_at, locale),
+              )}
             >
               {t("wlP0011b.invite.revoke")}
             </Button>
@@ -190,7 +217,11 @@ export function InvitationManager({ userId }: { userId: string }) {
     <section className="v2-invitations" aria-labelledby="invitations-heading">
       <h2 id="invitations-heading">{t("wlP0011b.invite.title")}</h2>
       <p className="muted">{t("wlP0011b.invite.intro")}</p>
-      <Button onClick={() => issue.mutate()} disabled={issue.isPending}>
+      <Button
+        ref={createButton}
+        onClick={() => issue.mutate()}
+        disabled={issue.isPending}
+      >
         {issue.isPending ? t("loading") : t("wlP0011b.invite.create")}
       </Button>
       {failure && (
@@ -223,18 +254,23 @@ export function InvitationManager({ userId }: { userId: string }) {
             <small id="invitation-expiry" className="muted">
               {t("wlP0011b.invite.expiresAt").replace(
                 "{date}",
-                date(issued.expiresAt, locale),
+                when(issued.expiresAt, locale),
               )}
             </small>
           </div>
           <p role="status" className="muted">
-            {copied ? t("wlP0011b.invite.copied") : ""}
+            {copied === "yes"
+              ? t("wlP0011b.invite.copied")
+              : copied === "manual"
+                ? t("wlP0011b.invite.copyManually")
+                : ""}
           </p>
           <Button
             variant="ghost"
             onClick={() => {
               setIssued(null);
-              setCopied(false);
+              setCopied("no");
+              createButton.current?.focus();
             }}
           >
             {t("wlP0011b.invite.done")}
@@ -273,12 +309,26 @@ export function InvitationManager({ userId }: { userId: string }) {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="dialog">
+          <Dialog.Content
+            className="dialog"
+            onCloseAutoFocus={(event) => {
+              // After a revoke the row's button is gone; return to Create.
+              event.preventDefault();
+              const origin = revokeOrigin.current;
+              revokeOrigin.current = null;
+              if (
+                origin?.isConnected &&
+                !(origin as HTMLButtonElement).disabled
+              )
+                origin.focus();
+              else createButton.current?.focus();
+            }}
+          >
             <Dialog.Title>{t("wlP0011b.invite.revokeTitle")}</Dialog.Title>
             <Dialog.Description>
               {t("wlP0011b.invite.revokeBody").replace(
                 "{date}",
-                revoking ? date(revoking.expires_at, locale) : "",
+                revoking ? when(revoking.expires_at, locale) : "",
               )}
             </Dialog.Description>
             <div className="v2-auth-actions">

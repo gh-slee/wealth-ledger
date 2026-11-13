@@ -74,7 +74,7 @@ export function invitationStatus(
           invitation.revocation_reason === "restore"
             ? "wlP0011b.status.revokedRestore"
             : "wlP0011b.status.revoked",
-        tone: "review",
+        tone: "neutral",
         revocable: false,
       };
     default:

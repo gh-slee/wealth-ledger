@@ -38,6 +38,10 @@ type Fake = {
   setupCode?: string;
   registerCode?: string;
   issueFailure?: "lost";
+  // Simulates another tab replacing the session cookie.
+  rejectCsrfFor?: string;
+  // Simulates an anonymous session that lapsed before the first submit.
+  lapsedAnonymous?: boolean;
 };
 
 function error(route: Route, status: number, code: string) {
@@ -64,6 +68,14 @@ async function mockV2(page: Page, fake: Fake) {
     if (request.method() === "POST") {
       if (request.headers()["x-csrf-token"] !== CSRF)
         return error(route, 403, "csrf_rejected");
+      if (fake.rejectCsrfFor === path) {
+        fake.rejectCsrfFor = undefined;
+        return error(route, 403, "csrf_rejected");
+      }
+      if (fake.lapsedAnonymous && path === "/auth/login") {
+        fake.lapsedAnonymous = false;
+        return error(route, 401, "authentication_required");
+      }
       fake.bodies.push({ path, ...(request.postDataJSON() ?? {}) });
     }
     const body = request.method() === "POST" ? request.postDataJSON() : null;
@@ -254,7 +266,7 @@ test("first setup validates fields, strips the token and leads to sign-in", asyn
   await expect(password).toBeFocused();
   await expect(password).toHaveAttribute("aria-invalid", "true");
   await expect(password).toHaveAccessibleDescription(
-    "At least 15 characters. Use at least 15 characters.",
+    "At least 15 characters. Spaces are allowed. Use at least 15 characters.",
   );
 
   await password.fill(EXAMPLE_PASSWORD);
@@ -304,7 +316,10 @@ test("setup without a usable link explains the operator step and shows no form",
   await expectAccessible(page);
 
   for (const [code, message] of [
-    ["setup_rejected", "This setup link has expired or has already been used."],
+    [
+      "setup_rejected",
+      "This setup link has expired, was revoked or has already been used.",
+    ],
     ["setup_closed", "Kurafolio is already set up on this server."],
   ]) {
     await page.unrouteAll({ behavior: "ignoreErrors" });
@@ -329,7 +344,7 @@ test("registration handles missing, rejected and accepted invitations", async ({
     "Create your account",
   );
   await expect(
-    page.getByText("This invitation link is incomplete."),
+    page.getByText("This invitation link is incomplete"),
   ).toBeVisible();
   await expect(page.getByRole("textbox")).toHaveCount(0);
 
@@ -356,7 +371,7 @@ test("registration handles missing, rejected and accepted invitations", async ({
   await page.getByLabel("Confirm password").fill(EXAMPLE_PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByLabel("Username")).toHaveAccessibleDescription(
-    /Use only letters, numbers, dots, hyphens and underscores/,
+    /Use only English letters \(A–Z\), numbers, dots, hyphens and underscores/,
   );
   await page.getByLabel("Username").fill("example-member");
   await page.getByRole("button", { name: "Create account" }).click();
@@ -433,7 +448,7 @@ test("an administrator issues, copies and revokes an invitation", async ({
   ).toBeVisible();
   const table = page.getByRole("table");
   await expect(table.getByText("Used")).toBeVisible();
-  await expect(table.getByText("Revoked by a restore")).toBeVisible();
+  await expect(table.getByText("Revoked (backup restored)")).toBeVisible();
   await expectAccessible(page);
 
   await page.getByRole("button", { name: "Create invitation" }).click();
@@ -527,7 +542,7 @@ test("sign-out, expiry and a different user leave no earlier session data", asyn
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole("status")).toHaveText(
-    "You signed out. Your data was cleared from this window.",
+    "You signed out. Nothing from your session is kept in this window.",
   );
   expect(fake.requests).toContain("POST /auth/logout");
   await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
@@ -603,4 +618,82 @@ test("identity pages work in every locale, in dark mode and at phone width", asy
   await dialog.getByRole("button", { name: "Sign out" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sign in");
+});
+
+test("a signed-in action never resends as another tab's user", async ({
+  page,
+}) => {
+  const fake = newFake();
+  await mockV2(page, fake);
+  await page.goto("/login");
+  await signIn(page, admin);
+  await page.goto("/app/profile");
+  const active = page
+    .getByRole("table")
+    .getByRole("row")
+    .filter({ hasText: "Active" });
+  await page.getByRole("button", { name: "Create invitation" }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(
+    page.getByRole("button", { name: "Create invitation" }),
+  ).toBeFocused();
+
+  // Another tab signed in as someone else: the token no longer matches.
+  const issued = fake.invitations.find((item) => item.status === "issued");
+  fake.rejectCsrfFor = `/admin/invitations/${issued?.id}/revoke`;
+  await active.getByRole("button", { name: /^Revoke the invitation/ }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Revoke invitation" })
+    .click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("status")).toHaveText(
+    "Your session ended. Sign in again to continue.",
+  );
+  expect(issued?.status).toBe("issued");
+  expect(fake.requests.filter((item) => item.endsWith("/revoke"))).toHaveLength(
+    1,
+  );
+});
+
+test("a lapsed anonymous session is renewed once without a message", async ({
+  page,
+}) => {
+  const fake = newFake({ lapsedAnonymous: true });
+  await mockV2(page, fake);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/login");
+  await signIn(page, admin);
+  expect(
+    fake.requests.filter((item) => item === "POST /auth/login"),
+  ).toHaveLength(2);
+  await page.goto("/app/profile");
+  await expectAccessible(page);
+});
+
+test("a setup link opened while signed in asks to sign out first", async ({
+  page,
+}) => {
+  const fake = newFake();
+  await mockV2(page, fake);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/login");
+  await signIn(page, admin);
+  await page.goto(`/register?token=${INVITE_TOKEN}`);
+  await expect(page.getByRole("alert")).toHaveText(
+    "You are signed in as example-admin. Sign out before you use this link.",
+  );
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expectAccessible(page);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByLabel("Confirm password")).toBeVisible();
+  expect(fake.requests).toContain("POST /auth/logout");
+  await page.getByLabel("Username").fill("example-member");
+  await page.getByLabel("Password", { exact: true }).fill(EXAMPLE_PASSWORD);
+  await page.getByLabel("Confirm password").fill(EXAMPLE_PASSWORD);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Your account is ready. Sign in to continue.",
+  );
+  expect(fake.bodies.at(-1)).toMatchObject({ invite_token: INVITE_TOKEN });
 });

@@ -145,15 +145,28 @@ export async function mutate<T>(path: string, body: unknown = {}): Promise<T> {
       else if (cookieResets.has(path)) csrf = null;
       return value;
     } catch (error) {
-      // The server rejects a token before running the handler, so asking for
-      // a fresh one and sending the same request once more is safe.
-      if (
-        attempt === 0 &&
-        error instanceof V2Error &&
-        error.code === "csrf_rejected"
-      ) {
-        csrf = null;
-        continue;
+      if (!(error instanceof V2Error)) throw error;
+      if (anonymous.has(path)) {
+        // An anonymous session lasts ten minutes. When it has lapsed, or the
+        // token no longer matches, the server refuses before running the
+        // handler, so one retry with a fresh session is safe.
+        if (
+          attempt === 0 &&
+          [
+            "csrf_rejected",
+            "authentication_required",
+            "session_changed",
+          ].includes(error.code)
+        ) {
+          csrf = null;
+          continue;
+        }
+      } else if (error.code === "csrf_rejected") {
+        // A signed-in token stops matching when another tab signs out or
+        // signs in as someone else. Never resend as that other user: end
+        // this session instead.
+        clearTransport();
+        window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
       }
       throw error;
     }

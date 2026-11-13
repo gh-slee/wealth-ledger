@@ -38,8 +38,9 @@ function failureMessage(error: unknown): Message {
   if (!(error instanceof V2Error)) return "wlP0011b.failed";
   switch (error.code) {
     case "rate_limited":
-    case "authentication_busy":
       return "wlP0011b.rateLimited";
+    case "authentication_busy":
+      return "wlP0011b.busy";
     case "anonymous_session_required":
       return "wlP0011b.alreadySignedIn";
     case "invalid_input":
@@ -154,10 +155,23 @@ export function LoginPage({
       onSignedIn(await read<Me>("/me"));
     } catch (error) {
       setPassword("");
+      // Sign-in can succeed while the profile read after it fails, or another
+      // tab can sign in first. Either way, use the session that now exists.
+      if (
+        error instanceof V2Error &&
+        error.code === "anonymous_session_required"
+      ) {
+        try {
+          onSignedIn(await read<Me>("/me"));
+          return;
+        } catch {
+          // Fall through to the message below.
+        }
+      }
       setFailure(
         error instanceof V2Error &&
           ["invalid_credentials", "invalid_input"].includes(error.code)
-          ? "error.invalid_credentials"
+          ? "wlP0011b.login.failed"
           : failureMessage(error),
       );
       setBusy(false);
