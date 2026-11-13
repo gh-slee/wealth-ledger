@@ -443,6 +443,10 @@ its own container.
 KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v
 ```
 
+CI runs this check in the `postgres-ingestion` job on every push and pull request,
+after pulling that exact image, and fails if any of its tests is skipped. See
+[gated CI suites](development.md#gated-ci-suites-and-the-skip-guard).
+
 This command tests append-only records, immutable event envelopes, closed/rehashed
 event mutations, byte/depth limits and exact canonical Unicode/large-array bytes.
 It also evaluates generated shape/scalar predicates against literal evidence and
