@@ -1,5 +1,6 @@
 """Synthetic Web foundation security, persistence and private-path acceptance."""
 from contextlib import closing
+import errno
 import hashlib
 import importlib.util
 import json
@@ -358,7 +359,13 @@ class WebTests(unittest.TestCase):
 
     def test_native_server_restart_preserves_session_and_settings(self):
         from test_web_docker import free_port, http_client, request_json, wait_ready
-        port = free_port(); origin = f"http://localhost:{port}"
+        try:
+            port = free_port()
+        except PermissionError as exc:
+            if exc.errno not in (errno.EACCES, errno.EPERM):
+                raise
+            self.skipTest(f"Loopback TCP port reservation denied: {exc}")
+        origin = f"http://localhost:{port}"
         command = [sys.executable, str(ROOT / "scripts/web.py"), "--data-root", str(self.root),
                    "--public-origin", origin, "serve", "--port", str(port)]
         env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
