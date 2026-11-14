@@ -432,7 +432,8 @@ files. The archive and manifest describe the same database snapshot.
 Run `restore-ingestion` with the same role names, the target operator's
 `--secret-file`, the `--backup-directory`, and `--manifest-sha256` from the
 separately retained receipt. Use an independently empty UTF-8 PostgreSQL 18
-database owned by the operator. Fence connections before running the command.
+database owned by the operator. Revoke `CONNECT` and `TEMPORARY` from
+`PUBLIC` and remove application `CREATE` privileges before running the command.
 Only the operator and trusted cluster administrators may have access, and no
 other session may be connected. The role names referenced by restored RLS
 policies must match the source.
@@ -442,10 +443,12 @@ and installed definitions, and rotates the realm. Old sessions and leases lose
 authority. The restore removes transient review payloads and preserves held
 raw reservations pending launcher cleanup. Both readiness flags stay off and
 the connection fence remains in place. If finalization fails or is interrupted,
-retain the failed target under isolation and use a new empty target for a new
-attempt. The verified snapshot excludes subsequent accepted writes. This
-workflow is for synthetic database acceptance. Application artifacts and
-production restore remain separate.
+retain the target under isolation. Use `--resume-loaded` with the original
+receipt to retry verification and finalization after a completed archive load.
+If the target cannot be verified, start with a different empty database. The
+verified snapshot excludes subsequent accepted writes. This workflow is for
+synthetic database acceptance. Application artifacts and production restore
+remain separate.
 
 ## Remaining acceptance
 

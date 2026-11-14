@@ -131,7 +131,8 @@ def execute_command(args):
                      worker_role=args.worker_role)
         if args.operation == 'backup-ingestion':
             return backup_ingestion(config, args.backup_directory, roles)
-        return restore_ingestion(config, args.backup_directory, args.manifest_sha256, roles)
+        return restore_ingestion(config, args.backup_directory, args.manifest_sha256, roles,
+                                 resume=args.resume_loaded)
     if args.action == 'operator' and args.operation == 'migrate-ingestion':
         from kurafolio.data_sources.catalog_v1 import read_catalog_file
         from kurafolio.persistence.context import Database

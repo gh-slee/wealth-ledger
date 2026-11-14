@@ -42,6 +42,7 @@ def parser():
                 item.add_argument('--backup-directory',required=True,type=Path)
             if operation=='restore-ingestion':
                 item.add_argument('--manifest-sha256',required=True)
+                item.add_argument('--resume-loaded',action='store_true')
             if action=='sources' or operation in {'migrate-sources','migrate-ingestion'}:
                 item.add_argument('--source-catalog-file',required=True,type=Path)
                 if operation not in {'status','migrate-ingestion'}:item.add_argument('--source-proof-file',type=Path)

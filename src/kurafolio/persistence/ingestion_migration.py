@@ -375,6 +375,13 @@ def verify_grants(conn, runtime_role, gateway_role, worker_role, *, quarantined=
             or {tuple(row[:5]) for row in rows} != expected
             or len(rows) != len(expected)):
         raise PersistenceError("migration_target_invalid")
+    verify_role_create_privileges(conn, roles)
+
+
+def verify_role_create_privileges(conn, roles):
+    from .context import execute
+    from .errors import PersistenceError
+
     for role in roles:
         if execute(conn, """
             SELECT pg_catalog.has_database_privilege(:role,current_database(),'CREATE,TEMPORARY')

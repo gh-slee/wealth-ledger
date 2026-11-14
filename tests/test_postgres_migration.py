@@ -282,11 +282,15 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                     for name in ('synthetic_fresh', 'synthetic_upgrade', 'synthetic_restore_one',
                                  'synthetic_restore_two', 'synthetic_restore_fault',
                                  'synthetic_restore_changed', 'synthetic_restore_corrupt',
-                                 'synthetic_restore_identity_fault', 'synthetic_restore_commit_fault'):
+                                 'synthetic_restore_identity_fault', 'synthetic_restore_commit_fault',
+                                 'synthetic_restore_load_fault', 'synthetic_restore_verify_fault',
+                                 'synthetic_restore_open', 'synthetic_restore_temp'):
                         target = sql.Identifier(name)
                         conn.execute(sql.SQL('CREATE DATABASE {} OWNER {}').format(
                             target, sql.Identifier(fixture['migration_role'])))
-                        if name.startswith('synthetic_restore_'):
+                        if name == 'synthetic_restore_temp':
+                            conn.execute(sql.SQL('REVOKE CONNECT ON DATABASE {} FROM PUBLIC').format(target))
+                        elif name.startswith('synthetic_restore_') and name != 'synthetic_restore_open':
                             conn.execute(sql.SQL('REVOKE CONNECT,TEMP ON DATABASE {} FROM PUBLIC').format(target))
                 self._verify_targets(operator, path, fixture, (runtime, gateway, worker))
             finally:
@@ -395,13 +399,14 @@ class IngestionProviderPostgresTests(unittest.TestCase):
 
 
     def _seed_restore_history(self, conn):
+        from copy import deepcopy
+
         from kurafolio.ingestion.codec import encode
         from kurafolio.persistence.context import execute
 
-        minimal = ORACLE['minimal-native.json']
-        plan = ORACLE['plan-first-use.json']
+        minimal = deepcopy(ORACLE['minimal-native.json'])
+        plan = deepcopy(ORACLE['plan-first-use.json'])
         raw = encode(minimal)
-        plan_bytes = encode(plan)
         tenant, portfolio = execute(conn, 'SELECT id,portfolio_id FROM wl_identity.users').one()
         identity = dict(t=tenant, p=portfolio)
         ids = {name: uuid.uuid4() for name in ('input', 'plan', 'receipt', 'preview', 'operation',
@@ -436,6 +441,17 @@ class IngestionProviderPostgresTests(unittest.TestCase):
         """, **identity, **ids, raw=raw, digest=hashlib.sha256(raw).hexdigest(),
                 raw_digest=minimal['provenance']['raw_sha256'],
                 discovery=minimal['provenance']['discovery_sha256'], install=install)
+        snapshot_evidence = ORACLE['snapshot-t1-minimal.json']
+        snapshot = snapshot_evidence['snapshots'][0]
+        snapshot_id = uuid.uuid4()
+        scope = dict(tag='all', category=None, instrument_ids=[])
+        key = hashlib.sha256(encode(dict(version=1, tenant_id=str(tenant), portfolio_id=str(portfolio),
+                                         account_id=str(ids['account']), record_kind='holdings',
+                                         instrument_scope=scope))).hexdigest()
+        plan['heads'].append(dict(kind='snapshot', key_digest=key, active=True, prior_revision_id=None,
+                                  next_revision_id=str(snapshot_id), complete_base_id=str(snapshot_id)))
+        plan.update(tenant_id=str(tenant), portfolio_id=str(portfolio), preview_id=str(ids['preview']))
+        plan_bytes = encode(plan)
         plan_digest = hashlib.sha256(plan_bytes).hexdigest()
         execute(conn, """
             INSERT INTO wl_ingestion.accepted_plans VALUES(
@@ -447,23 +463,71 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                    :preview,:plan,:digest,convert_to('{}','UTF8'),now()
             FROM wl_pg.instance_state
         """, **identity, **ids, digest=plan_digest)
-        typed = encode(minimal['records'][0])
+        source_key = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='records')
+        source_key_digest = hashlib.sha256(encode(source_key)).hexdigest()
         for index, (revision, parent, change) in enumerate((
                 (ids['first'], None, 'original'), (ids['second'], ids['first'], 'correction'))):
+            record = minimal['records'][0]
+            input_id = ids['input']
+            if index:
+                evidence = deepcopy(minimal)
+                record = evidence['records'][0]
+                record['identity']['revision'] = str(index)
+                input_bytes = encode(evidence)
+                input_id = uuid.uuid4()
+                execute(conn, """
+                    INSERT INTO wl_ingestion.accepted_inputs VALUES(
+                      :t,:p,:input_id,'minimal-evidence-v1',:raw,:digest,:raw_digest,:discovery,:install,now())
+                """, **identity, input_id=input_id, raw=input_bytes,
+                        digest=hashlib.sha256(input_bytes).hexdigest(),
+                        raw_digest=minimal['provenance']['raw_sha256'],
+                        discovery=minimal['provenance']['discovery_sha256'], install=install)
+            revision_token = record['identity']['revision']
+            typed = encode(record)
+            typed_digest = hashlib.sha256(typed).hexdigest()
+            claim = encode(dict(version=1, source=source_key, revision=revision_token))
             execute(conn, """
                 INSERT INTO wl_ingestion.source_revisions VALUES(
-                  :t,:p,:revision,repeat('7',64),:token,repeat('8',64),:change,:change,:parent,
-                  :input,'records','0',:typed,:digest,now())
-            """, **identity, **ids, revision=revision, parent=parent, change=change,
-                    token=str(index), typed=typed, digest=hashlib.sha256(typed).hexdigest())
+                  :t,:p,:revision,:source_key,:token,repeat('8',64),:change,:change,:parent,
+                  :input_id,'records','0',:typed,:digest,now())
+            """, **identity, revision=revision, parent=parent, change=change, source_key=source_key_digest,
+                    token=revision_token, input_id=input_id, typed=typed, digest=typed_digest)
+            execute(conn, """
+                INSERT INTO wl_ingestion.lineage VALUES(:t,:p,:revision,:raw_digest,:install,
+                  :digest,:input_id,'records','0',:claim)
+            """, **identity, revision=revision, input_id=input_id, raw_digest=minimal['provenance']['raw_sha256'],
+                    install=install, digest=typed_digest, claim=claim)
         execute(conn, """
             INSERT INTO wl_ingestion.activity_heads VALUES(:t,:p,:head,:second,true)
         """, **identity, **ids)
+        snapshot_input_id = uuid.uuid4()
+        snapshot_input = encode(snapshot_evidence)
+        snapshot_source = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='snapshots')
+        snapshot_typed = encode(snapshot)
+        snapshot_digest = hashlib.sha256(snapshot_typed).hexdigest()
+        snapshot_raw_digest = snapshot_evidence['provenance']['raw_sha256']
         execute(conn, """
-            INSERT INTO wl_ingestion.lineage VALUES(:t,:p,:first,:raw_digest,:install,
-              :digest,:input,'records','0',convert_to('{}','UTF8'))
-        """, **identity, **ids, raw_digest=minimal['provenance']['raw_sha256'],
-                install=install, digest=hashlib.sha256(typed).hexdigest())
+            INSERT INTO wl_ingestion.accepted_inputs VALUES(
+              :t,:p,:id,'minimal-evidence-v1',:raw,:digest,:raw_digest,:discovery,:install,now())
+        """, **identity, id=snapshot_input_id, raw=snapshot_input,
+                digest=hashlib.sha256(snapshot_input).hexdigest(), raw_digest=snapshot_raw_digest,
+                discovery=snapshot_evidence['provenance']['discovery_sha256'], install=install)
+        execute(conn, """
+            INSERT INTO wl_ingestion.source_revisions VALUES(
+              :t,:p,:id,:source,:token,repeat('8',64),'original','original',NULL,
+              :input,'snapshots','0',:typed,:digest,now())
+        """, **identity, id=snapshot_id, source=hashlib.sha256(encode(snapshot_source)).hexdigest(),
+                token=snapshot['revision'], input=snapshot_input_id, typed=snapshot_typed, digest=snapshot_digest)
+        execute(conn, """
+            INSERT INTO wl_ingestion.lineage VALUES(:t,:p,:id,:raw_digest,:install,
+              :digest,:input,'snapshots','0',:claim)
+        """, **identity, id=snapshot_id, raw_digest=snapshot_raw_digest, install=install,
+                digest=snapshot_digest, input=snapshot_input_id,
+                claim=encode(dict(version=1, source=snapshot_source, revision=snapshot['revision'])))
+        execute(conn, """
+            INSERT INTO wl_ingestion.snapshot_heads VALUES(
+              :t,:p,:key,:account,repeat('5',64),'holdings',:scope,:snapshot_id,:snapshot_id)
+        """, **identity, key=key, account=ids['account'], scope=encode(scope), snapshot_id=snapshot_id)
         execute(conn, """
             INSERT INTO wl_ingestion.mappings(
               tenant_id,portfolio_id,id,revision,connection_id,source_key,entity_kind,
@@ -529,6 +593,7 @@ class IngestionProviderPostgresTests(unittest.TestCase):
 
     def _verify_inactive_restores(self, operator, path, fixture, runtime, gateway, worker):
         import sys
+        from types import SimpleNamespace
         from unittest.mock import patch
 
         from psycopg.conninfo import make_conninfo
@@ -536,7 +601,22 @@ class IngestionProviderPostgresTests(unittest.TestCase):
         from kurafolio.persistence.config import PostgresConfig
         from kurafolio.persistence.context import Database, execute
         from kurafolio.persistence.errors import PersistenceError
-        from kurafolio.persistence.ingestion_restore import backup_ingestion, restore_ingestion
+        from kurafolio.persistence.ingestion_restore import _pg_tool, backup_ingestion, restore_ingestion
+
+        socket = SimpleNamespace(hostaddr=b'', host=b'/tmp/synthetic-socket', port=b'46500',
+                                 user=b'synthetic_operator', db=b'synthetic_restore')
+        conn = SimpleNamespace(connection=SimpleNamespace(
+            driver_connection=SimpleNamespace(pgconn=socket)))
+        socket_config = PostgresConfig(make_conninfo(host=socket.host.decode(), dbname=socket.db.decode(),
+                                                    user=socket.user.decode()))
+        with patch('shutil.which', return_value='/synthetic/pg_restore'), patch('subprocess.run') as run:
+            run.return_value.stdout = b'pg_restore (PostgreSQL) 18.1'
+            _pg_tool(socket_config, conn, 'pg_restore', [])
+            child_environment = run.call_args.kwargs['env']
+            self.assertEqual(socket.host.decode(), child_environment['PGHOST'])
+            self.assertEqual(socket.port.decode(), child_environment['PGPORT'])
+            self.assertEqual(socket.user.decode(), child_environment['PGUSER'])
+            self.assertEqual(socket.db.decode(), child_environment['PGDATABASE'])
 
         source = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_fresh'))))
         self.addCleanup(source.close)
@@ -642,18 +722,56 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                 manifest_file.write_bytes(raw)
                 return hashlib.sha256(raw).hexdigest()
 
+            def assert_empty(name):
+                database = Database(config(name))
+                try:
+                    with database.engine.connect() as conn:
+                        self.assertIsNone(execute(conn, "SELECT to_regnamespace('wl_ingestion')").scalar_one())
+                finally:
+                    database.close()
+
             corrupt_receipt = manifest_variant(
                 lambda body: body.update(dump_sha256=hashlib.sha256(original_archive[:50]).hexdigest()))
             with self.assertRaisesRegex(PersistenceError, 'restore_required'):
                 restore_ingestion(config('synthetic_restore_corrupt'), backup, corrupt_receipt, roles)
+            assert_empty('synthetic_restore_corrupt')
             archive_file.write_bytes(original_archive)
             changed_receipt = manifest_variant(
                 lambda body: body['relations']['wl_ingestion.accepted_inputs'].update(sha256='0' * 64))
             with self.assertRaisesRegex(PersistenceError, 'restore_required'):
                 restore_ingestion(config('synthetic_restore_changed'), backup, changed_receipt, roles)
             manifest_file.write_bytes(original_manifest)
+            for name, code in (('synthetic_restore_open', 'restore_required'),
+                               ('synthetic_restore_temp', 'migration_target_invalid')):
+                with self.assertRaisesRegex(PersistenceError, code):
+                    restore_ingestion(config(name), backup, receipt, roles)
+                assert_empty(name)
             with source.engine.begin() as conn:
                 execute(conn, 'UPDATE wl_ingestion.roots SET accepted_generation=accepted_generation+1')
+                savepoint = conn.begin_nested()
+                try:
+                    from kurafolio.persistence.ingestion_restore import _verify_history
+
+                    execute(conn, "ALTER TABLE wl_ingestion.lineage DISABLE TRIGGER lineage_guard")
+                    execute(conn, """
+                        UPDATE wl_ingestion.lineage l
+                        SET source_revision_id=(SELECT id FROM wl_ingestion.source_revisions
+                                                WHERE accepted_change='correction')
+                        WHERE l.source_revision_id=(SELECT id FROM wl_ingestion.source_revisions
+                                                    WHERE accepted_change='original' AND collection='records')
+                    """)
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        _verify_history(conn)
+                finally:
+                    savepoint.rollback()
+                savepoint = conn.begin_nested()
+                try:
+                    execute(conn, "ALTER TABLE wl_ingestion.snapshot_heads DISABLE TRIGGER snapshot_heads_guard")
+                    execute(conn, "UPDATE wl_ingestion.snapshot_heads SET complete_base_revision_id=NULL")
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        _verify_history(conn)
+                finally:
+                    savepoint.rollback()
             restored_realms = set()
             for name in ('synthetic_restore_one', 'synthetic_restore_two'):
                 with self.subTest(restore=name):
@@ -675,7 +793,8 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                             self.assertEqual(1, execute(conn, 'SELECT accepted_generation FROM wl_ingestion.roots').scalar_one())
                             self.assertEqual(expected_input, execute(conn, '''
                                 SELECT canonical_bytes FROM wl_ingestion.accepted_inputs
-                            ''').scalar_one())
+                                WHERE digest=:digest
+                            ''', digest=hashlib.sha256(expected_input).hexdigest()).scalar_one())
                             self.assertEqual(expected_plan, execute(conn, '''
                                 SELECT canonical_bytes FROM wl_ingestion.accepted_plans
                             ''').scalar_one())
@@ -701,6 +820,8 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                 ('synthetic_restore_fault', 'after_restore_epoch'),
                 ('synthetic_restore_identity_fault', 'after_identity_invalidation'),
                 ('synthetic_restore_commit_fault', 'before_restore_commit'),
+                ('synthetic_restore_load_fault', 'after_archive_load'),
+                ('synthetic_restore_verify_fault', 'after_restore_verification'),
             ):
                 with self.subTest(fault=boundary):
                     def fault(phase):
@@ -723,6 +844,11 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                             """, role=worker).scalar_one())
                     finally:
                         database.close()
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        restore_ingestion(failed, backup, receipt, roles)
+                    self.assertEqual(expected, restore_ingestion(failed, backup, receipt, roles, resume=True))
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        restore_ingestion(failed, backup, receipt, roles, resume=True)
 
 
 @unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',

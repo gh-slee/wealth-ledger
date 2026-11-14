@@ -245,12 +245,14 @@ def _pg_tool(config, conn, name, options, *, stdin=None, stdout=None):
         raise PersistenceError("invalid_config")
     pgconn = conn.connection.driver_connection.pgconn
     address = pgconn.hostaddr.decode()
+    host = pgconn.host.decode()
     if address:
         connection["hostaddr"] = address
-        connection["port"] = pgconn.port.decode()
-    elif not connection.get("host", "").startswith("/") or connection.get("hostaddr"):
+    elif not host.startswith("/") or host != connection.get("host") or connection.get("hostaddr"):
         # Require an explicit socket directory for a Unix connection.
         raise PersistenceError("invalid_config")
+    connection.update(host=host, port=pgconn.port.decode(), user=pgconn.user.decode(),
+                      dbname=pgconn.db.decode())
     environment = {key: value for key, value in os.environ.items() if not key.startswith("PG")}
     environment.update({environment_names[key]: value for key, value in connection.items()})
     environment["PGCLIENTENCODING"] = "UTF8"
@@ -333,6 +335,9 @@ def _verify_history(conn):
               ON (r.tenant_id,r.portfolio_id,r.id) = (p.tenant_id,p.portfolio_id,p.receipt_id)
             WHERE r.operation_kind <> 'ACCEPT' OR r.accepted_plan_id IS DISTINCT FROM p.id
                OR r.plan_digest IS DISTINCT FROM p.digest OR r.preview_id IS DISTINCT FROM p.preview_id
+               OR pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb->>'tenant_id' IS DISTINCT FROM p.tenant_id::text
+               OR pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb->>'portfolio_id' IS DISTINCT FROM p.portfolio_id::text
+               OR pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb->>'preview_id' IS DISTINCT FROM p.preview_id::text
             UNION ALL
             SELECT 1 FROM wl_ingestion.receipts r
             JOIN wl_ingestion.accepted_plans p
@@ -351,7 +356,17 @@ def _verify_history(conn):
             SELECT 1 FROM wl_ingestion.source_revisions r
             JOIN wl_ingestion.source_revisions p
               ON (p.tenant_id,p.portfolio_id,p.id) = (r.tenant_id,r.portfolio_id,r.parent_id)
-            WHERE p.collection <> r.collection
+            WHERE p.collection <> r.collection OR p.source_key <> r.source_key
+               OR p.source_revision = r.source_revision OR p.accepted_change = 'void'
+            UNION ALL
+            SELECT 1 FROM wl_ingestion.source_revisions r
+            WHERE NOT EXISTS (
+                SELECT 1 FROM wl_ingestion.lineage l
+                WHERE (l.tenant_id,l.portfolio_id,l.source_revision_id,l.input_id,l.collection,l.local_id)
+                    = (r.tenant_id,r.portfolio_id,r.id,r.input_id,r.collection,r.local_id)
+                  AND l.evidence_digest = r.typed_digest
+                  AND pg_catalog.convert_from(l.source_claim_bytes,'UTF8')::jsonb->>'revision' = r.source_revision
+            )
             UNION ALL
             SELECT 1 FROM wl_ingestion.activity_heads h
             JOIN wl_ingestion.source_revisions r
@@ -366,15 +381,54 @@ def _verify_history(conn):
                  AND r.id IN (h.latest_revision_id,h.complete_base_revision_id)
             WHERE r.collection <> 'snapshots' OR r.accepted_change NOT IN ('original','correction')
             UNION ALL
+            SELECT 1 FROM wl_ingestion.snapshot_heads h
+            WHERE h.key_digest IS DISTINCT FROM pg_catalog.encode(pg_catalog.sha256(
+                wl_ingestion._canonical_v1(pg_catalog.jsonb_build_object(
+                    'version',1,'tenant_id',h.tenant_id::text,'portfolio_id',h.portfolio_id::text,
+                    'account_id',h.account_id::text,'record_kind','holdings',
+                    'instrument_scope',pg_catalog.convert_from(h.scope_bytes,'UTF8')::jsonb))), 'hex')
+               OR NOT EXISTS (
+                    SELECT 1 FROM wl_ingestion.accepted_plans p
+                    CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(
+                        pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb->'heads') AS proposal(value)
+                    WHERE (p.tenant_id,p.portfolio_id)=(h.tenant_id,h.portfolio_id)
+                      AND value->>'kind'='snapshot' AND value->>'key_digest'=h.key_digest
+                      AND value->>'next_revision_id'=h.latest_revision_id::text
+                      AND value->>'complete_base_id' IS NOT DISTINCT FROM h.complete_base_revision_id::text
+               )
+               OR (h.complete_base_revision_id IS NOT NULL AND NOT EXISTS (
+                    SELECT 1 FROM wl_ingestion.accepted_plans p
+                    CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(
+                        pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb->'heads') AS proposal(value)
+                    WHERE (p.tenant_id,p.portfolio_id)=(h.tenant_id,h.portfolio_id)
+                      AND value->>'kind'='snapshot' AND value->>'key_digest'=h.key_digest
+                      AND value->>'next_revision_id'=h.complete_base_revision_id::text
+                      AND value->>'complete_base_id'=h.complete_base_revision_id::text
+               ))
+            UNION ALL
             SELECT 1 FROM wl_ingestion.lineage l
             JOIN wl_ingestion.accepted_inputs i
               ON (i.tenant_id,i.portfolio_id,i.id) = (l.tenant_id,l.portfolio_id,l.input_id)
+            JOIN wl_ingestion.source_revisions r
+              ON (r.tenant_id,r.portfolio_id,r.id)=(l.tenant_id,l.portfolio_id,l.source_revision_id)
+            CROSS JOIN LATERAL (SELECT CASE WHEN l.collection='membership'
+                THEN pg_catalog.convert_from(i.canonical_bytes,'UTF8')::jsonb->'membership'
+                ELSE pg_catalog.convert_from(i.canonical_bytes,'UTF8')::jsonb
+                  ->l.collection->(l.local_id::integer) END AS typed,
+                pg_catalog.convert_from(l.source_claim_bytes,'UTF8')::jsonb AS claim) AS evidence
             WHERE i.raw_digest <> l.raw_digest OR i.installation_id <> l.installation_id
+               OR l.collection <> r.collection
                OR l.evidence_digest IS DISTINCT FROM pg_catalog.encode(pg_catalog.sha256(
-                   wl_ingestion._canonical_v1(CASE WHEN l.collection='membership'
-                   THEN pg_catalog.convert_from(i.canonical_bytes,'UTF8')::jsonb->'membership'
-                   ELSE pg_catalog.convert_from(i.canonical_bytes,'UTF8')::jsonb
-                     ->l.collection->(l.local_id::integer) END)), 'hex')
+                   wl_ingestion._canonical_v1(evidence.typed)), 'hex')
+               OR evidence.claim IS DISTINCT FROM pg_catalog.jsonb_build_object(
+                   'version',1,'source',evidence.claim->'source','revision',
+                   CASE WHEN l.collection='records' THEN evidence.typed->'identity'->>'revision'
+                        ELSE evidence.typed->>'revision' END)
+               OR evidence.claim->'source'->>'tenant_id' IS DISTINCT FROM l.tenant_id::text
+               OR evidence.claim->'source'->>'portfolio_id' IS DISTINCT FROM l.portfolio_id::text
+               OR evidence.claim->'source'->>'collection' IS DISTINCT FROM l.collection
+               OR r.source_key IS DISTINCT FROM pg_catalog.encode(pg_catalog.sha256(
+                   wl_ingestion._canonical_v1(evidence.claim->'source')), 'hex')
             UNION ALL
             SELECT 1 FROM wl_ingestion.outbox o
             JOIN wl_ingestion.receipts r
@@ -558,11 +612,32 @@ def _verify_quarantine(conn, incarnation, epoch):
         raise PersistenceError("restore_required")
 
 
-def restore_ingestion(config, path, receipt, roles, *, fault=None):
+def _marker_value(receipt):
+    # Database comments are visible outside the target. Keep the retained
+    # receipt itself out of the shared catalog.
+    return FORMAT + ":" + hashlib.sha256(f"{FORMAT}\0{receipt}".encode("ascii")).hexdigest()
+
+
+def _restore_marker(conn, receipt=None, *, clear=False):
+    from psycopg import sql
+
+    if receipt is None and not clear:
+        return execute(conn, """
+            SELECT pg_catalog.shobj_description(oid, 'pg_database')
+            FROM pg_catalog.pg_database WHERE datname=pg_catalog.current_database()
+        """).scalar_one()
+    name = execute(conn, "SELECT pg_catalog.current_database()").scalar_one()
+    comment = None if clear else _marker_value(receipt)
+    with conn.connection.driver_connection.cursor() as cursor:
+        cursor.execute(sql.SQL("COMMENT ON DATABASE {} IS {}").format(
+            sql.Identifier(name), sql.Literal(comment)))
+
+
+def restore_ingestion(config, path, receipt, roles, *, resume=False, fault=None):
     """Load a checked archive into an operator-fenced empty database and quarantine it."""
     from sqlalchemy.exc import SQLAlchemyError
     from .context import Database
-    from .ingestion_migration import _checked_roles, verify_inventory
+    from .ingestion_migration import _checked_roles, verify_inventory, verify_role_create_privileges
     from .source_migration import _source_operator_lock
 
     database = Database(config)
@@ -577,12 +652,19 @@ def restore_ingestion(config, path, receipt, roles, *, fault=None):
                     _checked_roles(conn, tuple(roles.values()))
                     _utf8(conn)
                     _target_fence(conn)
-                    _empty_target(conn)
-                with conn.begin():
-                    _pg_tool(config, conn, "pg_restore", ["--dbname=" + _database_name(config), "--no-owner",
-                                                         "--no-acl", "--single-transaction"], stdin=archive)
-                if fault is not None:
-                    fault("after_archive_load")
+                    verify_role_create_privileges(conn, roles.values())
+                    marker = _restore_marker(conn)
+                    if marker != (_marker_value(receipt) if resume else None):
+                        raise PersistenceError("restore_required")
+                    if not resume:
+                        _empty_target(conn)
+                if not resume:
+                    with conn.begin():
+                        _pg_tool(config, conn, "pg_restore", ["--dbname=" + _database_name(config), "--no-owner",
+                                                             "--no-acl", "--single-transaction"], stdin=archive)
+                        _restore_marker(conn, receipt)
+                    if fault is not None:
+                        fault("after_archive_load")
                 with conn.begin():
                     _target_fence(conn)
                     verify_inventory(conn, **roles, quarantined=True)
@@ -604,6 +686,7 @@ def restore_ingestion(config, path, receipt, roles, *, fault=None):
                     epoch = state["restore_epoch"] + 1
                     execute(conn, "SET CONSTRAINTS ALL IMMEDIATE")
                     _verify_quarantine(conn, incarnation, epoch)
+                    _restore_marker(conn, clear=True)
                     if fault is not None:
                         fault("before_restore_commit")
                 with conn.begin():
