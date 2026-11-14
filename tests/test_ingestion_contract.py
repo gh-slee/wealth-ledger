@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 import unittest
 
-from wealth_ledger.ingestion.codec import decode, digest, encode, validate
-from wealth_ledger.ingestion.contracts import IngestionError, definition
-from wealth_ledger.ingestion.approval import validate_review_bundle, verify_staged_material
+from kurafolio.ingestion.codec import decode, digest, encode, validate
+from kurafolio.ingestion.contracts import IngestionError, definition
+from kurafolio.ingestion.approval import validate_review_bundle, verify_staged_material
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())
 
@@ -38,6 +38,37 @@ class IngestionContractTests(unittest.TestCase):
                     altered = definition(name, namespace)
                     altered.clear()
                     self.assertEqual(expected, definition(name, namespace))
+
+    def test_decisions_basis_rows_keep_collection_types_and_positive_revision(self):
+        decisions = fixture('decisions-first-use.json')
+        header = {'kind': 'decisions_header', 'decision_revision': '1', 'digest': digest(decisions),
+                  'version': 1, 'operation_id': decisions['operation_id'], 'expected_set_revision': '1',
+                  'counts': {'authorities': 0, 'mappings': 4, 'new_entities': 4, 'parents': 0}}
+        self.assertEqual(header, validate(header, 'BasisRow'))
+        item = {'kind': 'decision_item', 'collection': 'mappings', 'ordinal': 0, 'value': decisions['mappings'][0]}
+        self.assertEqual(item, validate(item, 'BasisRow'))
+        for bad in (dict(item, collection='parents'), dict(item, ordinal=128), dict(item, extra=True),
+                    dict(header, decision_revision='0'), dict(header, decision_revision='9223372036854775808')):
+            with self.subTest(row=bad['kind']):
+                self.assert_blocked(bad, name='BasisRow', code='import_invalid')
+
+    def test_prepare_basis_rows_require_pins_and_bounded_link_history(self):
+        plan = fixture('plan-first-use.json')
+        context = {key: plan[key] for key in ('tenant_id', 'portfolio_id', 'set_id', 'incarnation',
+                                              'realm_digest', 'restore_epoch', 'pinned_sources')}
+        context.update(kind='prepare_context', set_expires_at=plan['expires_at'])
+        prestate = fixture('authority-only-prestate.json')
+        authority = {'kind': 'authority', 'authority': prestate['prior_authority'],
+                     'link_id': prestate['prior_link_id'], 'link_revision': '9223372036854775807'}
+        for row in (context, authority):
+            self.assertEqual(row, validate(row, 'BasisRow'))
+            self.assert_blocked(dict(row, extra=True), name='BasisRow', code='import_invalid')
+        for bad in (dict(context, pinned_sources=[]),
+                    {key: value for key, value in authority.items() if key != 'link_id'},
+                    dict(authority, link_revision='0'), dict(authority, link_revision='9223372036854775808')):
+            self.assert_blocked(bad, name='BasisRow', code='import_invalid')
+        self.assert_blocked(dict(context, pinned_sources=plan['pinned_sources'] * 5),
+                            name='BasisRow', code='import_invalid')
 
     def test_key_preimages_match_literal_bytes_and_hashes(self):
         for row in fixture('key-preimages.json')['vectors']:
@@ -236,6 +267,43 @@ class IngestionContractTests(unittest.TestCase):
             obj['review']['plan_digest'] = digest(obj['plan'])
             with self.subTest(kind=kind), self.assertRaises(IngestionError):
                 validate_review_bundle(encode(obj), stages=parser_stages())
+
+    def test_ready_fact_disclosure_must_match_executable_effect(self):
+        for changes in ({'action': 'duplicate'}, {'accepted_revision_id': None}):
+            with self.subTest(changes=changes):
+                obj = fixture('review-bundle-first-use.json')
+                review, plan = obj['review'], obj['plan']
+                fact = next(row for row in review['content']['rows'] if row['type'] == 'fact')
+                fact.update(changes)
+                review['content_digest'] = plan['review_content_digest'] = digest(review['content'])
+                review['plan_digest'] = digest(plan)
+                validate(obj, 'ReviewBundle')
+                with self.assertRaises(IngestionError) as caught:
+                    validate_review_bundle(encode(obj), stages=parser_stages())
+                self.assertEqual('import_invalid', caught.exception.code)
+
+    def test_review_diagnostics_must_match_admitted_member_evidence(self):
+        obj = fixture('review-bundle-initial.json')
+        member_id = fixture('plan-first-use.json')['inputs'][0]['member_id']
+        minimal = fixture('minimal-parser2.json')
+        diagnostic = {'code': 'observed_order_rows', 'severity': 'warning',
+                      'row_count': '10', 'duplicate_count': '9', 'record_local_ids': []}
+        minimal['provenance']['diagnostics'].append(diagnostic)
+        stages = {member_id: encode(minimal)}
+        review = obj['review']
+        rows = review['content']['rows']
+        valid = {'type': 'diagnostic', 'ordinal': str(len(rows)), 'member_id': member_id,
+                 'diagnostic': diagnostic}
+        for extra in ([], [dict(valid, member_id='20000000-0000-4000-8000-000000000099')], [valid]):
+            with self.subTest(extra=extra):
+                content = dict(review['content'], rows=rows + extra)
+                bundle = dict(obj, review=dict(review, content=content, content_digest=digest(content)))
+                if extra == [valid]:
+                    self.assertEqual(bundle, validate_review_bundle(encode(bundle), stages=stages))
+                else:
+                    with self.assertRaises(IngestionError) as caught:
+                        validate_review_bundle(encode(bundle), stages=stages)
+                    self.assertEqual('import_invalid', caught.exception.code)
 
     def test_buy_sign_and_acquired_asset_are_checked_without_lifecycle(self):
         obj = fixture('minimal-parser2.json')

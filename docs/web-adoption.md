@@ -46,11 +46,11 @@ Substitute your own dedicated paths; these examples contain no existing user dat
 
 ```bash
 umask 077
-mkdir -p "$HOME/.local/state/wealth-ledger/adoption"
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" adopt-preview \
-  --workspace "$HOME/.local/share/wealth-ledger/cli-workspace" \
+mkdir -p "$HOME/.local/state/kurafolio/adoption"
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" adopt-preview \
+  --workspace "$HOME/.local/share/kurafolio/cli-workspace" \
   --name "Investment ledger" \
-  --output "$HOME/.local/state/wealth-ledger/adoption/cli.adoption.json"
+  --output "$HOME/.local/state/kurafolio/adoption/cli.adoption.json"
 ```
 
 The preview checks the stopped source and writes a new private mode-600 plan. It
@@ -62,8 +62,8 @@ hash from `shasum`. Existing plan files are never overwritten.
 Confirm exactly that reviewed digest:
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" adopt-confirm \
-  --plan "$HOME/.local/state/wealth-ledger/adoption/cli.adoption.json" \
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" adopt-confirm \
+  --plan "$HOME/.local/state/kurafolio/adoption/cli.adoption.json" \
   --plan-sha256 '<plan_sha256 returned by adopt-preview>'
 ```
 

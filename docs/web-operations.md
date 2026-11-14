@@ -22,8 +22,8 @@ install the separate locked dependency set, using Python 3.12+ from a source che
 
 ```bash
 python -m pip install -r requirements-web.lock
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" init-owner
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" serve
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" init-owner
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" serve
 ```
 
 `init-owner` requires a new empty dedicated directory (created if missing) or an
@@ -37,11 +37,11 @@ readiness response. Native source checkouts need `npm --prefix frontend ci --ign
 and `npm --prefix frontend run build` first; Docker builds static assets automatically.
 See [the browser manual](web-frontend.md). API docs/OpenAPI are authenticated; public Swagger/Redoc/CDN
 pages are disabled. The public origin defaults to `http://localhost:8000` and must
-match the browser exactly. Use `--public-origin` or `WEALTH_LEDGER_PUBLIC_ORIGIN`
+match the browser exactly. Use `--public-origin` or `KURAFOLIO_PUBLIC_ORIGIN`
 for another origin; the host/port must match requests. Non-loopback origins require
 HTTPS. `serve --host`/`--port` control the listener independently for reverse proxies.
 
-`WEALTH_LEDGER_DATA_ROOT` is an alternative to `--data-root`. There is **no** fallback
+`KURAFOLIO_DATA_ROOT` is an alternative to `--data-root`. There is **no** fallback
 to a checkout-local or maintainer ledger. The Web root must be outside the code
 checkout, not the home/filesystem root. CLI data cannot be adopted by pointing the
 API at an existing nonempty ledger. Use the explicit [copy/verify/switch commands](web-adoption.md).
@@ -155,7 +155,7 @@ codes through its three-locale presentation layer. No account data is placed in 
 ## Password reset and session storage
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" reset-password
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" reset-password
 ```
 
 A reset prompts on the host and revokes all sessions. `--password-stdin` is available
@@ -185,14 +185,14 @@ Prepare the context from audited source, then run acceptance when Docker is avai
 
 ```bash
 python scripts/docker_context.py --output work/docker-context
-WEALTH_LEDGER_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v
+KURAFOLIO_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v
 ```
 
 The helper refuses existing output paths and includes only code, locked dependencies,
 bundled fonts/company aliases and licenses. It scans input content and emits a
 source manifest. `.dockerignore` denies by default; Dockerfile uses explicit COPY
 paths. Neither tool uploads/pushes an image. For later rebuilds choose a fresh context
-and set `WEALTH_LEDGER_BUILD_CONTEXT` to it. Do not use a private workspace as context.
+and set `KURAFOLIO_BUILD_CONTEXT` to it. Do not use a private workspace as context.
 
 The foundation's local startup sequence is:
 

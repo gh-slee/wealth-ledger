@@ -1,10 +1,11 @@
 # Optional V2 identity service
 
-This separate backend was merged in [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19).
+This separate backend was merged in [PR #19](https://github.com/gh-slee/kurafolio/pull/19).
 It is opt-in development infrastructure, not an upgrade path for the existing SQLite Web App. Do not change a running ledger's
-entry point or database to try it. The setup wizard, registration UI and invitation
-pages belong to a later frontend slice; no V2 financial import/export service is
-claimed here. See [capabilities](capability-status.md) and [the PG foundation](postgres-foundation.md).
+entry point or database to try it. The browser pages for first setup, invitation
+registration, sign-in and invitation management are described in
+[the frontend guide](web-frontend.md#v2-sign-in-setup-and-invitations); no V2
+financial import/export service is claimed here. See [capabilities](capability-status.md) and [the PG foundation](postgres-foundation.md).
 
 ## Model and trust boundary
 
@@ -57,17 +58,17 @@ password and sslmode, with matching target/TLS options. Never pass a password as
 CLI argument/environment variable or include it in an issue. Protect parent folders.
 
 ```bash
-PYTHONPATH=src python -m wealth_ledger.web_v2 --help
-PYTHONPATH=src python -m wealth_ledger.web_v2 instance-key create \
+PYTHONPATH=src python -m kurafolio.web_v2 --help
+PYTHONPATH=src python -m kurafolio.web_v2 instance-key create \
   --output /path/to/private/identity.key
-PYTHONPATH=src python -m wealth_ledger.web_v2 operator migrate-identity \
+PYTHONPATH=src python -m kurafolio.web_v2 operator migrate-identity \
   --secret-file /path/to/private/operator.conninfo \
   --runtime-role ledger_runtime --identity-role ledger_identity \
   --key-file /path/to/private/identity.key
-PYTHONPATH=src python -m wealth_ledger.web_v2 setup arm \
+PYTHONPATH=src python -m kurafolio.web_v2 setup arm \
   --secret-file /path/to/private/operator.conninfo \
   --output /path/to/private/setup-code
-PYTHONPATH=src python -m wealth_ledger.web_v2 serve \
+PYTHONPATH=src python -m kurafolio.web_v2 serve \
   --identity-file /path/to/private/identity.conninfo \
   --financial-file /path/to/private/runtime.conninfo \
   --key-file /path/to/private/identity.key \
@@ -75,6 +76,12 @@ PYTHONPATH=src python -m wealth_ledger.web_v2 serve \
 ```
 
 These are new, explicit commands; the default Compose/CLI Web entry stays unchanged.
+
+To finish setup in a browser, open `<origin>/setup?token=<code>`, where `<code>` is
+the single line `setup arm` wrote to its output file and `<origin>` is the configured
+`--origin`. The code lasts 30 minutes and works once. An invitation issued on the
+host works the same way at `<origin>/register?token=<code>`. Both pages read the code
+once and remove it from the address bar; treat the full link as the secret.
 An HTTP listener must bind a literal loopback address (`localhost` is pinned to
 127.0.0.1). Any non-loopback bind requires an HTTPS origin **and actual TLS** through
 `--tls-cert-file /path/to/private/certificate.pem --tls-key-file /path/to/private/transport.key`.
@@ -97,13 +104,13 @@ Host commands use the same module prefix:
 
 ```bash
 # Opaque IDs come from command output or the retained private receipt.
-python -m wealth_ledger.web_v2 setup revoke --secret-file /path/to/private/operator.conninfo --record-id SETUP_UUID
-python -m wealth_ledger.web_v2 invite issue --secret-file /path/to/private/operator.conninfo --output /path/to/private/new-invite
-python -m wealth_ledger.web_v2 invite revoke --secret-file /path/to/private/operator.conninfo --record-id INVITE_UUID
-python -m wealth_ledger.web_v2 account reset-password --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
-python -m wealth_ledger.web_v2 account disable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
-python -m wealth_ledger.web_v2 account enable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
-python -m wealth_ledger.web_v2 identity status --secret-file /path/to/private/operator.conninfo
+python -m kurafolio.web_v2 setup revoke --secret-file /path/to/private/operator.conninfo --record-id SETUP_UUID
+python -m kurafolio.web_v2 invite issue --secret-file /path/to/private/operator.conninfo --output /path/to/private/new-invite
+python -m kurafolio.web_v2 invite revoke --secret-file /path/to/private/operator.conninfo --record-id INVITE_UUID
+python -m kurafolio.web_v2 account reset-password --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
+python -m kurafolio.web_v2 account disable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
+python -m kurafolio.web_v2 account enable --secret-file /path/to/private/operator.conninfo --user-id USER_UUID
+python -m kurafolio.web_v2 identity status --secret-file /path/to/private/operator.conninfo
 ```
 
 Password reset uses hidden TTY input and confirmation. For a protected pipe, add
@@ -144,6 +151,21 @@ No v1 fallback, static report route, default OpenAPI/docs page or portfolio sele
 is mounted. Candidate responses are raw canonical domain-v1 JSON bytes. Job DTOs
 contain only id/kind/status/attempt/error_code; unknown stored error codes are sanitized.
 
+The service also serves the built browser bundle on the same origin, as the SQLite
+Web App does. It reads `frontend/dist` from the code root. `GET` on `/`, `/login`,
+`/setup`, `/register`, `/app` and any path under `/app/` returns `index.html`, and
+`GET /assets/<file>` returns a file from `assets/` by exact name. Source maps,
+dotfiles, symlinks and nested paths return 404. These reads need no session, create
+no cookie and skip the eight-request admission limit. They carry the application
+content-security policy and the same `no-store` cache headers as SQLite `/`. Other
+methods on these paths, including `HEAD`, return 405 with `Allow: GET`. Host checks
+still apply. Like the SQLite app, these responses also carry `X-Request-ID`, and
+`Strict-Transport-Security` when the origin is HTTPS. Without a built bundle, or
+with one that lacks `assets/`, the API starts normally and every request to the page
+and asset paths returns the JSON `not_found` error. Install the code under a path
+with no symlinked parent folder: the asset guard refuses files below any symlink,
+so assets would return 404 while pages still load. The `licenses/` directory is not served.
+
 Cookies are HttpOnly, SameSite=Lax, Path=/, no Domain; HTTPS uses Secure and the
 `__Host-` prefix. Anonymous lifetime is 600 seconds; authenticated idle/absolute
 limits are 1,800/43,200 seconds. Safe GET/CSRF polling does not extend idle; explicit
@@ -171,7 +193,7 @@ running/later-written instance. Stop the isolated target and restore a matching
 trusted finalization, role/key/realm and data verification succeed.
 
 ```bash
-python -m wealth_ledger.web_v2 identity finalize-restore \
+python -m kurafolio.web_v2 identity finalize-restore \
   --secret-file /path/to/private/restored-operator.conninfo \
   --runtime-role ledger_runtime --identity-role ledger_identity \
   --key-file /path/to/private/matching-identity.key
@@ -193,8 +215,8 @@ restore target. Create a **new** private key file at a new path, then explicitly
 finalize that isolated target with replacement:
 
 ```bash
-python -m wealth_ledger.web_v2 instance-key create --output /path/to/private/recovered-instance.key
-python -m wealth_ledger.web_v2 identity finalize-restore \
+python -m kurafolio.web_v2 instance-key create --output /path/to/private/recovered-instance.key
+python -m kurafolio.web_v2 identity finalize-restore \
   --secret-file /path/to/private/restored-operator.conninfo \
   --runtime-role ledger_runtime --identity-role ledger_identity \
   --key-file /path/to/private/recovered-instance.key --replace-missing-key
@@ -235,16 +257,16 @@ and services are unaffected. See [current Web backups](web-backups.md).
 
 ```bash
 python scripts/postgres.py test-identity-environment --output work/identity-tests
-WEALTH_LEDGER_IDENTITY_TEST=1 \
-WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
+KURAFOLIO_IDENTITY_TEST=1 \
+KURAFOLIO_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_identity_*.py' -v
-WEALTH_LEDGER_IDENTITY_TEST=1 \
-WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
+KURAFOLIO_IDENTITY_TEST=1 \
+KURAFOLIO_IDENTITY_TEST_CONFIG=work/identity-tests/test-config.json \
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_v2_api.py' -v
 ```
 
 Build the optional runtime profile using a source-only context, then set
-`WEALTH_LEDGER_IDENTITY_RUNTIME_IMAGE` to that **immutable image ID** and run
+`KURAFOLIO_IDENTITY_RUNTIME_IMAGE` to that **immutable image ID** and run
 `test_web_v2_native.py`. It executes real Linux HTTP with 16 independent API
 processes/transport peers, staged real password hashing, and barriers before SQL
 acquisition; it also checks a nonroot two-user image. Clock overrides and process

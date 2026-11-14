@@ -12,22 +12,22 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 
 def main():
-    raw_port = os.environ.get("WEALTH_LEDGER_E2E_PORT", "8765")
+    raw_port = os.environ.get("KURAFOLIO_E2E_PORT", "8765")
     try:
         port = int(raw_port) if raw_port.isascii() and raw_port.isdecimal() else 0
     except ValueError:
         port = 0
     if not 1 <= port <= 65535:
-        raise SystemExit("WEALTH_LEDGER_E2E_PORT must be an integer from 1 to 65535")
+        raise SystemExit("KURAFOLIO_E2E_PORT must be an integer from 1 to 65535")
     origin = "http://localhost" if port == 80 else f"http://localhost:{port}"
 
     import uvicorn
     from examples.demo import run_demo
-    from wealth_ledger.web.api import create_app
-    from wealth_ledger.web.auth import password_hash
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.storage import Store, prepare_instance
+    from kurafolio.web.api import create_app
+    from kurafolio.web.auth import password_hash
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.storage import Store, prepare_instance
     import json
     import hashlib
     with tempfile.TemporaryDirectory(prefix="wealth-browser-synthetic-") as temporary:
@@ -64,10 +64,10 @@ def main():
             conn.execute("UPDATE jobs SET updated_at=updated_at-60 WHERE id=?", (old["id"],))
         # Independent old-format declaration; all bytes originate in the synthetic demo.
         import shutil
-        from wealth_ledger.core import import_holdings
-        from wealth_ledger.crypto import import_bull_orders
-        from wealth_ledger.combined import make_combined_payload
-        from wealth_ledger.web.adoption import prepare_adoption, confirm_adoption
+        from kurafolio.core import import_holdings
+        from kurafolio.crypto import import_bull_orders
+        from kurafolio.combined import make_combined_payload
+        from kurafolio.web.adoption import prepare_adoption, confirm_adoption
         legacy = Path(temporary) / "legacy-cli"
         data = ROOT / "examples/data"
         fx = json.loads((data / "fx.json").read_text())
@@ -86,13 +86,13 @@ def main():
         preview = prepare_adoption(settings,legacy,"Legacy synthetic portfolio",plan,allow_legacy_reports=True)
         confirm_adoption(settings,plan,preview["plan_sha256"])
         # A real source-report operation/registry, with invented direct instruments.
-        from wealth_ledger.web.source_reports import enqueue_preview, confirm_preview
-        from wealth_ledger.web.worker import execute_job
-        from wealth_ledger.web.uploads import upload_path
-        from wealth_ledger.source_context_pipeline import context_document
-        from wealth_ledger.source_builtin import WealthsimpleHoldings, WS_FORMAT
-        from wealth_ledger.source_v2 import ParseContext
-        from wealth_ledger.prices import parse_time
+        from kurafolio.web.source_reports import enqueue_preview, confirm_preview
+        from kurafolio.web.worker import execute_job
+        from kurafolio.web.uploads import upload_path
+        from kurafolio.source_context_pipeline import context_document
+        from kurafolio.source_builtin import WealthsimpleHoldings, WS_FORMAT
+        from kurafolio.source_v2 import ParseContext
+        from kurafolio.prices import parse_time
         from datetime import datetime, timezone
         source_portfolio = store.create_portfolio("Source synthetic portfolio", "en-CA", "actual_only")
         source_pid = source_portfolio["id"]
@@ -117,8 +117,8 @@ def main():
         source_job = confirm_preview(store,source_pid,{"preview_id":source_preview["id"],"approval_sha256":approval},uuid.uuid4().hex)
         execute_job(settings,source_job["id"])
         assert jobs.get(source_pid,source_job["id"])["status"] == "published"
-        environment = {**os.environ, "WEALTH_LEDGER_DATA_ROOT":str(settings.data_root),
-                       "WEALTH_LEDGER_PUBLIC_ORIGIN":settings.public_origin, "PYTHONDONTWRITEBYTECODE":"1"}
+        environment = {**os.environ, "KURAFOLIO_DATA_ROOT":str(settings.data_root),
+                       "KURAFOLIO_PUBLIC_ORIGIN":settings.public_origin, "PYTHONDONTWRITEBYTECODE":"1"}
         worker = subprocess.Popen([sys.executable, str(ROOT / "scripts/web.py"), "worker"], env=environment)
         try:
             uvicorn.run(create_app(settings), host="127.0.0.1", port=port, access_log=False, server_header=False)

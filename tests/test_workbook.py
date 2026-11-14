@@ -12,11 +12,11 @@ import zipfile
 import zlib
 import xml.etree.ElementTree as ET
 from test_core import FX, write_holdings, synthetic_rows, row
-from wealth_ledger.core import import_holdings, make_payload
-from wealth_ledger.workbook import (BASELINE_CHART_KEYS, FONT_NAME, FONT_PACKAGE_PATH,
+from kurafolio.core import import_holdings, make_payload
+from kurafolio.workbook import (BASELINE_CHART_KEYS, FONT_NAME, FONT_PACKAGE_PATH,
                                    FONT_MEDIA_TYPE, FONT_PATH, FONT_LICENSE_PATH,
                                    NS, tag, build_workbook, verify_workbook)
-from wealth_ledger.validation import validate_formula_caches
+from kurafolio.validation import validate_formula_caches
 
 
 class WorkbookTests(unittest.TestCase):
@@ -181,8 +181,8 @@ class WorkbookTests(unittest.TestCase):
         first = self.chart_fixture(directory="first", seed=1)
         second = self.chart_fixture(directory="second", seed=2)
         output = self.project / "automatic.ods"
-        with patch("wealth_ledger.reporting._font_path", return_value=self.project / "font.ttf"), \
-             patch("wealth_ledger.reporting._charts", side_effect=[first, second]) as renderer:
+        with patch("kurafolio.reporting._font_path", return_value=self.project / "font.ttf"), \
+             patch("kurafolio.reporting._charts", side_effect=[first, second]) as renderer:
             build_workbook(payload, output)
             first_hash = verify_workbook(output)["chart_hashes"][BASELINE_CHART_KEYS[0]]
             build_workbook(payload, output)
@@ -244,7 +244,7 @@ class WorkbookTests(unittest.TestCase):
     def test_missing_font_fails_before_writing_report(self):
         payload = self.payload()
         output = self.project / "missing-font.ods"
-        with patch("wealth_ledger.workbook.FONT_PATH", self.project / "missing.ttf"):
+        with patch("kurafolio.workbook.FONT_PATH", self.project / "missing.ttf"):
             with self.assertRaisesRegex(ValueError, "Missing bundled document font"):
                 build_workbook(payload, output, self.chart_fixture())
         self.assertFalse(output.exists())

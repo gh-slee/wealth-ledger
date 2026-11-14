@@ -8,9 +8,9 @@ import unittest
 from unittest.mock import patch
 
 from synthetic_parser import FIELDS, VERSION, SyntheticHoldings, register
-from wealth_ledger.source_protocol import Holding
-from wealth_ledger.source_registry import AdapterRegistration
-from wealth_ledger.source_testing import check_contract, check_rejected, record_index
+from kurafolio.source_protocol import Holding
+from kurafolio.source_registry import AdapterRegistration
+from kurafolio.source_testing import check_contract, check_rejected, record_index
 
 
 def fixture(**changes):
@@ -73,14 +73,14 @@ class ExampleParserTests(unittest.TestCase):
 class V2ExampleParserTests(unittest.TestCase):
     def setUp(self):
         from synthetic_parser.v2 import SyntheticHoldingsV2, VERSION
-        from wealth_ledger.source_v2 import ParseContext
+        from kurafolio.source_v2 import ParseContext
         self.adapter=SyntheticHoldingsV2()
         self.raw=fixture(format=VERSION)
         self.context=ParseContext(datetime.fromisoformat("2024-02-01T12:00:00+00:00"),"synthetic-v2-export",format_selection=VERSION)
         self.version=VERSION
 
     def test_v2_contract_has_original_ids_and_explicit_partial_scope(self):
-        from wealth_ledger.source_testing import check_contract_v2
+        from kurafolio.source_testing import check_contract_v2
         check_contract_v2(self.adapter,self.raw,context=self.context)
         batch=self.adapter.normalize(self.raw,export_version=self.version,context=self.context)
         self.assertEqual(batch.records[0].key.source_id,"position-001")

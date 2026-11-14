@@ -7,16 +7,16 @@ import subprocess
 import unittest
 
 from test_identity_support import IdentityCase
-from wealth_ledger.web_v2.auth import digest
+from kurafolio.web_v2.auth import digest
 
 # Test-only wrappers coordinate real hashing BEFORE SQL acquisition. No production
 # route/header/environment bypass, forged forwarded peer or host alias is used.
 PROGRAM=r'''
 import concurrent.futures,hashlib,http.client,json,multiprocessing as mp,os,queue,socket,sys,time
 from http.cookies import SimpleCookie
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.web_v2.config import Settings
-from wealth_ledger.web_v2.api import create_app
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.web_v2.config import Settings
+from kurafolio.web_v2.api import create_app
 import uvicorn
 payload=json.load(sys.stdin)
 context=mp.get_context('fork');results=context.Queue();barrier=context.Barrier(16);hash_slots=context.BoundedSemaphore(2)
@@ -107,7 +107,7 @@ finally:
 '''
 
 
-@unittest.skipUnless(os.environ.get('WEALTH_LEDGER_IDENTITY_RUNTIME_IMAGE'),'Explicit optional identity runtime image acceptance')
+@unittest.skipUnless(os.environ.get('KURAFOLIO_IDENTITY_RUNTIME_IMAGE'),'Explicit optional identity runtime image acceptance')
 class IdentityNativeImage(IdentityCase):
     def image(self,payload):
         from psycopg.conninfo import make_conninfo
@@ -115,7 +115,7 @@ class IdentityNativeImage(IdentityCase):
               'financial':make_conninfo(self.configs['runtime'].conninfo,host=self.config['container'],port=5432),
               'key':self.key.hex(),'password':self.password,**payload}
         result=subprocess.run(['docker','run','--rm','-i','--network',self.config['network'],'--entrypoint','python',
-                               os.environ['WEALTH_LEDGER_IDENTITY_RUNTIME_IMAGE'],'-c',PROGRAM],
+                               os.environ['KURAFOLIO_IDENTITY_RUNTIME_IMAGE'],'-c',PROGRAM],
                               input=json.dumps(base).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=180)
         # Do not publish tracebacks that could contain synthetic credential payloads.
         self.assertEqual(result.returncode,0,'Native identity image failed; inspect private bounded logs')
@@ -143,8 +143,8 @@ class IdentityNativeImage(IdentityCase):
     def test_optional_nonroot_two_user_http_financial_isolation(self):
         import hashlib
         import uuid
-        from wealth_ledger.domain.validation_v1 import decode_domain_v1
-        from wealth_ledger.persistence.repositories import Candidates
+        from kurafolio.domain.validation_v1 import decode_domain_v1
+        from kurafolio.persistence.repositories import Candidates
         _,a=self.bootstrap();_,b=self.member();shared=str(uuid.uuid4());foreign=str(uuid.uuid4())
         original=(Path(__file__).parent/'fixtures/postgres_foundation/golden.json').read_bytes();template=decode_domain_v1(original)
         expected={}
@@ -166,11 +166,11 @@ class IdentityNativeImage(IdentityCase):
 SOURCE_PROGRAM=r'''
 import http.client,json,multiprocessing as mp,os,socket,sys,time
 import uvicorn
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.web_v2.config import Settings
-from wealth_ledger.web_v2.api import create_app
-from wealth_ledger.data_sources.catalog_v1 import decode_catalog
-from wealth_ledger.data_sources.contract_v1 import canonical
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.web_v2.config import Settings
+from kurafolio.web_v2.api import create_app
+from kurafolio.data_sources.catalog_v1 import decode_catalog
+from kurafolio.data_sources.contract_v1 import canonical
 payload=json.load(sys.stdin);context=mp.get_context('fork');children=[];ports=[];ready=context.Queue()
 def server(listener):
  port=listener.getsockname()[1]
@@ -214,25 +214,25 @@ finally:
 from test_source_lifecycle import ConfiguredSourceCase,CONTENT_ENABLED
 
 
-@unittest.skipUnless(CONTENT_ENABLED and os.environ.get('WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE'),
+@unittest.skipUnless(CONTENT_ENABLED and os.environ.get('KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE'),
                      'Explicit native source image and content proofs required')
 class SourceNativeImage(ConfiguredSourceCase):
     def test_two_native_http_processes_share_actual_database_source_read_budget(self):
         from psycopg.conninfo import make_conninfo
-        from wealth_ledger.data_sources.contract_v1 import primitive
+        from kurafolio.data_sources.contract_v1 import primitive
         import re
         token,principal=self.bootstrap()
-        image=os.environ['WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE']
+        image=os.environ['KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE']
         self.assertRegex(image,r'^sha256:[0-9a-f]{64}$')
         payload={'identity':make_conninfo(self.configs['identity'].conninfo,host=self.config['container'],port=5432),
             'financial':make_conninfo(self.configs['runtime'].conninfo,host=self.config['container'],port=5432),
             'key':self.key.hex(),'token':token,'catalog':primitive(self.catalog)}
-        name='wealth-ledger-source-http-'+__import__('uuid').uuid4().hex
+        name='kurafolio-source-http-'+__import__('uuid').uuid4().hex
         process=None;owned=False
         try:
             # This integration container intentionally joins ONLY the separately
             # marked synthetic PG network. It is not the network-none parser child.
-            created=subprocess.run(['docker','create','--name',name,'--label','wealth-ledger.test=source-http','-i',
+            created=subprocess.run(['docker','create','--name',name,'--label','kurafolio.test=source-http','-i',
                 '--network',self.config['network'],'--user','10001:10001','--read-only','--cap-drop','ALL',
                 '--security-opt','no-new-privileges','--entrypoint','python',image,'-c',SOURCE_PROGRAM],
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30)

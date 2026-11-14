@@ -1,6 +1,6 @@
 # Source adapters and user-defined parsers
 
-Wealth Ledger is intended as a shared investment ledger for bank, brokerage,
+Kurafolio is intended as a shared investment ledger for bank, brokerage,
 Bitcoin broker and exchange exports, rather than an application tied to a single
 institution. Source-specific parsers normalize supported formats while shared
 services own validation, evidence, history and reports. Wealthsimple holdings and
@@ -8,7 +8,7 @@ Bull Bitcoin orders are the first built-in importers, not a limit on that scope.
 
 **The default CLI/Web workflow uses the implemented protocol-v2 registry pipeline.**
 The two real built-ins are `wealthsimple.holdings` and `bullbitcoin.orders` in
-`wealth_ledger.source_builtin`. Compatible external v2 parsers can use the same
+`kurafolio.source_builtin`. Compatible external v2 parsers can use the same
 explicit-context preparation, account mapping, approval, canonical storage,
 source-neutral valuation and report publication flow. See
 [default daily use](source-projections.md#default-daily-workflow) and
@@ -514,7 +514,7 @@ migration must preserve the two existing formats' supported/rejected behavior.
   pure typing and a child process do not sandbox trusted Python or prevent host I/O.
 - SRC-003 provides an audited core wheel/source distribution and independent
   synthetic plugin install flow; see [the SDK guide](parser-sdk.md). Keep a single
-  versioned `wealth_ledger.source_protocol`
+  versioned `kurafolio.source_protocol`
   implementation shared with plugins; do not vendor incompatible copies of its
   dataclasses into a separate SDK. Packaging or registry work does not authorize
   publishing a package to an external registry.

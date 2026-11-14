@@ -11,10 +11,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from wealth_ledger import source_v2 as v2
-from wealth_ledger.source_builtin import BULL_FORMAT, WS_FORMAT, BullBitcoinOrders, WealthsimpleHoldings, registrations
-from wealth_ledger.source_formats import parse_bull, parse_wealthsimple
-from wealth_ledger.source_registry import build_registry
+from kurafolio import source_v2 as v2
+from kurafolio.source_builtin import BULL_FORMAT, WS_FORMAT, BullBitcoinOrders, WealthsimpleHoldings, registrations
+from kurafolio.source_formats import parse_bull, parse_wealthsimple
+from kurafolio.source_registry import build_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = v2.ParseContext(datetime.fromisoformat("2024-03-01T12:00:00+00:00"), "synthetic-fixture")
@@ -74,7 +74,7 @@ class BuiltinParserTests(unittest.TestCase):
         self.assertEqual(v2.decode_batch(v2.canonical_json(batch).encode(), raw), batch)
 
     def test_holdings_semantic_identity_matches_original_ledger_hash(self):
-        from wealth_ledger.core import _holdings_plan
+        from kurafolio.core import _holdings_plan
         raw = fixture("wealthsimple-holdings.csv")
         plan = _holdings_plan(None, parse_wealthsimple(raw), "monthly")
         self.assertEqual(dict(self.ws(raw).evidence.mappings)["legacy_semantic_hash"], plan["semantic_hash"])
@@ -198,13 +198,13 @@ class BuiltinParserTests(unittest.TestCase):
         self.assertEqual(first, second)
 
     def test_builtin_canonical_effects_can_be_verified_without_report_projection(self):
-        from wealth_ledger.source_ingestion import SourceInput, prepare_ingestion, commit_ingestion, read_facts, verify_store, new_binding
-        from wealth_ledger.workspace import resolve_workspace
+        from kurafolio.source_ingestion import SourceInput, prepare_ingestion, commit_ingestion, read_facts, verify_store, new_binding
+        from kurafolio.workspace import resolve_workspace
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             inputs = tuple(SourceInput(batch, fixture(name)) for batch, name in
                 [(self.ws(), "wealthsimple-holdings.csv"), (self.bull(), "bull-orders.csv")])
-            with patch("wealth_ledger.source_ingestion.environment_fingerprint", return_value="a" * 64):
+            with patch("kurafolio.source_ingestion.environment_fingerprint", return_value="a" * 64):
                 plan = prepare_ingestion(root, inputs, bindings=tuple(new_binding(a.key) for item in inputs for a in item.batch.accounts))
                 result = commit_ingestion(resolve_workspace(explicit=root), plan)
             facts = read_facts(root)
@@ -214,10 +214,10 @@ class BuiltinParserTests(unittest.TestCase):
 
     def test_existing_ledger_bindings_preserve_legacy_rows_and_ids(self):
         import sqlite3
-        from wealth_ledger.core import import_holdings
-        from wealth_ledger.crypto import import_bull_orders, _account_id
-        from wealth_ledger.source_ingestion import Binding, SourceInput, new_binding, prepare_ingestion, commit_ingestion, verify_store
-        from wealth_ledger.workspace import resolve_workspace
+        from kurafolio.core import import_holdings
+        from kurafolio.crypto import import_bull_orders, _account_id
+        from kurafolio.source_ingestion import Binding, SourceInput, new_binding, prepare_ingestion, commit_ingestion, verify_store
+        from kurafolio.workspace import resolve_workspace
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             ws, bull = root / "holdings.csv", root / "orders.csv"
@@ -234,7 +234,7 @@ class BuiltinParserTests(unittest.TestCase):
             bindings = tuple(Binding(a.key, a.key.account_id, "legacy_holdings") for a in batches[0].accounts) + tuple(
                 Binding(a.key, _account_id(ALIAS), "legacy_crypto") if a.role == "crypto" else new_binding(a.key)
                 for a in batches[1].accounts)
-            with patch("wealth_ledger.source_ingestion.environment_fingerprint", return_value="a" * 64):
+            with patch("kurafolio.source_ingestion.environment_fingerprint", return_value="a" * 64):
                 plan = prepare_ingestion(root, tuple(SourceInput(batch, raw) for batch, raw in zip(batches, (ws.read_bytes(), bull.read_bytes()))), bindings=bindings)
                 commit_ingestion(resolve_workspace(explicit=root), plan)
             verify_store(root)
@@ -243,10 +243,10 @@ class BuiltinParserTests(unittest.TestCase):
             self.assertEqual(old_crypto["account_id"], _account_id(ALIAS))
 
     def test_cross_account_purchase_requires_declared_funding_role(self):
-        from wealth_ledger.source_ingestion import IngestionError, SourceInput, new_binding, prepare_ingestion
+        from kurafolio.source_ingestion import IngestionError, SourceInput, new_binding, prepare_ingestion
         original = self.bull()
         changed = replace(original, accounts=tuple(replace(a, role="investment") if a.role == "funding" else a for a in original.accounts))
-        with tempfile.TemporaryDirectory() as directory, patch("wealth_ledger.source_ingestion.environment_fingerprint", return_value="a" * 64):
+        with tempfile.TemporaryDirectory() as directory, patch("kurafolio.source_ingestion.environment_fingerprint", return_value="a" * 64):
             with self.assertRaises(IngestionError) as caught:
                 prepare_ingestion(Path(directory), (SourceInput(changed, fixture("bull-orders.csv")),), bindings=tuple(new_binding(a.key) for a in changed.accounts))
             self.assertEqual(caught.exception.code, "unsupported_effect")

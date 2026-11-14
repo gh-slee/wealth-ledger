@@ -10,18 +10,25 @@ if (
     .slice(2)
     .some(
       (argument) =>
-        !["--first-run-only", "--overview-only", "--imports-only"].includes(
-          argument,
-        ),
+        ![
+          "--first-run-only",
+          "--overview-only",
+          "--imports-only",
+          "--v2-shell-only",
+        ].includes(argument),
     )
 )
   throw new Error(
-    "Only --first-run-only, --overview-only or --imports-only is supported; external inputs are forbidden",
+    "Only --first-run-only, --overview-only, --imports-only or --v2-shell-only is supported; external inputs are forbidden",
   );
 const firstRunOnly = process.argv.includes("--first-run-only");
 const overviewOnly = process.argv.includes("--overview-only");
 const importsOnly = process.argv.includes("--imports-only");
-if ([firstRunOnly, overviewOnly, importsOnly].filter(Boolean).length > 1)
+const v2ShellOnly = process.argv.includes("--v2-shell-only");
+if (
+  [firstRunOnly, overviewOnly, importsOnly, v2ShellOnly].filter(Boolean)
+    .length > 1
+)
   throw new Error("Capture modes are mutually exclusive");
 const root = path.resolve(import.meta.dirname, "../..");
 const origin = "http://localhost:8765";
@@ -35,7 +42,7 @@ await new Promise((resolve, reject) => {
 });
 await new Promise((resolve) => listener.close(resolve));
 const server = spawn(
-  process.env.WEALTH_LEDGER_TEST_PYTHON ?? "python3",
+  process.env.KURAFOLIO_TEST_PYTHON ?? "python3",
   [path.join(root, "scripts/web_browser_fixture.py")],
   {
     cwd: root,
@@ -43,7 +50,7 @@ const server = spawn(
     env: {
       ...process.env,
       PYTHONDONTWRITEBYTECODE: "1",
-      WEALTH_LEDGER_E2E_PORT: new URL(origin).port,
+      KURAFOLIO_E2E_PORT: new URL(origin).port,
     },
   },
 );
@@ -71,8 +78,8 @@ try {
   }
   if (!ready) throw new Error("Synthetic fixture did not become ready");
   browser = await chromium.launch(
-    process.env.WEALTH_LEDGER_BROWSER_CHANNEL
-      ? { channel: process.env.WEALTH_LEDGER_BROWSER_CHANNEL }
+    process.env.KURAFOLIO_BROWSER_CHANNEL
+      ? { channel: process.env.KURAFOLIO_BROWSER_CHANNEL }
       : {},
   );
   const page = await browser.newPage({
@@ -135,140 +142,221 @@ try {
     });
     files.push(filename);
   }
-  await page.goto(origin);
-  await page.getByRole("heading", { name: "Sign in", exact: true }).waitFor();
-  await page.getByLabel("Username", { exact: true }).fill("example-owner");
-  await page
-    .getByLabel("Password", { exact: true })
-    .fill("example-browser-only-password");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page
-    .getByRole("heading", { name: "CA$1,930.00", exact: true })
-    .waitFor();
-  await page
-    .getByRole("combobox", { name: "Appearance", exact: true })
-    .selectOption("light");
-  await page
-    .getByRole("img", { name: "Value over recorded observations", exact: true })
-    .waitFor();
-  if (!firstRunOnly) {
-    if (!importsOnly) {
-      await expect(page.locator(".evidence-status")).toBeVisible();
-      await expect(page.locator(".processing-status")).toHaveCount(0);
-      await capture("web-overview.png");
-      await page
-        .getByRole("combobox", { name: "Appearance", exact: true })
-        .selectOption("dark");
-      await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-      await capture("web-overview-dark.png");
-      await page
-        .getByRole("combobox", { name: "Appearance", exact: true })
-        .selectOption("light");
+  // The fixture is a SQLite instance. The V2 shell is selected by its startup
+  // probe, so a synthetic probe answer is the only V2 response it needs; the
+  // placeholder pages request no finance data.
+  async function captureV2Shell() {
+    const v2 = await browser.newPage({
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 1,
+      reducedMotion: "reduce",
+      colorScheme: "light",
+      timezoneId: "America/Toronto",
+    });
+    v2.on("pageerror", (error) => failures.push(error.message));
+    await v2.route("**/*", (route) => {
+      const url = new URL(route.request().url());
+      if (url.protocol === "data:" || url.origin === origin)
+        return route.continue();
+      external.push(url.origin);
+      return route.abort();
+    });
+    await v2.route(origin + "/api/v2/auth/csrf", (route) =>
+      route.fulfill({
+        json: { authenticated: true, csrf_token: "0".repeat(64) },
+      }),
+    );
+    await v2.route(origin + "/api/v2/me", (route) =>
+      route.fulfill({
+        json: {
+          authenticated: true,
+          user: {
+            id: "00000000-0000-4000-8000-000000000002",
+            username: "example-member",
+            role: "member",
+          },
+          portfolio: { id: "00000000-0000-4000-8000-0000000000ff" },
+        },
+      }),
+    );
+    async function shot(filename) {
+      if (new URL(v2.url()).origin !== origin)
+        throw new Error("Unexpected capture origin");
+      await v2.evaluate(async () => {
+        await document.fonts.ready;
+        window.scrollTo(0, 0);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      });
+      await v2.screenshot({
+        path: path.join(output, filename),
+        animations: "disabled",
+      });
+      files.push(filename);
     }
-    const pages = importsOnly
-      ? [["Import & jobs", "web-imports.png"]]
-      : overviewOnly
-        ? []
-        : [
-            ["Holdings", "web-holdings.png"],
-            ["Exposure", "web-exposure.png"],
-            ["History", "web-history.png"],
-            ["Bitcoin & flows", "web-bitcoin.png"],
-            ["Import & jobs", "web-imports.png"],
-            ["Financial records", "web-records.png"],
-            ["Analysis reports", "web-reports.png"],
-            ["Settings", "web-settings.png"],
-          ];
-    for (const [title, filename] of pages) {
-      await page.getByRole("link", { name: title, exact: true }).click();
-      await page.getByRole("heading", { name: title, level: 1 }).waitFor();
-      if (title === "Holdings") {
-        await page.getByRole("table").first().waitFor();
-        await page.getByText("VEQT", { exact: true }).first().waitFor();
-      } else if (title === "Exposure") {
-        await page
-          .getByRole("cell", {
-            name: "Synthetic Alpha Corporation",
-            exact: true,
-          })
-          .waitFor();
-        await page
-          .getByRole("img", { name: "Sector · CAD", exact: true })
-          .waitFor();
-      } else if (title === "History") {
-        await page
-          .getByRole("img", {
-            name: "Value over recorded observations",
-            exact: true,
-          })
-          .waitFor();
-      } else if (title === "Bitcoin & flows") {
-        await page.getByRole("table").first().waitFor();
-      } else if (title === "Import & jobs") {
-        await page
-          .locator('input[name="csv"]')
-          .setInputFiles([
-            path.join(root, "examples/data/wealthsimple-holdings.csv"),
-            path.join(root, "examples/data/bull-orders.csv"),
-          ]);
-        await expect(
-          page.locator(".import-stages [aria-current='step']"),
-        ).toContainText("Prepare inputs");
-        await page
-          .getByRole("button", { name: "Upload & preview", exact: true })
-          .waitFor();
-      } else if (title === "Financial records") {
-        await page
-          .getByLabel("BTC equivalent quantity", { exact: true })
-          .fill("0.00950000");
-        await page
-          .getByLabel("Balance observed at (with UTC offset)", { exact: true })
-          .fill("2024-02-02T12:00:00-05:00");
-        await page
-          .getByLabel("Evidence source", { exact: true })
-          .fill("Synthetic wallet declaration");
-      } else if (title === "Analysis reports") {
-        await page.getByRole("article", { name: "Read the report" }).waitFor();
-        await expect(
-          page
-            .getByRole("navigation", { name: "Contents", exact: true })
-            .getByRole("link")
-            .first(),
-        ).toBeVisible();
-      } else if (title === "Settings") {
-        await page.locator('select[name="locale"]').waitFor();
-      }
-      await capture(filename);
-      if (title === "Analysis reports") {
-        await page
-          .getByRole("article", { name: "Read the report" })
-          .evaluate((element) => element.scrollIntoView({ block: "start" }));
-        await capture("web-report-reader.png", true, false);
-      }
-    }
+    await v2.goto(origin + "/app/investments");
+    await v2
+      .getByRole("heading", { level: 1, name: "Stock/Bond", exact: true })
+      .waitFor();
+    await shot("web-v2-shell.png");
+    await v2.setViewportSize({ width: 375, height: 812 });
+    await v2.emulateMedia({ colorScheme: "dark" });
+    await v2.goto(origin + "/app");
+    await v2.getByRole("heading", { level: 1, name: "Home" }).waitFor();
+    await v2.getByRole("button", { name: "Menu", exact: true }).click();
+    await v2.getByRole("dialog", { name: "Menu" }).waitFor();
+    await shot("web-v2-shell-phone.png");
+    await v2.close();
   }
-  if (!overviewOnly && !importsOnly) {
+  if (v2ShellOnly) await captureV2Shell();
+  else {
+    await page.goto(origin);
+    await page.getByRole("heading", { name: "Sign in", exact: true }).waitFor();
+    await page.getByLabel("Username", { exact: true }).fill("example-owner");
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill("example-browser-only-password");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "CA$1,930.00", exact: true })
+      .waitFor();
     await page
       .getByRole("combobox", { name: "Appearance", exact: true })
       .selectOption("light");
     await page
-      .getByRole("combobox", { name: "Portfolio", exact: true })
-      .selectOption({ label: "Empty synthetic portfolio" });
-    await page
-      .getByRole("heading", {
-        name: "Start with your first observation",
+      .getByRole("img", {
+        name: "Value over recorded observations",
         exact: true,
       })
       .waitFor();
-    await capture(
-      "web-getting-started.png",
-      true,
-      true,
-      "Empty synthetic portfolio",
-    );
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
-    await page.getByRole("heading", { name: "Sign in", exact: true }).waitFor();
-    if (!firstRunOnly) await capture("web-login.png", false);
+    if (!firstRunOnly) {
+      if (!importsOnly) {
+        await expect(page.locator(".evidence-status")).toBeVisible();
+        await expect(page.locator(".processing-status")).toHaveCount(0);
+        await capture("web-overview.png");
+        await page
+          .getByRole("combobox", { name: "Appearance", exact: true })
+          .selectOption("dark");
+        await expect(page.locator("html")).toHaveAttribute(
+          "data-theme",
+          "dark",
+        );
+        await capture("web-overview-dark.png");
+        await page
+          .getByRole("combobox", { name: "Appearance", exact: true })
+          .selectOption("light");
+      }
+      const pages = importsOnly
+        ? [["Import & jobs", "web-imports.png"]]
+        : overviewOnly
+          ? []
+          : [
+              ["Holdings", "web-holdings.png"],
+              ["Exposure", "web-exposure.png"],
+              ["History", "web-history.png"],
+              ["Bitcoin & flows", "web-bitcoin.png"],
+              ["Import & jobs", "web-imports.png"],
+              ["Financial records", "web-records.png"],
+              ["Analysis reports", "web-reports.png"],
+              ["Settings", "web-settings.png"],
+            ];
+      for (const [title, filename] of pages) {
+        await page.getByRole("link", { name: title, exact: true }).click();
+        await page.getByRole("heading", { name: title, level: 1 }).waitFor();
+        if (title === "Holdings") {
+          await page.getByRole("table").first().waitFor();
+          await page.getByText("VEQT", { exact: true }).first().waitFor();
+        } else if (title === "Exposure") {
+          await page
+            .getByRole("cell", {
+              name: "Synthetic Alpha Corporation",
+              exact: true,
+            })
+            .waitFor();
+          await page
+            .getByRole("img", { name: "Sector · CAD", exact: true })
+            .waitFor();
+        } else if (title === "History") {
+          await page
+            .getByRole("img", {
+              name: "Value over recorded observations",
+              exact: true,
+            })
+            .waitFor();
+        } else if (title === "Bitcoin & flows") {
+          await page.getByRole("table").first().waitFor();
+        } else if (title === "Import & jobs") {
+          await page
+            .locator('input[name="csv"]')
+            .setInputFiles([
+              path.join(root, "examples/data/wealthsimple-holdings.csv"),
+              path.join(root, "examples/data/bull-orders.csv"),
+            ]);
+          await expect(
+            page.locator(".import-stages [aria-current='step']"),
+          ).toContainText("Prepare inputs");
+          await page
+            .getByRole("button", { name: "Upload & preview", exact: true })
+            .waitFor();
+        } else if (title === "Financial records") {
+          await page
+            .getByLabel("BTC equivalent quantity", { exact: true })
+            .fill("0.00950000");
+          await page
+            .getByLabel("Balance observed at (with UTC offset)", {
+              exact: true,
+            })
+            .fill("2024-02-02T12:00:00-05:00");
+          await page
+            .getByLabel("Evidence source", { exact: true })
+            .fill("Synthetic wallet declaration");
+        } else if (title === "Analysis reports") {
+          await page
+            .getByRole("article", { name: "Read the report" })
+            .waitFor();
+          await expect(
+            page
+              .getByRole("navigation", { name: "Contents", exact: true })
+              .getByRole("link")
+              .first(),
+          ).toBeVisible();
+        } else if (title === "Settings") {
+          await page.locator('select[name="locale"]').waitFor();
+        }
+        await capture(filename);
+        if (title === "Analysis reports") {
+          await page
+            .getByRole("article", { name: "Read the report" })
+            .evaluate((element) => element.scrollIntoView({ block: "start" }));
+          await capture("web-report-reader.png", true, false);
+        }
+      }
+    }
+    if (!overviewOnly && !importsOnly) {
+      await page
+        .getByRole("combobox", { name: "Appearance", exact: true })
+        .selectOption("light");
+      await page
+        .getByRole("combobox", { name: "Portfolio", exact: true })
+        .selectOption({ label: "Empty synthetic portfolio" });
+      await page
+        .getByRole("heading", {
+          name: "Start with your first observation",
+          exact: true,
+        })
+        .waitFor();
+      await capture(
+        "web-getting-started.png",
+        true,
+        true,
+        "Empty synthetic portfolio",
+      );
+      await page.getByRole("button", { name: "Sign out", exact: true }).click();
+      await page
+        .getByRole("heading", { name: "Sign in", exact: true })
+        .waitFor();
+      if (!firstRunOnly) await capture("web-login.png", false);
+    }
+    if (!firstRunOnly && !overviewOnly && !importsOnly) await captureV2Shell();
   }
   if (failures.length || external.length)
     throw new Error(
@@ -277,23 +365,33 @@ try {
   const evidence = {
     fixture: "scripts/web_browser_fixture.py",
     source: "examples/demo.py and examples/data only",
-    portfolios: firstRunOnly
-      ? ["Empty synthetic portfolio"]
-      : overviewOnly || importsOnly
-        ? ["SYNTHETIC demonstration"]
-        : ["SYNTHETIC demonstration", "Empty synthetic portfolio"],
-    valuation: firstRunOnly ? null : "2024-02-01T10:00:00-05:00",
+    portfolios: v2ShellOnly
+      ? []
+      : firstRunOnly
+        ? ["Empty synthetic portfolio"]
+        : overviewOnly || importsOnly
+          ? ["SYNTHETIC demonstration"]
+          : ["SYNTHETIC demonstration", "Empty synthetic portfolio"],
+    valuation: firstRunOnly || v2ShellOnly ? null : "2024-02-01T10:00:00-05:00",
     synthetic: true,
     browser: browser.version(),
-    viewport: { width: 1440, height: 1200 },
+    viewport: v2ShellOnly ? null : { width: 1440, height: 1200 },
+    v2_viewports: files.includes("web-v2-shell.png")
+      ? [
+          { width: 1440, height: 900 },
+          { width: 375, height: 812 },
+        ]
+      : [],
     files,
-    input_examples: firstRunOnly
-      ? "Empty portfolio guidance only; no uploads or declarations"
-      : importsOnly
-        ? "Public example CSVs selected locally; no upload, preview or confirmation"
-        : overviewOnly
-          ? "Read-only synthetic overview; no uploads or declarations"
-          : "Public example CSVs and an unsaved invented wallet declaration; no import or record confirmation",
+    input_examples: v2ShellOnly
+      ? "V2 shell placeholders with a synthetic probe answer; no finance data"
+      : firstRunOnly
+        ? "Empty portfolio guidance only; no uploads or declarations"
+        : importsOnly
+          ? "Public example CSVs selected locally; no upload, preview or confirmation"
+          : overviewOnly
+            ? "Read-only synthetic overview; no uploads or declarations"
+            : "Public example CSVs and an unsaved invented wallet declaration; no import or record confirmation",
     external_requests: external.length,
     browser_errors: failures.length,
   };
@@ -302,13 +400,15 @@ try {
   await writeFile(
     path.join(
       review,
-      firstRunOnly
-        ? "first-run-provenance.json"
-        : importsOnly
-          ? "imports-provenance.json"
-          : overviewOnly
-            ? "overview-provenance.json"
-            : "provenance.json",
+      v2ShellOnly
+        ? "v2-shell-provenance.json"
+        : firstRunOnly
+          ? "first-run-provenance.json"
+          : importsOnly
+            ? "imports-provenance.json"
+            : overviewOnly
+              ? "overview-provenance.json"
+              : "provenance.json",
     ),
     JSON.stringify(evidence, null, 2) + "\n",
   );

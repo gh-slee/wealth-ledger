@@ -50,7 +50,7 @@ raw CSV / saved ledger / frozen analysis
         ODS       Markdown     PDF / PNG
 ```
 
-`src/wealth_ledger/locales/` contains `registry.json`, three catalogs and `legacy.json`.
+`src/kurafolio/locales/` contains `registry.json`, three catalogs and `legacy.json`.
 Extracted messages use stable `message.<hash>`/`cli.<hash>` IDs; new messages may use
 meaningful English namespaces. Wording changes must not rename keys. `legacy.json`
 is a closed compatibility map for old program text, not an arbitrary translator.

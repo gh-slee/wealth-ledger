@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/readme/wealth-ledger-mark.svg" width="76" height="76" alt="Wealth Ledger icon">
+  <img src="assets/readme/kurafolio-mark.svg" width="76" height="76" alt="Kurafolio icon">
 </p>
 
-<h1 align="center">Wealth Ledger</h1>
+<h1 align="center">Kurafolio</h1>
 
 <p align="center">
   <strong>Your financial CSVs. One investment ledger. Your own server.</strong><br>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml"><img src="https://github.com/gh-slee/wealth-ledger/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
+  <a href="https://github.com/gh-slee/kurafolio/actions/workflows/ci.yml"><img src="https://github.com/gh-slee/kurafolio/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
   <a href="https://github.com/sponsors/gh-slee"><img src="https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?style=flat-square&amp;logo=githubsponsors&amp;logoColor=white" alt="Sponsor gh-slee on GitHub"></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-149ECA?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React and TypeScript frontend"></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12 or newer"></a>
@@ -30,13 +30,17 @@
   <a href="#support-this-project">Support</a>
 </p>
 
-Wealth Ledger is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by the implemented shared parser pipeline. Support for additional institutions and export formats remains planned.
+Kurafolio is an **open-source, self-hosted investment ledger** for tracking assets, contributions, and history across financial data sources. Its direction is a shared application for **bank, brokerage, Bitcoin broker, and exchange CSV exports**, with source-specific formats handled by the implemented shared parser pipeline. Support for additional institutions and export formats remains planned.
 
 Review supported inputs in an offline preview, confirm the import, and browse frozen portfolio analysis. Export **ODS, Markdown, PDF, PNG charts, and audit CSV/JSON** from the same data. One owner or household can keep multiple independent portfolios in an instance, through a React/TypeScript interface or the supported **Python CLI**. Both use the same Python financial core.
 
 **Available today:** built-in importers for Wealthsimple holdings and Bull Bitcoin orders, plus normalized cash-flow CSVs and optional dated BTC quantities. The default v2 parser workflow supports approved imports and reports from trusted enabled plugins. Additional real institutions require implemented format adapters; arbitrary CSVs are not accepted. See [sources and parser plugins](#sources-and-parser-plugins) for current coverage and the expansion plan. Parser protocol v2 does not mean the full planned product V2 is shipped; see the [capability baseline](docs/capability-status.md).
 
 **Pre-release:** the browser import/analysis/report workflow is implemented and tested with synthetic fixtures. Full private backup/restore and report/data exports are implemented; financial declaration forms and trusted-host, copy-verified adoption of existing CLI data are implemented. See [project status](#project-status).
+
+## Why Kurafolio
+
+A kura (蔵) is the traditional Japanese storehouse where a family kept its valuables. Kurafolio is that storehouse for your portfolio, kept on your own machine.
 
 ## Features
 
@@ -91,8 +95,8 @@ exports to public issues.
 Prerequisites: **Git**, **Python 3.12+** for the source-context helper, and **Docker with Compose v2**. The helper uses Python's standard library; it does not require the financial dependencies. Docker builds the frontend and installs the server dependencies inside the image.
 
 ```bash
-git clone https://github.com/gh-slee/wealth-ledger.git
-cd wealth-ledger
+git clone https://github.com/gh-slee/kurafolio.git
+cd kurafolio
 
 # Prepare a source-only build context; private workspaces are excluded.
 python3 scripts/docker_context.py --output work/docker-context
@@ -111,6 +115,65 @@ The `web` and `worker` services share the private `wealth-data` named volume. In
 Prebuilt multi-architecture images and a pull-only Compose recipe are planned. Current installation builds locally. The platform/evidence matrix is in [operations acceptance](docs/web-release-acceptance.md); Windows and macOS hosts use Linux containers.
 
 **Existing CLI users:** keep your current workspace. Pointing the Web app at an old ledger is not a supported migration. Use the explicit [copy-verified adoption commands](docs/web-adoption.md), preserving the original workspace. Recognized older reports require an explicit [legacy acceptance preview](docs/web-legacy-reports.md); their separate migration-time evidence does not replace missing historical publication checksums.
+
+<details>
+<summary><strong>Upgrading an instance that was installed as Wealth Ledger</strong></summary>
+
+The project was renamed from Wealth Ledger to Kurafolio. The old names no longer work, so an existing instance needs these changes once. Your data, saved reports and their checksums are not modified.
+
+1. Let queued and running jobs finish, confirm or discard any open import preview, then make a [private backup](docs/web-backups.md) with the old version. As with every upgrade, a backup restores only into the application version that created it.
+2. Stop the old services from the old checkout. Do not pass `-v`; that would delete the volume.
+
+   ```bash
+   docker compose down
+   ```
+
+3. Update the checkout. Compose now uses the fixed project name `kurafolio`, so the checkout folder name no longer matters and you may rename a `wealth-ledger` folder. If you set `COMPOSE_PROJECT_NAME` or pass `-p`, that name still wins; remove it or keep using it consistently below.
+4. Rename these variables wherever you set them (shell profile, `.env` file, service manager or CI):
+
+   | Old | New |
+   |---|---|
+   | `WEALTH_LEDGER_PUBLIC_ORIGIN` | `KURAFOLIO_PUBLIC_ORIGIN` |
+   | `WEALTH_LEDGER_BUILD_CONTEXT` | `KURAFOLIO_BUILD_CONTEXT` |
+   | `WEALTH_LEDGER_DATA_ROOT` | `KURAFOLIO_DATA_ROOT` |
+   | `WEALTH_LEDGER_FONT` | `KURAFOLIO_FONT` |
+   | `WEALTH_LEDGER_POSTGRES` (build argument) | `KURAFOLIO_POSTGRES` |
+
+   Other `WEALTH_LEDGER_*` test switches follow the same pattern.
+5. Build the new image and create the new, empty volume. The image is tagged `kurafolio:local` instead of `wealth-ledger:local`.
+
+   ```bash
+   python3 scripts/docker_context.py --output work/docker-context
+   docker compose build web
+   docker compose up --no-start
+   docker volume ls
+   ```
+
+6. Copy the data. The old Compose project used the checkout folder name, so the old volume is usually `wealth-ledger_wealth-data`. The new volume is `kurafolio_wealth-data`, or `<your project name>_wealth-data` if you kept a custom project name; `docker volume ls` shows both. The copy refuses to run unless the new volume is empty. It runs as root only to preserve file ownership, without network, and mounts the old volume read-only.
+
+   ```bash
+   docker run --rm --user 0 --network none --entrypoint sh \
+     -v wealth-ledger_wealth-data:/from:ro -v kurafolio_wealth-data:/to \
+     kurafolio:local -c 'if [ -n "$(ls -A /to)" ]; then echo "target volume is not empty" >&2; exit 1; fi; cp -a /from/. /to/'
+   ```
+
+   If it reports that the target is not empty (for example after starting the new services too early), run `docker compose down`, remove only the new volume with `docker volume rm kurafolio_wealth-data`, and repeat steps 5 and 6.
+7. Upgrade the instance metadata and start the services, as in the [upgrade runbook](docs/web-release-acceptance.md#upgrade-with-a-recoverable-rollback):
+
+   ```bash
+   docker compose run --rm --no-deps -T web upgrade
+   docker compose up -d
+   ```
+
+8. Sign in and check your portfolios, reports and job history. Keep the old volume and image until you are satisfied, then remove them yourself with `docker volume rm wealth-ledger_wealth-data` and `docker image rm wealth-ledger:local`.
+
+CLI and host installations: run `python -m pip uninstall wealth-ledger`, reinstall from the updated checkout, and use the new console scripts `kurafolio-source-parsers`, `kurafolio-source-ingestion` and `kurafolio-source-reports`. Python imports change from `wealth_ledger` to `kurafolio`.
+
+Parser plugins built for Wealth Ledger must be rebuilt: change their imports from `wealth_ledger` to `kurafolio` and their dependency from `wealth-ledger` to `kurafolio`, then reinstall them. Only the entry-point group keeps its old name, `wealth_ledger.source_adapters`, so plugin metadata does not change. See the [parser SDK guide](docs/parser-sdk.md).
+
+The browser forgets its saved light or dark theme once.
+
+</details>
 
 <details>
 <summary><strong>Use the Python CLI or try an offline report demo</strong></summary>
@@ -175,7 +238,7 @@ Expand a page below to see its screen and an example task:
 <details>
 <summary><strong>Sign in — access your own instance</strong></summary>
 
-<img src="assets/readme/web-login.png" width="1200" alt="Wealth Ledger sign-in page with blank username and password inputs">
+<img src="assets/readme/web-login.png" width="1200" alt="Kurafolio sign-in page with blank username and password inputs">
 
 Sign in with the account created on your host. Each instance has one owner or
 household and can contain independent portfolios. The screenshot contains no entered
@@ -295,6 +358,24 @@ reports and saved PNG charts keep their publication styling.
 
 </details>
 
+<details>
+<summary><strong>V2 preview — the eight-destination shell in development</strong></summary>
+
+<img src="assets/readme/web-v2-shell.png" width="1200" alt="V2 shell on a wide screen with eight destinations in the sidebar, Exposures nested under Stock/Bond, the signed-in account with Sign out, and a Stock/Bond page offering to enable a source">
+
+<img src="assets/readme/web-v2-shell-phone.png" width="375" alt="V2 shell at phone width in dark mode with the compact bar and the open destination menu, including the signed-in account and Sign out">
+
+The V2 application is in development and not yet the default. Its shell has eight
+destinations, with Exposures under Stock/Bond. On a phone, one compact bar opens a
+menu with every destination. These pages are placeholders: the screenshots contain
+no finance data. Stock/Bond, Exposures and Crypto always offer to enable a source until
+the positions read contract (WL-P0-008) lets the shell detect holdings.
+The same bundle opens this shell only when the server is a V2 instance. Signing in,
+first setup, invitation registration and the administrator's invitation list on
+Profile are browser pages too, so a new user needs no terminal.
+
+</details>
+
 [Reproduce and review these synthetic screenshots](assets/readme/README.md).
 
 ## Architecture
@@ -384,7 +465,7 @@ The CLI also supports explicit private workspaces outside the source checkout. F
 | Frozen CSV/JSON datasets, report ZIPs, full consistent backup/empty-instance restore | Implemented: [WEB-005 guide](docs/web-backups.md) |
 | Copy-verified adoption of existing CLI workspaces | Implemented: [trusted-host adoption](docs/web-adoption.md) and opt-in [legacy report evidence](docs/web-legacy-reports.md); actual private migration is explicit |
 | Extensible financial CSV sources | Two real built-ins; installable SDK/trusted registry, v1 nonbooking previews and default v2 CLI/browser approved reports implemented. Personal adoption and additional real formats remain: [SRC-004](TODO.md) |
-| Optional V2 source lifecycle | Merged through [PR #22](https://github.com/gh-slee/wealth-ledger/pull/22): [catalog/enablement/connections](docs/web-v2-sources.md); optional PostgreSQL backend only, no production V2 upload or current-data migration |
+| Optional V2 source lifecycle | Merged through [PR #22](https://github.com/gh-slee/kurafolio/pull/22): [catalog/enablement/connections](docs/web-v2-sources.md); optional PostgreSQL backend only, no production V2 upload or current-data migration |
 | Operations acceptance | Verified: Linux/amd64 CI and Linux/arm64 Docker Desktop, with upgrade/capacity/interruption tests and [rollback/platform guidance](docs/web-release-acceptance.md). Deployment/adoption remains an explicit operator action. |
 | Pull-only prebuilt images for Docker hosts | Planned: WEB-008, Linux/amd64 + Linux/arm64; current setup builds from source |
 | Additional locales | Planned: I18N-007 |
@@ -405,7 +486,7 @@ Current imports support the documented Wealthsimple holdings and Bull Bitcoin or
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) · [Agent setup](docs/agent-development.md) | Reproducible development, checks, shared instructions, and private guidance. |
 | [Capability status](docs/capability-status.md) · [Spec development](docs/spec-development.md) | Current source versus planned work; exact-revision approval, role handoffs and ownership. |
 
-For help, [open an issue](https://github.com/gh-slee/wealth-ledger/issues) with a minimal **synthetic** reproduction. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+For help, [open an issue](https://github.com/gh-slee/kurafolio/issues) with a minimal **synthetic** reproduction. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## Development
 
@@ -413,7 +494,7 @@ An [optional PostgreSQL foundation](docs/postgres-foundation.md) provides candid
 repositories, transactional receipts/outbox and leased jobs for future services.
 It uses PostgreSQL 18, SQLAlchemy Core, psycopg and operator-only Alembic. The current
 Web/CLI still use SQLite. The separate [V2 identity backend](docs/web-v2-identity.md),
-merged in [PR #19](https://github.com/gh-slee/wealth-ledger/pull/19), provides protected
+merged in [PR #19](https://github.com/gh-slee/kurafolio/pull/19), provides protected
 first setup, invitation registration and own-scope read APIs. It is explicitly
 opt-in, has no new UI and is not a financial import/export service or existing-data
 migration path.
@@ -423,11 +504,11 @@ Development setup and detailed maintenance procedures live in [CONTRIBUTING.md](
 
 ## Support this project
 
-I want Wealth Ledger to be a tool you can understand and run for yourself. If it helps you make sense of your investment records, consider supporting the work behind it. Your support helps me spend more time on careful testing, clearer reports and new source adapters.
+I want Kurafolio to be a tool you can understand and run for yourself. If it helps you make sense of your investment records, consider supporting the work behind it. Your support helps me spend more time on careful testing, clearer reports and new source adapters.
 
 [❤️ Sponsor on GitHub](https://github.com/sponsors/gh-slee)
 
-You can also help with a [star](https://github.com/gh-slee/wealth-ledger/stargazers), a [bug report](https://github.com/gh-slee/wealth-ledger/issues) or a [contribution](CONTRIBUTING.md). Thank you!
+You can also help with a [star](https://github.com/gh-slee/kurafolio/stargazers), a [bug report](https://github.com/gh-slee/kurafolio/issues) or a [contribution](CONTRIBUTING.md). Thank you!
 
 Sponsorship is entirely optional. All features remain free and open source.
 

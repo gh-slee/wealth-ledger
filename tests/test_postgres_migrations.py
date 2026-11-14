@@ -4,20 +4,20 @@ import json
 import subprocess
 import threading
 import uuid
-from wealth_ledger.domain.validation_v1 import encode_domain_v1
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.context import Database,execute
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.jobs import Jobs
-from wealth_ledger.persistence.migration import migrate,finalize_restore
-from wealth_ledger.persistence.repositories import Candidates
+from kurafolio.domain.validation_v1 import encode_domain_v1
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.context import Database,execute
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.jobs import Jobs
+from kurafolio.persistence.migration import migrate,finalize_restore
+from kurafolio.persistence.repositories import Candidates
 from test_postgres_config import PostgresCase
 
 
 class MigrationTests(PostgresCase):
     def target(self):
         from psycopg.conninfo import make_conninfo
-        label=subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "wealth-ledger.test"}}',self.settings['container']],text=True).strip()
+        label=subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "kurafolio.test"}}',self.settings['container']],text=True).strip()
         self.assertEqual(label,'pg-foundation')
         name='wl_test_restore_'+uuid.uuid4().hex[:16]
         statement='CREATE DATABASE "'+name+'" OWNER "'+self.settings['migration_role']+'"'
@@ -74,7 +74,7 @@ class MigrationTests(PostgresCase):
 
     def test_operator_status_and_saved_candidate_survive_real_test_container_restart(self):
         import time
-        label=subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "wealth-ledger.test"}}',self.settings['container']],text=True).strip()
+        label=subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "kurafolio.test"}}',self.settings['container']],text=True).strip()
         self.assertEqual(label,'pg-foundation')
         Candidates(self.runtime).put(self.context,self.batch_id,self.batch,expected_generation=0,idempotency_key='restart-source-candidate')
         before=self.runtime.status()

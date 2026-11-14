@@ -1,12 +1,12 @@
 """Actual nonowner RLS, scoped FKs, privilege and connection reuse acceptance."""
 from dataclasses import replace
 import uuid
-from wealth_ledger.domain.validation_v1 import decode_domain_v1
-from wealth_ledger.persistence.context import TenantContext,execute
-from wealth_ledger.persistence.errors import PersistenceError
-from wealth_ledger.persistence.migration import seed_tenant,migrate
-from wealth_ledger.persistence.operations import insert
-from wealth_ledger.persistence.repositories import Candidates
+from kurafolio.domain.validation_v1 import decode_domain_v1
+from kurafolio.persistence.context import TenantContext,execute
+from kurafolio.persistence.errors import PersistenceError
+from kurafolio.persistence.migration import seed_tenant,migrate
+from kurafolio.persistence.operations import insert
+from kurafolio.persistence.repositories import Candidates
 from test_postgres_config import PostgresCase
 
 PRIVATE=['tenant_roots','portfolios','issuers','accounts','connections','instruments',
@@ -71,7 +71,7 @@ class SecurityTests(PostgresCase):
             with self.runtime.transaction(other) as uow:insert(uow,'candidate_legs',{k:v for k,v in row.items() if k not in {'tenant_id','portfolio_id'}})
 
     def test_source_connection_reference_cannot_cross_scope_or_disagree_with_selector(self):
-        from wealth_ledger.domain.validation_v1 import encode_domain_v1
+        from kurafolio.domain.validation_v1 import encode_domain_v1
         self.put()
         other=TenantContext(str(uuid.uuid4()),str(uuid.uuid4()));seed_tenant(self.operator,other)
         original=self.batch.connections[0].id.value
@@ -84,7 +84,7 @@ class SecurityTests(PostgresCase):
         with self.assertRaises(PersistenceError):
             with self.runtime.transaction(self.context) as uow:insert(uow,'candidate_revisions',{k:v for k,v in row.items() if k not in {'tenant_id','portfolio_id'}})
         # A locally valid typed reference cannot disguise a different selector source.
-        from wealth_ledger.persistence.operations import digest
+        from kurafolio.persistence.operations import digest
         row['connection_id']=self.batch.connections[0].id.value;row['connection_version']=digest(self.batch.connections[0])
         with self.assertRaises(PersistenceError):
             with self.runtime.transaction(self.context) as uow:insert(uow,'candidate_revisions',{k:v for k,v in row.items() if k not in {'tenant_id','portfolio_id'}})
@@ -134,7 +134,7 @@ class SecurityTests(PostgresCase):
     def test_selector_provider_must_match_referenced_connection_version(self):
         import hashlib
         import json
-        from wealth_ledger.persistence.operations import canonical
+        from kurafolio.persistence.operations import canonical
         self.put()
         with self.operator.engine.begin() as conn:
             row=dict(execute(conn,"SELECT * FROM wl_pg.candidate_revisions WHERE tenant_id=:t AND portfolio_id=:p AND kind='activity' LIMIT 1",t=self.context.tenant_id,p=self.context.portfolio_id).mappings().one())

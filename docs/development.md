@@ -80,7 +80,7 @@ Normal dependency downloads may occur during build.
 
 Every invocation calls `docker build`; Docker layer caching remains enabled. Even
 when runtime inputs are unchanged by a documentation edit, a fresh candidate tag
-records the current commit. Tags use `wealth-ledger:pr-<commit>-<unique-suffix>` and
+records the current commit. Tags use `kurafolio:pr-<commit>-<unique-suffix>` and
 never replace a service tag. The receipt binds the exact commit, context hash and
 immutable image ID. Source/HEAD changes during the check invalidate success.
 
@@ -197,7 +197,7 @@ standard-library check. It inspects allowlisted public Markdown and Python comme
 docstrings and identifiers for CJK text. Private instructions/data are outside its
 read scope. Explicit exception categories are:
 
-- Catalog/registry/legacy JSON in src/wealth_ledger/locales/.
+- Catalog/registry/legacy JSON in src/kurafolio/locales/.
 - Intentional runtime localized labels, closed legacy compatibility strings and
   Unicode/localization test values inside Python string literals.
 - Original source/user content and generated localized reports, which are not
@@ -439,7 +439,7 @@ Install `requirements-pg-test.lock` in a dedicated test environment and keep
 and build locks intentionally pin different `packaging` versions; do not merge or
 loosen them to make one environment satisfy both.
 
-Real-PG tests require `WEALTH_LEDGER_PG_TEST=1` and an explicit synthetic test config.
+Real-PG tests require `KURAFOLIO_PG_TEST=1` and an explicit synthetic test config.
 They exercise actual RLS/constraints/locks and dump/empty-target restore; default
 unit-test skips cannot certify PostgreSQL. Preserve the four existing CI jobs and
 run the separate PG job, installed-package checks, normal pre-PR candidate image
@@ -464,32 +464,31 @@ SQLite service, existing portfolios and ports are never test targets.
 ```bash
 python scripts/postgres.py test-identity-environment --output work/source-test
 python scripts/docker_context.py --output work/source-runtime-context
-docker build --build-arg WEALTH_LEDGER_POSTGRES=1 \
-  --tag wealth-ledger-source-test:local --iidfile work/source-image-id work/source-runtime-context
-export WEALTH_LEDGER_IDENTITY_TEST=1
-export WEALTH_LEDGER_IDENTITY_TEST_CONFIG=work/source-test/test-config.json
-export WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE="$(cat work/source-image-id)"
-export WEALTH_LEDGER_SOURCE_HARNESS_BASE_IMAGE="$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE"
-export WEALTH_LEDGER_SOURCE_ARTIFACT_FILE=work/source-test/source-content.json
-export WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT=work/source-runtime-context/context-manifest.json
-export WEALTH_LEDGER_SOURCE_HARNESS_TEST=1
+docker build --build-arg KURAFOLIO_POSTGRES=1 \
+  --tag kurafolio-source-test:local --iidfile work/source-image-id work/source-runtime-context
+export KURAFOLIO_IDENTITY_TEST=1
+export KURAFOLIO_IDENTITY_TEST_CONFIG=work/source-test/test-config.json
+export KURAFOLIO_SOURCE_RUNTIME_IMAGE="$(cat work/source-image-id)"
+export KURAFOLIO_SOURCE_HARNESS_BASE_IMAGE="$KURAFOLIO_SOURCE_RUNTIME_IMAGE"
+export KURAFOLIO_SOURCE_ARTIFACT_FILE=work/source-test/source-content.json
+export KURAFOLIO_SOURCE_HARNESS_CONTEXT=work/source-runtime-context/context-manifest.json
+export KURAFOLIO_SOURCE_HARNESS_TEST=1
 python scripts/postgres.py test-source-artifact \
-  --image "$WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE" \
-  --context-manifest "$WEALTH_LEDGER_SOURCE_HARNESS_CONTEXT" \
-  --output "$WEALTH_LEDGER_SOURCE_ARTIFACT_FILE"
+  --image "$KURAFOLIO_SOURCE_RUNTIME_IMAGE" \
+  --context-manifest "$KURAFOLIO_SOURCE_HARNESS_CONTEXT" \
+  --output "$KURAFOLIO_SOURCE_ARTIFACT_FILE"
 PYTHONPATH=src:tests python -m unittest \
   test_source_capabilities test_source_transport test_source_capability_compatibility \
   test_source_lifecycle test_source_lifecycle_security test_source_lifecycle_races \
   test_source_lifecycle_restore test_web_v2_sources test_web_v2_native.SourceNativeImage \
   test_source_harness -v
-python scripts/postgres.py cleanup-test-environment --config "$WEALTH_LEDGER_IDENTITY_TEST_CONFIG"
+python scripts/postgres.py cleanup-test-environment --config "$KURAFOLIO_IDENTITY_TEST_CONFIG"
 ```
 
 Use unique new context/target/tag names on later runs; helpers refuse overwriting
 private evidence. A context/image must match current source hashes; rebuild after
 source changes. Keep exact reviewed candidate receipts separate from development
-self-test snapshots. The seven-job workflow adds `postgres-sources` alongside the
-six existing jobs. Its source feature tests must execute without skips. A default
+self-test snapshots. The workflow runs `postgres-sources` as its own job. Its source feature tests must execute without skips. A default
 suite's opt-in skips are not evidence of PostgreSQL/native containment acceptance.
 
 Tests cover strict raw-SQL/HTTP contracts, scoped roles, canonical capacity and
@@ -500,3 +499,24 @@ file/socket/environment/network/resource/cancellation/cleanup probes and real
 builtin normalization/offline API parity. Read the [frozen test recipe](../tests/fixtures/source_capabilities/README.md).
 It is not a production runner or arbitrary hostile-code sandbox. Final reviewed
 image/independent evidence and actual merged CI remain separate acceptance gates.
+
+## Gated CI suites and the skip guard
+
+The `postgres-ingestion` CI job pulls the image pinned in
+`IngestionAppendOnlyPostgresTests.IMAGE`, sets `KURAFOLIO_INGESTION_TEST=1` and runs
+`test_postgres_migration.py`, so every pull request runs the real ingestion SQL
+fragment tests. Every step that runs an opt-in suite in `docker-foundation`,
+`postgres-foundation`, `postgres-ingestion`, `postgres-identity` and
+`postgres-sources` goes through `scripts/run_gated_tests.py`. The script runs
+`python -m unittest -v` with the given arguments and fails when the suite reports
+a skip count other than `--expect-skipped`, when no test runs, or when every test
+is skipped. A missing opt-in variable therefore fails the job instead of passing.
+
+```bash
+KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py \
+  --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'
+```
+
+When you add, remove or regate a test in one of these suites, update that step's
+expected count in `.github/workflows/ci.yml` in the same change and say why in
+the pull request. A comment next to each nonzero count names the tests it covers.

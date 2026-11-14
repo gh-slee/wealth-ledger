@@ -21,12 +21,12 @@ from test_web_reports import synthetic_payload
 from test_web_exports import complete_publication
 
 if foundation.AVAILABLE:
-    from wealth_ledger.web.backups import backup_instance, restore_instance, database_info
-    from wealth_ledger.web.config import WebSettings
-    from wealth_ledger.web.storage import Store, contained, WebError
-    from wealth_ledger.web.maintenance import maintenance, instance_activity, clear_maintenance
-    from wealth_ledger.operations import project_lock, fingerprint
-    from wealth_ledger.locking import LockBusy, file_lock
+    from kurafolio.web.backups import backup_instance, restore_instance, database_info
+    from kurafolio.web.config import WebSettings
+    from kurafolio.web.storage import Store, contained, WebError
+    from kurafolio.web.maintenance import maintenance, instance_activity, clear_maintenance
+    from kurafolio.operations import project_lock, fingerprint
+    from kurafolio.locking import LockBusy, file_lock
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -91,7 +91,7 @@ class BackupTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256((self.target.data_root/name).read_bytes()).hexdigest(),metadata['sha256'])
         self.assertEqual(self.archive.read_bytes(),saved)
         self.assertEqual((project/'reports/latest/data.json').read_bytes(),(self.folder/'data.json').read_bytes())
-        from wealth_ledger.web.api import create_app
+        from kurafolio.web.api import create_app
         from fastapi.testclient import TestClient
         with TestClient(create_app(self.target),base_url=foundation.ORIGIN) as client:
             client.cookies.update(self.client.cookies)
@@ -126,13 +126,13 @@ class BackupTests(unittest.TestCase):
                 with self.assertRaises((ValueError,zipfile.BadZipFile)):restore_instance(self.target,bad)
                 self.assertEqual(list(self.target.data_root.iterdir()),[])
         self.assertFalse((self.root.parent/'escape').exists())
-        with patch('wealth_ledger.web.backups.MAX_TOTAL',1):
+        with patch('kurafolio.web.backups.MAX_TOTAL',1):
             with self.assertRaises(ValueError):restore_instance(self.target,self.archive)
         self.assertEqual(list(self.target.data_root.iterdir()),[])
 
     def test_maintenance_blocks_http_cli_and_claims_and_clears_after_failure(self):
         self.prepare()
-        from wealth_ledger.web.worker import execute_job
+        from kurafolio.web.worker import execute_job
         with maintenance(self.root):
             response=self.client.get('/healthz');self.assertEqual(response.status_code,503)
             self.assertEqual(response.json()['error']['code'],'maintenance')
@@ -142,7 +142,7 @@ class BackupTests(unittest.TestCase):
             with self.assertRaises(LockBusy):execute_job(self.settings,self.report)
             with self.assertRaises(LockBusy):clear_maintenance(self.root)
         self.assertEqual(self.client.get('/healthz').status_code,200)
-        with patch('wealth_ledger.web.backups.snapshot_database',side_effect=ValueError('synthetic interruption')):
+        with patch('kurafolio.web.backups.snapshot_database',side_effect=ValueError('synthetic interruption')):
             with self.assertRaises(ValueError):self.backup()
         self.assertFalse(self.archive.exists());self.assertFalse((self.root/'admin/maintenance.json').exists())
         (self.root/'admin/maintenance.json').write_text('{"token":"synthetic-crashed-coordinator"}')
@@ -178,10 +178,10 @@ class BackupTests(unittest.TestCase):
 
     def test_restore_publication_interruption_maps_runtime_path_without_reimporting(self):
         self.prepare()
-        from wealth_ledger.web.jobs import Jobs
-        from wealth_ledger.application import ApplicationService
-        from wealth_ledger.workspace import resolve_workspace
-        from wealth_ledger.web.worker import reconcile
+        from kurafolio.web.jobs import Jobs
+        from kurafolio.application import ApplicationService
+        from kurafolio.workspace import resolve_workspace
+        from kurafolio.web.worker import reconcile
         jobs=Jobs(self.store)
         with self.store.transaction() as conn:
             row=jobs._insert(conn,self.pid,'update',{},'synthetic-recovery-key','synthetic')
@@ -194,7 +194,7 @@ class BackupTests(unittest.TestCase):
             (folder/'manifest.json').write_text(json.dumps({'bundle_files':hashes,'data_sha256':hashes['data.json'],
                 'import':{'operation_id':row['core_operation_id']},'snapshot_id':payload['meta']['snapshot_id'],'workbook_validation':{}}))
             return {'output':str(folder),'snapshot_id':payload['meta']['snapshot_id']}
-        with patch('wealth_ledger.application.publish',side_effect=publisher):
+        with patch('kurafolio.application.publish',side_effect=publisher):
             service.update({'snapshot_id':1,'wealthsimple_only':True},operation_id=row['core_operation_id'])
         jobs.state(row['id'],'data_committed')
         before=fingerprint(self.project);self.backup();restore_instance(self.target,self.archive)
@@ -252,7 +252,7 @@ class BackupTests(unittest.TestCase):
 
     def test_restore_install_failure_leaves_no_active_instance(self):
         self.prepare();self.backup()
-        from wealth_ledger.web import backups
+        from kurafolio.web import backups
         original=backups.private_write
         def interrupted(path,raw):
             if path == self.target.data_root/'admin/instance.json':

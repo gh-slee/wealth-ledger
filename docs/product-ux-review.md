@@ -32,7 +32,7 @@ set of advanced controls.
 | Operations | Dedicated persistent volume, full private backup, empty-target restore, explicit legacy adoption | Prebuilt pull-only distribution and broader host acceptance remain WEB-008. Host commands are still required. |
 | Presentation | Three locales, dark/light/system, keyboard paths, chart data tables, synthetic accessibility tests | P0 empty/loading/recovery coverage is merged; remaining UX-P1/P2 work stays scoped separately. No full visual-system replacement is included in this first slice. |
 
-Files above are under `src/wealth_ledger/`, `frontend/src/`, or `docs/` as applicable.
+Files above are under `src/kurafolio/`, `frontend/src/`, or `docs/` as applicable.
 A checked roadmap item is not evidence that every possible broker or platform works.
 
 ## Page-by-page findings

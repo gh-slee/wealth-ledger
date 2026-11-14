@@ -16,7 +16,7 @@ Undefined ratios are null, not zero.
 
 ## Optional Web boundary
 
-The optional `wealth_ledger.web` package requires `requirements-web.lock`. Its
+The optional `kurafolio.web` package requires `requirements-web.lock`. Its
 `api.create_app(settings)` uses explicit `WebSettings`, a trusted-host initialized
 `storage.Store`, versioned `admin/app.sqlite3` and server-owned portfolio IDs.
 Authentication is an opaque server-side session, not a financial DB identity or JWT.
@@ -38,8 +38,8 @@ occurs during resolution. Omitting the option preserves legacy checkout-local us
 
 ```python
 from pathlib import Path
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.workspace import resolve_workspace
+from kurafolio.application import ApplicationService
+from kurafolio.workspace import resolve_workspace
 
 workspace = resolve_workspace(explicit=Path("/path/to/existing/portfolio"))
 service = ApplicationService(workspace)
@@ -155,7 +155,7 @@ Event/fee coverage, cost policy and quantity provenance are separate.
 
 ```python
 from pathlib import Path
-from wealth_ledger.core import (
+from kurafolio.core import (
     initialize, import_holdings, make_payload,
     import_cash_flows, mark_flow_period,
 )
@@ -323,7 +323,7 @@ meta.missing_official_months lists months without complete formal observations.
 ## Automatic source-update API
 
 ```python
-from wealth_ledger.workflow import identify_inputs, prepare_update
+from kurafolio.workflow import identify_inputs, prepare_update
 
 sources = identify_inputs([Path("any.csv")])
 payload, result = prepare_update(project, [Path("holdings.csv"), Path("orders.csv")])

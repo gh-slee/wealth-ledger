@@ -7,12 +7,12 @@ from unittest.mock import patch
 import uuid
 
 import test_web as foundation
-from wealth_ledger.operations import fingerprint, input_fingerprint, list_operations
-from wealth_ledger import wallet
+from kurafolio.operations import fingerprint, input_fingerprint, list_operations
+from kurafolio import wallet
 
 if foundation.AVAILABLE:
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.worker import execute_job, reconcile
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.worker import execute_job, reconcile
 
 
 @unittest.skipUnless(foundation.AVAILABLE,'Optional Web dependencies are not installed')
@@ -91,7 +91,7 @@ class FinancialTests(unittest.TestCase):
 
     def test_cash_flow_usd_evidence_coverage_and_no_duplicate_funding(self):
         self.prepare()
-        from wealth_ledger.core import import_holdings
+        from kurafolio.core import import_holdings
         from test_core import FX,write_holdings
         source=write_holdings(self.root.parent/'invented.csv');import_holdings(self.project,source,'baseline',FX)
         account=self.client.get(self.prefix+'/financial').json()['accounts'][0]['account_id']
@@ -105,7 +105,7 @@ class FinancialTests(unittest.TestCase):
 
     def test_explicit_flow_upload_preserved_and_report_preview_rejects_wrong_kind(self):
         self.prepare()
-        from wealth_ledger.core import import_holdings
+        from kurafolio.core import import_holdings
         from test_core import FX,write_holdings
         import_holdings(self.project,write_holdings(self.root.parent/'invented.csv'),'baseline',FX)
         account=self.client.get(self.prefix+'/financial').json()['accounts'][0]['account_id']
@@ -130,8 +130,8 @@ class FinancialTests(unittest.TestCase):
 
     def test_opening_revision_is_explicit_and_later_balances_never_recalculate_it(self):
         import csv
-        from wealth_ledger.crypto import import_bull_orders
-        from wealth_ledger.crypto_opening import latest_opening
+        from kurafolio.crypto import import_bull_orders
+        from kurafolio.crypto_opening import latest_opening
         from test_crypto import FIELDS, ASSUMPTIONS, order
         self.now[0]=__import__('datetime').datetime.fromisoformat('2026-10-12T12:00:00-04:00').timestamp()
         self.prepare()
@@ -171,13 +171,13 @@ class FinancialTests(unittest.TestCase):
         self.prepare();preview=self.submit(self.balance(),confirm=False)
         response=self.mutate('POST',self.prefix+'/financial/jobs',body={'preview_id':preview['id']},headers={'Idempotency-Key':uuid.uuid4().hex})
         identifier=response.json()['id']
-        from wealth_ledger.operations import atomic_data
+        from kurafolio.operations import atomic_data
         def interrupted(project,action,*,finalize=None):
             def crash(conn,result,value):
                 finalize(conn,result,value)
                 raise SystemExit('Synthetic process interruption inside commit')
             return atomic_data(project,action,finalize=crash)
-        with patch('wealth_ledger.operations.atomic_data',side_effect=interrupted):
+        with patch('kurafolio.operations.atomic_data',side_effect=interrupted):
             with self.assertRaises(SystemExit):execute_job(self.settings,identifier)
         self.assertEqual(wallet.records(self.project,'balance'),[])
         self.assertEqual(list_operations(self.project)[0]['status'],'data_started')
@@ -188,7 +188,7 @@ class FinancialTests(unittest.TestCase):
 
     def test_saved_data_report_preview_needs_no_new_evidence_and_keeps_cutoff(self):
         self.prepare()
-        from wealth_ledger.core import import_holdings
+        from kurafolio.core import import_holdings
         from test_core import FX,write_holdings
         import_holdings(self.project,write_holdings(self.root.parent/'invented.csv'),'baseline',FX)
         response=self.mutate('POST',self.prefix+'/previews',body={'render_saved':True},headers={'Idempotency-Key':uuid.uuid4().hex})
@@ -200,10 +200,10 @@ class FinancialTests(unittest.TestCase):
 
     def canonical_bull(self, *, native=False):
         from dataclasses import replace
-        from wealth_ledger import source_ingestion as store
-        from wealth_ledger.source_builtin import BullBitcoinOrders, BULL_FORMAT
-        from wealth_ledger.crypto import import_bull_orders
-        from wealth_ledger.workspace import resolve_workspace
+        from kurafolio import source_ingestion as store
+        from kurafolio.source_builtin import BullBitcoinOrders, BULL_FORMAT
+        from kurafolio.crypto import import_bull_orders
+        from kurafolio.workspace import resolve_workspace
         from test_source_builtin import CONTEXT, fixture
         from test_source_legacy_projection import ASSUMPTIONS, ALIAS
         raw=fixture("bull-orders.csv")

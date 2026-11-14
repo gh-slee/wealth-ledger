@@ -77,9 +77,9 @@ existing private destination outside the instance and a new filename for every r
 
 ```bash
 umask 077
-mkdir -p "$HOME/.local/share/wealth-ledger/private-backups"
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" backup \
-  --output "$HOME/.local/share/wealth-ledger/private-backups/instance-backup.zip"
+mkdir -p "$HOME/.local/share/kurafolio/private-backups"
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" backup \
+  --output "$HOME/.local/share/kurafolio/private-backups/instance-backup.zip"
 ```
 
 The command automatically enters maintenance: new HTTP requests return `503`
@@ -109,8 +109,8 @@ partial file; publish the completed file only if the command succeeds:
 (
   set -euC
   umask 077
-  mkdir -p "$HOME/.local/share/wealth-ledger/private-backups"
-  backup_file="$HOME/.local/share/wealth-ledger/private-backups/instance-backup.zip"
+  mkdir -p "$HOME/.local/share/kurafolio/private-backups"
+  backup_file="$HOME/.local/share/kurafolio/private-backups/instance-backup.zip"
   test ! -e "$backup_file"
   docker compose run --rm --no-deps -T web backup --stdout > "$backup_file.part"
   ln "$backup_file.part" "$backup_file"
@@ -136,16 +136,16 @@ a separately supported upgrade. This command does not migrate a legacy CLI works
 Native example, using a new empty directory and the private backup:
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/restored-instance" restore \
-  --archive "$HOME/.local/share/wealth-ledger/private-backups/instance-backup.zip"
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/restored-instance" restore \
+  --archive "$HOME/.local/share/kurafolio/private-backups/instance-backup.zip"
 ```
 
 Docker example, using a **new, unused Compose project name** to obtain a separate
 named volume while leaving the original instance intact:
 
 ```bash
-docker compose --project-name wealth-ledger-restore-check run --rm --no-deps -T web restore --stdin \
-  < "$HOME/.local/share/wealth-ledger/private-backups/instance-backup.zip"
+docker compose --project-name kurafolio-restore-check run --rm --no-deps -T web restore --stdin \
+  < "$HOME/.local/share/kurafolio/private-backups/instance-backup.zip"
 ```
 
 Do not initialize an owner in the restore target first. A nonempty target is refused,
@@ -174,7 +174,7 @@ To inspect the native restored instance, start its API/worker using the new
 `--data-root` in [Web operations](web-operations.md). For the Docker example, stop
 the old project's services before starting the restore project's services if both
 use the default host port; keep both named volumes. Run `docker compose --project-name
-wealth-ledger-restore-check up -d` only after resolving that port ownership. Verify
+kurafolio-restore-check up -d` only after resolving that port ownership. Verify
 sign-in, portfolios, source dates, holdings, totals and historical report downloads
 before choosing which instance to use. Container replacement alone is not this
 restore test. Never delete the original volume as a routine step.
@@ -185,7 +185,7 @@ If a backup or metadata-upgrade process is killed, its durable maintenance marke
 new work. After verifying the backup coordinator stopped, use the trusted host:
 
 ```bash
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" maintenance-clear
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" maintenance-clear
 # Or, for the existing Docker instance:
 docker compose run --rm --no-deps -T web maintenance-clear
 ```

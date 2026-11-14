@@ -8,10 +8,10 @@ import sqlite3
 import tempfile
 import unittest
 
-from wealth_ledger.workflow import identify_inputs, prepare_update
-from wealth_ledger.reporting import generate_reports
-from wealth_ledger.workbook import build_workbook
-from wealth_ledger.validation import validate_formula_caches
+from kurafolio.workflow import identify_inputs, prepare_update
+from kurafolio.reporting import generate_reports
+from kurafolio.workbook import build_workbook
+from kurafolio.validation import validate_formula_caches
 from test_core import FX,write_holdings
 from test_crypto import FIELDS,ASSUMPTIONS,order
 from test_combined import quote
@@ -30,9 +30,9 @@ class WorkflowTests(unittest.TestCase):
             order("buy1","Buy Bitcoin","100","BTC",".001",completed="2026-01-01T02:00:00Z"),
             order("buy2","Buy Bitcoin","150","LBTC",".0015",completed="2026-01-01T03:00:00Z")],"unhelpful-name-b.csv")
         self.now=datetime.fromisoformat("2026-10-10T12:30:45-04:00")
-        self.fxp=patch("wealth_ledger.workflow.resolve_rates",side_effect=lambda project,day,override: {
+        self.fxp=patch("kurafolio.workflow.resolve_rates",side_effect=lambda project,day,override: {
             **FX,"usd_cad_date":day,"usd_twd_date":day})
-        self.pp=patch("wealth_ledger.combined.resolve_btc_price",side_effect=lambda project,stamp,override:quote(stamp))
+        self.pp=patch("kurafolio.combined.resolve_btc_price",side_effect=lambda project,stamp,override:quote(stamp))
         self.fxp.start();self.pp.start()
 
     def tearDown(self):

@@ -6,14 +6,14 @@ import json
 from pathlib import Path
 import unittest
 
-from wealth_ledger import source_v2 as parser
-from wealth_ledger.data_sources.compatibility_v1 import builtin_descriptors
-from wealth_ledger.data_sources.contract_v1 import installation_id, primitive
-from wealth_ledger.ingestion.codec import decode, digest, encode
-from wealth_ledger.ingestion.contracts import IngestionError
-from wealth_ledger.ingestion.discovery import admit_native, admit_parser2, verify_selected_profile
-from wealth_ledger.domain.validation_v1 import decode_domain_v1
-from wealth_ledger.source_builtin import registrations
+from kurafolio import source_v2 as parser
+from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
+from kurafolio.data_sources.contract_v1 import installation_id, primitive
+from kurafolio.ingestion.codec import decode, digest, encode
+from kurafolio.ingestion.contracts import IngestionError
+from kurafolio.ingestion.discovery import admit_native, admit_parser2, verify_selected_profile
+from kurafolio.domain.validation_v1 import decode_domain_v1
+from kurafolio.source_builtin import registrations
 
 ROOT = Path(__file__).resolve().parents[1]
 ORACLE = json.loads((ROOT / 'tests/fixtures/ingestion/oracle.json').read_text())
@@ -88,9 +88,9 @@ class IngestionDiscoveryTests(unittest.TestCase):
             self.admit(data=data)
 
     def builtin(self, provider):
-        descriptors = builtin_descriptors(package_distribution='wealth-ledger',
+        descriptors = builtin_descriptors(package_distribution='kurafolio',
             package_version='0.1.0', artifact_sha256='1' * 64,
-            execution_image_digest='2' * 64, entry_point_target='wealth_ledger.source_builtin:registrations')
+            execution_image_digest='2' * 64, entry_point_target='kurafolio.source_builtin:registrations')
         desc = next(d for d in descriptors if d.provider_id == provider)
         adapter = next(r.adapter for r in registrations() if r.adapter.info.provider_id == provider)
         selected = adapter.info.export_versions[0]
@@ -100,7 +100,7 @@ class IngestionDiscoveryTests(unittest.TestCase):
             format_selection=selected)
         profile = {'version': 1, 'installation_id': installation_id(desc),
             'image_digest': desc.execution_image_digest, 'wrapper_sha256': '3' * 64,
-            'distribution': 'wealth-ledger', 'entry_point': 'wealth_ledger.ingestion.runner_child:main',
+            'distribution': 'kurafolio', 'entry_point': 'kurafolio.ingestion.runner_child:main',
             'projection': 'parser2-minimal-v1', 'format_versions': [selected],
             'identity_policy': 'provider_scoped_stable' if provider == 'bullbitcoin' else 'snapshot_semantic'}
         profile['profile_digest'] = digest(profile)

@@ -12,20 +12,20 @@ import test_source_submission as submission_fixtures
 from test_source_submission import CONTEXTS
 from test_source_legacy_projection import FX, AT, START, quote
 from test_source_projection import hashes
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.workspace import resolve_workspace
-from wealth_ledger import operations
-from wealth_ledger.source_ingestion import read_facts, require_report_projection
-from wealth_ledger.source_publication import (prepare_source_report, load_source_report, confirm_source_report,
+from kurafolio.application import ApplicationService
+from kurafolio.workspace import resolve_workspace
+from kurafolio import operations
+from kurafolio.source_ingestion import read_facts, require_report_projection
+from kurafolio.source_publication import (prepare_source_report, load_source_report, confirm_source_report,
     resume_source_report, frozen_report, verify_source_publications)
-from wealth_ledger.source_submission import SubmissionError
-from wealth_ledger.source_valuation import read_observations
+from kurafolio.source_submission import SubmissionError
+from kurafolio.source_valuation import read_observations
 
 
 def publisher_receipt(project,payload,result,*,frozen_analysis):
     """Small checksummed receipt double; actual three-format rendering is separate."""
     assert frozen_analysis is True
-    from wealth_ledger.publishing import _set_latest
+    from kurafolio.publishing import _set_latest
     folder=Path(project)/"reports"/payload["meta"]["as_of"][:10]/("r"+str(len(list((Path(project)/"reports").glob("*/r*/manifest.json")))+1).zfill(2))
     folder.mkdir(parents=True)
     for name in ("report.md","report.pdf","portfolio.ods"):(folder/name).write_bytes(b"Synthetic publisher receipt double")
@@ -52,7 +52,7 @@ class SourcePublicationTests(unittest.TestCase):
 
     def confirm(self,value=None,**kwargs):
         value=value or self.prepare()
-        with patch("wealth_ledger.lookthrough.attach_analysis"):
+        with patch("kurafolio.lookthrough.attach_analysis"):
             return confirm_source_report(self.project,self.directory,value["approval_sha256"],**kwargs)
 
     def saved(self,identifier):
@@ -75,7 +75,7 @@ class SourcePublicationTests(unittest.TestCase):
 
     def test_exact_confirmation_commits_facts_valuation_and_frozen_report_together(self):
         value=self.prepare()
-        with patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):result=self.confirm(value)
+        with patch("kurafolio.publishing.publish",side_effect=publisher_receipt):result=self.confirm(value)
         self.assertEqual(result["status"],"published")
         saved=self.saved(value["operation_id"]);payload=frozen_report(self.project,saved)
         self.assertEqual(saved["status"],"published")
@@ -88,7 +88,7 @@ class SourcePublicationTests(unittest.TestCase):
     def test_original_csv_paths_and_parsers_are_not_used_by_confirmation(self):
         value=self.prepare()
         for path in self.paths:path.unlink()
-        with patch("wealth_ledger.source_submission.parse_sources",side_effect=AssertionError("No parser")),patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):
+        with patch("kurafolio.source_submission.parse_sources",side_effect=AssertionError("No parser")),patch("kurafolio.publishing.publish",side_effect=publisher_receipt):
             self.confirm(value)
 
     def test_changed_digest_and_extra_bundle_file_are_rejected_without_writes(self):
@@ -120,7 +120,7 @@ class SourcePublicationTests(unittest.TestCase):
 
     def test_engine_change_stales_confirmation_before_mutation(self):
         value=self.prepare()
-        with patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="b"*64),self.assertRaisesRegex(SubmissionError,"stale_environment"):
+        with patch("kurafolio.source_ingestion.environment_fingerprint",return_value="b"*64),self.assertRaisesRegex(SubmissionError,"stale_environment"):
             self.confirm(value)
         self.assertEqual(operations.list_operations(self.project),[])
 
@@ -131,7 +131,7 @@ class SourcePublicationTests(unittest.TestCase):
 
     def test_failed_analysis_leaves_no_live_facts_or_valuation(self):
         value=self.prepare()
-        with patch("wealth_ledger.lookthrough.attach_analysis",side_effect=RuntimeError("Synthetic interruption")),self.assertRaises(RuntimeError):
+        with patch("kurafolio.lookthrough.attach_analysis",side_effect=RuntimeError("Synthetic interruption")),self.assertRaises(RuntimeError):
             confirm_source_report(self.project,self.directory,value["approval_sha256"])
         self.assertEqual(read_facts(self.project)["records"],[])
         self.assertEqual(read_observations(self.project),[])
@@ -140,12 +140,12 @@ class SourcePublicationTests(unittest.TestCase):
 
     def test_publish_failure_keeps_committed_inputs_and_resumes_without_parser_or_analysis(self):
         value=self.prepare()
-        with patch("wealth_ledger.publishing.publish",side_effect=RuntimeError("Synthetic renderer interruption")),self.assertRaises(operations.ReportOperationError):self.confirm(value)
+        with patch("kurafolio.publishing.publish",side_effect=RuntimeError("Synthetic renderer interruption")),self.assertRaises(operations.ReportOperationError):self.confirm(value)
         original=frozen_report(self.project,self.saved(value["operation_id"]))
         count=len(read_facts(self.project)["records"])
         self.assertEqual(self.saved(value["operation_id"])["status"],"report_failed")
         shutil.rmtree(self.directory)
-        with patch("wealth_ledger.source_publication.make_source_payload",side_effect=AssertionError("No revaluation")),patch("wealth_ledger.lookthrough.attach_analysis",side_effect=AssertionError("No ETF refresh")),patch("wealth_ledger.source_ingestion._apply",side_effect=AssertionError("No reimport")),patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):
+        with patch("kurafolio.source_publication.make_source_payload",side_effect=AssertionError("No revaluation")),patch("kurafolio.lookthrough.attach_analysis",side_effect=AssertionError("No ETF refresh")),patch("kurafolio.source_ingestion._apply",side_effect=AssertionError("No reimport")),patch("kurafolio.publishing.publish",side_effect=publisher_receipt):
             result=resume_source_report(self.project,value["operation_id"])
         self.assertEqual(result["status"],"published")
         self.assertEqual(frozen_report(self.project,self.saved(value["operation_id"])),original)
@@ -154,8 +154,8 @@ class SourcePublicationTests(unittest.TestCase):
     def test_interruption_after_bundle_move_recovers_without_second_edition(self):
         value=self.prepare()
         def interrupted(*args,**kwargs):publisher_receipt(*args,**kwargs);raise RuntimeError("Delivery interrupted")
-        with patch("wealth_ledger.publishing.publish",side_effect=interrupted),self.assertRaises(operations.ReportOperationError):self.confirm(value)
-        with patch("wealth_ledger.publishing.publish",side_effect=AssertionError("No second report")):
+        with patch("kurafolio.publishing.publish",side_effect=interrupted),self.assertRaises(operations.ReportOperationError):self.confirm(value)
+        with patch("kurafolio.publishing.publish",side_effect=AssertionError("No second report")):
             result=resume_source_report(self.project,value["operation_id"])
         self.assertEqual(result["status"],"published")
         self.assertEqual(len(list((self.project/"reports").glob("*/r*/manifest.json"))),1)
@@ -165,18 +165,18 @@ class SourcePublicationTests(unittest.TestCase):
         def interrupted(*args,**kwargs):original(*args,**kwargs);raise RuntimeError("Cleanup interrupted")
         with patch.object(operations,"atomic_data",side_effect=interrupted),self.assertRaises(RuntimeError):self.confirm(value)
         self.assertEqual(self.saved(value["operation_id"])["status"],"data_committed")
-        with patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):resume_source_report(self.project,value["operation_id"])
+        with patch("kurafolio.publishing.publish",side_effect=publisher_receipt):resume_source_report(self.project,value["operation_id"])
 
     def test_changed_financial_state_after_failure_blocks_retry(self):
         value=self.prepare()
-        with patch("wealth_ledger.publishing.publish",side_effect=RuntimeError),self.assertRaises(operations.ReportOperationError):self.confirm(value)
-        from wealth_ledger.wallet import add_balance
+        with patch("kurafolio.publishing.publish",side_effect=RuntimeError),self.assertRaises(operations.ReportOperationError):self.confirm(value)
+        from kurafolio.wallet import add_balance
         add_balance(self.project,"0.008",AT,now=AT)
         with self.assertRaises(SubmissionError):resume_source_report(self.project,value["operation_id"])
 
     def test_corrupt_frozen_report_blocks_retry_and_verification(self):
         value=self.prepare()
-        with patch("wealth_ledger.publishing.publish",side_effect=RuntimeError),self.assertRaises(operations.ReportOperationError):self.confirm(value)
+        with patch("kurafolio.publishing.publish",side_effect=RuntimeError),self.assertRaises(operations.ReportOperationError):self.confirm(value)
         saved=self.saved(value["operation_id"]);path=self.project/saved["result"]["payload_path"]
         path.chmod(0o600);path.write_bytes(b"{}")
         with self.assertRaises(SubmissionError):resume_source_report(self.project,value["operation_id"])
@@ -184,10 +184,10 @@ class SourcePublicationTests(unittest.TestCase):
 
     def test_published_retry_never_rolls_latest_back_and_works_after_workspace_copy(self):
         value=self.prepare()
-        with patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):first=self.confirm(value)
+        with patch("kurafolio.publishing.publish",side_effect=publisher_receipt):first=self.confirm(value)
         later=self.root/"later";inputs=self.inputs(as_of="2024-05-01T00:00:00Z",generated_at="2024-05-01T00:00:00Z")
         next_preview=prepare_source_report(self.project,valuation=inputs,directory=later)
-        with patch("wealth_ledger.lookthrough.attach_analysis"),patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):
+        with patch("kurafolio.lookthrough.attach_analysis"),patch("kurafolio.publishing.publish",side_effect=publisher_receipt):
             confirm_source_report(self.project,later,next_preview["approval_sha256"])
         pointer=(self.project/"reports/latest.json").read_bytes()
         self.assertEqual(resume_source_report(self.project,value["operation_id"])["status"],"already_published")
@@ -200,13 +200,13 @@ class SourcePublicationTests(unittest.TestCase):
     def test_saved_data_only_preview_and_application_service_use_same_workflow(self):
         service=ApplicationService(resolve_workspace(explicit=self.project))
         value=service.source_report_preview(valuation=self.inputs(),directory=self.directory)
-        with patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):
+        with patch("kurafolio.publishing.publish",side_effect=publisher_receipt):
             result=service.source_report_confirm(self.directory,value["approval_sha256"])
         self.assertEqual(result["status"],"published")
         self.assertIsNone(frozen_report(self.project,self.saved(value["operation_id"]))["totals"]["total_cad"])
 
     def test_native_daily_gate_remains_until_complete_cutover_acceptance(self):
-        with patch("wealth_ledger.publishing.publish",side_effect=publisher_receipt):self.confirm()
+        with patch("kurafolio.publishing.publish",side_effect=publisher_receipt):self.confirm()
         with self.assertRaisesRegex(ValueError,"report_projection_unavailable"):require_report_projection(self.project)
 
     def test_invalid_valuation_is_rejected_without_live_financial_writes(self):
@@ -215,11 +215,11 @@ class SourcePublicationTests(unittest.TestCase):
         self.assertEqual(hashes(self.project),{})
 
     def test_actual_three_format_publication_in_all_locales_is_checksum_verified(self):
-        from wealth_ledger.publishing import verify_bundle
-        from wealth_ledger.report_checks import validate_report_presentation
-        from wealth_ledger.validation import validate_formula_caches
-        from wealth_ledger.lookthrough import attach_analysis
-        from wealth_ledger.fund_sources import holding
+        from kurafolio.publishing import verify_bundle
+        from kurafolio.report_checks import validate_report_presentation
+        from kurafolio.validation import validate_formula_caches
+        from kurafolio.lookthrough import attach_analysis
+        from kurafolio.fund_sources import holding
         original=attach_analysis
         def synthetic_fund(fund_id,directory):
             return {"fund_id":fund_id,"status":"ok","as_of":"2024-01-31","retrieved_at":AT,"issuer":"SYNTHETIC","latest_checked":False,"evidence":[],
@@ -229,7 +229,7 @@ class SourcePublicationTests(unittest.TestCase):
             directory=self.root/("actual-"+locale)
             if locale=="en-CA":preview=self.prepare(directory=directory,valuation=self.inputs(report_locale=locale))
             else:preview=prepare_source_report(self.project,valuation=self.inputs(report_locale=locale),directory=directory)
-            with patch("urllib.request.urlopen",side_effect=AssertionError("No network")),patch("wealth_ledger.lookthrough.attach_analysis",side_effect=analysis):
+            with patch("urllib.request.urlopen",side_effect=AssertionError("No network")),patch("kurafolio.lookthrough.attach_analysis",side_effect=analysis):
                 result=confirm_source_report(self.project,directory,preview["approval_sha256"])
             output=Path(result["output"]);saved=self.saved(preview["operation_id"]);payload=frozen_report(self.project,saved)
             self.assertEqual(verify_bundle(self.project,output,preview["operation_id"])["source_valuation_id"],saved["result"]["source_valuation_id"])
@@ -243,7 +243,7 @@ class SourcePublicationTests(unittest.TestCase):
         def changed(*args,**kwargs):
             (self.project/"config").mkdir(exist_ok=True)
             (self.project/"config/local.toml").write_text("[reporting]\nlocale='en-CA'\n")
-        with patch("wealth_ledger.lookthrough.attach_analysis",side_effect=changed),self.assertRaisesRegex(SubmissionError,"stale_submission"):
+        with patch("kurafolio.lookthrough.attach_analysis",side_effect=changed),self.assertRaisesRegex(SubmissionError,"stale_submission"):
             confirm_source_report(self.project,self.directory,value["approval_sha256"])
         self.assertEqual(read_facts(self.project)["records"],[])
         self.assertEqual(read_observations(self.project),[])
@@ -251,7 +251,7 @@ class SourcePublicationTests(unittest.TestCase):
     def test_invalid_recovered_bundle_never_changes_latest_pointer(self):
         value=self.prepare()
         def interrupted(*args,**kwargs):publisher_receipt(*args,**kwargs);raise RuntimeError("Before handoff")
-        with patch("wealth_ledger.publishing.publish",side_effect=interrupted),self.assertRaises(operations.ReportOperationError):self.confirm(value)
+        with patch("kurafolio.publishing.publish",side_effect=interrupted),self.assertRaises(operations.ReportOperationError):self.confirm(value)
         (self.project/"reports/latest.json").unlink();(self.project/"reports/latest").unlink(missing_ok=True)
         path=next((self.project/"reports").glob("*/r*/data.json"))
         changed=json.loads(path.read_text());changed["meta"]["kind"]="baseline";path.write_text(json.dumps(changed))

@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import unittest
 
-from wealth_ledger.persistence import ingestion_schema as schema
+from kurafolio.persistence import ingestion_schema as schema
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())
 
@@ -84,13 +84,16 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertIn('expires_at=created_at+interval \'86400 seconds\'', sql)
 
     def test_gateway_worker_and_helpers_have_separate_exact_signatures(self):
-        self.assertEqual(9, len(schema.GATEWAY))
+        self.assertEqual(10, len(schema.GATEWAY))
         self.assertEqual(8, len(schema.WORKER))
         self.assertFalse(set(schema.GATEWAY) & set(schema.WORKER))
         self.assertEqual('wl_ingestion.claim_member_v1(uuid,text,jsonb,bytea)',
                          schema.signature('claim_member_v1'))
         self.assertEqual('wl_ingestion.accept_preview_v1(text,uuid,bigint,jsonb,text,jsonb)',
                          schema.signature('accept_preview_v1'))
+        self.assertIn('admit_rate_v1', schema.GATEWAY)
+        self.assertEqual('wl_ingestion.admit_rate_v1(text,uuid,bigint,jsonb,text,text)',
+                         schema.signature('admit_rate_v1'))
         with self.assertRaises(ValueError):
             schema.signature('unreviewed_function')
         self.assertNotIn('GRANT ', schema.tables_ddl())
@@ -227,7 +230,662 @@ class IngestionStorageDDLTests(unittest.TestCase):
             schema.TRANSITION_DDL).group(1).replace("'", '').replace('\n', '').replace(' ', '').split(',')))
 
 
-@unittest.skipUnless(os.environ.get('WEALTH_LEDGER_INGESTION_TEST') == '1',
+    def test_cleanup_lease_functions_match_their_worker_declarations(self):
+        declared = {x['name']: x for x in schema.inventory()['functions']}
+        for name, ddl in (('claim_plan_v1', schema.CLAIM_PLAN_DDL), ('cleanup_set_v1', schema.CLEANUP_SET_DDL)):
+            with self.subTest(function=name):
+                self.assertEqual((['uuid', 'text', 'jsonb', 'bytea'], 'jsonb', 'ingestion_worker_only'),
+                    (declared[name]['arguments'], declared[name]['returns'], declared[name]['execute']))
+                self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.' + name + '(uuid,text,jsonb,bytea) FROM PUBLIC;', ddl)
+                self.assertEqual(1, ddl.count('CREATE FUNCTION'))
+                self.assertIn('wl_ingestion._guard_worker_v1(p_worker,p_token,p_request)', ddl)
+                for fragment in ('GRANT ', 'DELETE ', 'ACK_', 'TERMINAL', 'CODES', 'UUID_RE', 'PROOFS_SHAPE',
+                                 'ATTEMPT_JOB', 'CLEANUP_SESSION', 'MAXIMUM'):
+                    self.assertNotIn(fragment, ddl)
+        # A cleanup lease never names a user session; it stores one fixed marker.
+        self.assertEqual(hashlib.sha256(b'kurafolio.ingestion.cleanup-lease.v1').hexdigest(),
+                         schema.CLEANUP_SESSION_DIGEST)
+        self.assertIn("'" + schema.CLEANUP_SESSION_DIGEST + "',0,", schema.CLAIM_PLAN_DDL)
+        # Only cleanup purges, and only through the private helper.
+        self.assertIn('wl_ingestion._purge_v1(tenant,portfolio,selected.id)', schema.CLEANUP_SET_DDL)
+        self.assertNotIn('_purge_v1', schema.CLAIM_PLAN_DDL)
+        # Finish and cleanup share one closed proof shape; finish proofs repeat its own job and fence.
+        self.assertIn("pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>3", schema.FINISH_DDL)
+        self.assertIn("pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>12", schema.CLEANUP_SET_DDL)
+        self.assertIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.FINISH_DDL)
+        self.assertNotIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.CLEANUP_SET_DDL)
+
+@unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
+                     'Opt-in isolated ingestion PostgreSQL provider acceptance')
+class IngestionProviderPostgresTests(unittest.TestCase):
+    def test_install_upgrade_grants_and_transactional_refusal(self):
+        import sys
+
+        import psycopg
+        from psycopg import sql
+        from psycopg.conninfo import conninfo_to_dict
+
+        from kurafolio.persistence.config import PostgresConfig
+
+        script = Path(__file__).resolve().parents[1] / 'scripts/postgres.py'
+        with tempfile.TemporaryDirectory(prefix='wl007d-provider-') as directory:
+            path = Path(directory) / 'fixture'
+            subprocess.run([sys.executable, str(script), 'test-identity-environment', '--output', str(path)],
+                           check=True, capture_output=True, timeout=120)
+            try:
+                fixture = json.loads((path / 'test-config.json').read_text())
+                operator = conninfo_to_dict(PostgresConfig.from_secret_file(path / 'migration.conninfo').conninfo)
+                admin = dict(operator, user='postgres', password=(path / 'bootstrap.secret').read_text())
+                runtime, gateway, worker = fixture['runtime_role'], fixture['identity_role'], 'synthetic_ingestion_worker'
+                with psycopg.connect(**admin, autocommit=True) as conn:
+                    conn.execute(sql.SQL('CREATE ROLE {} LOGIN').format(sql.Identifier(worker)))
+                    for name in ('synthetic_fresh', 'synthetic_upgrade', 'synthetic_restore_one',
+                                 'synthetic_restore_two', 'synthetic_restore_fault',
+                                 'synthetic_restore_changed', 'synthetic_restore_corrupt',
+                                 'synthetic_restore_identity_fault', 'synthetic_restore_commit_fault',
+                                 'synthetic_restore_load_fault', 'synthetic_restore_verify_fault',
+                                 'synthetic_restore_open', 'synthetic_restore_temp'):
+                        target = sql.Identifier(name)
+                        conn.execute(sql.SQL('CREATE DATABASE {} OWNER {}').format(
+                            target, sql.Identifier(fixture['migration_role'])))
+                        if name == 'synthetic_restore_temp':
+                            conn.execute(sql.SQL('REVOKE CONNECT ON DATABASE {} FROM PUBLIC').format(target))
+                        elif name.startswith('synthetic_restore_') and name != 'synthetic_restore_open':
+                            conn.execute(sql.SQL('REVOKE CONNECT,TEMP ON DATABASE {} FROM PUBLIC').format(target))
+                self._verify_targets(operator, path, fixture, (runtime, gateway, worker))
+            finally:
+                subprocess.run([sys.executable, str(script), 'cleanup-test-environment',
+                                '--config', str(path / 'test-config.json')],
+                               check=True, capture_output=True, timeout=45)
+
+    def _verify_targets(self, operator, path, fixture, roles):
+        import sys
+
+        from psycopg.conninfo import make_conninfo
+
+        from kurafolio.data_sources.contract_v1 import CatalogSnapshot, canonical, primitive
+        from kurafolio.persistence import ingestion_migration as migration
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.context import Database, execute
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.source_migration import migrate_sources
+
+        runtime, gateway, worker = roles
+        fresh = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_fresh'))),
+                         schema_mode='sources')
+        upgrade = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_upgrade'))),
+                           schema_mode='sources')
+        try:
+            key = hashlib.sha256((path / 'identity.key').read_bytes()).hexdigest()
+            catalog = CatalogSnapshot(1, '0', (), (), ())
+            with self.assertRaisesRegex(PersistenceError, 'schema_unsupported'):
+                migration.migrate_ingestion(fresh, *roles, key, catalog)
+            for database in (fresh, upgrade):
+                migrate_sources(database, runtime, gateway, key, catalog)
+                with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                    migration.migrate_ingestion(database, *roles, key, catalog)
+                with database.engine.begin() as conn:
+                    owner, portfolio = uuid.uuid4(), uuid.uuid4()
+                    execute(conn, 'INSERT INTO wl_pg.tenant_roots(tenant_id,portfolio_id) VALUES(:t,:p)',
+                            t=owner, p=portfolio)
+                    execute(conn, 'INSERT INTO wl_pg.portfolios(tenant_id,portfolio_id) VALUES(:t,:p)',
+                            t=owner, p=portfolio)
+                    execute(conn, """
+                        INSERT INTO wl_identity.users(id,portfolio_id,username,username_key,argon_hash,
+                                                     credential_incarnation,credential_epoch,created_at)
+                        SELECT :t,:p,'SyntheticOperator','syntheticoperator','synthetic-unused',
+                               incarnation,restore_epoch,clock_timestamp() FROM wl_pg.instance_state WHERE id=1
+                    """, t=owner, p=portfolio)
+                    execute(conn, """
+                        UPDATE wl_identity.instance_auth_state
+                        SET bootstrap_closed=true,admin_user_id=:t WHERE id=1
+                    """, t=owner)
+
+            def fault(phase):
+                if phase == 'after_grants':
+                    raise RuntimeError('synthetic rollback')
+
+            with self.assertRaisesRegex(RuntimeError, 'synthetic rollback'):
+                migration.migrate_ingestion(upgrade, *roles, key, catalog, fault=fault)
+            self.assertEqual('0003_source_lifecycle', upgrade.status()['schema_revision'])
+            with upgrade.engine.begin() as conn:
+                self.assertIsNone(execute(conn, "SELECT to_regnamespace('wl_ingestion')").scalar_one())
+                execute(conn, 'ALTER POLICY scope ON wl_pg.portfolios USING (true)')
+            with self.assertRaisesRegex(PersistenceError, 'migration_target_invalid'):
+                migration.migrate_ingestion(upgrade, *roles, key, catalog)
+            with upgrade.engine.begin() as conn:
+                execute(conn, '''
+                    ALTER POLICY scope ON wl_pg.portfolios USING(
+                        tenant_id::text=NULLIF(current_setting('ledger.tenant_id',true),'')
+                        AND portfolio_id::text=NULLIF(current_setting('ledger.portfolio_id',true),''))
+                ''')
+
+            expected = {'schema_revision': '0004_ingestion', 'functions': 68, 'ready': False}
+            catalog_file = path / 'synthetic-catalog.json'
+            catalog_file.write_bytes(canonical(primitive(catalog)))
+            catalog_file.chmod(0o600)
+            operator_file = path / 'fresh-operator.conninfo'
+            operator_file.write_text(make_conninfo(**dict(operator, dbname='synthetic_fresh')))
+            operator_file.chmod(0o600)
+            root = Path(__file__).resolve().parents[1]
+            command = subprocess.run(
+                [sys.executable, '-m', 'kurafolio.web_v2', 'operator', 'migrate-ingestion',
+                 '--secret-file', str(operator_file), '--key-file', str(path / 'identity.key'),
+                 '--source-catalog-file', str(catalog_file), '--runtime-role', runtime,
+                 '--identity-role', gateway, '--worker-role', worker],
+                cwd=root, env={**os.environ, 'PYTHONPATH': str(root / 'src')},
+                check=True, capture_output=True, timeout=30,
+            )
+            self.assertEqual(expected, json.loads(command.stdout))
+            self.assertEqual(expected, migration.migrate_ingestion(upgrade, *roles, key, catalog))
+            self.assertEqual(expected, migration.migrate_ingestion(fresh, *roles, key, catalog))
+            arguments = dict(runtime_role=runtime, gateway_role=gateway, worker_role=worker)
+            with fresh.engine.begin() as conn:
+                self.assertEqual(0, execute(conn, 'SELECT count(*) FROM wl_ingestion.workers').scalar_one())
+                self.assertEqual(expected['functions'], migration.verify_inventory(conn, **arguments)['functions'])
+                execute(conn, 'GRANT EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) TO PUBLIC')
+                with self.assertRaisesRegex(PersistenceError, 'migration_target_invalid'):
+                    migration.verify_inventory(conn, **arguments)
+                execute(conn, 'REVOKE EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) FROM PUBLIC')
+                changed = conn.begin_nested()
+                execute(conn, 'ALTER FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) RESET search_path')
+                with self.assertRaisesRegex(PersistenceError, 'migration_target_invalid'):
+                    migration.verify_inventory(conn, **arguments)
+                changed.rollback()
+            self._verify_inactive_restores(operator, path, fixture, runtime, gateway, worker)
+        finally:
+            fresh.close()
+            upgrade.close()
+
+
+    def _seed_restore_history(self, conn):
+        from copy import deepcopy
+
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.persistence.context import execute
+
+        minimal = deepcopy(ORACLE['minimal-native.json'])
+        plan = deepcopy(ORACLE['plan-first-use.json'])
+        raw = encode(minimal)
+        tenant, portfolio = execute(conn, 'SELECT id,portfolio_id FROM wl_identity.users').one()
+        identity = dict(t=tenant, p=portfolio)
+        ids = {name: uuid.uuid4() for name in ('input', 'plan', 'receipt', 'preview', 'operation',
+                                               'account', 'connection_id', 'first', 'second', 'head', 'member')}
+        descriptor = encode(dict(plugin_id='synthetic.restore', provider_id='synthetic.restore',
+                                 adapter_id='synthetic.restore'))
+        install = hashlib.sha256(descriptor).hexdigest()
+        execute(conn, """
+            INSERT INTO wl_sources.installations VALUES(
+              :install,'synthetic.restore','synthetic.restore','synthetic.restore',:descriptor,now())
+        """, install=install, descriptor=descriptor)
+        execute(conn, "INSERT INTO wl_sources.lifecycle_roots VALUES(:t,:p,1,now())", **identity)
+        execute(conn, """
+            INSERT INTO wl_sources.enablements VALUES(
+              :t,:p,'synthetic.restore','FILE_IMPORT','synthetic.restore',:install,true,1,1,now(),now())
+        """, **identity, install=install)
+        execute(conn, """
+            INSERT INTO wl_pg.connections VALUES(:t,:p,:connection_id,repeat('4',64),'{}',
+              'synthetic.restore',encode(sha256(convert_to('synthetic.restore','UTF8')),'hex'),'FILE_IMPORT',0)
+        """, **identity, **ids)
+        execute(conn, """
+            INSERT INTO wl_sources.connection_lifecycle VALUES(:t,:p,:connection_id,repeat('4',64),
+              'synthetic.restore','synthetic.restore','FILE_IMPORT',:install,'Synthetic',NULL,true,1,now(),now())
+        """, **identity, **ids, install=install)
+        execute(conn, """
+            INSERT INTO wl_pg.accounts VALUES(
+              :t,:p,:account,repeat('5',64),'{}','BROKERAGE','investment','Synthetic')
+        """, **identity, **ids)
+        execute(conn, """
+            INSERT INTO wl_ingestion.accepted_inputs VALUES(
+              :t,:p,:input,'minimal-evidence-v1',:raw,:digest,:raw_digest,:discovery,:install,now())
+        """, **identity, **ids, raw=raw, digest=hashlib.sha256(raw).hexdigest(),
+                raw_digest=minimal['provenance']['raw_sha256'],
+                discovery=minimal['provenance']['discovery_sha256'], install=install)
+        snapshot_evidence = ORACLE['snapshot-t1-minimal.json']
+        snapshot = snapshot_evidence['snapshots'][0]
+        snapshot_id = uuid.uuid4()
+        scope = dict(tag='all', category=None, instrument_ids=[])
+        key = hashlib.sha256(encode(dict(version=1, tenant_id=str(tenant), portfolio_id=str(portfolio),
+                                         account_id=str(ids['account']), record_kind='holdings',
+                                         instrument_scope=scope))).hexdigest()
+        correction = deepcopy(minimal)
+        correction['records'][0]['identity']['revision'] = 'r2'
+        activity_key = hashlib.sha256(encode(dict(version=1, tenant_id=str(tenant),
+                                                   portfolio_id=str(portfolio),
+                                                   economic_group_id=str(ids['head'])))).hexdigest()
+        plan['heads'] = [
+            dict(kind='activity', key_digest=activity_key, active=True, prior_revision_id=None,
+                 next_revision_id=str(ids['second']), complete_base_id=None),
+            dict(kind='snapshot', key_digest=key, active=True, prior_revision_id=None,
+                 next_revision_id=str(snapshot_id), complete_base_id=str(snapshot_id)),
+        ]
+        plan['facts'], plan['inputs'], plan['pinned_sources'] = [], [], []
+        for revision, evidence, collection, action in (
+            (ids['first'], minimal, 'records', 'append'),
+            (ids['second'], correction, 'records', 'correction'),
+            (snapshot_id, snapshot_evidence, 'snapshots', 'append'),
+        ):
+            member = str(revision)
+            plan['facts'].append(dict(member_id=member, accepted_revision_id=str(revision),
+                                      collection=collection, local_id='0', action=action,
+                                      financial_digest='8' * 64))
+            plan['inputs'].append(dict(member_id=member, stage_digest=hashlib.sha256(encode(evidence)).hexdigest(),
+                                       raw_digest=evidence['provenance']['raw_sha256']))
+            plan['pinned_sources'].append(dict(member_id=member, installation_id=install,
+                                               connection_id=str(ids['connection_id'])))
+        plan.update(tenant_id=str(tenant), portfolio_id=str(portfolio), preview_id=str(ids['preview']))
+        plan_bytes = encode(plan)
+        plan_digest = hashlib.sha256(plan_bytes).hexdigest()
+        execute(conn, """
+            INSERT INTO wl_ingestion.accepted_plans VALUES(
+              :t,:p,:plan,:preview,'acceptance-plan-v1',:body,:digest,:receipt,now())
+        """, **identity, **ids, body=plan_bytes, digest=plan_digest)
+        execute(conn, """
+            INSERT INTO wl_ingestion.receipts
+            SELECT :t,:p,:receipt,incarnation,restore_epoch,:operation,'ACCEPT',repeat('6',64),
+                   :preview,:plan,:digest,convert_to('{}','UTF8'),now()
+            FROM wl_pg.instance_state
+        """, **identity, **ids, digest=plan_digest)
+        source_key = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='records',
+                          connection_id=str(ids['connection_id']))
+        source_key_digest = hashlib.sha256(encode(source_key)).hexdigest()
+        for index, (revision, parent, change) in enumerate((
+                (ids['first'], None, 'original'), (ids['second'], ids['first'], 'correction'))):
+            record = minimal['records'][0]
+            input_id = ids['input']
+            if index:
+                record = correction['records'][0]
+                input_bytes = encode(correction)
+                input_id = uuid.uuid4()
+                execute(conn, """
+                    INSERT INTO wl_ingestion.accepted_inputs VALUES(
+                      :t,:p,:input_id,'minimal-evidence-v1',:raw,:digest,:raw_digest,:discovery,:install,now())
+                """, **identity, input_id=input_id, raw=input_bytes,
+                        digest=hashlib.sha256(input_bytes).hexdigest(),
+                        raw_digest=minimal['provenance']['raw_sha256'],
+                        discovery=minimal['provenance']['discovery_sha256'], install=install)
+            revision_token = record['identity']['revision']
+            typed = encode(record)
+            typed_digest = hashlib.sha256(typed).hexdigest()
+            claim = encode(dict(version=1, source=source_key, revision=revision_token))
+            execute(conn, """
+                INSERT INTO wl_ingestion.source_revisions VALUES(
+                  :t,:p,:revision,:source_key,:token,repeat('8',64),:change,:change,:parent,
+                  :input_id,'records','0',:typed,:digest,now())
+            """, **identity, revision=revision, parent=parent, change=change, source_key=source_key_digest,
+                    token=revision_token, input_id=input_id, typed=typed, digest=typed_digest)
+            execute(conn, """
+                INSERT INTO wl_ingestion.lineage VALUES(:t,:p,:revision,:raw_digest,:install,
+                  :digest,:input_id,'records','0',:claim)
+            """, **identity, revision=revision, input_id=input_id, raw_digest=minimal['provenance']['raw_sha256'],
+                    install=install, digest=typed_digest, claim=claim)
+        execute(conn, """
+            INSERT INTO wl_ingestion.activity_heads VALUES(:t,:p,:head,:second,true)
+        """, **identity, **ids)
+        snapshot_input_id = uuid.uuid4()
+        snapshot_input = encode(snapshot_evidence)
+        snapshot_source = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='snapshots',
+                               connection_id=str(ids['connection_id']))
+        snapshot_typed = encode(snapshot)
+        snapshot_digest = hashlib.sha256(snapshot_typed).hexdigest()
+        snapshot_raw_digest = snapshot_evidence['provenance']['raw_sha256']
+        execute(conn, """
+            INSERT INTO wl_ingestion.accepted_inputs VALUES(
+              :t,:p,:id,'minimal-evidence-v1',:raw,:digest,:raw_digest,:discovery,:install,now())
+        """, **identity, id=snapshot_input_id, raw=snapshot_input,
+                digest=hashlib.sha256(snapshot_input).hexdigest(), raw_digest=snapshot_raw_digest,
+                discovery=snapshot_evidence['provenance']['discovery_sha256'], install=install)
+        execute(conn, """
+            INSERT INTO wl_ingestion.source_revisions VALUES(
+              :t,:p,:id,:source,:token,repeat('8',64),'original','original',NULL,
+              :input,'snapshots','0',:typed,:digest,now())
+        """, **identity, id=snapshot_id, source=hashlib.sha256(encode(snapshot_source)).hexdigest(),
+                token=snapshot['revision'], input=snapshot_input_id, typed=snapshot_typed, digest=snapshot_digest)
+        execute(conn, """
+            INSERT INTO wl_ingestion.lineage VALUES(:t,:p,:id,:raw_digest,:install,
+              :digest,:input,'snapshots','0',:claim)
+        """, **identity, id=snapshot_id, raw_digest=snapshot_raw_digest, install=install,
+                digest=snapshot_digest, input=snapshot_input_id,
+                claim=encode(dict(version=1, source=snapshot_source, revision=snapshot['revision'])))
+        execute(conn, """
+            INSERT INTO wl_ingestion.snapshot_heads VALUES(
+              :t,:p,:key,:account,repeat('5',64),'holdings',:scope,:snapshot_id,:snapshot_id)
+        """, **identity, key=key, account=ids['account'], scope=encode(scope), snapshot_id=snapshot_id)
+        execute(conn, """
+            INSERT INTO wl_ingestion.mappings(
+              tenant_id,portfolio_id,id,revision,connection_id,source_key,entity_kind,
+              evidence_digest,plan_id,account_id,account_version)
+            VALUES(:t,:p,:head,1,:connection_id,repeat('9',64),'account',repeat('a',64),
+                   :plan,:account,repeat('5',64))
+        """, **identity, **ids)
+        execute(conn, """
+            INSERT INTO wl_ingestion.audit VALUES(:t,:p,:head,:receipt,'ACCEPTED',0,1,0,1,now())
+        """, **identity, **ids)
+        execute(conn, """
+            WITH event AS (
+                SELECT date_trunc('second', now()) AS instant,
+                    wl_ingestion._canonical_v1(jsonb_build_object(
+                      'version',1,'type','facts.accepted.v1','tenant_id',CAST(:t AS uuid),
+                      'portfolio_id',CAST(:p AS uuid),'receipt_id',CAST(:receipt AS uuid),
+                      'accepted_generation','1','mapping_generation','1','plan_digest',CAST(:digest AS text),
+                      'changed_revision_ids',jsonb_build_array(CAST(:second AS uuid)),
+                      'changed_head_keys','[]'::jsonb,'accepted_at',jsonb_build_object(
+                        'tag','instant','token',to_char(date_trunc('second',now()) AT TIME ZONE 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS')||'+00:00','zone',NULL,'fractional_digits',0))) AS body
+            ) INSERT INTO wl_ingestion.outbox
+            SELECT :t,:p,:head,:receipt,1,'facts.accepted.v1',1,:digest,body,encode(sha256(body),'hex'),
+                   instant,NULL FROM event
+        """, **identity, **ids, digest=plan_digest)
+        execute(conn, """
+            UPDATE wl_ingestion.roots SET accepted_generation=1,mapping_generation=1
+        """)
+        execute(conn, """
+            INSERT INTO wl_ingestion.members(
+              tenant_id,portfolio_id,set_id,id,ordinal,connection_id,connection_version,installation_id,
+              format_version,context_digest,context_bytes,state,fence,connection_generation,
+              enablement_generation,availability_generation,wrapper_profile_digest)
+            SELECT :t,:p,id,:member,0,:connection_id,repeat('4',64),:install,
+                   'synthetic-v1',encode(sha256(convert_to('{}','UTF8')),'hex'),
+                   convert_to('{}','UTF8'),'waiting',1,0,1,1,repeat('b',64)
+            FROM wl_ingestion.sets
+        """, **identity, **ids, install=install)
+        execute(conn, "SELECT wl_ingestion._quota_v1(:t,:p,'raw',1,0)", **identity)
+        execute(conn, """
+            INSERT INTO wl_ingestion.leases(
+              tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,
+              session_digest,credential_version,incarnation,restore_epoch,created_at,expires_at,state,raw_slot)
+            SELECT :t,:p,:head,s.id,:member,'normalize',1,1,w.id,repeat('1',64),1,
+                   s.incarnation,s.restore_epoch,now(),now()+interval '30 seconds','offered','held'
+            FROM wl_ingestion.sets s CROSS JOIN wl_ingestion.workers w
+        """, **identity, **ids)
+        execute(conn, "UPDATE wl_ingestion.members SET state='receiving'")
+        execute(conn, """
+            UPDATE wl_ingestion.members SET state='normalizing',raw_digest=repeat('c',64),raw_bytes=10
+        """)
+        execute(conn, """
+            INSERT INTO wl_ingestion.stages
+            SELECT tenant_id,portfolio_id,set_id,id,encode(sha256(:raw),'hex'),
+                   'minimal-evidence-v1',:raw,now(),(SELECT expires_at FROM wl_ingestion.sets)
+            FROM wl_ingestion.members
+        """, raw=raw)
+        execute(conn, """
+            UPDATE wl_ingestion.sets SET state='NORMALIZING',prepare_session_digest=repeat('1',64),
+                                        prepare_credential_version=1
+        """)
+        return raw, plan_bytes
+
+    def _verify_inactive_restores(self, operator, path, fixture, runtime, gateway, worker):
+        import sys
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from psycopg.conninfo import make_conninfo
+
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.context import Database, execute
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_restore import _pg_tool, backup_ingestion, restore_ingestion
+
+        socket = SimpleNamespace(hostaddr=b'', host=b'/tmp/synthetic-socket', port=b'46500',
+                                 user=b'synthetic_operator', db=b'synthetic_restore')
+        conn = SimpleNamespace(connection=SimpleNamespace(
+            driver_connection=SimpleNamespace(pgconn=socket)))
+        socket_config = PostgresConfig(make_conninfo(host=socket.host.decode(), dbname=socket.db.decode(),
+                                                    user=socket.user.decode()))
+        with patch('shutil.which', return_value='/synthetic/pg_restore'), patch('subprocess.run') as run:
+            run.return_value.stdout = b'pg_restore (PostgreSQL) 18.1'
+            _pg_tool(socket_config, conn, 'pg_restore', [])
+            child_environment = run.call_args.kwargs['env']
+            self.assertEqual(socket.host.decode(), child_environment['PGHOST'])
+            self.assertEqual(socket.port.decode(), child_environment['PGPORT'])
+            self.assertEqual(socket.user.decode(), child_environment['PGUSER'])
+            self.assertEqual(socket.db.decode(), child_environment['PGDATABASE'])
+
+        source = Database(PostgresConfig(make_conninfo(**dict(operator, dbname='synthetic_fresh'))))
+        self.addCleanup(source.close)
+        with source.engine.begin() as conn:
+            execute(conn, """
+                INSERT INTO wl_ingestion.instance_state VALUES
+                (1,convert_to('[]','UTF8'),encode(sha256(convert_to('[]','UTF8')),'hex'),repeat('a',64),false)
+            """)
+            execute(conn, 'INSERT INTO wl_ingestion.workers VALUES(:id,:role,:peer,true,1)',
+                    id=uuid.uuid4(), role=worker, peer='synthetic-peer')
+            execute(conn, '''
+                INSERT INTO wl_ingestion.roots(tenant_id,portfolio_id,accepted_generation,mapping_generation,control_generation)
+                SELECT id,portfolio_id,0,0,0 FROM wl_identity.users
+            ''')
+            execute(conn, '''
+                INSERT INTO wl_ingestion.sets(
+                    tenant_id,portfolio_id,id,actor_user_id,creation_operation_id,request_digest,
+                    incarnation,restore_epoch,realm_digest,state,revision,created_at,expires_at,
+                    member_count,reserved_bytes,cleanup_state)
+                SELECT u.id,u.portfolio_id,:set,u.id,:operation,repeat('b',64),st.incarnation,
+                       st.restore_epoch,repeat('c',64),'RECEIVING',1,now(),now()+interval '86400 seconds',
+                       1,0,'not_needed'
+                FROM wl_identity.users u CROSS JOIN wl_pg.instance_state st
+            ''', set=uuid.uuid4(), operation=uuid.uuid4())
+
+            execute(conn, """
+                SELECT wl_ingestion._quota_v1(id,portfolio_id,'storage',1,0) FROM wl_identity.users
+            """)
+            execute(conn, "UPDATE wl_ingestion.instance_state SET ready=true")
+            execute(conn, """
+                INSERT INTO wl_identity.sessions
+                SELECT repeat('1',64),'anonymous',NULL,NULL,now(),now(),now()+interval '600 seconds',
+                       incarnation,restore_epoch,false FROM wl_pg.instance_state
+            """)
+            execute(conn, """
+                INSERT INTO wl_identity.invites
+                SELECT :id,repeat('2',64),NULL,now(),now()+interval '86400 seconds',
+                       incarnation,restore_epoch,'issued',NULL,NULL FROM wl_pg.instance_state
+            """, id=uuid.uuid4())
+            source_realm = execute(conn, "SELECT incarnation,restore_epoch FROM wl_pg.instance_state").one()
+            expected_input, expected_plan = self._seed_restore_history(conn)
+
+        tools = path / 'postgres-tools'
+        tools.mkdir()
+        for name in ('pg_dump', 'pg_restore'):
+            wrapper = tools / name
+            # Use the pinned PostgreSQL 18 tools in this test's container. The
+            # tools connect to the same database through its container-local TCP.
+            wrapper.write_text(
+                '#!/bin/sh\n'
+                'export PGHOST=127.0.0.1 PGPORT=5432\n'
+                'exec docker exec -i -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER '
+                '-e PGPASSWORD -e PGSSLMODE -e PGCLIENTENCODING '
+                + fixture['container'] + ' ' + name + ' "$@"\n'
+            )
+            wrapper.chmod(0o700)
+        backup = path.resolve() / 'backup'
+        backup.mkdir(mode=0o700)
+        roles = dict(runtime_role=runtime, gateway_role=gateway, worker_role=worker)
+
+        def config(name):
+            return PostgresConfig(make_conninfo(**dict(operator, dbname=name)))
+
+        def cli(operation, database_name, *extra):
+            secret = path / (database_name + '.conninfo')
+            secret.touch(mode=0o600, exist_ok=False)
+            secret.write_text(config(database_name).conninfo)
+            result = subprocess.run(
+                [sys.executable, '-m', 'kurafolio.web_v2', 'operator', operation,
+                 '--secret-file', str(secret), '--backup-directory', str(backup),
+                 '--runtime-role', runtime, '--identity-role', gateway, '--worker-role', worker, *extra],
+                check=True, capture_output=True, timeout=45,
+            )
+            return json.loads(result.stdout)
+
+        with patch.dict(os.environ, {'PATH': str(tools) + os.pathsep + os.environ['PATH']}):
+            receipt = cli('backup-ingestion', 'synthetic_fresh')['manifest_sha256']
+            with self.assertRaisesRegex(PersistenceError, 'private_export_failed'):
+                backup_ingestion(config('synthetic_fresh'), backup, roles)
+            self.assertEqual(receipt, hashlib.sha256((backup / 'manifest.json').read_bytes()).hexdigest())
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_one'), backup, '0' * 64, roles)
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_fresh'), backup, receipt, roles)
+            manifest_file = backup / 'manifest.json'
+            archive_file = backup / 'ingestion.dump'
+            original_manifest = manifest_file.read_bytes()
+            original_archive = archive_file.read_bytes()
+            for raw in (original_manifest + b'\n', original_manifest.replace(b'"initialized":true', b'"initialized":1'),
+                        original_manifest[:-1] + b',"initialized":true}'):
+                manifest_file.write_bytes(raw)
+                with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                    restore_ingestion(config('synthetic_restore_one'), backup, hashlib.sha256(raw).hexdigest(), roles)
+            manifest_file.write_bytes(original_manifest)
+            archive_file.write_bytes(original_archive[:50])
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_one'), backup, receipt, roles)
+
+            def manifest_variant(update):
+                changed = json.loads(original_manifest)
+                update(changed)
+                raw = json.dumps(changed, separators=(',', ':'), sort_keys=True).encode()
+                manifest_file.write_bytes(raw)
+                return hashlib.sha256(raw).hexdigest()
+
+            def assert_empty(name):
+                database = Database(config(name))
+                try:
+                    with database.engine.connect() as conn:
+                        self.assertIsNone(execute(conn, "SELECT to_regnamespace('wl_ingestion')").scalar_one())
+                finally:
+                    database.close()
+
+            corrupt_receipt = manifest_variant(
+                lambda body: body.update(dump_sha256=hashlib.sha256(original_archive[:50]).hexdigest()))
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_corrupt'), backup, corrupt_receipt, roles)
+            assert_empty('synthetic_restore_corrupt')
+            archive_file.write_bytes(original_archive)
+            changed_receipt = manifest_variant(
+                lambda body: body['relations']['wl_ingestion.accepted_inputs'].update(sha256='0' * 64))
+            with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                restore_ingestion(config('synthetic_restore_changed'), backup, changed_receipt, roles)
+            manifest_file.write_bytes(original_manifest)
+            for name, code in (('synthetic_restore_open', 'restore_required'),
+                               ('synthetic_restore_temp', 'migration_target_invalid')):
+                with self.assertRaisesRegex(PersistenceError, code):
+                    restore_ingestion(config(name), backup, receipt, roles)
+                assert_empty(name)
+            with source.engine.begin() as conn:
+                execute(conn, 'UPDATE wl_ingestion.roots SET accepted_generation=accepted_generation+1')
+                savepoint = conn.begin_nested()
+                try:
+                    from kurafolio.persistence.ingestion_restore import _verify_history
+
+                    execute(conn, "ALTER TABLE wl_ingestion.lineage DISABLE TRIGGER lineage_guard")
+                    execute(conn, """
+                        UPDATE wl_ingestion.lineage l
+                        SET source_revision_id=(SELECT id FROM wl_ingestion.source_revisions
+                                                WHERE accepted_change='correction')
+                        WHERE l.source_revision_id=(SELECT id FROM wl_ingestion.source_revisions
+                                                    WHERE accepted_change='original' AND collection='records')
+                    """)
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        _verify_history(conn)
+                finally:
+                    savepoint.rollback()
+                savepoint = conn.begin_nested()
+                try:
+                    execute(conn, "ALTER TABLE wl_ingestion.activity_heads DISABLE TRIGGER activity_heads_guard")
+                    execute(conn, """
+                        UPDATE wl_ingestion.activity_heads SET revision_id=(
+                            SELECT parent_id FROM wl_ingestion.source_revisions WHERE accepted_change='correction')
+                    """)
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        _verify_history(conn)
+                finally:
+                    savepoint.rollback()
+                savepoint = conn.begin_nested()
+                try:
+                    execute(conn, "ALTER TABLE wl_ingestion.snapshot_heads DISABLE TRIGGER snapshot_heads_guard")
+                    execute(conn, "UPDATE wl_ingestion.snapshot_heads SET complete_base_revision_id=NULL")
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        _verify_history(conn)
+                finally:
+                    savepoint.rollback()
+            restored_realms = set()
+            for name in ('synthetic_restore_one', 'synthetic_restore_two'):
+                with self.subTest(restore=name):
+                    expected = {'schema_revision': '0004_ingestion', 'ready': False, 'quarantined': True}
+                    self.assertEqual(expected, cli('restore-ingestion', name, '--manifest-sha256', receipt))
+                    database = Database(config(name))
+                    try:
+                        with database.engine.connect() as conn:
+                            realm = execute(conn, 'SELECT incarnation,restore_epoch FROM wl_pg.instance_state').one()
+                            self.assertNotEqual(source_realm.incarnation, realm.incarnation)
+                            self.assertEqual(source_realm.restore_epoch + 1, realm.restore_epoch)
+                            restored_realms.add(realm.incarnation)
+                            self.assertFalse(execute(conn, 'SELECT ready FROM wl_pg.instance_state').scalar_one())
+                            self.assertFalse(execute(conn, 'SELECT ready FROM wl_ingestion.instance_state').scalar_one())
+                            self.assertFalse(execute(conn, 'SELECT enabled FROM wl_ingestion.workers').scalar_one())
+                            self.assertTrue(execute(conn, 'SELECT revoked FROM wl_identity.sessions').scalar_one())
+                            self.assertEqual('revoked', execute(conn, 'SELECT status FROM wl_identity.invites').scalar_one())
+                            self.assertEqual('CANCELLED', execute(conn, 'SELECT state FROM wl_ingestion.sets').scalar_one())
+                            self.assertEqual(1, execute(conn, 'SELECT accepted_generation FROM wl_ingestion.roots').scalar_one())
+                            self.assertEqual(expected_input, execute(conn, '''
+                                SELECT canonical_bytes FROM wl_ingestion.accepted_inputs
+                                WHERE digest=:digest
+                            ''', digest=hashlib.sha256(expected_input).hexdigest()).scalar_one())
+                            self.assertEqual(expected_plan, execute(conn, '''
+                                SELECT canonical_bytes FROM wl_ingestion.accepted_plans
+                            ''').scalar_one())
+                            self.assertEqual(0, execute(conn, 'SELECT count(*) FROM wl_ingestion.stages').scalar_one())
+                            self.assertIsNone(execute(conn, 'SELECT context_bytes FROM wl_ingestion.members').scalar_one())
+                            self.assertEqual(('cancelled', 'held'), execute(conn, '''
+                                SELECT state,raw_slot FROM wl_ingestion.leases
+                            ''').one())
+                            self.assertEqual(1, execute(conn, '''
+                                SELECT lease_count FROM wl_ingestion.instance_budgets WHERE bucket='raw'
+                            ''').scalar_one())
+                            for role in roles.values():
+                                self.assertFalse(execute(conn, """
+                                    SELECT pg_catalog.has_database_privilege(:role,current_database(),'CONNECT')
+                                """, role=role).scalar_one())
+                    finally:
+                        database.close()
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        restore_ingestion(config(name), backup, receipt, roles)
+            self.assertEqual(2, len(restored_realms))
+
+            for name, boundary in (
+                ('synthetic_restore_fault', 'after_restore_epoch'),
+                ('synthetic_restore_identity_fault', 'after_identity_invalidation'),
+                ('synthetic_restore_commit_fault', 'before_restore_commit'),
+                ('synthetic_restore_load_fault', 'after_archive_load'),
+                ('synthetic_restore_verify_fault', 'after_restore_verification'),
+            ):
+                with self.subTest(fault=boundary):
+                    def fault(phase):
+                        if phase == boundary:
+                            raise RuntimeError('synthetic restore rollback')
+
+                    failed = config(name)
+                    with self.assertRaisesRegex(RuntimeError, 'synthetic restore rollback'):
+                        restore_ingestion(failed, backup, receipt, roles, fault=fault)
+                    database = Database(failed)
+                    try:
+                        with database.engine.connect() as conn:
+                            realm = execute(conn, 'SELECT incarnation,restore_epoch FROM wl_pg.instance_state').one()
+                            self.assertEqual(source_realm, realm)
+                            self.assertFalse(execute(conn, 'SELECT revoked FROM wl_identity.sessions').scalar_one())
+                            self.assertEqual('NORMALIZING', execute(conn, 'SELECT state FROM wl_ingestion.sets').scalar_one())
+                            self.assertEqual(1, execute(conn, 'SELECT count(*) FROM wl_ingestion.stages').scalar_one())
+                            self.assertFalse(execute(conn, """
+                                SELECT pg_catalog.has_database_privilege(:role,current_database(),'CONNECT')
+                            """, role=worker).scalar_one())
+                    finally:
+                        database.close()
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        restore_ingestion(failed, backup, receipt, roles)
+                    self.assertEqual(expected, restore_ingestion(failed, backup, receipt, roles, resume=True))
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        restore_ingestion(failed, backup, receipt, roles, resume=True)
+
+
+@unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
                      'Opt-in isolated ingestion PostgreSQL fragment acceptance')
 class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     """Real SQL fragment checks; incomplete deferred-parent inserts roll back."""
@@ -248,7 +906,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     @classmethod
     def remove_owned_container(cls):
         listing = cls.command(['docker', 'container', 'ls', '-a', '--filter',
-            'name=' + cls.container, '--format', '{{.Names}} {{.Label "wealth-ledger.test-owner"}}'])
+            'name=' + cls.container, '--format', '{{.Names}} {{.Label "kurafolio.test-owner"}}'])
         if listing.returncode:
             raise AssertionError('Owned synthetic PostgreSQL cleanup could not be verified')
         exact = [line.split() for line in listing.stdout.decode().splitlines()
@@ -263,7 +921,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from wealth_ledger.persistence import schema as foundation, identity_schema, source_schema
+        from kurafolio.persistence import schema as foundation, identity_schema, source_schema
         cls.directory = tempfile.TemporaryDirectory(prefix='wl007-append-only-')
         cls.addClassCleanup(cls.directory.cleanup)
         secret = Path(cls.directory.name) / 'bootstrap.txt'
@@ -274,8 +932,8 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         cls.container = 'wl007-test-append-only-' + cls.owner[:12]
         cls.addClassCleanup(cls.remove_owned_container)
         result = cls.command(['docker', 'run', '-d', '--pull', 'never', '--name', cls.container,
-            '--label', 'wealth-ledger.test=ingestion-append-only',
-            '--label', 'wealth-ledger.test-owner=' + cls.owner, '--network', 'none',
+            '--label', 'kurafolio.test=ingestion-append-only',
+            '--label', 'kurafolio.test-owner=' + cls.owner, '--network', 'none',
             '--memory', '512m', '--cpus', '1', '--pids-limit', '128',
             '--tmpfs', '/var/lib/postgresql:rw,nosuid,nodev,size=512m',
             '--mount', 'type=bind,source=' + str(secret) + ',target=/run/secrets/bootstrap,readonly',
@@ -296,13 +954,16 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 + '\n' + schema.OUTBOX_GUARD_DDL + '\n' + schema.user_guard_ddl()
                 + '\n' + schema.minimal_validator_ddl() + '\n' + schema.plan_validator_ddl() + '\n' + schema.reference_validator_ddl() + '\n' + schema.REPLAY_DDL
                 + '\n' + schema.TRANSITION_DDL + '\n' + schema.HEAD_DDL + '\n' + schema.effects_ddl()
-                + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.PURGE_DDL
+                + '\n' + schema.ACCEPT_DDL + '\n' + schema.QUOTA_DDL + '\n' + schema.ADMIT_RATE_DDL
+                + '\n' + schema.PURGE_DDL
                 + '\n' + schema.CANCEL_DDL + '\n' + schema.DECIDE_DDL
                 + '\n' + schema.READ_SET_DDL + '\n' + schema.READ_RECEIPT_DDL
                 + '\n' + schema.READ_SETS_DDL + '\n' + schema.READ_PREVIEW_DDL
                 + '\n' + schema.worker_guard_ddl() + '\n' + schema.CREATE_DDL
                 + '\n' + schema.RESERVE_DDL + '\n' + schema.CLAIM_DDL + '\n' + schema.RENEW_DDL
-                + '\n' + schema.ADMIT_DDL + '\n' + schema.FINISH_DDL)
+                + '\n' + schema.ADMIT_DDL + '\n' + schema.FINISH_DDL
+                + '\n' + schema.CLAIM_PLAN_DDL + '\n' + schema.CLEANUP_SET_DDL
+                + '\n' + schema.read_plan_basis_ddl() + '\n' + schema.prepare_preview_ddl())
         cls.sql('CREATE TABLE wl_pg.alembic_version(version_num text PRIMARY KEY);')
         for trigger in schema.inventory()['triggers']:
             if trigger['function'] == '_immutable_v1':
@@ -314,7 +975,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_closed_minimal_shape_scalars_without_claiming_graph_admission(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         predicate = schema._minimal_shape_predicate()
         cases = []
         for name, value in ORACLE.items():
@@ -407,7 +1068,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_preserves_literals_and_has_no_public_execution(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = [(encode(value), None) for name, value in ORACLE.items()
                  if name.startswith('minimal-') or name.endswith('-minimal.json')]
         value = deepcopy(ORACLE['minimal-native.json'])
@@ -425,7 +1086,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
             "WHERE oid='wl_ingestion._validate_minimal_v1(bytea)'::regprocedure"))
 
     def test_minimal_entry_canonical_bytes_and_resource_errors(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         valid = encode(ORACLE['minimal-native.json'])
         cases = [(None, 'import_limit'), (b'', 'import_limit'),
             (b'x' * (4194304 + 1), 'import_limit'),
@@ -442,7 +1103,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_graph_satoshi_cash_and_unknown_evidence(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = []
         for field in ('account_local_id', 'asset_local_id', 'quantity'):
             value = deepcopy(ORACLE['minimal-native.json'])
@@ -485,7 +1146,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_legacy_offset_seconds_and_canonical_boundaries(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = []
         # Each canonical legacy token below denotes the literal trade instant
         # 2026-01-01T12:00:00+00:00, including positive/negative subminute offsets.
@@ -518,7 +1179,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_minimal_entry_shape_error_classes(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         cases = []
         value = deepcopy(ORACLE['minimal-native.json'])
         value['accounts'][0]['label'] = 'x' * 161
@@ -537,7 +1198,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     @staticmethod
     def _plan_seed(plan, *, decisions=None, stages=None):
         """Construct a rolled-back stored basis from fixed synthetic vectors."""
-        from wealth_ledger.ingestion.codec import encode, sha256
+        from kurafolio.ingestion.codec import encode, sha256
         def literal(value):
             if value is None:
                 return 'NULL'
@@ -615,7 +1276,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         return '\n'.join(statements)
 
     def _assert_plan(self, plan, *, raw=None, code=None, mutate_basis=''):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         raw = encode(plan) if raw is None else raw
         argument = "decode('" + raw.hex() + "','hex')"
         call = "wl_ingestion._validate_plan_v1('" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "','" + plan['set_id'] + "'," + argument + ')'
@@ -639,7 +1300,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_entry_rehashed_tampering_cannot_replace_stored_basis(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         original = ORACLE['plan-native-first-use.json']
         mutations = []
         plan = deepcopy(original)
@@ -670,7 +1331,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         self._assert_plan(original, code='import_stale', mutate_basis='DELETE FROM wl_ingestion.stages;')
 
     def test_plan_entry_raw_bounds_and_canonical_rejections(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan = ORACLE['plan-native-first-use.json']
         raw = encode(plan)
         for altered, code in ((raw + b'\n', 'import_invalid'),
@@ -684,7 +1345,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     @staticmethod
     def _preview_seed(plan):
-        from wealth_ledger.ingestion.codec import encode, digest
+        from kurafolio.ingestion.codec import encode, digest
         # The reference helper consumes the stored Plan. Review disclosure is a
         # separate prepare-preview responsibility, not granted by these markers.
         values = {'tenant_id': plan['tenant_id'], 'portfolio_id': plan['portfolio_id'],
@@ -714,9 +1375,9 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
     @staticmethod
     def _accepted_basis_seed(plan_name):
         """Retain immutable first-use vectors; this is not an acceptance engine."""
-        from wealth_ledger.ingestion.codec import encode, digest
-        from wealth_ledger.ingestion.reconciliation import source_revision_key, financial_projection
-        from wealth_ledger.ingestion.mapping import MappingIndex
+        from kurafolio.ingestion.codec import encode, digest
+        from kurafolio.ingestion.reconciliation import source_revision_key, financial_projection
+        from kurafolio.ingestion.mapping import MappingIndex
         plan = ORACLE[plan_name]
         input_ = plan['inputs'][0]
         minimal = next(v for v in ORACLE.values() if type(v) is dict and 'provenance' in v
@@ -776,7 +1437,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_rejects_rebound_ids_omitted_heads_and_wrong_scope(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         baseline = ORACLE['branch-fresh_duplicate_only-plan.json']
         cases = []
         plan = deepcopy(baseline)
@@ -813,8 +1474,9 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_entry_preparation_revision_is_checked_without_writing_state(self):
         plan = ORACLE['plan-native-first-use.json']
-        self._assert_plan(plan, mutate_basis="UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision-1;")
-        for mutation in ("UPDATE wl_ingestion.sets SET state='RECONCILING';",
+        reconciling = "UPDATE wl_ingestion.sets SET state='RECONCILING'," + self.PREPARE_ORIGIN
+        self._assert_plan(plan, mutate_basis=reconciling + ',revision=revision-1;')
+        for mutation in (reconciling + ';',
                 "UPDATE wl_ingestion.sets SET state='CANCELLED';",
                 "UPDATE wl_ingestion.members SET state='reupload_required';"):
             with self.subTest(mutation=mutation):
@@ -822,7 +1484,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_same_set_duplicate_uses_the_pinned_new_revision(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan = deepcopy(ORACLE['plan-native-first-use.json'])
         second = '20000000-0000-4000-8000-000000000099'
         for name in ('inputs', 'pinned_sources', 'mappings', 'facts'):
@@ -859,7 +1521,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def _reference_case(self, plan, *, baseline=None, code=None, stages=None):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan = deepcopy(plan)
         decisions = {'version': 1, 'operation_id': '10000000-0000-4000-8000-000000000099',
             'expected_set_revision': '1', **{k: plan[k] for k in ('mappings', 'new_entities', 'authorities', 'parents')}}
@@ -874,7 +1536,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_group_binding_and_void_need_source_authority(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         for name in ('branch-equal_value_explicit_correction-plan.json', 'branch-fresh_duplicate_only-plan.json'):
             plan = deepcopy(ORACLE[name])
             plan['facts'][0]['economic_group_id'] = '80000000-0000-4000-8000-000000000099'
@@ -894,7 +1556,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_same_set_correction_path_reaches_current_head(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan = deepcopy(ORACLE['branch-equal_value_explicit_correction-plan.json'])
         minimal = deepcopy(ORACLE['branch-equal_value_explicit_correction-minimal.json'])
         minimal['records'][0]['identity']['revision'] = 'r3'
@@ -928,7 +1590,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
 
     def test_plan_reference_entry_overlapping_connections_require_explicit_choice(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         for choice in (None, 'independent', 'mirror'):
             plan = deepcopy(ORACLE['plan-native-first-use.json'])
             first = plan['inputs'][0]['member_id']
@@ -960,7 +1622,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
                 self._reference_case(plan, code='import_conflict' if choice is None else None)
 
     def test_receipt_replay_exact_namespace_and_immutable_original_result(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         receipt = ORACLE['receipt-first-use.json']
         tenant, portfolio = ORACLE['plan-first-use.json']['tenant_id'], ORACLE['plan-first-use.json']['portfolio_id']
         raw = encode(receipt)
@@ -995,7 +1657,7 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
             "AND a.grantee=0 AND a.privilege_type='EXECUTE'"))
 
     def test_append_only_guard_and_no_public_execution(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         minimal = ORACLE['minimal-native.json']
         raw = encode(minimal)
         def literal(value):
@@ -1029,9 +1691,9 @@ class IngestionAppendOnlyPostgresTests(unittest.TestCase):
         self.assertEqual('0', self.sql('SELECT count(*) FROM wl_ingestion.accepted_inputs'))
 
     def test_user_guard_on_constructed_markers_checks_live_auth_not_financial_truth(self):
-        from wealth_ledger.data_sources import contract_v1 as contract
-        from wealth_ledger.data_sources.catalog_v1 import catalog_digest
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.data_sources import contract_v1 as contract
+        from kurafolio.data_sources.catalog_v1 import catalog_digest
+        from kurafolio.persistence import identity_schema
         catalog = contract.CatalogSnapshot(1, '0', (), (), ())
         catalog_bytes = contract.canonical(contract.primitive(catalog))
         expected_catalog = catalog_digest(catalog)
@@ -1118,7 +1780,7 @@ END $test$;
                 self.sql('BEGIN;' + seed + assertion + 'ROLLBACK;')
 
     def event_insert(self, value, *, row=None, raw=None):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         row = value if row is None else row
         raw = encode(value) if raw is None else raw
         def literal(token):
@@ -1140,7 +1802,7 @@ END $test$;
 
     def test_outbox_literal_events_and_closed_rehashed_mutants(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         events = [x['event'] for x in ORACLE['effect-oracles.json']['cases'] if x.get('event')]
         self.assertEqual(3, len(events))
         for event in events:
@@ -1180,7 +1842,7 @@ END $test$;
                 self.event_rejected(original, original, raw=raw, code=code)
 
     def test_canonical_aggregation_preserves_exact_unicode_and_large_array_bytes(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         for value in ({'\u53f0\u7063': 'value', '\u00e9': [True, False, None], 'A': {'z': -1, 'a': 0}},
                       {}, [], ['x'] * 40000, {'heads': ['a' * 64] * 40000}):
             raw = encode(value)
@@ -1227,6 +1889,8 @@ END $test$;
     T, P = '30000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002'
     WORKER, DISABLED = 'c7000000-0000-4000-8000-000000000001', 'c7000000-0000-4000-8000-000000000002'
     INCARNATION = '70000000-0000-4000-8000-000000000002'
+    PREPARE_ORIGIN = "prepare_session_digest=repeat('f',64),prepare_credential_version=1"
+    CLEAR_PREPARE_ORIGIN = 'prepare_session_digest=NULL,prepare_credential_version=NULL'
 
     class Expression(str):
         pass
@@ -1250,11 +1914,14 @@ END $test$;
     def set_row(cls, set_id, state='RECEIVING', revision=1, created='now()', members=2, reserved=0,
                 portfolio=None):
         e = cls.Expression
+        pending_prepare = state in ('NORMALIZING', 'RECONCILING')
         return cls.row('sets', {'tenant_id': cls.T, 'portfolio_id': portfolio or cls.P, 'id': set_id,
             'actor_user_id': cls.T, 'creation_operation_id': 'c1' + set_id[2:], 'request_digest': 'a' * 64,
             'incarnation': cls.INCARNATION, 'restore_epoch': 0, 'realm_digest': 'b' * 64, 'state': state,
             'revision': revision, 'created_at': e(created), 'expires_at': e(created + "+interval '86400 seconds'"),
-            'member_count': members, 'reserved_bytes': reserved, 'receipt_id': None, 'cleanup_state': 'not_needed'})
+            'member_count': members, 'reserved_bytes': reserved, 'receipt_id': None, 'cleanup_state': 'not_needed',
+            'prepare_session_digest': 'f' * 64 if pending_prepare else None,
+            'prepare_credential_version': 1 if pending_prepare else None})
 
     @classmethod
     def member_row(cls, set_id, member_id, ordinal, state='waiting', fence=1, raw=None, stage=None):
@@ -1268,7 +1935,7 @@ END $test$;
 
     @classmethod
     def lease_row(cls, lease_id, set_id, member_id, worker=None, state='offered', fence=1,
-                  token=None, created='now()', expires="now()+interval '20 seconds'", kind='normalize'):
+                  token=None, created='now()', expires="now()+interval '20 seconds'", kind='normalize', **pins):
         e = cls.Expression
         return cls.row('leases', {'tenant_id': cls.T, 'portfolio_id': cls.P, 'id': lease_id, 'set_id': set_id,
             'member_id': member_id, 'work_kind': kind, 'attempt': 1, 'fence': fence,
@@ -1276,12 +1943,13 @@ END $test$;
             'credential_version': 1, 'incarnation': cls.INCARNATION, 'restore_epoch': 0,
             'created_at': e(created), 'expires_at': e(expires), 'state': state,
             'claim_request_id': None, 'claim_request_digest': None, 'last_request_id': None,
-            'last_request_digest': None, 'last_result_bytes': None})
+            'last_request_digest': None, 'last_result_bytes': None,
+            'raw_slot': 'held' if kind == 'normalize' else None, 'cleanup_proof_bytes': None, **pins})
 
     @classmethod
     def revision_row(cls, revision_id, change='original', parent=None, collection='records',
                      typed=None, number=0):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         typed = encode(typed if typed is not None else {'record_type': 'activity', 'n': number})
         return cls.row('source_revisions', {'tenant_id': cls.T, 'portfolio_id': cls.P, 'id': revision_id,
             'source_key': hashlib.sha256(revision_id.encode()).hexdigest(), 'source_revision': '1',
@@ -1316,34 +1984,39 @@ END $test$;
             self.rejects(self.set_row(fresh, 'READY')),
             self.rejects(self.set_row(fresh, created="now()-interval '2 days'")),
             self.rejects(update + "state='READY'" + where),
-            update + "state='NORMALIZING'" + where + ';',
+            update + "state='NORMALIZING'," + self.PREPARE_ORIGIN + where + ';',
+            self.rejects(update + "prepare_session_digest=repeat('e',64)" + where),
             self.rejects(update + "state='COMMITTED',revision=2,receipt_id='" + fresh + "'" + where),
             self.rejects(update + "state='READY'" + where),
             self.rejects(update + "state='NEEDS_MAPPING',revision=2" + where),
-            update + "state='READY',revision=2" + where + ';',
-            update + "state='RECONCILING',revision=3" + where + ';',
-            update + "state='READY',revision=4" + where + ';',
+            self.rejects(update + "state='READY',revision=2," + self.CLEAR_PREPARE_ORIGIN + where),
+            update + "state='NEEDS_MAPPING'," + self.CLEAR_PREPARE_ORIGIN + where + ';',
+            update + "state='RECONCILING',revision=2," + self.PREPARE_ORIGIN + where + ';',
+            update + "state='READY',revision=3," + self.CLEAR_PREPARE_ORIGIN + where + ';',
+            update + "state='RECONCILING',revision=4," + self.PREPARE_ORIGIN + where + ';',
+            update + "state='READY',revision=5," + self.CLEAR_PREPARE_ORIGIN + where + ';',
             self.rejects(update + "cleanup_state='pending'" + where),
             self.rejects(update + 'member_count=1' + where),
             self.rejects(update + "expires_at=expires_at+interval '1 second',created_at=created_at+interval '1 second'" + where),
-            update + "state='COMMITTED',revision=5,receipt_id='" + fresh + "'" + where + ';',
-            self.rejects(update + "state='CANCELLED',revision=6" + where),
+            update + "state='COMMITTED',revision=6,receipt_id='" + fresh + "'" + where + ';',
+            self.rejects(update + "state='CANCELLED',revision=7" + where),
             self.rejects(update + "receipt_id='" + old + "'" + where),
             update + "cleanup_state='pending'" + where + ';',
             update + "cleanup_state='complete'" + where + ';',
             self.rejects(update + "cleanup_state='pending'" + where),
             self.rejects('DELETE FROM wl_ingestion.sets' + where),
             # Expiry wins over every other live transition at the DB clock.
-            self.rejects(update + "state='READY',revision=2 WHERE id='" + old + "'", 'import_expired'),
+            self.rejects(update + "state='NEEDS_MAPPING'," + self.CLEAR_PREPARE_ORIGIN
+                         + " WHERE id='" + old + "'", 'import_expired'),
             self.rejects(update + "state='EXPIRED',revision=2 WHERE id='" + old + "'"),
-            update + "state='EXPIRED' WHERE id='" + old + "';",
+            update + "state='EXPIRED'," + self.CLEAR_PREPARE_ORIGIN + " WHERE id='" + old + "';",
             self.set_row(fresh),
             self.rejects(update + "state='EXPIRED' WHERE id='" + fresh + "'", 'import_expired'),
             self.rejects('UPDATE wl_ingestion.roots SET accepted_generation=2'),
             'UPDATE wl_ingestion.roots SET accepted_generation=1,mapping_generation=1;',
             self.rejects('DELETE FROM wl_ingestion.roots'),
             "DO $test$ BEGIN IF (SELECT pg_catalog.string_agg(state||':'||revision||':'||cleanup_state,',' "
-            "ORDER BY id) FROM wl_ingestion.sets)<>'COMMITTED:5:complete,EXPIRED:1:not_needed,RECEIVING:1:not_needed' "
+            "ORDER BY id) FROM wl_ingestion.sets)<>'COMMITTED:6:complete,EXPIRED:1:not_needed,RECEIVING:1:not_needed' "
             "THEN RAISE EXCEPTION 'unexpected_set_states'; END IF; END $test$;"])
 
     def test_transition_guard_member_fences_raw_binding_and_stale_leases(self):
@@ -1413,7 +2086,7 @@ END $test$;
 
     def test_transition_guard_transient_rows_pin_previews_and_purge_after_terminal(self):
         live, member, view, stale = ('a3000000-0000-4000-8000-00000000000' + x for x in '1234')
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan = encode({'synthetic': 'plan'})
         seed = (self.row('roots', {'tenant_id': self.T, 'portfolio_id': self.P, 'accepted_generation': 2,
                     'mapping_generation': 3, 'control_generation': 4}) +
@@ -1440,7 +2113,7 @@ END $test$;
         self.guarded(seed, [
             decision(1), self.rejects(decision(3)),
             self.rejects('UPDATE wl_ingestion.decisions SET created_at=created_at'),
-            update + "state='READY',revision=3;",
+            update + "state='READY',revision=3," + self.CLEAR_PREPARE_ORIGIN + ';',
             self.rejects(decision(2)),
             self.rejects(preview(stale, accepted=1)),
             self.rejects(preview(stale, plan_bytes=None)),
@@ -1552,7 +2225,7 @@ END $test$;
             ':true,' + ids['C2'] + ':true,' + ids['P1'] + ":true' THEN RAISE EXCEPTION 'unexpected_heads'; END IF; END $test$;"])
 
     def test_head_guard_snapshot_key_scope_complete_base_and_order(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         effects = ORACLE['snapshot-history-effects.json']
         preimage = effects['head_preimage']
         self.assertEqual(effects['head_digest'], hashlib.sha256(encode(preimage)).hexdigest())
@@ -1706,7 +2379,7 @@ END $test$;
                                   out['HEADS'][0]['activity'])
 
     def test_effects_authority_only_appends_the_existing_link_revision(self):
-        from wealth_ledger.ingestion.codec import encode, digest
+        from kurafolio.ingestion.codec import encode, digest
         case = next(x for x in ORACLE['effect-oracles.json']['cases'] if x['name'] == 'authority_only_explicit_mirror')
         prestate = ORACLE['authority-only-prestate.json']
         base, plan = ORACLE[prestate['base_plan']], ORACLE['authority-only-plan.json']
@@ -1760,8 +2433,8 @@ END $test$;
 
     def test_effects_rejects_one_source_identity_mapped_to_two_targets(self):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import digest
-        from wealth_ledger.ingestion.mapping import proposed_body
+        from kurafolio.ingestion.codec import digest
+        from kurafolio.ingestion.mapping import proposed_body
         plan = deepcopy(ORACLE['plan-first-use.json'])
         member = plan['inputs'][0]['member_id']
         minimal = deepcopy(next(v for v in ORACLE.values() if type(v) is dict and 'provenance' in v
@@ -1795,7 +2468,8 @@ END $test$;
         plan = ORACLE['plan-first-use.json']
         first = self.effects_call(plan, 'b0000000-0000-4000-8000-000000000001')
         again = self.effects_call(plan, 'b0000000-0000-4000-8000-0000000000aa')
-        self.sql('BEGIN;' + self._plan_seed(plan) + self._preview_seed(plan) + "UPDATE wl_ingestion.sets SET state='RECONCILING';" +
+        self.sql('BEGIN;' + self._plan_seed(plan) + self._preview_seed(plan) +
+            "UPDATE wl_ingestion.sets SET state='RECONCILING'," + self.PREPARE_ORIGIN + ';' +
             self.rejects('PERFORM ' + first, 'import_stale') + "DO $test$ BEGIN IF (SELECT count(*) FROM "
             "wl_ingestion.accepted_plans)<>0 THEN RAISE EXCEPTION 'reconciling_accepted'; END IF; END $test$;ROLLBACK;")
         self.sql('BEGIN;' + self._plan_seed(plan) + self._preview_seed(plan) + 'SELECT ' + first + ';' +
@@ -1821,7 +2495,7 @@ END $test$;
     def accept_seed(self, *, expires_in_hours=12, availability='ACTIVE', installations=None):
         from copy import deepcopy
         import datetime
-        from wealth_ledger.ingestion.codec import encode, digest
+        from kurafolio.ingestion.codec import encode, digest
         plan = deepcopy(ORACLE['plan-first-use.json'])
         expires = (datetime.datetime.now(datetime.timezone.utc) +
                    datetime.timedelta(hours=expires_in_hours)).replace(microsecond=0)
@@ -1870,7 +2544,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         return plan, seed + self._plan_seed(plan) + self._preview_seed(plan), hashlib.sha256(catalog).hexdigest()
 
     def accept_statement(self, label, payload, catalog_digest, *, session=None):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         payload_text = json.dumps(payload).replace("'", "''")
         return ("DO $accept$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; "
@@ -1896,7 +2570,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         return out
 
     def test_accept_preview_commits_once_and_replays_the_exact_receipt(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.accept_seed()
         operation = '50000000-0000-4000-8000-000000000001'
         payload = {'operation_id': operation, 'preview_id': plan['preview_id'], 'preview_digest': digest(plan)}
@@ -1936,7 +2610,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(expected, out['AFTER'])
 
     def test_accept_preview_rejects_stale_sources_and_requests_without_writing(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.accept_seed()
         payload = {'operation_id': '50000000-0000-4000-8000-000000000003', 'preview_id': plan['preview_id'],
                    'preview_digest': digest(plan)}
@@ -1979,7 +2653,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual({'ok': False, 'code': 'source_unavailable'}, out['RESULT'])
 
     def test_accept_preview_expiry_wins_and_fences_the_set(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.accept_seed(expires_in_hours=-1)
         payload = {'operation_id': '50000000-0000-4000-8000-000000000004', 'preview_id': plan['preview_id'],
                    'preview_digest': digest(plan)}
@@ -2064,6 +2738,58 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             "'control:1:0:0:0,raw:14:0:0:0,read:60:0:0:0,storage:0:0:7:" + str(7 * full) + "' THEN "
             "RAISE EXCEPTION 'unexpected_instance_budgets'; END IF; END $test$;"])
 
+    def test_gateway_rate_admission_preserves_the_charge_after_request_refusal(self):
+        plan, seed, catalog = self.accept_seed()
+        # The savepoint is after admission so rolling back the refused operation
+        # leaves the earlier charge visible without persisting the test fixture.
+        out = self.run_labelled(seed
+            + self.gateway_expression('admit_rate_v1', 'admit', "'read'", catalog)
+            + 'SAVEPOINT main_request;'
+            + self.gateway_statement('read_set_v1', 'refused', {'set_id': plan['set_id'], 'extra': 1}, catalog)
+            + 'ROLLBACK TO SAVEPOINT main_request;'
+            + self.gateway_expression('admit_rate_v1', 'invalid', "'raw'", catalog)
+            + self.gateway_expression('admit_rate_v1', 'missing', 'NULL', catalog)
+            + self.gateway_expression('admit_rate_v1', 'unauthenticated', "'control'", catalog, session='0' * 64)
+            + self.STATE
+            + "SELECT 'RATES '||pg_catalog.jsonb_build_array("
+              "(SELECT jsonb_agg(jsonb_build_array(bucket,used_count) ORDER BY bucket) FROM wl_ingestion.quotas),"
+              "(SELECT jsonb_agg(jsonb_build_array(bucket,used_count) ORDER BY bucket) "
+              "FROM wl_ingestion.instance_budgets))::text;")
+        self.assertEqual({'ok': True, 'value': None}, out['ADMIT'])
+        for label in ('REFUSED', 'INVALID', 'MISSING'):
+            self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label])
+        self.assertFalse(out['UNAUTHENTICATED']['ok'])
+        self.assertEqual([[['read', 1]], [['read', 1]]], out['RATES'])
+        self.assertEqual(0, out['STATE']['receipts'])
+
+    def test_gateway_rate_admission_enforces_both_limits_for_each_bucket(self):
+        plan, seed, catalog = self.accept_seed()
+        for bucket, user_limit, instance_limit in (('read', 60, 600), ('control', 30, 300)):
+            for exhausted, user_count, instance_count in (
+                    ('user', user_limit, user_limit), ('instance', 1, instance_limit)):
+                with self.subTest(bucket=bucket, exhausted=exhausted):
+                    values = {'bucket': bucket, 'window_start': self.Expression('now()'), 'reserved_bytes': 0,
+                              'lease_count': 0, 'outstanding_sets': 0}
+                    out = self.run_labelled(seed
+                        + self.row('quotas', dict(values, tenant_id=plan['tenant_id'],
+                                                 portfolio_id=plan['portfolio_id'], used_count=user_count - 1))
+                        + self.row('instance_budgets', dict(values, used_count=instance_count - 1))
+                        + self.gateway_expression('admit_rate_v1', 'last', f"'{bucket}'", catalog)
+                        + self.gateway_expression('admit_rate_v1', 'busy', f"'{bucket}'", catalog)
+                        + "SELECT 'COUNTS '||pg_catalog.jsonb_build_array("
+                          "(SELECT used_count FROM wl_ingestion.quotas),"
+                          "(SELECT used_count FROM wl_ingestion.instance_budgets))::text;")
+                    self.assertEqual({'ok': True, 'value': None}, out['LAST'])
+                    self.assertEqual({'ok': False, 'code': 'import_busy'}, out['BUSY'])
+                    self.assertEqual([user_count, instance_count], out['COUNTS'])
+
+    def test_gateway_rate_admission_is_not_public(self):
+        self.assertEqual('f', self.sql(
+            "SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_proc p, "
+            "LATERAL pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f',p.proowner))) a "
+            "WHERE p.oid='wl_ingestion.admit_rate_v1(text,uuid,bigint,jsonb,text,text)'::regprocedure "
+            "AND a.grantee=0 AND a.privilege_type='EXECUTE');"))
+
     def test_quota_instance_storage_bound_spans_portfolios(self):
         full = schema.SET_RESERVATION_BYTES
         portfolios = ['30000000-0000-4000-8000-0000000002' + format(x, '02d') for x in range(8)]
@@ -2102,7 +2828,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             self.quota_call('storage', 1, full),
             self.rejects(purge.format(live)),
             self.rejects(purge.format(missing), 'not_found'),
-            "UPDATE wl_ingestion.sets SET state='CANCELLED',revision=3 WHERE id='" + live + "';",
+            "UPDATE wl_ingestion.sets SET state='CANCELLED',revision=3," + self.CLEAR_PREPARE_ORIGIN +
+            " WHERE id='" + live + "';",
             "UPDATE wl_ingestion.members SET state='cancelled' WHERE id='" + member + "';",
             # Live work may still own a child or raw slot; cleanup fails closed.
             self.rejects(purge.format(live), 'import_busy'),
@@ -2152,14 +2879,17 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def cancel_seed(self, **kwargs):
         plan, seed, catalog = self.accept_seed(**kwargs)
-        lease = self.lease_row('a6000000-0000-4000-8000-000000000001', plan['set_id'], None, kind='prepare').replace(
+        lease = self.lease_row('a6000000-0000-4000-8000-000000000001', plan['set_id'], None, kind='prepare',
+            prepare_set_revision=plan['expected_set_revision'], prepare_accepted_generation=plan['expected_accepted_generation'],
+            prepare_mapping_generation=plan['expected_mapping_generation'],
+            prepare_control_generation=plan['expected_control_generation']).replace(
             "'" + self.T + "'", "'" + plan['tenant_id'] + "'").replace("'" + self.P + "'", "'" + plan['portfolio_id'] + "'")
         worker = self.row('workers', {'id': self.WORKER, 'login_role': 'wl_worker', 'peer_identity': 'peer-a',
                                       'enabled': True, 'credential_epoch': 1})
         return plan, seed + worker + lease + self.TRANSITION_TRIGGERS, catalog
 
     def test_cancel_wins_once_fences_work_and_replays_its_receipt(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.cancel_seed()
         revision = plan['expected_set_revision']
         payload = {'operation_id': '51000000-0000-4000-8000-000000000001', 'set_id': plan['set_id'],
@@ -2191,7 +2921,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(expected, out['CAFTER'])
 
     def test_cancel_after_acceptance_returns_the_committed_set_unchanged(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.cancel_seed()
         confirm = {'operation_id': '51000000-0000-4000-8000-000000000004', 'preview_id': plan['preview_id'],
                    'preview_digest': digest(plan)}
@@ -2260,14 +2990,18 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         "(SELECT control_generation FROM wl_ingestion.roots),'previews',(SELECT count(*) FROM wl_ingestion.previews))::text;")
 
     def test_decide_appends_one_revision_fences_preparation_and_replays(self):
-        from wealth_ledger.ingestion.codec import digest, encode
+        from kurafolio.ingestion.codec import digest, encode
         plan, seed, catalog = self.cancel_seed()
+        alternate = '7' * 64
+        seed += ("INSERT INTO wl_identity.sessions SELECT '" + alternate + "',kind,user_id,credential_version,"
+                 "created_at,last_activity,expires_at,incarnation,epoch,revoked FROM wl_identity.sessions "
+                 "WHERE token_digest=repeat('1',64);")
         payload = self.decide_payload(plan)
         revision, control = int(plan['expected_set_revision']), int(plan['expected_control_generation'])
         confirm = {'operation_id': '52000000-0000-4000-8000-000000000009', 'preview_id': plan['preview_id'],
                    'preview_digest': digest(plan)}
         out = self.run_labelled(seed + self.DECIDE_STATE.replace("'DSTATE '", "'DBEFORE '") +
-            self.gateway_statement('decide_set_v1', 'first', payload, catalog) + self.DECIDE_STATE +
+            self.gateway_statement('decide_set_v1', 'first', payload, catalog, session=alternate) + self.DECIDE_STATE +
             self.gateway_statement('decide_set_v1', 'again', payload, catalog) +
             self.gateway_statement('decide_set_v1', 'reused', self.decide_payload(plan, mappings=[]), catalog) +
             self.gateway_statement('decide_set_v1', 'fresh', self.decide_payload(
@@ -2277,9 +3011,12 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             "SELECT 'RID '||pg_catalog.jsonb_build_object('id',(SELECT id FROM wl_ingestion.receipts))::text;" +
             "SELECT 'STORED '||pg_catalog.jsonb_build_object('match',(SELECT canonical_bytes FROM wl_ingestion.decisions ORDER BY revision DESC LIMIT 1)="
             "decode('" + encode(payload['decisions']).hex() + "','hex'))::text;" +
-            self.DECIDE_STATE.replace("'DSTATE '", "'DAFTER '"))
+            self.DECIDE_STATE.replace("'DSTATE '", "'DAFTER '") +
+            "SELECT 'ORIGIN '||jsonb_build_array(prepare_session_digest=repeat('7',64),"
+            "prepare_credential_version)::text FROM wl_ingestion.sets;")
         first = out['FIRST']
         self.assertTrue(first['ok'], first)
+        self.assertEqual([True, 1], out['ORIGIN'])
         self.assertEqual(('RECONCILING', str(revision + 1)), (first['value']['state'], first['value']['revision']))
         before = out['DBEFORE']['decisions'] or []
         expected = {'set': ['RECONCILING', revision + 1, 'not_needed'],
@@ -2310,7 +3047,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             ('bad_mapping_kind', bad_mapping, '', 'import_invalid'),
             ('too_many_mappings', self.decide_payload(plan, mappings=good['decisions']['mappings'] * 129), '', 'import_invalid'),
             ('extra_top_level', dict(good, facts=[]), '', 'import_invalid'),
-            ('reconciling', good, "UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1;", 'import_stale'),
+            ('reconciling', good, "UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1," +
+             self.PREPARE_ORIGIN + ';', 'import_stale'),
             ('rejected', good, "SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET state='REJECTED';"
              'SET LOCAL session_replication_role=origin;', 'import_stale'),
             # Retained transient bytes already fill the fixed set reservation.
@@ -2336,7 +3074,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(['EXPIRED', int(plan['expected_set_revision']), 'pending'], out['DSTATE']['set'])
 
     def test_read_set_and_receipt_stay_in_scope_and_rebuild_control_receipts(self):
-        from wealth_ledger.ingestion.codec import digest
+        from kurafolio.ingestion.codec import digest
         plan, seed, catalog = self.cancel_seed()
         cancel = {'operation_id': '52000000-0000-4000-8000-000000000003', 'set_id': plan['set_id'],
                   'expected_set_revision': plan['expected_set_revision']}
@@ -2395,7 +3133,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     # previous `next` payload as its cursor inside the same transaction. The
     # API checks the MAC before this point; SQL rechecks every binding.
     def gateway_expression(self, function, label, payload_sql, catalog_digest, *, session=None):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         return ("DO $paged$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion." + function + "('" +
             (session or self.SESSION) + "','" + ORACLE['plan-first-use.json']['tenant_id'] + "',1," +
@@ -2458,7 +3196,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def review_seed(self, plan):
         from copy import deepcopy
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         document = deepcopy(ORACLE['mixed-set-review.json'])
         document.update(id=plan['preview_id'], set_id=plan['set_id'])
         raw = encode(document)
@@ -2479,8 +3217,9 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             page('setcursor', "pg_catalog.jsonb_set(pg_catalog.jsonb_set(pg_catalog.jsonb_set(" + self.previous('p1') +
                  ",'{resource_id}','null'),'{resource_revision}','null'),'{review_digest}','null')") +
             page('missing', preview='20000000-0000-4000-8000-0000000000ff') +
-            "SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1;"
-            "SET LOCAL session_replication_role=origin;" + page('stale') + page('oldcursor', self.previous('p1')))
+            "SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET state='RECONCILING',revision=revision+1," +
+            self.PREPARE_ORIGIN + ";SET LOCAL session_replication_role=origin;" + page('stale') +
+            page('oldcursor', self.previous('p1')))
         rows = [r for label in ('P1', 'P2', 'P3', 'P4') for r in out[label]['value']['page']['rows']]
         self.assertEqual(document['content']['rows'], rows)
         self.assertEqual([10, 10, 10, 5], [len(out[x]['value']['page']['rows']) for x in ('P1', 'P2', 'P3', 'P4')])
@@ -2521,7 +3260,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def worker_guard_statement(self, label, *, worker=None, token=None, epoch='1', realm=None, extra=''):
         realm_sql = ("pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" + __import__(
-            'wealth_ledger.persistence.identity_schema', fromlist=['realm']).realm() + ")),'hex')") if realm is None \
+            'kurafolio.persistence.identity_schema', fromlist=['realm']).realm() + ")),'hex')") if realm is None \
             else "'" + realm + "'"
         return ("DO $worker$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion._guard_worker_v1('" +
@@ -2590,7 +3329,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def internal_error(self, function, payload_sql, catalog):
         """A gateway call that must fail closed with internal_error, not return data."""
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         return ("DO $failclosed$ DECLARE st wl_pg.instance_state%ROWTYPE; BEGIN "
             "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; BEGIN PERFORM wl_ingestion." + function + "('" +
             self.SESSION + "','" + ORACLE['plan-first-use.json']['tenant_id'] + "',1," + identity_schema.realm() +
@@ -2651,8 +3390,9 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         plan, seed, catalog = self.cancel_seed()
         for state in ('RECEIVING', 'NORMALIZING'):
             with self.subTest(state=state):
+                fields = self.PREPARE_ORIGIN if state == 'NORMALIZING' else self.CLEAR_PREPARE_ORIGIN
                 mutation = ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET state='" + state +
-                            "';SET LOCAL session_replication_role=origin;")
+                            "'," + fields + ";SET LOCAL session_replication_role=origin;")
                 out = self.run_labelled(seed + mutation + self.DECIDE_STATE.replace("'DSTATE '", "'BEFORE '") +
                     self.gateway_statement('decide_set_v1', 'result', self.decide_payload(plan), catalog) +
                     self.DECIDE_STATE)
@@ -2725,8 +3465,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         # read_preview_v1: ReviewContent.rows has no minimum, so an empty review is a
         # valid document. Its first page is empty (WL-P0-007I); a cursor past the
         # end is still stale.
-        from wealth_ledger.ingestion.codec import encode
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.persistence import identity_schema
         plan, seed, catalog = self.accept_seed()
         document, _ = self.review_seed(plan)
         document['content']['rows'] = []
@@ -2786,7 +3526,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     IMAGE_DIGEST = '83125eb1979a26b9249616951138ab5afc27bd21a215bb5b4612b235acd3c34f'
 
     def create_seed(self, *, projection='parser2-minimal-v1', profiles=1, formats=None, quota_sets=0, availability='ACTIVE'):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan, seed, catalog = self.accept_seed(availability=availability)
         pin = plan['pinned_sources'][0]
         profile = {'version': 1, 'installation_id': pin['installation_id'], 'image_digest': self.IMAGE_DIGEST,
@@ -2825,7 +3565,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         "FROM wl_ingestion.members m JOIN wl_ingestion.sets s ON s.id=m.set_id WHERE s.state='RECEIVING' ORDER BY m.ordinal LIMIT 1;")
 
     def test_create_reserves_once_pins_sources_and_builds_the_parser_context(self):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         plan, pin, seed, catalog = self.create_seed()
         payload = self.create_payload(pin)
         realm = ("DO $realm$ DECLARE st wl_pg.instance_state%ROWTYPE; BEGIN SELECT * INTO st FROM wl_pg.instance_state "
@@ -3078,7 +3818,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         return plan, pin, seed, catalog
 
     def lease_call(self, function, label, *, token=None, data='NULL', drop=(), prelude='', **fields):
-        from wealth_ledger.persistence import identity_schema
+        from kurafolio.persistence import identity_schema
         values = {'version': '1', 'work_kind': "'normalize'",
                   'realm_digest': "pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" +
                                   identity_schema.realm() + ")),'hex')",
@@ -3126,7 +3866,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                     self.assertNotIn(fragment, ddl)
 
     def test_claim_activates_the_bound_offer_once_and_renew_extends_it(self):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         plan, pin, seed, catalog = self.claim_seed()
         renew_two = "'c0000000-0000-4000-8000-000000000003'"
         out = self.run_labelled(seed + self.LEASE_STATE.replace("'LSTATE '", "'BEFORE '") +
@@ -3220,7 +3960,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
     # admit_stage_v1 receives canonical minimal evidence rebound to the member's
     # database-built context, as a real child result would be.
     def admit_call(self, label, *, fixture='minimal-parser2.json', mutate='', **fields):
-        from wealth_ledger.ingestion.codec import encode
+        from kurafolio.ingestion.codec import encode
         source = encode(ORACLE[fixture]).decode()
         assert '$fixture$' not in source
         member = ("FROM wl_ingestion.members m JOIN wl_ingestion.sets x ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1")
@@ -3411,6 +4151,8 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
                 "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' " + self.OWN + ")",
                 "'40000000-0000-4000-8000-0000000000ff'")}, 'import_invalid'),
             ('proof_state', seed, {'proofs': ('gone',)}, 'import_invalid'),
+            ('proof_time_long', seed, {'cleanup_proofs': self.proofs('absent').replace(
+                '2026-02-02T13:00:10+00:00', '9' * 5000)}, 'import_invalid'),
             ('unclaimed', self.claim_seed()[2], {}, 'import_stale'),
             ('wrong_token', seed, {'token': 'cd' * 32}, 'authentication_required'),
             ('old_fence', seed, {'fence': "'2'", 'cleanup_proofs': self.proofs('absent').replace("'fence','1'", "'fence','2'")},
@@ -3471,6 +4213,1037 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
             with self.subTest(function=name):
                 self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
                     "'wl_ingestion." + name + "(uuid,text,jsonb,bytea)','EXECUTE')"))
+
+    # Cleanup leases: claim_plan_v1 hands out one terminal set at a time and
+    # cleanup_set_v1 releases each held raw slot once before purging the set.
+    OWN_SET = ("(SELECT x.id::text FROM wl_ingestion.sets x WHERE "
+               "x.creation_operation_id='53000000-0000-4000-8000-000000000001')")
+    CLEANUP_TOKEN = 'cd' * 32
+
+    def worker_call(self, function, label, values, *, token=None, data='NULL'):
+        request = 'pg_catalog.jsonb_build_object(' + ','.join("'" + k + "'," + v for k, v in values.items()) + ')'
+        return ("DO $worker_call$ DECLARE st wl_pg.instance_state%ROWTYPE;r jsonb; BEGIN "
+                "SELECT * INTO st FROM wl_pg.instance_state WHERE id=1; r:=wl_ingestion." + function + "('" + self.WORKER + "','" +
+                (token or self.CLEANUP_TOKEN) + "'," + request + "," + data + "); "
+                "PERFORM pg_catalog.set_config('test." + label + "',r::text,true); END $worker_call$;"
+                "SELECT '" + label.upper() + " '||pg_catalog.current_setting('test." + label + "');")
+
+    @staticmethod
+    def worker_realm():
+        from kurafolio.persistence import identity_schema
+        return "pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(" + identity_schema.realm() + ")),'hex')"
+
+    def plan_claim(self, label, *, request='c1000000-0000-4000-8000-000000000001', token=None, data='NULL',
+                   drop=(), **fields):
+        values = {'version': '1', 'work_kind': "'cleanup'", 'realm_digest': self.worker_realm(),
+                  'credential_epoch': "'1'", 'claim_request_id': "'" + request + "'"}
+        values.update(fields)
+        for key in drop:
+            values.pop(key)
+        return self.worker_call('claim_plan_v1', label, values, token=token, data=data)
+
+    def test_prepare_claim_binds_the_admitted_upload_and_generation_pins(self):
+        _, _, seed, catalog = self.claim_seed()
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        prepare = {'work_kind': "'prepare'"}
+        scope = "WHERE id=" + self.OWN_SET + "::uuid"
+        out = self.run_labelled(seed + self.plan_claim('claim', **prepare) + self.plan_claim('replay', **prepare)
+            + self.plan_claim('other', request='c1000000-0000-4000-8000-000000000002', **prepare)
+            + self.rejects("UPDATE wl_ingestion.leases SET prepare_control_generation=prepare_control_generation+1 "
+                           "WHERE work_kind='prepare'")
+            + "SELECT 'PINS '||pg_catalog.jsonb_build_object("
+              "'origin',s.prepare_session_digest=l.session_digest AND s.prepare_credential_version=l.credential_version,"
+              "'session',l.session_digest=repeat('1',64),"
+              "'pins',jsonb_build_array(l.prepare_set_revision,l.prepare_accepted_generation,"
+              "l.prepare_mapping_generation,l.prepare_control_generation),"
+              "'basis',jsonb_build_array(s.revision,r.accepted_generation,r.mapping_generation,r.control_generation))::text "
+              "FROM wl_ingestion.leases l JOIN wl_ingestion.sets s ON (s.tenant_id,s.portfolio_id,s.id)="
+              "(l.tenant_id,l.portfolio_id,l.set_id) JOIN wl_ingestion.roots r ON "
+              "(r.tenant_id,r.portfolio_id)=(s.tenant_id,s.portfolio_id) WHERE l.work_kind='prepare';"
+            + "UPDATE wl_ingestion.roots SET accepted_generation=accepted_generation+1;"
+            + self.plan_claim('stale', **prepare) + self.cancel_call(catalog)
+            + "SELECT 'CANCELLED '||pg_catalog.jsonb_build_array(prepare_session_digest,prepare_credential_version)::text "
+              "FROM wl_ingestion.sets " + scope + ';')
+        self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+        lease = out['CLAIM']['value']['lease']
+        self.assertEqual(('prepare', '1', None), (lease['work_kind'], lease['fence'], lease['member_id']))
+        self.assertEqual(dict(lease, outcome='already_claimed'), out['REPLAY']['value']['lease'])
+        self.assertEqual(self.NO_WORK, out['OTHER'])
+        self.assertTrue(out['PINS']['origin'] and out['PINS']['session'])
+        self.assertEqual(out['PINS']['basis'], out['PINS']['pins'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['STALE'])
+        self.assertEqual([None, None], out['CANCELLED'])
+
+    def test_concurrent_exact_prepare_claims_replay_the_same_lease(self):
+        from concurrent.futures import ThreadPoolExecutor
+        _, _, seed, _ = self.claim_seed()
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        db = 'prepare_claim_race'
+        self.sql(f'CREATE DATABASE {db} TEMPLATE postgres;')
+        args = ['docker', 'exec', '-i', self.container, 'psql', '-X', '-A', '-t',
+                '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1']
+
+        def execute(statement):
+            result = self.command(args, input=statement.encode())
+            self.assertEqual(0, result.returncode, 'Synthetic concurrent claim statement failed')
+            return result.stdout.decode()
+
+        def next_ack(stream, label):
+            return json.loads(next(line.partition(' ')[2] for line in stream if line.startswith(label + ' ')))
+
+        try:
+            # The fragment fixture substitutes a synthetic installation catalog.
+            marker = 'CREATE TABLE wl_sources.synthetic_installation_ids(id text PRIMARY KEY);'
+            setup = seed.replace(marker, marker +
+                'ALTER TABLE wl_ingestion.members DROP CONSTRAINT members_installation_fk;'
+                'ALTER TABLE wl_ingestion.members ADD CONSTRAINT members_installation_fk '
+                'FOREIGN KEY(installation_id) REFERENCES wl_sources.synthetic_installation_ids(id);')
+            execute('BEGIN;' + setup + 'COMMIT;')
+            with subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, text=True) as first:
+                try:
+                    first.stdin.write('BEGIN;\n' + self.plan_claim('first', work_kind="'prepare'") + '\n')
+                    first.stdin.flush()
+                    claimed = next_ack(first.stdout, 'FIRST')
+                    self.assertTrue(claimed['ok'], claimed)
+                    second_call = ("BEGIN;SET LOCAL application_name='prepare_claim_retry';"
+                                   + self.plan_claim('second', work_kind="'prepare'") + 'COMMIT;')
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        second = executor.submit(execute, second_call)
+                        waiting = False
+                        try:
+                            deadline = time.monotonic() + 8
+                            while time.monotonic() < deadline and not second.done():
+                                waiting = self.sql("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE "
+                                    "application_name='prepare_claim_retry' AND wait_event_type='Lock');") == 't'
+                                if waiting:
+                                    break
+                                time.sleep(.05)
+                        finally:
+                            first.stdin.write('COMMIT;\n\\q\n')
+                            first.stdin.flush()
+                        retried = next_ack(second.result(timeout=10).splitlines(), 'SECOND')
+                    self.assertTrue(waiting, 'The retry did not overlap the first transaction')
+                    self.assertEqual({'ok': True, 'value': {'version': 1, 'outcome': 'already_claimed',
+                        'lease': dict(claimed['value']['lease'], outcome='already_claimed')}}, retried)
+                    self.assertEqual('1', execute("SELECT count(*) FROM wl_ingestion.leases "
+                                                 "WHERE work_kind='prepare';").strip())
+                finally:
+                    if first.poll() is None:
+                        first.stdin.close()
+                    first.wait(timeout=10)
+        finally:
+            self.sql(f'DROP DATABASE {db};')
+
+    def test_prepare_claim_skips_a_revoked_origin_and_stale_source(self):
+        _, _, seed, _ = self.claim_seed()
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        for mutation in ("UPDATE wl_identity.sessions SET revoked=true;",
+                         "SET LOCAL session_replication_role=replica;UPDATE wl_sources.enablements SET enabled=false;"
+                         "SET LOCAL session_replication_role=origin;"):
+            with self.subTest(mutation=mutation):
+                out = self.run_labelled(seed + mutation + self.plan_claim('claim', work_kind="'prepare'")
+                    + "SELECT 'LEASES '||jsonb_build_array(count(*))::text FROM wl_ingestion.leases WHERE work_kind='prepare';")
+                self.assertEqual(self.NO_WORK, out['CLAIM'])
+                self.assertEqual([0], out['LEASES'])
+
+    def basis_call(self, label, claim='claim', *, resource='inputs', limit=50, cursor='NULL::jsonb', **fields):
+        lease = "pg_catalog.current_setting('test." + claim + "')::jsonb#>>'{value,lease,"
+        values = {'version': '1', 'work_kind': "'prepare'", 'realm_digest': self.worker_realm(),
+                  'credential_epoch': "'1'", 'job_id': '(' + lease + "job_id}')", 'set_id': self.OWN_SET,
+                  'member_id': 'NULL::text', 'fence': '(' + lease + "fence}')",
+                  'request_id': "'c1000000-0000-4000-8000-00000000000a'", 'resource': repr(resource),
+                  'limit': str(limit), 'cursor': cursor}
+        values.update(fields)
+        return self.worker_call('read_plan_basis_v1', label, values)
+
+    def test_prepare_basis_inputs_and_decisions_replay_without_lease_writes(self):
+        from kurafolio.ingestion.codec import digest, validate
+        _, _, seed, catalog = self.claim_seed()
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        prepare = {'work_kind': "'prepare'"}
+        decision = ORACLE['decisions-first-use.json']
+        payload = ("pg_catalog.jsonb_build_object('set_id'," + self.OWN_SET +
+                   ",'decisions','" + json.dumps(decision).replace("'", "''") + "'::jsonb)")
+        def next_page(label):
+            return self.previous(label, '{value,next_cursor}')
+        single_rows = ['one_' + str(i) for i in range(9)]
+        single_calls = ''.join(self.basis_call(label, resource='decisions', limit=1,
+            cursor=next_page(single_rows[i-1]) if i else 'NULL::jsonb') for i, label in enumerate(single_rows))
+        out = self.run_labelled(seed + self.plan_claim('initial', **prepare)
+            + self.basis_call('inputs', 'initial')
+            + self.basis_call('empty', 'initial', resource='decisions')
+            + "UPDATE wl_ingestion.leases SET state='cancelled' WHERE work_kind='prepare';"
+            + "UPDATE wl_ingestion.sets SET state='NEEDS_MAPPING'," + self.CLEAR_PREPARE_ORIGIN + " WHERE state='NORMALIZING';"
+            + self.gateway_expression('decide_set_v1', 'decide', payload, catalog)
+            + self.plan_claim('claim', request='c1000000-0000-4000-8000-000000000002', **prepare)
+            + self.basis_call('first', resource='decisions', limit=3)
+            + self.basis_call('replay', resource='decisions', limit=3)
+            + self.basis_call('second', resource='decisions', limit=3, cursor=next_page('first'))
+            + self.basis_call('third', resource='decisions', limit=3, cursor=next_page('second'))
+            + self.basis_call('all', resource='decisions')
+            + single_calls
+            + self.basis_call('badkey', resource='decisions', cursor="pg_catalog.jsonb_set(" +
+                              next_page('first') + ",'{after_key}','\"2:127\"')")
+            + "SELECT 'CACHE '||jsonb_build_array(count(*))::text FROM wl_ingestion.leases WHERE work_kind='prepare' "
+              "AND (last_request_id IS NOT NULL OR last_request_digest IS NOT NULL OR last_result_bytes IS NOT NULL);"
+            + "UPDATE wl_ingestion.roots SET control_generation=control_generation+1;"
+            + self.basis_call('stale', resource='decisions'))
+        self.assertTrue(out['INPUTS']['ok'], out)
+        inputs = validate(out['INPUTS']['value'], 'BasisPage')
+        self.assertEqual(1, len(inputs['rows']))
+        self.assertEqual([], out['EMPTY']['value']['rows'])
+        self.assertEqual(out['FIRST'], out['REPLAY'])
+        rows = [row for page in ('FIRST','SECOND','THIRD')
+                for row in validate(out[page]['value'], 'BasisPage')['rows']]
+        header, *items = rows
+        self.assertEqual(rows, out['ALL']['value']['rows'])
+        self.assertEqual(rows, [out[label.upper()]['value']['rows'][0] for label in single_rows])
+        self.assertEqual((9, 'decisions_header', digest(decision)), (len(rows), header['kind'], header['digest']))
+        reconstructed = {key: header[key] for key in ('version','operation_id','expected_set_revision')}
+        reconstructed.update({key: [item['value'] for item in items if item['collection']==key]
+                              for key in header['counts']})
+        self.assertEqual(decision, reconstructed)
+        self.assertIsNone(out['THIRD']['value']['next_cursor'])
+        self.assertEqual([0], out['CACHE'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['BADKEY'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['STALE'])
+
+    def test_prepare_basis_projects_the_scoped_accepted_rows(self):
+        from kurafolio.ingestion.codec import digest, validate
+        plan, _, seed, catalog = self.claim_seed()
+        confirm = {'operation_id': '50000000-0000-4000-8000-000000000001',
+                   'preview_id': plan['preview_id'], 'preview_digest': digest(plan)}
+        seed += self.accept_statement('accept', confirm, catalog)
+        seed += self.lease_call('claim_member_v1', 'normalize') + self.admit_call('admit') + self.finish_call('finish')
+        resources = ('entities', 'mappings', 'revisions', 'heads', 'authorities')
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+                               + ''.join(self.basis_call(resource, resource=resource) for resource in resources))
+        self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
+        pages = {name: validate(out[name.upper()]['value'], 'BasisPage')['rows'] for name in resources}
+        self.assertEqual((4, 3, 1, 0), tuple(len(pages[name]) for name in resources[1:]))
+        self.assertTrue(pages['entities'])
+        self.assertEqual(plan['heads'][0], pages['heads'][0]['head'])
+        self.assertEqual({effect['accepted_revision_id'] for effect in plan['facts']},
+                         {row['revision']['id'] for row in pages['revisions']})
+
+    def test_prepare_context_builds_exact_scope_and_rechecks_the_lease(self):
+        from kurafolio.ingestion.codec import digest, validate
+        plan, seed, _ = self.accept_seed()
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,"
+                 "realm_digest='" + realm + "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        fields = {'resource': 'context', 'set_id': repr(plan['set_id'])}
+        def probe(label, sql):
+            return ('SAVEPOINT probe;' + sql + self.basis_call(label, **fields) +
+                    'ROLLBACK TO probe;RELEASE probe;')
+        cursor = ("(" + self.previous('context', '{value}') + " - ARRAY['version','rows','next_cursor']) "
+                  "|| jsonb_build_object('after_key','0','expires_at'," +
+                  self.previous('claim', '{value,lease,expires_at}') + ")")
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + self.basis_call('context', **fields) + self.basis_call('replay', **fields)
+            + self.basis_call('continuation', cursor=cursor, **fields)
+            + self.basis_call('wrong_cursor', cursor="jsonb_set(" + cursor + ",'{resource}',to_jsonb('inputs'::text))",
+                              **fields)
+            + self.basis_call('wrong_resource', resource='prepare_context', set_id=fields['set_id'])
+            + self.basis_call('extra_field', extra='true', **fields)
+            + probe('revoked', 'UPDATE wl_identity.sessions SET revoked=true;')
+            + probe('source_changed', "SET LOCAL session_replication_role=replica;"
+                    "UPDATE wl_sources.enablements SET generation=generation+1;"
+                    "SET LOCAL session_replication_role=origin;")
+            + probe('expired', "SET LOCAL session_replication_role=replica;"
+                    "UPDATE wl_ingestion.leases SET created_at=clock_timestamp()-interval '60 seconds',"
+                    "expires_at=date_trunc('second',clock_timestamp()-interval '10 seconds') WHERE work_kind='prepare';"
+                    "SET LOCAL session_replication_role=origin;")
+            + probe('restored', 'UPDATE wl_pg.instance_state SET restore_epoch=1;')
+            + "SELECT 'UNCHANGED '||jsonb_build_array("
+              "(SELECT count(*) FROM wl_ingestion.leases WHERE last_request_id IS NOT NULL"
+              " OR last_request_digest IS NOT NULL OR last_result_bytes IS NOT NULL),"
+              "(SELECT count(*) FROM wl_ingestion.accepted_plans))::text;")
+        self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+        page = validate(out['CONTEXT']['value'], 'BasisPage')
+        expected = {key: plan[key] for key in ('tenant_id', 'portfolio_id', 'set_id', 'incarnation',
+                                               'restore_epoch', 'pinned_sources')}
+        expiry = dict(plan['expires_at'], fractional_digits=6,
+                      token=plan['expires_at']['token'].replace('+00:00', '.000000+00:00'))
+        self.assertEqual([dict(expected, kind='prepare_context', realm_digest=realm, set_expires_at=expiry)],
+                         page['rows'])
+        self.assertEqual(digest(expected['pinned_sources']), out['CLAIM']['value']['lease']['source_fingerprint'])
+        self.assertIsNone(page['next_cursor'])
+        self.assertEqual(out['CONTEXT'], out['REPLAY'])
+        self.assertEqual([0, 0], out['UNCHANGED'])
+        for label, code in (('CONTINUATION', 'import_stale'), ('WRONG_CURSOR', 'import_stale'),
+                            ('WRONG_RESOURCE', 'import_invalid'), ('EXTRA_FIELD', 'import_invalid'),
+                            ('REVOKED', 'session_changed'), ('SOURCE_CHANGED', 'import_stale'),
+                            ('EXPIRED', 'import_stale'), ('RESTORED', 'import_stale')):
+            with self.subTest(label=label):
+                self.assertEqual({'ok': False, 'code': code}, out[label])
+
+    def test_prepare_basis_large_literal_page_is_exact(self):
+        from kurafolio.ingestion.codec import encode
+        plan, seed, _ = self.accept_seed()
+        page = ORACLE['large-basis-page.json']
+        literal = page['rows'][0]
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,"
+                 "realm_digest='" + realm + "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;"
+                 "UPDATE wl_ingestion.members SET id='" + literal['id'] + "',stage_digest='" + literal['digest'] + "';"
+                 "UPDATE wl_ingestion.stages SET member_id='" + literal['id'] + "',digest='" + literal['digest'] +
+                 "',minimal_bytes=decode('" + encode(literal['minimal']).hex() + "','hex');")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        seed += self.row('leases', {'tenant_id': plan['tenant_id'], 'portfolio_id': plan['portfolio_id'],
+            'id': page['job_id'], 'set_id': plan['set_id'], 'work_kind': 'prepare', 'attempt': 1, 'fence': 1,
+            'worker_id': self.WORKER, 'token_digest': hashlib.sha256(bytes.fromhex(self.CLEANUP_TOKEN)).hexdigest(),
+            'session_digest': self.SESSION, 'credential_version': 1, 'incarnation': self.INCARNATION, 'restore_epoch': 0,
+            'created_at': self.Expression('clock_timestamp()'),
+            'expires_at': self.Expression("date_trunc('second',clock_timestamp()+interval '30 seconds')"),
+            'state': 'active', 'claim_request_id': 'c1000000-0000-4000-8000-000000000001', 'claim_request_digest': 'a'*64,
+            'prepare_set_revision': 2, 'prepare_accepted_generation': 0, 'prepare_mapping_generation': 0,
+            'prepare_control_generation': 1})
+        fields = {'job_id': repr(page['job_id']), 'set_id': repr(plan['set_id']), 'fence': "'1'"}
+        out = self.run_labelled(seed + self.basis_call('first', **fields) + self.basis_call('again', **fields))
+        self.assertEqual(encode(page), encode(out['FIRST']['value']))
+        self.assertEqual(out['FIRST'], out['AGAIN'])
+
+    def test_prepare_basis_byte_limit_splits_whole_admitted_inputs(self):
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.ingestion.contracts import MAX_PAGE
+        plan, seed, _ = self.accept_seed()
+        first = plan['inputs'][0]['member_id']
+        second = 'e1000000-0000-4000-8000-000000000002'
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        fixture = encode(ORACLE['large-basis-page.json']['rows'][0]['minimal']).hex()
+        seed += f"""
+DELETE FROM wl_ingestion.previews;
+UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,member_count=2,realm_digest='{realm}',
+ prepare_session_digest=repeat('1',64),prepare_credential_version=1;
+CREATE TEMP TABLE large_stage AS
+ WITH template AS (SELECT convert_from(decode('{fixture}','hex'),'UTF8')::jsonb AS evidence),
+ payload AS (SELECT jsonb_set(evidence,'{{assets}}',(
+  SELECT jsonb_agg(asset ORDER BY i) FROM (
+   SELECT 0 i,evidence->'assets'->0 asset UNION ALL SELECT 1,evidence->'assets'->1 UNION ALL
+   SELECT i,jsonb_set(jsonb_set(evidence->'assets'->0,'{{local_id}}',to_jsonb(i::text)),
+    '{{source_descriptor}}',to_jsonb(repeat('A',4096))) FROM generate_series(2,502) i
+  ) a)) AS evidence FROM template)
+ SELECT wl_ingestion._canonical_v1(evidence) AS data FROM payload;
+UPDATE wl_ingestion.stages SET minimal_bytes=(SELECT data FROM large_stage),
+ digest=(SELECT encode(sha256(data),'hex') FROM large_stage);
+UPDATE wl_ingestion.members SET stage_digest=(SELECT digest FROM wl_ingestion.stages);
+INSERT INTO wl_ingestion.members(tenant_id,portfolio_id,set_id,id,ordinal,connection_id,connection_version,
+ installation_id,format_version,context_bytes,context_digest,connection_generation,enablement_generation,
+ availability_generation,wrapper_profile_digest,raw_digest,raw_bytes,state,fence,stage_digest)
+ SELECT tenant_id,portfolio_id,set_id,'{second}',1,connection_id,connection_version,installation_id,format_version,
+ context_bytes,context_digest,connection_generation,enablement_generation,availability_generation,
+ wrapper_profile_digest,raw_digest,raw_bytes,state,fence,stage_digest FROM wl_ingestion.members;
+INSERT INTO wl_ingestion.stages(tenant_id,portfolio_id,set_id,member_id,codec,minimal_bytes,digest,created_at,purge_at)
+ SELECT tenant_id,portfolio_id,set_id,'{second}',codec,minimal_bytes,digest,created_at,purge_at FROM wl_ingestion.stages;
+SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex'))::text FROM large_stage;
+"""
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        def read(label, **kwargs):
+            call = self.basis_call(label, limit=2, set_id=repr(plan['set_id']), **kwargs)
+            value = self.previous(label, '{value}')
+            return call.split("SELECT '" + label.upper() + " '")[0] + (
+                f"SELECT '{label.upper()} '||jsonb_build_array(jsonb_array_length(({value})->'rows'),"
+                f"octet_length(wl_ingestion._canonical_v1({value})),({value})->'next_cursor',"
+                f"({value})#>>'{{rows,0,id}}',({value})#>>'{{rows,0,digest}}',"
+                f"encode(sha256(wl_ingestion._canonical_v1(({value})#>'{{rows,0,minimal}}')),'hex'))::text;")
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'") + read('first')
+            + read('replay') + read('second', cursor=self.previous('first', '{value,next_cursor}')))
+        size, digest = out['STAGE']
+        self.assertGreater(size * 2, MAX_PAGE)
+        self.assertLessEqual(size, 4194304)
+        self.assertEqual(out['FIRST'], out['REPLAY'])
+        self.assertIsNotNone(out['FIRST'][2])
+        self.assertIsNone(out['SECOND'][2])
+        for label, member in (('FIRST', first), ('SECOND', second)):
+            count, page_size, _, actual_member, row_digest, evidence_digest = out[label]
+            self.assertLessEqual(page_size, MAX_PAGE)
+            self.assertEqual((1, member, digest, digest), (count, actual_member, row_digest, evidence_digest))
+
+    def test_prepare_basis_reads_only_the_current_decision_with_all_item_types(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, validate
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        for empty in (False, True):
+            with self.subTest(empty=empty):
+                plan, seed, catalog = self.accept_seed()
+                decisions = deepcopy(ORACLE['decisions-first-use.json'])
+                decisions.update({'expected_set_revision': plan['expected_set_revision'],
+                                  'operation_id': '50000000-0000-4000-8000-00000000000a'})
+                groups = ('authorities','mappings','new_entities','parents')
+                if empty:
+                    decisions.update({group: [] for group in groups})
+                else:
+                    decisions['authorities'] = [{
+                        'kind': 'historical_only', 'evidence_reference': 'Synthetic retained evidence',
+                        'left': {'form': 'incoming', 'member_id': plan['inputs'][0]['member_id'],
+                                 'collection': 'records', 'local_id': '0'}, 'right': None,
+                    }]
+                    decisions['parents'] = [{
+                        'member_id': plan['inputs'][0]['member_id'], 'collection': 'records', 'local_id': '0',
+                        'parent_revision_id': plan['facts'][0]['accepted_revision_id'], 'reason': 'Synthetic parent',
+                    }]
+                seed += "UPDATE wl_ingestion.sets SET realm_digest='" + realm + "';"
+                seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                             'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+                out = self.run_labelled(seed + self.gateway_statement('decide_set_v1', 'decision',
+                    {'set_id': plan['set_id'], 'decisions': decisions}, catalog)
+                    + self.plan_claim('claim', work_kind="'prepare'")
+                    + self.basis_call('page', resource='decisions', set_id=repr(plan['set_id'])))
+                self.assertTrue(out['DECISION']['ok'], out['DECISION'])
+                rows = validate(out['PAGE']['value'], 'BasisPage')['rows']
+                header, *items = rows
+                self.assertEqual(digest(decisions), header['digest'])
+                self.assertEqual({group: len(decisions[group]) for group in groups}, header['counts'])
+                self.assertEqual([(group, ordinal, value) for group in groups
+                                  for ordinal, value in enumerate(decisions[group])],
+                                 [(item['collection'],item['ordinal'],item['value']) for item in items])
+
+    def prepare_preview_call(self, label, bundle, *, ready, **pins):
+        from kurafolio.ingestion.codec import encode, sha256
+        encoded = encode(bundle)
+        lease = "pg_catalog.current_setting('test.claim')::jsonb#>>'{value,lease,"
+        return self.worker_call('prepare_preview_v1', label, {
+            'version': '1', 'work_kind': "'prepare'", 'realm_digest': self.worker_realm(), 'credential_epoch': "'1'",
+            'job_id': '(' + lease + "job_id}')", 'set_id': '(' + lease + "set_id}')", 'member_id': 'NULL::text',
+            'fence': '(' + lease + "fence}')", 'request_id': "'c1000000-0000-4000-8000-00000000000a'",
+            'bundle_digest': repr(sha256(encoded)), 'payload_bytes': str(len(encoded)),
+            'expected_set_revision': "'2'" if ready else "'1'", 'accepted_generation': "'0'",
+            'mapping_generation': "'0'", 'control_generation': "'1'" if ready else "'0'", **pins,
+        }, data="pg_catalog.decode('" + encoded.hex() + "','hex')")
+
+    def test_prepare_preview_checks_initial_and_ready_bundles_and_replays(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, validate
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        for ready in (False, True):
+            with self.subTest(ready=ready):
+                plan, seed, catalog = self.accept_seed()
+                name = 'review-bundle-first-use.json' if ready else 'review-bundle-initial.json'
+                bundle = deepcopy(ORACLE[name])
+                bundle['review']['expires_at'] = plan['expires_at']
+                if ready:
+                    bundle['plan']['expires_at'] = plan['expires_at']
+                    bundle['plan']['realm_digest'] = realm
+                    bundle['review']['plan_digest'] = digest(bundle['plan'])
+                invalid = deepcopy(bundle)
+                row = next(row for row in invalid['review']['content']['rows'] if row['type']=='source_entity')
+                row['source']['label'] += ' altered'
+                invalid['review']['content_digest'] = digest(invalid['review']['content'])
+                seed += 'DELETE FROM wl_ingestion.previews;'
+                if not ready:
+                    seed += 'DELETE FROM wl_ingestion.decisions;UPDATE wl_ingestion.roots SET control_generation=0;'
+                else:
+                    seed += 'UPDATE wl_ingestion.decisions SET revision=1;'
+                state = 'RECONCILING' if ready else 'NORMALIZING'
+                seed += ("UPDATE wl_ingestion.sets SET state='" + state + "',revision=" + ('2' if ready else '1') +
+                         ",realm_digest='" + realm + "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+                seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                             'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+                accept = self.accept_statement('accept', {
+                    'operation_id': '50000000-0000-4000-8000-000000000001',
+                    'preview_id': bundle['review']['id'], 'preview_digest': bundle['review']['plan_digest'],
+                }, catalog) if ready else ''
+                mismatched = []
+                if ready:
+                    for label, changes in (
+                            ('wrong_action', {'action': 'duplicate'}),
+                            ('wrong_revision', {'accepted_revision_id': None})):
+                        forged = deepcopy(bundle)
+                        review, executable = forged['review'], forged['plan']
+                        fact = next(row for row in review['content']['rows'] if row['type'] == 'fact')
+                        fact.update(changes)
+                        review['content_digest'] = executable['review_content_digest'] = digest(review['content'])
+                        review['plan_digest'] = digest(executable)
+                        validate(forged, 'ReviewBundle')
+                        mismatched.append((label, self.prepare_preview_call(label, forged, ready=True)))
+                    forged = deepcopy(bundle)
+                    review, executable = forged['review'], forged['plan']
+                    rows = review['content']['rows']
+                    rows.append({'type': 'diagnostic', 'ordinal': str(len(rows)),
+                        'member_id': '20000000-0000-4000-8000-000000000099',
+                        'diagnostic': {'code': 'observed_order_rows', 'severity': 'warning',
+                                       'row_count': '10', 'duplicate_count': '9', 'record_local_ids': []}})
+                    review['content_digest'] = executable['review_content_digest'] = digest(review['content'])
+                    review['plan_digest'] = digest(executable)
+                    validate(forged, 'ReviewBundle')
+                    mismatched.append(('invented_diagnostic', self.prepare_preview_call(
+                        'invented_diagnostic', forged, ready=True)))
+                out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+                    + self.prepare_preview_call('bad', invalid, ready=ready)
+                    + ''.join(call for _, call in mismatched)
+                    + "SELECT 'BEFORE '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
+                    + self.prepare_preview_call('prepared', bundle, ready=ready)
+                    + self.prepare_preview_call('replay', bundle, ready=ready)
+                    + "SELECT 'AFTER '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
+                    + "SELECT 'FACTS '||jsonb_build_array(count(*))::text FROM wl_ingestion.source_revisions;"
+                    + accept)
+                self.assertEqual({'ok': False, 'code': 'import_invalid'}, out['BAD'])
+                for label, _ in mismatched:
+                    self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label.upper()])
+                self.assertEqual([0], out['BEFORE'])
+                self.assertTrue(out['PREPARED']['ok'], out)
+                ack = validate(out['PREPARED']['value'], 'PreviewAck')
+                self.assertEqual(bundle['review']['state'], ack['state'])
+                self.assertEqual(dict(ack, outcome='already_prepared'), out['REPLAY']['value'])
+                self.assertEqual([1], out['AFTER'])
+                self.assertEqual([0], out['FACTS'])
+                if ready:
+                    self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
+
+    def test_initial_prepare_cannot_store_ready_before_explicit_decisions(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, validate
+        plan, seed, _ = self.accept_seed()
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;DELETE FROM wl_ingestion.decisions;"
+                 "UPDATE wl_ingestion.roots SET control_generation=0;"
+                 "UPDATE wl_ingestion.sets SET state='NORMALIZING',revision=1,realm_digest='" + realm +
+                 "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        ready = deepcopy(ORACLE['review-bundle-first-use.json'])
+        ready['plan'].update(expires_at=plan['expires_at'], realm_digest=realm,
+                             expected_set_revision='2', expected_control_generation='0')
+        ready['review'].update(expires_at=plan['expires_at'], set_revision='2', control_generation='0',
+                               plan_digest=digest(ready['plan']))
+        validate(ready, 'ReviewBundle')
+        initial = deepcopy(ORACLE['review-bundle-initial.json'])
+        initial['review']['expires_at'] = plan['expires_at']
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + self.rejects("UPDATE wl_ingestion.sets SET state='READY',revision=2," + self.CLEAR_PREPARE_ORIGIN)
+            + self.prepare_preview_call('premature', ready, ready=False)
+            + "SELECT 'UNCHANGED '||jsonb_build_array("
+              "(SELECT state FROM wl_ingestion.sets),(SELECT revision FROM wl_ingestion.sets),"
+              "(SELECT state FROM wl_ingestion.leases WHERE work_kind='prepare'),"
+              "(SELECT count(*) FROM wl_ingestion.leases WHERE last_result_bytes IS NOT NULL),"
+              "(SELECT count(*) FROM wl_ingestion.previews),(SELECT count(*) FROM wl_ingestion.decisions),"
+              "(SELECT count(*) FROM wl_ingestion.source_revisions))::text;"
+            + self.prepare_preview_call('initial', initial, ready=False))
+        self.assertEqual({'ok': False, 'code': 'import_mapping_required'}, out['PREMATURE'])
+        self.assertEqual(['NORMALIZING', 1, 'active', 0, 0, 0, 0], out['UNCHANGED'])
+        self.assertTrue(out['INITIAL']['ok'], out['INITIAL'])
+        self.assertEqual(('NEEDS_MAPPING', '1', None), (out['INITIAL']['value']['state'],
+                         out['INITIAL']['value']['set_revision'], out['INITIAL']['value']['plan_digest']))
+
+    def test_initial_preview_requires_choices_and_every_compatible_existing_candidate(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest
+        plan, seed, _ = self.accept_seed()
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        seed += ("DELETE FROM wl_ingestion.previews;DELETE FROM wl_ingestion.decisions;"
+                 "UPDATE wl_ingestion.roots SET control_generation=0;"
+                 "UPDATE wl_ingestion.sets SET state='NORMALIZING',revision=1,realm_digest='" + realm +
+                 "',prepare_session_digest=repeat('1',64),prepare_credential_version=1;")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        bundle = deepcopy(ORACLE['review-bundle-initial.json'])
+        bundle['review']['expires_at'] = plan['expires_at']
+        candidate = next(row['candidate'] for row in bundle['review']['content']['rows']
+                         if row['type'] == 'target_candidate' and row['candidate']['entity_kind'] == 'account')
+        body = deepcopy(candidate['body'])
+        id_ = '40000000-0000-4000-8000-0000000000ea'
+        body['id']['value'] = id_
+        version = digest(body)
+        seed += (f"INSERT INTO wl_pg.accounts(tenant_id,portfolio_id,id,version,body,category,role,label) "
+                 f"SELECT '{plan['tenant_id']}','{plan['portfolio_id']}','{id_}','{version}',b,"
+                 f"b->>'category',b->>'role',b->>'label' FROM (SELECT '{json.dumps(body)}'::jsonb b) q;")
+        instrument = next(row['candidate'] for row in bundle['review']['content']['rows']
+                          if row['type'] == 'target_candidate' and row['candidate']['entity_kind'] == 'instrument'
+                          and row['candidate']['body']['kind'] == 'CASH')
+        instrument_body = deepcopy(instrument['body'])
+        instrument_id = '40000000-0000-4000-8000-0000000000eb'
+        issuer_id = '40000000-0000-4000-8000-0000000000ec'
+        issuer_ref = {'kind': 'issuer', 'value': issuer_id, 'tenant_id': plan['tenant_id'],
+                      'portfolio_id': plan['portfolio_id']}
+        issuer_body = {'id': issuer_ref, 'label': 'Synthetic different issuer'}
+        instrument_body.update(issuer=issuer_ref)
+        instrument_body['id']['value'] = instrument_id
+        instrument_version = digest(instrument_body)
+        scope = f"'{plan['tenant_id']}','{plan['portfolio_id']}'"
+        seed += (f"INSERT INTO wl_pg.issuers(tenant_id,portfolio_id,id,version,body,label) VALUES "
+                 f"({scope},'{issuer_id}','{digest(issuer_body)}','{json.dumps(issuer_body)}',"
+                 "'Synthetic different issuer');"
+                 "INSERT INTO wl_pg.instruments(tenant_id,portfolio_id,id,version,body,kind,currency,ticker,mic,"
+                 "symbol,network,settlement_identity,issuer_id,issuer_version,identifiers) "
+                 f"SELECT {scope},'{instrument_id}','{instrument_version}',b,b->>'kind',b->>'currency',"
+                 f"b->>'ticker',b->>'mic',b->>'symbol',b->>'network',b->>'settlement_identity','{issuer_id}',"
+                 f"'{digest(issuer_body)}',b->'identifiers' FROM (SELECT '{json.dumps(instrument_body)}'::jsonb b) q;")
+        no_choices = deepcopy(bundle)
+        content = no_choices['review']['content']
+        content['rows'] = [row for row in content['rows'] if row['type'] != 'target_candidate']
+        for index, row in enumerate(content['rows']):
+            row['ordinal'] = str(index)
+        no_choices['review']['content_digest'] = digest(content)
+        complete = deepcopy(bundle)
+        content = complete['review']['content']
+        content['rows'].append({'type': 'target_candidate', 'ordinal': str(len(content['rows'])),
+            'candidate': dict(candidate, body=body, target={'mode': 'existing', 'id': id_, 'version': version})})
+        complete['review']['content_digest'] = digest(content)
+        extra = deepcopy(complete)
+        extra_content = extra['review']['content']
+        extra_content['rows'].append({'type': 'target_candidate', 'ordinal': str(len(extra_content['rows'])),
+            'candidate': dict(instrument, body=instrument_body,
+                              target={'mode': 'existing', 'id': instrument_id, 'version': instrument_version})})
+        extra['review']['content_digest'] = digest(extra_content)
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + self.basis_call('entities', resource='entities', set_id=repr(plan['set_id']))
+            + self.prepare_preview_call('no_choices', no_choices, ready=False)
+            + self.prepare_preview_call('missing_existing', bundle, ready=False)
+            + self.prepare_preview_call('wrong_issuer', extra, ready=False)
+            + "SELECT 'BEFORE '||jsonb_build_array(count(*))::text FROM wl_ingestion.previews;"
+            + self.prepare_preview_call('complete', complete, ready=False))
+        self.assertEqual([content['rows'][-1]['candidate']],
+                         [row['candidate'] for row in out['ENTITIES']['value']['rows']])
+        for label in ('NO_CHOICES', 'MISSING_EXISTING', 'WRONG_ISSUER'):
+            self.assertEqual({'ok': False, 'code': 'import_invalid'}, out[label])
+        self.assertEqual([0], out['BEFORE'])
+        self.assertTrue(out['COMPLETE']['ok'], out['COMPLETE'])
+
+    def test_prepare_authority_basis_and_preview_use_scoped_latest_history(self):
+        from copy import deepcopy
+        from kurafolio.ingestion.codec import digest, encode, validate
+        base, seed, catalog = self.accept_seed()
+        plan = deepcopy(ORACLE['authority-only-plan.json'])
+        decisions = deepcopy(ORACLE['authority-only-decisions.json'])
+        prestate = ORACLE['authority-only-prestate.json']
+        prior = prestate['prior_authority']
+        peer = prestate['peer_revision']
+        plan['expires_at'] = base['expires_at']
+        realm = self.sql("SELECT " + self.worker_realm() + " FROM (SELECT '" +
+                         self.INCARNATION + "'::uuid AS incarnation,0::bigint AS restore_epoch) st;")
+        plan['realm_digest'] = realm
+        # The review names the pair in the opposite orientation to its history.
+        flipped = dict(decisions['authorities'][0], left=prior['right'], right=prior['left'])
+        historical = dict(kind='historical_only', evidence_reference='Synthetic history',
+                          left=prior['left'], right=None)
+        new_pair = dict(historical, left=prior['right'])
+        decisions['authorities'] = [flipped, historical, new_pair]
+        seed += self.accept_statement('accept', {
+            'operation_id': '50000000-0000-4000-8000-000000000001',
+            'preview_id': base['preview_id'], 'preview_digest': digest(base),
+        }, catalog)
+        seed += self.later_plan_seed(plan)
+        scope = {key: plan[key] for key in ('tenant_id', 'portfolio_id')}
+        def accepted_id(table):
+            return self.Expression(f'(SELECT id FROM wl_ingestion.{table} LIMIT 1)')
+        seed += self.row('source_revisions', dict(scope, id=peer['id'], source_key=peer['source_key_digest'],
+            source_revision='r1', financial_digest=peer['financial_digest'], source_change='original',
+            accepted_change='original', parent_id=None, input_id=accepted_id('accepted_inputs'),
+            collection='records', local_id=0, typed_bytes=encode(peer['typed']), typed_digest=digest(peer['typed']),
+            created_at=self.Expression('clock_timestamp()')))
+        link = prestate['prior_link_id']
+        history_link = 'd0000000-0000-4000-8000-0000000000d1'
+        def link_row(value, id_, revision, **changes):
+            return self.row('authority_links', dict(scope, id=id_, revision=revision,
+                left_revision_id=value['left']['accepted_revision_id'],
+                right_revision_id=value['right'] and value['right']['accepted_revision_id'],
+                decision_kind=value['kind'], evidence_reference=value['evidence_reference'],
+                evidence_digest=digest(value), plan_id=accepted_id('accepted_plans')) | changes)
+        seed += link_row(prior, link, 1) + link_row(historical, history_link, 1)
+        # The foreign portfolio marker is only used for the scoped read and rolls back.
+        seed += 'SET CONSTRAINTS ALL DEFERRED;'
+        seed += link_row(prior, link, 9, portfolio_id='d0000000-0000-4000-8000-0000000000ff')
+        seed += ("DELETE FROM wl_ingestion.previews WHERE set_id='" + plan['set_id'] + "';"
+                 "UPDATE wl_ingestion.sets SET state='RECONCILING',revision=2,"
+                 "prepare_session_digest=repeat('1',64),prepare_credential_version=1 WHERE id='" + plan['set_id'] + "';"
+                 "UPDATE wl_ingestion.roots SET accepted_generation=2,mapping_generation=2,control_generation=2;"
+                 "UPDATE wl_ingestion.decisions SET revision=1,canonical_bytes=decode('" + encode(decisions).hex() +
+                 "','hex'),digest='" + digest(decisions) + "' WHERE set_id='" + plan['set_id'] + "';")
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+        current = dict(prior, kind='authority', evidence_reference='Synthetic updated choice')
+        review = deepcopy(ORACLE['authority-only-review.json'])
+        review.update(state='CONFLICT', expires_at=plan['expires_at'], plan_digest=None, set_revision='2')
+        rows = review['content']['rows'] = [row for row in review['content']['rows'] if row['type'] == 'source_entity']
+        rows.extend({'type': 'authority', 'authority': authority,
+                     'prior_link_id': id_, 'prior_link_revision': revision, 'prior_choice': choice}
+                    for authority, id_, revision, choice in (
+                        (flipped, link, '2', current['kind']),
+                        (historical, history_link, '1', historical['kind']), (new_pair, None, None, None)))
+        for index, row in enumerate(rows):
+            row['ordinal'] = str(index)
+        def write(label, **changes):
+            content = deepcopy(review)
+            next(row for row in content['content']['rows'] if row['type'] == 'authority').update(changes)
+            content['content_digest'] = digest(content['content'])
+            return self.prepare_preview_call(label, {'version': 1, 'review': content, 'plan': None}, ready=True,
+                accepted_generation="'2'", mapping_generation="'2'", control_generation="'2'")
+        fields = {'resource': 'authorities', 'set_id': repr(plan['set_id'])}
+        snapshot = ("SELECT 'LABEL '||jsonb_build_array("
+                    "(SELECT count(*) FROM wl_ingestion.authority_links),"
+                    "(SELECT count(*) FROM wl_ingestion.previews WHERE set_id='" + plan['set_id'] + "'),"
+                    "(SELECT count(*) FROM wl_ingestion.leases WHERE work_kind='prepare' AND "
+                    "(last_request_id IS NOT NULL OR last_request_digest IS NOT NULL OR last_result_bytes IS NOT NULL)))::text;")
+        out = self.run_labelled(seed + self.plan_claim('claim', work_kind="'prepare'")
+            + snapshot.replace('LABEL', 'BEFORE') + self.basis_call('first', limit=1, **fields)
+            + self.basis_call('second', cursor=self.previous('first', '{value,next_cursor}'), **fields)
+            + self.basis_call('again', limit=1, **fields) + snapshot.replace('LABEL', 'AFTER_READS')
+            + link_row(current, link, 2) + self.basis_call('latest', **fields)
+            + write('stale', prior_link_revision='1', prior_choice=prior['kind'])
+            + write('forged', prior_link_id=history_link) + write('partial', prior_choice=None)
+            + snapshot.replace('LABEL', 'AFTER_REFUSALS') + write('prepared')
+            + snapshot.replace('LABEL', 'AFTER_PREPARE'))
+        self.assertTrue(out['ACCEPT']['ok'], out['ACCEPT'])
+        self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+        def row(value, id_, revision):
+            return {'kind': 'authority', 'authority': value, 'link_id': id_, 'link_revision': revision}
+        self.assertEqual([row(prior, link, '1')], validate(out['FIRST']['value'], 'BasisPage')['rows'])
+        self.assertEqual([row(historical, history_link, '1')], validate(out['SECOND']['value'], 'BasisPage')['rows'])
+        self.assertEqual(out['FIRST'], out['AGAIN'])
+        self.assertEqual(out['BEFORE'], out['AFTER_READS'])
+        self.assertEqual([row(current, link, '2'), row(historical, history_link, '1')],
+                         validate(out['LATEST']['value'], 'BasisPage')['rows'])
+        for label in ('STALE', 'FORGED', 'PARTIAL'):
+            self.assertEqual({'ok': False, 'code': 'import_stale'}, out[label], label)
+        self.assertEqual([4, 0, 0], out['AFTER_REFUSALS'])
+        self.assertTrue(out['PREPARED']['ok'], out['PREPARED'])
+        self.assertEqual([4, 1, 1], out['AFTER_PREPARE'])
+
+    def cleanup_call(self, label, claim='claim', *, proofs=(), request='c1000000-0000-4000-8000-0000000000a1',
+                     token=None, data='NULL', drop=(), **fields):
+        lease = "(pg_catalog.current_setting('test." + claim + "')::jsonb#>>'{value,lease,"
+        values = {'version': '1', 'work_kind': "'cleanup'", 'realm_digest': self.worker_realm(),
+                  'credential_epoch': "'1'", 'job_id': lease + "job_id}')", 'set_id': self.OWN_SET,
+                  'member_id': 'NULL::text', 'fence': lease + "fence}')", 'request_id': "'" + request + "'",
+                  'cleanup_proofs': self.proofs(*proofs)}
+        values.update(fields)
+        for key in drop:
+            values.pop(key)
+        return self.worker_call('cleanup_set_v1', label, values, token=token, data=data)
+
+    def cancel_call(self, catalog):
+        payload = ("pg_catalog.jsonb_build_object('operation_id','53000000-0000-4000-8000-000000000009','set_id'," +
+                   self.OWN_SET + ",'expected_set_revision','1')")
+        return self.gateway_expression('cancel_set_v1', 'cancel', payload, catalog)
+
+    def cleanup_seed(self, *, bind=True, count=1):
+        plan, pin, seed, catalog = self.create_seed()
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                     'enabled': True, 'credential_epoch': 1})
+        seed += self.gateway_statement('create_set_v1', 'create', self.create_payload(pin, count=count), catalog)
+        seed += self.reserve_call('reserve', catalog)
+        if bind:
+            seed += self.reserve_call('bind', catalog, action='bind', handoff_token_digest="'" + hashlib.sha256(
+                bytes.fromhex(self.WORKER_TOKEN)).hexdigest() + "'")
+        return seed, catalog
+
+    CLEANUP_STATE = ("SELECT 'CSTATE '||pg_catalog.jsonb_build_object('set',(SELECT pg_catalog.jsonb_build_array(x.state,"
+        "x.cleanup_state) FROM wl_ingestion.sets x WHERE x.creation_operation_id='53000000-0000-4000-8000-000000000001'),"
+        "'request_digest',(SELECT x.request_digest FROM wl_ingestion.sets x WHERE "
+        "x.creation_operation_id='53000000-0000-4000-8000-000000000001'),"
+        "'members',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(m.state,m.fence) ORDER BY m.ordinal) FROM "
+        "wl_ingestion.members m WHERE m.set_id=" + OWN_SET + "::uuid),'attempts',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.raw_slot,"
+        "(SELECT pg_catalog.jsonb_agg(q.value->>'state') FROM pg_catalog.jsonb_array_elements(pg_catalog.convert_from("
+        "l.cleanup_proof_bytes,'UTF8')::jsonb) q(value))) ORDER BY l.attempt,l.created_at) FROM wl_ingestion.leases l WHERE "
+        "l.work_kind='normalize'),'cleanup',(SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.fence,"
+        "l.attempt,l.session_digest,l.credential_version,l.member_id) ORDER BY l.fence) FROM wl_ingestion.leases l WHERE "
+        "l.work_kind='cleanup'),'raw',(SELECT pg_catalog.jsonb_build_array(used_count,lease_count) FROM wl_ingestion.quotas "
+        "WHERE bucket='raw'),'raw_instance',(SELECT lease_count FROM wl_ingestion.instance_budgets WHERE bucket='raw'),"
+        "'storage',(SELECT pg_catalog.jsonb_build_array(outstanding_sets,reserved_bytes) FROM wl_ingestion.quotas WHERE "
+        "bucket='storage'),'transient',(SELECT count(*) FROM wl_ingestion.stages WHERE set_id=" + OWN_SET + "::uuid)+"
+        "(SELECT count(*) FROM wl_ingestion.members WHERE set_id=" + OWN_SET + "::uuid AND context_bytes IS NOT NULL))::text;")
+
+    def assert_cleanup_lease(self, result, outcome, fence, state):
+        self.assertTrue(result.get('ok'), result)
+        value = result['value']
+        self.assertEqual((1, outcome), (value['version'], value['outcome']))
+        lease = value['lease']
+        self.assertEqual(sorted(['version', 'job_id', 'set_id', 'member_id', 'work_kind', 'fence', 'credential_epoch',
+                                 'expires_at', 'outcome', 'source_fingerprint']), sorted(lease))
+        self.assertEqual((1, None, 'cleanup', fence, '1', outcome, state['request_digest']),
+                         (lease['version'], lease['member_id'], lease['work_kind'], lease['fence'],
+                          lease['credential_epoch'], lease['outcome'], lease['source_fingerprint']))
+        self.assertRegex(lease['job_id'], '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+        self.assertRegex(lease['expires_at']['token'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$')
+        return lease
+
+    def cleanup_ack(self, lease, outcome, released):
+        return {'version': 1, 'job_id': lease['job_id'], 'fence': lease['fence'], 'set_id': lease['set_id'],
+                'cleanup_complete': outcome != 'cleanup_pending', 'quota_released': released, 'outcome': outcome}
+
+    NO_WORK = {'ok': True, 'value': {'version': 1, 'outcome': 'no_work', 'lease': None}}
+
+    def test_cleanup_after_cancel_during_reception_releases_the_unbound_slot_once(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed(bind=False)
+        # The API may hold the raw buffer until the 120-second raw deadline from reserve.
+        past_deadline = (replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
+                         "expires_at=expires_at-interval '3 minutes' WHERE work_kind='normalize';" + origin)
+        out = self.run_labelled(seed + self.plan_claim('idle') + self.cancel_call(catalog) +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") + self.plan_claim('early') + self.plan_claim('again',
+            request='c1000000-0000-4000-8000-000000000001') +
+            self.plan_claim('other', request='c1000000-0000-4000-8000-000000000002') +
+            self.cleanup_call('waited', 'early') + self.CLEANUP_STATE.replace("'CSTATE '", "'HELD '") +
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released' WHERE work_kind='normalize'") +
+            past_deadline + self.plan_claim('claim', request='c1000000-0000-4000-8000-000000000004') +
+            self.cleanup_call('clean', request='c1000000-0000-4000-8000-0000000000a4') +
+            self.CLEANUP_STATE + self.cleanup_call('replay', request='c1000000-0000-4000-8000-0000000000a4') +
+            self.cleanup_call('changed', request='c1000000-0000-4000-8000-0000000000a2') +
+            self.plan_claim('after', request='c1000000-0000-4000-8000-000000000003'))
+        # A live set within its deadline is not cleanup work.
+        self.assertEqual(self.NO_WORK, out['IDLE'])
+        self.assertTrue(out['CANCEL']['ok'], out['CANCEL'])
+        before = out['BEFORE']
+        self.assertEqual((['CANCELLED', 'pending'], [['cancelled', 'held', None]], [1, 1], 1,
+                          [1, schema.SET_RESERVATION_BYTES]),
+                         (before['set'], before['attempts'], before['raw'], before['raw_instance'], before['storage']))
+        early = self.assert_cleanup_lease(out['EARLY'], 'claimed', '1', before)
+        # The same claim request recovers its own lease; no second lease is handed out.
+        again = self.assert_cleanup_lease(out['AGAIN'], 'already_claimed', '1', before)
+        self.assertEqual(dict(early, outcome='already_claimed'), again)
+        self.assertEqual(self.NO_WORK, out['OTHER'])
+        # Before the raw deadline the slot and storage stay held and cleanup is retryable.
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(early, 'cleanup_pending', False)}, out['WAITED'])
+        self.assertEqual((['CANCELLED', 'failed'], [['cancelled', 'held', None]], [1, 1]),
+                         (out['HELD']['set'], out['HELD']['attempts'], out['HELD']['raw']))
+        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '2', before)
+        # The offer was never bound, so after the deadline its slot returns without a proof.
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'purged', True)}, out['CLEAN'])
+        state = out['CSTATE']
+        self.assertEqual((['CANCELLED', 'complete'], [['cancelled', 'released', None]], [1, 0], 0, [0, 0], 0),
+                         (state['set'], state['attempts'], state['raw'], state['raw_instance'], state['storage'],
+                          state['transient']))
+        self.assertEqual([['finished', n, n, schema.CLEANUP_SESSION_DIGEST, 0, None] for n in (1, 2)], state['cleanup'])
+        self.assertEqual(out['CLEAN'], out['REPLAY'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['CHANGED'])
+        self.assertEqual(self.NO_WORK, out['AFTER'])
+
+    def test_cleanup_holds_a_launched_attempt_until_its_proof_succeeds(self):
+        seed, catalog = self.cleanup_seed()
+        bound = "WHERE work_kind='normalize'"
+        out = self.run_labelled(seed + self.cancel_call(catalog) + self.plan_claim('claim') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") + self.cleanup_call('clean') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'FIRST '") +
+            # The trigger refuses a release without a successful proof for this fence.
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released' " + bound) +
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes=wl_ingestion._canonical_v1(" +
+                         self.proofs('pending') + ") " + bound) +
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes=wl_ingestion._canonical_v1(" +
+                         self.proofs('absent').replace("'fence','1'", "'fence','2'") + ") " + bound) +
+            self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
+            self.cleanup_call('pending', 'second', proofs=('absent', 'pending'),
+                              request='c1000000-0000-4000-8000-0000000000a4') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'MIDDLE '") +
+            # A recorded proof is never dropped.
+            self.rejects("UPDATE wl_ingestion.leases SET cleanup_proof_bytes=NULL " + bound) +
+            self.plan_claim('third', request='c1000000-0000-4000-8000-000000000006') +
+            self.cleanup_call('proved', 'third', proofs=('not_created', 'absent'),
+                              request='c1000000-0000-4000-8000-0000000000a6') +
+            self.CLEANUP_STATE +
+            # A released slot is never held or released again, and its proof stays fixed.
+            self.rejects("UPDATE wl_ingestion.leases SET raw_slot='held' " + bound) +
+            self.rejects("UPDATE wl_ingestion.leases SET cleanup_proof_bytes=wl_ingestion._canonical_v1(" +
+                         self.proofs('absent') + ") " + bound))
+        before = out['BEFORE']
+        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', before)
+        # Owner decision: no proof keeps the slot and storage held, and cleanup failed but retryable.
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'cleanup_pending', False)}, out['CLEAN'])
+        first = out['FIRST']
+        self.assertEqual((['CANCELLED', 'failed'], [['cancelled', 'held', None]], [1, 1],
+                          [1, schema.SET_RESERVATION_BYTES]),
+                         (first['set'], first['attempts'], first['raw'], first['storage']))
+        self.assertEqual(before['transient'], first['transient'])
+        second = self.assert_cleanup_lease(out['SECOND'], 'claimed', '2', before)
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(second, 'cleanup_pending', False)}, out['PENDING'])
+        state = out['MIDDLE']
+        self.assertEqual((['CANCELLED', 'failed'], [['cancelled', 'held', ['absent', 'pending']]], [1, 1]),
+                         (state['set'], state['attempts'], state['raw']))
+        third = self.assert_cleanup_lease(out['THIRD'], 'claimed', '3', before)
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(third, 'purged', True)}, out['PROVED'])
+        state = out['CSTATE']
+        self.assertEqual((['CANCELLED', 'complete'], [['cancelled', 'released', ['not_created', 'absent']]], [1, 0],
+                          0, [0, 0], 0),
+                         (state['set'], state['attempts'], state['raw'], state['raw_instance'], state['storage'],
+                          state['transient']))
+        self.assertEqual([['finished', n, n, schema.CLEANUP_SESSION_DIGEST, 0, None] for n in (1, 2, 3)],
+                         state['cleanup'])
+
+    def test_claim_expires_an_overdue_set_before_cleaning_it(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed()
+        overdue = (replica + "UPDATE wl_ingestion.sets SET created_at=created_at-interval '2 days',expires_at=expires_at-"
+                   "interval '2 days' WHERE creation_operation_id='53000000-0000-4000-8000-000000000001';" + origin)
+        out = self.run_labelled(seed + overdue + self.plan_claim('claim') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'EXPIRED '") +
+            self.cleanup_call('clean', proofs=('not_created',)) + self.CLEANUP_STATE)
+        expired = out['EXPIRED']
+        lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', expired)
+        # Expiry fences the member and the bound offer exactly as a user call would.
+        self.assertEqual((['EXPIRED', 'pending'], [['expired', 2]], [['cancelled', 'held', None]], [1, 1]),
+                         (expired['set'], expired['members'], expired['attempts'], expired['raw']))
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'purged', True)}, out['CLEAN'])
+        state = out['CSTATE']
+        self.assertEqual((['EXPIRED', 'complete'], [['cancelled', 'released', ['not_created']]], [1, 0], [0, 0]),
+                         (state['set'], state['attempts'], state['raw'], state['storage']))
+
+    def test_cleanup_never_releases_a_slot_finish_already_returned(self):
+        for label, finish_proofs, first, final in (
+                ('finish_proved', ('absent',), 'purged', [['finished', 'released', ['absent']]]),
+                ('finish_pending', ('pending',), 'cleanup_pending', [['finished', 'released', ['absent']]])):
+            with self.subTest(finish=label):
+                plan, pin, seed, catalog = self.finish_seed(count=2)
+                script = (seed + self.finish_call('finish', proofs=finish_proofs) +
+                    self.CLEANUP_STATE.replace("'CSTATE '", "'FINISHED '") + self.cancel_call(catalog) +
+                    self.plan_claim('claim', token=self.CLEANUP_TOKEN) + self.cleanup_call('clean') +
+                    self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
+                    # A proof for an attempt whose slot finish already returned changes nothing.
+                    self.cleanup_call('again', 'second', proofs=('absent',),
+                                      request='c1000000-0000-4000-8000-0000000000a4') + self.CLEANUP_STATE)
+                out = self.run_labelled(script)
+                self.assertTrue(out['FINISH']['ok'] and out['CANCEL']['ok'], out)
+                finished = out['FINISHED']
+                held = finish_proofs != ('absent',)
+                self.assertEqual(([1, 1] if held else [1, 0]), finished['raw'])
+                self.assertEqual([['finished', 'held' if held else 'released', list(finish_proofs)]],
+                                 finished['attempts'])
+                lease = self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', finished)
+                self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, first, not held)}, out['CLEAN'])
+                state = out['CSTATE']
+                if held:
+                    second = self.assert_cleanup_lease(out['SECOND'], 'claimed', '2', finished)
+                    self.assertEqual({'ok': True, 'value': self.cleanup_ack(second, 'purged', True)}, out['AGAIN'])
+                else:
+                    # Nothing is left to claim, so a cleanup call has no lease to name.
+                    self.assertEqual(self.NO_WORK, out['SECOND'])
+                    self.assertEqual({'ok': False, 'code': 'import_invalid'}, out['AGAIN'])
+                # Exactly one release in all: the user's slot count returns to zero, never below.
+                self.assertEqual((['CANCELLED', 'complete'], final, [1, 0], 0, [0, 0]),
+                                 (state['set'], state['attempts'], state['raw'], state['raw_instance'],
+                                  state['storage']))
+
+    def test_cleanup_and_claim_refuse_without_changing_anything(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed()
+        claimed = seed + self.cancel_call(catalog) + self.plan_claim('claim')
+        unknown = "'40000000-0000-4000-8000-0000000000ff'"
+        thirteen = 'pg_catalog.jsonb_build_array(' + ','.join([self.PROOF.replace('OWN', self.OWN).replace(
+            'STATE', 'absent')] * 13) + ')'
+        cases = (
+            ('wrong_token', {'token': 'ef' * 32}, 'authentication_required'),
+            ('old_fence', {'fence': "'2'"}, 'import_stale'),
+            ('unknown_job', {'job_id': unknown}, 'import_stale'),
+            ('unknown_set', {'set_id': unknown}, 'not_found'),
+            ('member_id', {'member_id': "(SELECT m.id::text " + self.OWN + ")"}, 'import_invalid'),
+            ('normalize_kind', {'work_kind': "'normalize'"}, 'import_invalid'),
+            ('extra_field', {'note': "'x'"}, 'import_invalid'),
+            ('missing_field', {'drop': ('cleanup_proofs',)}, 'import_invalid'),
+            ('bytes', {'data': "'\\x00'::bytea"}, 'import_invalid'),
+            ('epoch', {'credential_epoch': "'2'"}, 'credentials_changed'),
+            ('proof_job', {'cleanup_proofs': self.proofs('absent').replace(
+                "(SELECT pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id' " + self.OWN + ")",
+                "'40000000-0000-4000-8000-0000000000ff'")}, 'import_invalid'),
+            ('proof_fence', {'cleanup_proofs': self.proofs('absent').replace("'fence','1'", "'fence','2'")},
+             'import_invalid'),
+            ('proof_state', {'proofs': ('gone',)}, 'import_invalid'),
+            ('four_proofs', {'proofs': ('absent',) * 4}, 'import_invalid'),
+            ('thirteen_proofs', {'cleanup_proofs': thirteen}, 'import_invalid'),
+            ('lapsed', {'prefix': replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
+                        "expires_at=pg_catalog.clock_timestamp()-interval '1 second' WHERE work_kind='cleanup';" + origin},
+             'import_stale'),
+            ('restored', {'prefix': replica + "UPDATE wl_ingestion.leases SET restore_epoch=restore_epoch+1 "
+                          "WHERE work_kind='cleanup';" + origin}, 'import_stale'),
+            ('proof_time', {'cleanup_proofs': self.proofs('absent').replace('2026-02-02T13:00:10+00:00', 'not-a-time')},
+             'import_invalid'),
+            ('proof_time_long', {'cleanup_proofs': self.proofs('absent').replace('2026-02-02T13:00:10+00:00', '9' * 5000)},
+             'import_invalid'),
+            ('proof_fraction', {'cleanup_proofs': self.proofs('absent').replace('13:00:10+00:00', '13:00:10.5+00:00')},
+             'import_invalid'),
+        )
+        for name, fields, code in cases:
+            with self.subTest(case=name):
+                fields = dict(fields)
+                prefix = fields.pop('prefix', '')
+                out = self.run_labelled(claimed + prefix + self.cleanup_call('result', **fields) + self.CLEANUP_STATE)
+                self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                state = out['CSTATE']
+                self.assertEqual((['CANCELLED', 'pending'], [['cancelled', 'held', None]], [1, 1]),
+                                 (state['set'], state['attempts'], state['raw']))
+                self.assertEqual('active', state['cleanup'][0][0])
+        cancelled = seed + self.cancel_call(catalog)
+        for name, fields, code in (
+                ('normalize_kind', {'work_kind': "'normalize'"}, 'import_invalid'),
+                ('extra_field', {'note': "'x'"}, 'import_invalid'),
+                ('missing_field', {'drop': ('claim_request_id',)}, 'import_invalid'),
+                ('zero_request', {'request': '00000000-0000-0000-0000-000000000000'}, 'import_invalid'),
+                ('bytes', {'data': "'\\x00'::bytea"}, 'import_invalid'),
+                ('epoch', {'credential_epoch': "'2'"}, 'credentials_changed')):
+            with self.subTest(claim=name):
+                out = self.run_labelled(cancelled + self.plan_claim('result', **fields) + self.CLEANUP_STATE)
+                self.assertEqual({'ok': False, 'code': code}, out['RESULT'])
+                self.assertIsNone(out['CSTATE']['cleanup'])
+        # A replayed claim must come from the same token; a lapsed lease is closed
+        # and the set is handed out again under the next fence.
+        out = self.run_labelled(claimed + self.plan_claim('stolen', token='ef' * 32) +
+            replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
+            "expires_at=pg_catalog.clock_timestamp()-interval '1 second' WHERE work_kind='cleanup';" + origin +
+            self.plan_claim('lapsed') + self.plan_claim('next', request='c1000000-0000-4000-8000-000000000005') +
+            self.CLEANUP_STATE)
+        self.assertEqual({'ok': False, 'code': 'authentication_required'}, out['STOLEN'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['LAPSED'])
+        self.assert_cleanup_lease(out['NEXT'], 'claimed', '2', out['CSTATE'])
+        self.assertEqual([['expired', 1], ['active', 2]], [row[:2] for row in out['CSTATE']['cleanup']])
+        # The database refuses a second live cleanup lease for one set.
+        self.run_labelled(claimed + self.rejects(
+            "INSERT INTO wl_ingestion.leases SELECT tenant_id,portfolio_id,pg_catalog.gen_random_uuid(),set_id,member_id,"
+            "work_kind,attempt+1,fence+1,worker_id,token_digest,session_digest,credential_version,incarnation,restore_epoch,"
+            "created_at,expires_at,state,pg_catalog.gen_random_uuid(),claim_request_digest,NULL,NULL,NULL,raw_slot,"
+            "cleanup_proof_bytes FROM wl_ingestion.leases WHERE work_kind='cleanup'"))
+        # A claim request ID this worker already used for a normalize claim is a conflict.
+        out = self.run_labelled(seed + self.lease_call('claim_member_v1', 'member') + self.cancel_call(catalog) +
+                                self.plan_claim('reused', request='c0000000-0000-4000-8000-000000000002'))
+        self.assertTrue(out['MEMBER']['ok'], out['MEMBER'])
+        self.assertEqual({'ok': False, 'code': 'import_conflict'}, out['REUSED'])
+        # Both functions rely on READ COMMITTED rechecks and refuse other isolation levels.
+        raw = self.sql('BEGIN ISOLATION LEVEL REPEATABLE READ;' + claimed.replace(self.plan_claim('claim'), '') +
+                       self.plan_claim('repeatable') + 'ROLLBACK;')
+        self.assertIn('REPEATABLE {"ok": false, "code": "import_invalid"}', raw)
+
+    def test_claim_selects_the_oldest_terminal_set_first(self):
+        replica = 'SET LOCAL session_replication_role=replica;'
+        origin = 'SET LOCAL session_replication_role=origin;'
+        seed, catalog = self.cleanup_seed(bind=False)
+        # A second terminal set created later in the same portfolio, built directly.
+        later = 'a7000000-0000-4000-8000-000000000001'
+        seed += self.cancel_call(catalog) + replica + (
+            "INSERT INTO wl_ingestion.sets SELECT tenant_id,portfolio_id,'" + later + "'::uuid,actor_user_id,"
+            "'53000000-0000-4000-8000-0000000000b1'::uuid,request_digest,incarnation,restore_epoch,realm_digest,state,"
+            "revision,created_at+interval '1 second',expires_at+interval '1 second',member_count,reserved_bytes,receipt_id,"
+            "cleanup_state,prepare_session_digest,prepare_credential_version FROM wl_ingestion.sets WHERE "
+            "creation_operation_id='53000000-0000-4000-8000-000000000001';") + origin
+        out = self.run_labelled(seed + self.plan_claim('first') +
+            self.plan_claim('second', request='c1000000-0000-4000-8000-000000000002') +
+            self.plan_claim('third', request='c1000000-0000-4000-8000-000000000003') +
+            "SELECT 'OWN '||pg_catalog.jsonb_build_object('id'," + self.OWN_SET + ")::text;")
+        self.assertEqual(out['OWN']['id'], out['FIRST']['value']['lease']['set_id'])
+        self.assertEqual(later, out['SECOND']['value']['lease']['set_id'])
+        self.assertEqual(self.NO_WORK, out['THIRD'])
+
+    def test_cleanup_lease_functions_are_not_public(self):
+        self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
+                 "rolname='wl007_synthetic_guard_reader') THEN CREATE ROLE wl007_synthetic_guard_reader NOLOGIN; "
+                 'END IF; END $role$;')
+        for name in ('claim_plan_v1', 'cleanup_set_v1'):
+            with self.subTest(function=name):
+                self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
+                    "'wl_ingestion." + name + "(uuid,text,jsonb,bytea)','EXECUTE')"))
+
 
 if __name__ == '__main__':
     unittest.main()

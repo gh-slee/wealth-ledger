@@ -7,15 +7,15 @@ import unittest
 import test_web as foundation
 from test_source_builtin import CONTEXT, ALIAS, fixture
 from test_source_context_pipeline import CONTEXTS
-from wealth_ledger.source_context_pipeline import context_document
+from kurafolio.source_context_pipeline import context_document
 
 AVAILABLE = foundation.AVAILABLE and importlib.util.find_spec("huey") is not None
 if AVAILABLE:
-    from wealth_ledger.operations import fingerprint
-    from wealth_ledger.source_context_pipeline import plan_context_sources
-    from wealth_ledger.source_environment import environment_fingerprint
-    from wealth_ledger.web.jobs import Jobs
-    from wealth_ledger.web.worker import execute_job, reconcile
+    from kurafolio.operations import fingerprint
+    from kurafolio.source_context_pipeline import plan_context_sources
+    from kurafolio.source_environment import environment_fingerprint
+    from kurafolio.web.jobs import Jobs
+    from kurafolio.web.worker import execute_job, reconcile
 
 
 @unittest.skipUnless(AVAILABLE, "Optional Web dependencies are not installed")
@@ -48,7 +48,7 @@ class WebContextPlanTests(unittest.TestCase):
         return response.json()
 
     def test_actual_context_api_and_worker_equal_shared_cli_plan_and_cannot_confirm(self):
-        from wealth_ledger.web.uploads import get_upload, verified_upload
+        from kurafolio.web.uploads import get_upload, verified_upload
         self.prepare()
         paths = [verified_upload(self.store, get_upload(self.store, self.pid, identifier)) for identifier in self.uploads]
         expected = plan_context_sources(paths, contexts=CONTEXTS)
@@ -90,7 +90,7 @@ class WebContextPlanTests(unittest.TestCase):
         execute_job(self.settings, revised["id"])
         row = self.jobs.get(self.pid, revised["id"])
         self.assertEqual((row["status"], row["error_code"]), ("blocked", "stale_plan"))
-        with patch("wealth_ledger.web.source_plans.environment_fingerprint", return_value="0" * 64):
+        with patch("kurafolio.web.source_plans.environment_fingerprint", return_value="0" * 64):
             mismatch = self.enqueue(key="context-environment-mismatch")
         execute_job(self.settings, mismatch["id"])
         row = self.jobs.get(self.pid, mismatch["id"])

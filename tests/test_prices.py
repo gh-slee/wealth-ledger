@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from wealth_ledger.prices import select_candle, validate_quote, resolve_btc_price
+from kurafolio.prices import select_candle, validate_quote, resolve_btc_price
 
 AS_OF = "2026-10-10T02:28:00Z"
 
@@ -36,7 +36,7 @@ class PriceTests(unittest.TestCase):
                    "evidence_path":str(evidence.relative_to(root)),
                    "evidence_sha256":hashlib.sha256(b"[]").hexdigest()}
             (root/"data/prices/btc-usd-2026-10-10T022800+0000.json").write_text(json.dumps(quote), encoding="utf-8")
-            with patch("wealth_ledger.prices.urlopen",side_effect=AssertionError("Must stay offline")):
+            with patch("kurafolio.prices.urlopen",side_effect=AssertionError("Must stay offline")):
                 self.assertEqual(resolve_btc_price(root,AS_OF),quote)
                 evidence.write_bytes(b"changed")
                 with self.assertRaisesRegex(ValueError,"evidence"):

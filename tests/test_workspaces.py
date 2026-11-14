@@ -12,13 +12,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from wealth_ledger.application import ApplicationService
-from wealth_ledger.core import import_holdings, make_payload
-from wealth_ledger.lookthrough import attach_analysis, portfolio_signature
-from wealth_ledger.operations import fingerprint
-from wealth_ledger.publishing import database_backup
-from wealth_ledger.resources import company_aliases
-from wealth_ledger.workspace import CODE_ROOT, resolve_workspace, workspace_from_args
+from kurafolio.application import ApplicationService
+from kurafolio.core import import_holdings, make_payload
+from kurafolio.lookthrough import attach_analysis, portfolio_signature
+from kurafolio.operations import fingerprint
+from kurafolio.publishing import database_backup
+from kurafolio.resources import company_aliases
+from kurafolio.workspace import CODE_ROOT, resolve_workspace, workspace_from_args
 
 
 ROOT = CODE_ROOT
@@ -58,7 +58,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(hashes(self.b), {})
 
     def test_render_cache_is_scoped_and_environment_restored(self):
-        from wealth_ledger.reporting import _CACHE, _with_render_cache
+        from kurafolio.reporting import _CACHE, _with_render_cache
         import matplotlib
         with patch.dict(os.environ, {"MPLCONFIGDIR": str(self.base / "host-cache")}):
             before = dict(os.environ)
@@ -97,7 +97,7 @@ class WorkspaceTests(unittest.TestCase):
         relative = database_backup(self.a, "synthetic")
         with closing(sqlite3.connect(self.a / relative)) as conn:
             self.assertEqual(conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
-        from wealth_ledger.operations import project_lock
+        from kurafolio.operations import project_lock
         with project_lock(self.a):
             with self.assertRaises(ValueError):
                 with project_lock(self.a):
@@ -107,7 +107,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertFalse((self.b / "data/db/portfolio.sqlite3").exists())
 
     def test_data_only_services_stay_in_selected_ledger(self):
-        from wealth_ledger.wallet import add_balance, records
+        from kurafolio.wallet import add_balance, records
         self.seed(self.a); self.seed(self.b)
         a = ApplicationService(resolve_workspace(ROOT, self.a))
         before = hashes(self.b)
@@ -123,7 +123,7 @@ class WorkspaceTests(unittest.TestCase):
         a = ApplicationService(resolve_workspace(ROOT, self.a))
         b = ApplicationService(resolve_workspace(ROOT, self.b))
         before_b = hashes(self.b)
-        with patch("wealth_ledger.application.publish", side_effect=ValueError("synthetic report failure")):
+        with patch("kurafolio.application.publish", side_effect=ValueError("synthetic report failure")):
             with self.assertRaisesRegex(ValueError, "--workspace"):
                 a.update({"paths": [], "snapshot_id": 1})
         failed = a.operations()[0]
@@ -131,7 +131,7 @@ class WorkspaceTests(unittest.TestCase):
         committed = fingerprint(self.a)
         with self.assertRaises(ValueError):
             b.operation(failed["operation_id"])
-        with patch("wealth_ledger.application.publish", return_value={"output": "synthetic-output"}) as publisher:
+        with patch("kurafolio.application.publish", return_value={"output": "synthetic-output"}) as publisher:
             result = a.update({}, resume=failed["operation_id"])
         self.assertEqual(publisher.call_args.args[0], self.a.resolve())
         self.assertEqual(result["status"], "published")
@@ -141,7 +141,7 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_alias_fallback_override_hashes_and_conflicts(self):
         original, evidence = company_aliases(self.a)
-        self.assertEqual(evidence["effective_sha256"], __import__("wealth_ledger.lookthrough", fromlist=["digest"]).digest(original))
+        self.assertEqual(evidence["effective_sha256"], __import__("kurafolio.lookthrough", fromlist=["digest"]).digest(original))
         self.assertIsNone(evidence["override_sha256"])
         config = self.a / "config"; config.mkdir()
         path = config / "company-aliases.override.json"

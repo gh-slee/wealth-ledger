@@ -62,13 +62,13 @@ provider installation or seeded user. Protect catalog, connection-info, proof an
 key files as regular private files (0600); do not commit them. The key is32bytes.
 
 ```bash
-python -m wealth_ledger.web_v2 operator migrate-sources \
+python -m kurafolio.web_v2 operator migrate-sources \
   --secret-file /private/example/operator.conninfo \
   --runtime-role example_finance --identity-role example_identity \
   --key-file /private/example/instance.key \
   --source-catalog-file /private/example/source-catalog.json
 
-python -m wealth_ledger.web_v2 sources status \
+python -m kurafolio.web_v2 sources status \
   --secret-file /private/example/operator.conninfo \
   --runtime-role example_finance --identity-role example_identity \
   --key-file /private/example/instance.key \
@@ -87,7 +87,7 @@ To install/reactivate a reviewed catalog, supply an explicit private content-pro
 input and a compare-and-swap revision:
 
 ```bash
-python -m wealth_ledger.web_v2 sources catalog-apply \
+python -m kurafolio.web_v2 sources catalog-apply \
   --secret-file /private/example/operator.conninfo \
   --runtime-role example_finance --identity-role example_identity \
   --key-file /private/example/instance.key \
@@ -117,7 +117,7 @@ serializable HTTP authority. Unchanged matching catalog application is a no-op.
 Start only with an explicit matching profile/catalog:
 
 ```bash
-python -m wealth_ledger.web_v2 serve \
+python -m kurafolio.web_v2 serve \
   --identity-file /private/example/identity.conninfo \
   --financial-file /private/example/finance.conninfo \
   --key-file /private/example/instance.key \
@@ -150,7 +150,7 @@ Read pages use bounded `limit` and `after`. A cursor requires the returned
 `catalog_revision`, `state_revision`, `incarnation` and `restore_epoch` as separate
 query parameters. The public realm contains only `incarnation` and `restore_epoch`;
 the complete actual database realm stays internal and is checked independently.
-These fields are not a caller-created tenant assertion. The strict DTOs in [schemas.py](../src/wealth_ledger/web_v2/schemas.py)
+These fields are not a caller-created tenant assertion. The strict DTOs in [schemas.py](../src/kurafolio/web_v2/schemas.py)
 are authoritative for each route's fields. PUT/POST carry `operation_id`,
 `expected_revision` and `expected_realm` plus their operation-specific fields.
 Create additionally supplies plugin/capability/installation, display label and
@@ -200,7 +200,7 @@ A matching initialized0003 dump must be restored into a new empty target using
 matching code/key/catalog/installation proofs, then explicitly finalized:
 
 ```bash
-python -m wealth_ledger.web_v2 sources finalize-restore \
+python -m kurafolio.web_v2 sources finalize-restore \
   --secret-file /private/example/restored-operator.conninfo \
   --runtime-role example_finance --identity-role example_identity \
   --key-file /private/example/instance.key \
@@ -231,4 +231,13 @@ Use the locked PG test environment; see [development](development.md#optional-so
 Self-tests, independent review, merged CI and an actual deployment are distinct
 facts. Local native receipts establish only their recorded Linux architecture;
 there is no claim of native Windows/macOS containment or arbitrary hostile-plugin
-security. No UI or financial report behavior changes in this scope.
+security. No financial report behavior changes in this scope.
+
+## Browser page
+
+The V2 Parser Plugin Store at `/app/sources` (WL-P0-011C) uses only the routes above.
+It lists the installed sources, turns FILE_IMPORT on or off per user, asks the user to
+confirm a newer installed version, and adds, renames, turns off and turns on
+connections. It imports nothing and offers no upload, install or credential control;
+PULL_API is shown as planned. Each user action sends one operation ID, and a retry
+after a lost response resends the identical request.

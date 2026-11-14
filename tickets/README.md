@@ -1,6 +1,6 @@
 # Tickets and the parallel agent workflow
 
-This directory is the single tracked backlog for Wealth Ledger. Any coding agent
+This directory is the single tracked backlog for Kurafolio. Any coding agent
 (Codex, Claude Code, opencode with DeepSeek or another model, or a human) can pick
 up any ticket, including one another agent started and could not finish. Several
 agents can work on different tickets at the same time.
@@ -21,6 +21,7 @@ Git directory itself, so it works from the primary checkout or any worktree.
 
 ```bash
 git fetch origin
+python3 scripts/tickets.py cleanup
 python3 scripts/tickets.py next --tier standard
 python3 scripts/tickets.py resume WL-P0-018
 python3 scripts/tickets.py claim WL-P0-018 --agent opencode/deepseek-flash --worktree
@@ -33,18 +34,32 @@ all work there, never in the primary checkout. Then:
    Read only the docs the ticket links, plus AGENTS.md.
 2. Set `status: in_progress` and `updated:`, add a Log line, and commit.
 3. Work through the Plan checkboxes. After each meaningful step, update Handoff,
-   commit (WIP commits are fine on a ticket branch) and run
+   commit (WIP commits are fine on a ticket branch; the owner squashes them at
+   merge) and run
    `python3 scripts/tickets.py heartbeat <ID> --note "<one line>"`.
 4. Before you stop for any reason, write the Handoff (see below), commit and push
    the ticket branch. Assume you can be cut off at any moment by a usage limit.
 5. When the acceptance criteria pass and any required independent review is
    recorded, set `status: done` and `pr:` in the PR's final commit, then open the
-   PR using the repository PR rules. Because only the owner merges, the ticket reads
+   PR using the repository PR rules. Write the PR title as a one-line summary of the
+   change, because it becomes the subject of the squashed commit on `main` and the
+   PR description becomes its body. Because only the owner merges, the ticket reads
    `done` on `main` only after the merge. While the PR is open, its branch copy
    and the live claim show it as under review. If review requests changes, keep
    the claim and set `status: in_review` until the repair is pushed.
-6. After the merge, run `python3 scripts/tickets.py release <ID>`. If the PR is
-   closed without merging, set the ticket back to `ready` with a Log line.
+6. Work on one ticket per session, so the session's context holds only that
+   ticket. Until the PR is merged, use the session only for that ticket: review
+   repairs, CI fixes and the owner's questions about it. Do not claim a second
+   ticket or take on unrelated work in it. File a follow-up ticket instead, or ask
+   the owner to start a new session for the other work.
+7. End the session once the owner has merged the PR and nothing on the ticket is
+   outstanding: no unanswered review finding or owner question, no failing check,
+   no unpushed commit and no unfiled follow-up. Run
+   `python3 scripts/tickets.py release <ID>`, report the merge and stop. Do not pick
+   up the next ticket; it starts in a new session. If the PR is closed without
+   merging, set the ticket back to `ready` with a Log line, release it and stop. If
+   a session stops before the merge, the next agent's `cleanup` at pickup removes
+   the merged worktree and its local branch and releases the leftover stale claim.
 
 ## Capability tiers
 
@@ -80,7 +95,7 @@ script or by review, not by trust.
    names, PostgreSQL test environments (`scripts/postgres.py test-environment
    --output work/pg-tests-<isolation_id>`), temp directories and queues. Use
    ports from `port_base` to `port_base + 99`. When running the browser suite
-   in parallel, set `WEALTH_LEDGER_E2E_PORT` to your claim's `port_base` before
+   in parallel, set `KURAFOLIO_E2E_PORT` to your claim's `port_base` before
    running `npm --prefix frontend run test:e2e` in your own worktree. The browser
    suite uses port 8765 when the variable is unset.
 
@@ -175,10 +190,34 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   owner grants it, in conversation with an agent, and the agent records the date and
   scope. Never infer approval from priority, a roadmap or a passed test.
 - **Reviews:** `review: independent` means a different agent session than the
-  implementer reviews the diff against the acceptance criteria. The reviewer records
-  findings in the ticket Log, or in a linked `review` ticket. The same session
+  implementer reviews the diff against the acceptance criteria. The same session
   cannot self-certify. Using a different model is welcome but does not by itself
-  count as independence.
+  count as independence. The implementer starts this review itself, without
+  being asked, once the work is pushed and before it hands the PR to the owner:
+  1. Start a reviewer with a fresh context (a subagent or a separate session).
+     Give it the ticket file, the diff against the base branch and the repository
+     rules. Do not give it your conversation or your reasoning.
+  2. The reviewer follows `.agents/skills/kurafolio-qa-automation/SKILL.md` on
+     every ticket. For `risk: high` or `critical`, a second reviewer follows
+     `.agents/skills/kurafolio-software-architect/SKILL.md`. For a ticket that
+     changes a page or user-facing wording, one reviewer also checks it against
+     [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md) with
+     `.agents/skills/kurafolio-fintech-pm/SKILL.md`.
+  3. The reviewer gives a verdict for each acceptance criterion, runs the Verify
+     commands it can, and lists what it could not check. It does not edit the
+     branch. Its findings go on the PR as a comment and in one ticket Log line.
+  4. The implementer fixes or answers every finding and reports the result under
+     "Independent QA / Architecture Review" in the PR description. Open findings
+     are listed there, not hidden.
+  5. If the tool cannot start a reviewer, write "NOT RUN" with the reason in the
+     PR and the Handoff. Never describe your own checks as independent review.
+  The owner reviews last, on GitHub, and is the only one who merges.
+- **Squash merge:** every PR lands on `main` as one squashed commit, so a branch's
+  WIP and Handoff commits stay off the main history. While a PR is open, bring in
+  newer `main` with `git merge origin/main`, never a rebase, because agents do not
+  force-push. Once a PR is merged, its branch is finished: do not push more commits
+  to it. Repairs and follow-ups start a new branch from `origin/main`, under a new
+  ticket where one is needed.
 - **Public repository:** ticket text is public. Never write credentials, financial
   data, account names, personal paths or private approval transcripts. Detailed
   private evidence stays under ignored `work/`; reference it only by a relative path.
@@ -197,6 +236,20 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
 | `heartbeat ID [--note TEXT]` | Refresh the claim from the owning worktree. |
 | `takeover ID --agent NAME [--worktree] --reason TEXT` | Take a stale claim; records the previous owner. |
 | `release ID` | Drop the claim and its resources. |
+| `cleanup [--base origin/main] [--dry-run]` | Remove merged ticket worktrees and their local branches (see below). |
+
+`cleanup` only touches worktrees under `work/worktrees/`. It removes one when its
+branch has landed on the base, it has no uncommitted or untracked changes and no
+live claim. A branch has landed when the base reached its tip through a merge
+commit, or when it was squash- or rebase-merged: it changes something, and merging
+it into the base now would not change the base. It also releases a stale claim on
+that worktree. It keeps the worktree you run it from, a branch with changes that are
+not on the base yet, a branch with no net changes, and a new branch that still
+points at the base tip. If `main` later edited the same lines as a squash-merged
+branch, that branch is kept too; check its PR is merged and remove it by hand.
+Ignored files inside a removed worktree, such as `node_modules/` or `work/`
+evidence, are deleted with it, so move anything you still need first. Run
+`git fetch origin` before it so the base is current.
 
 Agent names use `tool/model`, for example `codex/gpt-5.5`, `claude/opus-5.5` or
 `opencode/deepseek-flash`. The board uses them to show who is working.

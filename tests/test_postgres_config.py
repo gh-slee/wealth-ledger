@@ -6,14 +6,14 @@ from pathlib import Path
 import tempfile
 import unittest
 import uuid
-from wealth_ledger.domain.validation_v1 import decode_domain_v1
-from wealth_ledger.persistence.config import PostgresConfig
-from wealth_ledger.persistence.context import Database,TenantContext,execute
-from wealth_ledger.persistence.migration import seed_tenant
-from wealth_ledger.persistence.errors import PersistenceError
+from kurafolio.domain.validation_v1 import decode_domain_v1
+from kurafolio.persistence.config import PostgresConfig
+from kurafolio.persistence.context import Database,TenantContext,execute
+from kurafolio.persistence.migration import seed_tenant
+from kurafolio.persistence.errors import PersistenceError
 
 EXTRAS=importlib.util.find_spec('sqlalchemy') is not None and importlib.util.find_spec('psycopg') is not None
-CONFIG=os.environ.get('WEALTH_LEDGER_PG_TEST_CONFIG')
+CONFIG=os.environ.get('KURAFOLIO_PG_TEST_CONFIG')
 FIXTURES=Path(__file__).parent/'fixtures/postgres_foundation'
 
 
@@ -40,12 +40,12 @@ class ConfigurationTests(unittest.TestCase):
             with self.assertRaises(PersistenceError):PostgresConfig('dbname=synthetic user=synthetic',pool)
 
 
-@unittest.skipUnless(EXTRAS and CONFIG and os.environ.get('WEALTH_LEDGER_PG_TEST')=='1','Opt-in isolated real PostgreSQL acceptance')
+@unittest.skipUnless(EXTRAS and CONFIG and os.environ.get('KURAFOLIO_PG_TEST')=='1','Opt-in isolated real PostgreSQL acceptance')
 class PostgresCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.settings=json.loads(Path(CONFIG).read_text())
-        if cls.settings.get('format')!='wealth-ledger-synthetic-pg-tests':raise RuntimeError('Synthetic test config required')
+        if cls.settings.get('format')!='kurafolio-synthetic-pg-tests':raise RuntimeError('Synthetic test config required')
         from psycopg.conninfo import conninfo_to_dict
         options=conninfo_to_dict(Path(cls.settings['migration_secret_file']).read_text())
         if not options.get('dbname','').startswith(('wl_test_','wl004_')):raise RuntimeError('Synthetic database name required')

@@ -8,7 +8,7 @@ import socket
 import sys
 import time
 
-from wealth_ledger.data_sources import contract_v1 as s
+from kurafolio.data_sources import contract_v1 as s
 
 OPERATIONS=frozenset({'normalize','fake_file','fake_api','inspect','probe','malformed_output'})
 PROBES=frozenset({'network','files','readonly','pids','memory','cpu','stdout','stderr','sleep','descendant'})
@@ -44,7 +44,7 @@ def probe(name,paths=None):
         return {'denied':denied,'interfaces':[list(value) for value in socket.if_nameindex()],
                 'ipv4_routes':open('/proc/net/route').read().splitlines()[1:]}
     if name=='files':
-        if type(paths) is not list or len(paths)!=2 or any(type(p) is not str or len(p)>1024 or 'wealth-ledger-source-host-' not in p for p in paths):raise ValueError('Invalid invented host paths')
+        if type(paths) is not list or len(paths)!=2 or any(type(p) is not str or len(p)>1024 or 'kurafolio-source-host-' not in p for p in paths):raise ValueError('Invalid invented host paths')
         denied=[]
         try:
             with open(paths[0],'rb'):denied.append(False)
@@ -112,8 +112,8 @@ def main():
     if operation=='normalize':
         if set(context)!={'context_version','payload_kind','context'} or context['context_version']!=1 or context['payload_kind']!='parser_v2':raise ValueError('Invalid minimal parser context')
         binding=s.decode(s.ParserBinding,context['context'])
-        from wealth_ledger.source_builtin import WealthsimpleHoldings,BullBitcoinOrders
-        from wealth_ledger.source_v2 import canonical_json
+        from kurafolio.source_builtin import WealthsimpleHoldings,BullBitcoinOrders
+        from kurafolio.source_v2 import canonical_json
         factories={'wealthsimple':WealthsimpleHoldings,'bullbitcoin':BullBitcoinOrders}
         if value['provider'] not in factories:raise ValueError('Unknown fixed provider')
         batch=factories[value['provider']]().normalize(source,export_version=value['format_version'],context=binding.value)

@@ -41,7 +41,7 @@ scenarios remain available; original CSV/SQLite remain authoritative.
 
 ```python
 from pathlib import Path
-from wealth_ledger.workbook import build_workbook, verify_workbook
+from kurafolio.workbook import build_workbook, verify_workbook
 
 result = build_workbook(payload, Path("portfolio.ods"), chart_images=report_result["charts"])
 checks = verify_workbook(Path("portfolio.ods"), payload["totals"]["total_cad"])

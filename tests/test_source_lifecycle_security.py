@@ -7,10 +7,10 @@ import subprocess
 import uuid
 import unittest
 from test_source_lifecycle import SourceCase,CONTENT_ENABLED
-from wealth_ledger.persistence.context import Database,execute
-from wealth_ledger.persistence.migration import _role
-from wealth_ledger.persistence.source_migration import migrate_sources,verify_inventory
-from wealth_ledger.persistence.errors import PersistenceError
+from kurafolio.persistence.context import Database,execute
+from kurafolio.persistence.migration import _role
+from kurafolio.persistence.source_migration import migrate_sources,verify_inventory
+from kurafolio.persistence.errors import PersistenceError
 
 
 class SourceSecurityTests(SourceCase):
@@ -65,15 +65,15 @@ class SourceSecurityTests(SourceCase):
     @unittest.skipUnless(CONTENT_ENABLED,'Explicit immutable source image and artifact required')
     def test_same_version_manifest_or_actual_image_byte_change_cannot_supply_proof(self):
         from dataclasses import replace
-        from wealth_ledger.data_sources.contract_v1 import canonical,ContractError
-        from wealth_ledger.data_sources.compatibility_v1 import builtin_descriptors
-        from wealth_ledger.data_sources.catalog_v1 import verify_installation
-        image=os.environ['WEALTH_LEDGER_SOURCE_RUNTIME_IMAGE'];artifact=Path(os.environ['WEALTH_LEDGER_SOURCE_ARTIFACT_FILE']).read_bytes();metadata=json.loads(artifact)
-        descriptor=builtin_descriptors(package_distribution=metadata['package_distribution'],package_version=metadata['package_version'],artifact_sha256=hashlib.sha256(artifact).hexdigest(),execution_image_digest=image[7:],entry_point_target='wealth_ledger.source_builtin:registrations')[0]
+        from kurafolio.data_sources.contract_v1 import canonical,ContractError
+        from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
+        from kurafolio.data_sources.catalog_v1 import verify_installation
+        image=os.environ['KURAFOLIO_SOURCE_RUNTIME_IMAGE'];artifact=Path(os.environ['KURAFOLIO_SOURCE_ARTIFACT_FILE']).read_bytes();metadata=json.loads(artifact)
+        descriptor=builtin_descriptors(package_distribution=metadata['package_distribution'],package_version=metadata['package_version'],artifact_sha256=hashlib.sha256(artifact).hexdigest(),execution_image_digest=image[7:],entry_point_target='kurafolio.source_builtin:registrations')[0]
         bad=json.loads(artifact);bad['files'][0]['sha256']='0'*64;changed=canonical(bad)
         with self.assertRaises(ContractError):verify_installation(replace(descriptor,artifact_sha256=hashlib.sha256(changed).hexdigest()),changed,image_root='/app/src')
         folder=Path('work')/('source-content-negative-'+uuid.uuid4().hex);folder.mkdir(parents=True,mode=0o700)
-        suffix=uuid.uuid4().hex;tag='wealth-ledger-proof-base-'+suffix+':test';retained='wealth-ledger-proof-retained-'+suffix+':test'
+        suffix=uuid.uuid4().hex;tag='kurafolio-proof-base-'+suffix+':test';retained='kurafolio-proof-retained-'+suffix+':test'
         def docker(*args):
             value=subprocess.run(['docker',*args],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=120)
             self.assertEqual(value.returncode,0,'Synthetic stopped-image proof setup failed; inspect private Docker diagnostics')
@@ -81,7 +81,7 @@ class SourceSecurityTests(SourceCase):
         docker('tag',image,retained);docker('tag',image,tag)
         try:
             self.assertEqual(json.loads(docker('image','inspect',tag))[0]['Id'],image)
-            (folder/'Dockerfile').write_text('ARG SOURCE_BASE\nFROM ${SOURCE_BASE}\nCOPY synthetic-source.txt /app/src/wealth_ledger/source_builtin.py\n')
+            (folder/'Dockerfile').write_text('ARG SOURCE_BASE\nFROM ${SOURCE_BASE}\nCOPY synthetic-source.txt /app/src/kurafolio/source_builtin.py\n')
             (folder/'synthetic-source.txt').write_bytes(b'invented changed source bytes; never executed\n')
             docker('build','--network','none','--build-arg','SOURCE_BASE='+tag,'--iidfile',str(folder/'image-id'),str(folder))
             altered=(folder/'image-id').read_text().strip();self.assertNotEqual(altered,image)

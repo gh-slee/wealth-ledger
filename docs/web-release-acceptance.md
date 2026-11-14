@@ -37,7 +37,7 @@ PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_operations.py' 
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_dependency_inventory.py' -v
 PYTHONPATH=src python -m unittest discover -s tests -v
 python scripts/dependency_inventory.py --require-declared
-WEALTH_LEDGER_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v
+KURAFOLIO_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v
 ```
 
 | Boundary | Executable evidence |
@@ -69,12 +69,14 @@ not a promise against hardware corruption. Keep independent backups.
    frozen artifact downloads. A backup that has not restored is unproven.
 3. Stop both services, leaving the volume intact: `docker compose stop web worker`.
    Keep the same Compose project name and persistent volume for an in-place upgrade.
+   The one exception is the move from Wealth Ledger to Kurafolio, which changes the
+   project name; follow the [README upgrade note](../README.md#quick-start) once.
 4. Select/review the new source version. Prepare a fresh source-only build context;
    existing contexts are never overwritten. For example, after choosing a new suffix:
 
    ```bash
    python3 scripts/docker_context.py --output work/docker-context-upgrade-1
-   WEALTH_LEDGER_BUILD_CONTEXT=./work/docker-context-upgrade-1 docker compose build web
+   KURAFOLIO_BUILD_CONTEXT=./work/docker-context-upgrade-1 docker compose build web
    docker compose run --rm --no-deps -T web upgrade
    docker compose up -d
    docker compose ps

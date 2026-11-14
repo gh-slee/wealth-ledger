@@ -10,17 +10,17 @@ RUN npm run build
 FROM python:3.12.15-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/src \
-    WEALTH_LEDGER_DATA_ROOT=/data MPLCONFIGDIR=/data/cache/matplotlib \
+    KURAFOLIO_DATA_ROOT=/data MPLCONFIGDIR=/data/cache/matplotlib \
     XDG_CACHE_HOME=/data/cache/system
 WORKDIR /app
 COPY requirements.lock requirements-web.lock requirements-pg.lock /app/
-ARG WEALTH_LEDGER_POSTGRES=0
+ARG KURAFOLIO_POSTGRES=0
 RUN python -m pip install --no-cache-dir -r requirements-web.lock \
-    && case "$WEALTH_LEDGER_POSTGRES" in 0) ;; 1) python -m pip install --no-cache-dir -r requirements-pg.lock ;; *) exit 2 ;; esac \
+    && case "$KURAFOLIO_POSTGRES" in 0) ;; 1) python -m pip install --no-cache-dir -r requirements-pg.lock ;; *) exit 2 ;; esac \
     && groupadd --gid 10001 ledger \
     && useradd --uid 10001 --gid ledger --no-create-home --home-dir /nonexistent ledger \
     && mkdir /data && chown 10001:10001 /data && chmod 0700 /data
-COPY src/wealth_ledger /app/src/wealth_ledger
+COPY src/kurafolio /app/src/kurafolio
 COPY scripts/web.py /app/scripts/web.py
 COPY config/company-aliases.json /app/config/company-aliases.json
 COPY assets/fonts /app/assets/fonts

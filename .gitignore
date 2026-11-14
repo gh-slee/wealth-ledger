@@ -69,15 +69,15 @@ htmlcov/
 /.agents/*
 !/.agents/skills/
 /.agents/skills/*
-!/.agents/skills/wealthledger-fintech-pm/
-!/.agents/skills/wealthledger-software-architect/
-!/.agents/skills/wealthledger-fullstack-developer/
-!/.agents/skills/wealthledger-qa-automation/
+!/.agents/skills/kurafolio-fintech-pm/
+!/.agents/skills/kurafolio-software-architect/
+!/.agents/skills/kurafolio-fullstack-developer/
+!/.agents/skills/kurafolio-qa-automation/
 /.agents/skills/*/*
-!/.agents/skills/wealthledger-fintech-pm/SKILL.md
-!/.agents/skills/wealthledger-software-architect/SKILL.md
-!/.agents/skills/wealthledger-fullstack-developer/SKILL.md
-!/.agents/skills/wealthledger-qa-automation/SKILL.md
+!/.agents/skills/kurafolio-fintech-pm/SKILL.md
+!/.agents/skills/kurafolio-software-architect/SKILL.md
+!/.agents/skills/kurafolio-fullstack-developer/SKILL.md
+!/.agents/skills/kurafolio-qa-automation/SKILL.md
 # A same-named directory must not open a subtree.
 /.agents/skills/*/SKILL.md/
 .DS_Store

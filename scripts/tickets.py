@@ -487,20 +487,121 @@ def cmd_heartbeat(root: Path, args) -> int:
     return 0
 
 
+def _drop_claim(locks: Path, tid: str, claim: dict) -> None:
+    for res in claim.get('resources', []):
+        holder = resource_holder(locks, res)
+        if holder and holder.get('ticket') == tid:
+            (locks / 'resources' / f'{_safe(res)}.json').unlink(missing_ok=True)
+    (locks / 'claims' / f'{tid}.json').unlink(missing_ok=True)
+
+
 def cmd_release(root: Path, args) -> int:
     locks = lock_dir(root)
     claim = read_claim(locks, args.id) if args.owner_approved else _owned(root, locks, args.id)
     if not claim:
         raise TicketError(f'{args.id} has no claim')
-    for res in claim.get('resources', []):
-        holder = resource_holder(locks, res)
-        if holder and holder.get('ticket') == args.id:
-            (locks / 'resources' / f'{_safe(res)}.json').unlink(missing_ok=True)
-    (locks / 'claims' / f'{args.id}.json').unlink(missing_ok=True)
+    _drop_claim(locks, args.id, claim)
     cf = local_claim_file(root)
     if cf.exists():
         cf.unlink()
     print(f'released {args.id}')
+    return 0
+
+
+def _git_ok(root: Path, *args: str) -> bool:
+    return subprocess.run(['git', '-C', str(root), *args], capture_output=True).returncode == 0
+
+
+def _worktrees(root: Path) -> list[dict]:
+    entries, current = [], {}
+    for line in git(root, 'worktree', 'list', '--porcelain').splitlines() + ['']:
+        if not line:
+            if current:
+                entries.append(current)
+            current = {}
+            continue
+        key, _, value = line.partition(' ')
+        current[key] = value or True
+    return entries
+
+
+def _unlanded_reason(root: Path, head: str, base: str, first_parent: set[str]) -> str | None:
+    """Return why ``head`` has not landed on ``base``, or None when it has.
+
+    A branch has landed when the base reached its tip through a merge commit
+    (an ancestor that is not on the base's first-parent line), or when it was
+    squash- or rebase-merged: it changes something relative to its merge base,
+    and merging it into the base now would leave the base tree unchanged. If the
+    base later edited the same lines, that merge conflicts and the branch is kept.
+    """
+    if _git_ok(root, 'merge-base', '--is-ancestor', head, base):
+        return f'no commits of its own on {base}' if head in first_parent else None
+    fork = git(root, 'merge-base', head, base, check=False)
+    if not fork or _git_ok(root, 'diff', '--quiet', fork, head):
+        return f'not merged into {base}'
+    merged = subprocess.run(['git', '-C', str(root), 'merge-tree', '--write-tree', base, head],
+                            capture_output=True, text=True)
+    tree = merged.stdout.split('\n', 1)[0].strip()
+    if merged.returncode or tree != git(root, 'rev-parse', f'{base}^{{tree}}'):
+        return f'not merged into {base}'
+    return None
+
+
+def cmd_cleanup(root: Path, args) -> int:
+    """Remove ticket worktrees whose branch tip was merged into the base branch.
+
+    A worktree is removed only when it lives under ``work/worktrees/``, has no
+    uncommitted or untracked changes, has no live claim, and its branch has
+    landed on the base (see ``_unlanded_reason``). A fresh branch that still
+    points at the base tip and a branch with unmerged changes are kept.
+    """
+    main_root = Path(git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir')).parent
+    managed = (main_root / 'work' / 'worktrees').resolve()
+    here = root.resolve()
+    if not _git_ok(root, 'rev-parse', '--verify', '--quiet', f'{args.base}^{{commit}}'):
+        raise TicketError(f'unknown base {args.base}; run git fetch origin first')
+    first_parent = set(git(root, 'rev-list', '--first-parent', args.base).split())
+    locks = lock_dir(root)
+    claims_by_path = {Path(c['worktree']).resolve(): (tid, c)
+                      for tid, c in all_claims(locks).items() if c.get('worktree')}
+    if not args.dry_run:
+        git(root, 'worktree', 'prune')
+    removed = 0
+    for entry in _worktrees(root):
+        path = Path(entry['worktree']).resolve()
+        if path.parent != managed or not path.exists():
+            continue
+        name = path.name
+        branch = str(entry.get('branch', '')).removeprefix('refs/heads/')
+        head = str(entry.get('HEAD', ''))
+        owner = claims_by_path.get(path)
+        reason = None
+        if path == here or path in here.parents:
+            reason = 'current worktree'
+        elif entry.get('locked'):
+            reason = 'locked'
+        elif not branch:
+            reason = 'detached HEAD'
+        elif owner and not is_stale(owner[1]):
+            reason = f'live claim on {owner[0]} by {owner[1].get("agent")}'
+        elif landed := _unlanded_reason(root, head, args.base, first_parent):
+            reason = landed
+        elif git(path, 'status', '--porcelain', check=False):
+            reason = 'uncommitted or untracked changes'
+        if reason:
+            print(f'kept {name} ({branch or "detached"}): {reason}')
+            continue
+        if args.dry_run:
+            print(f'would remove {name} ({branch})')
+            removed += 1
+            continue
+        git(root, 'worktree', 'remove', str(path))
+        git(root, 'branch', '-D', branch)  # its changes are already in the base
+        if owner:
+            _drop_claim(locks, owner[0], owner[1])
+        print(f'removed {name} ({branch})' + (f'; released stale claim on {owner[0]}' if owner else ''))
+        removed += 1
+    print(f'{"would remove" if args.dry_run else "removed"} {removed} merged worktree(s)')
     return 0
 
 
@@ -554,6 +655,9 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser('release')
     s.add_argument('id')
     s.add_argument('--owner-approved', action='store_true')
+    s = sub.add_parser('cleanup', help='remove clean ticket worktrees whose branch is merged')
+    s.add_argument('--base', default='origin/main')
+    s.add_argument('--dry-run', action='store_true')
     args = p.parse_args(argv)
     root = repo_root(Path.cwd())
     try:
@@ -561,7 +665,7 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_claim(root, args, takeover=True)
         return {'check': cmd_check, 'list': cmd_list, 'next': cmd_next, 'show': cmd_show,
                 'resume': cmd_resume, 'claim': cmd_claim, 'heartbeat': cmd_heartbeat,
-                'release': cmd_release}[args.cmd](root, args)
+                'release': cmd_release, 'cleanup': cmd_cleanup}[args.cmd](root, args)
     except TicketError as exc:
         print('error:', exc, file=sys.stderr)
         return 2

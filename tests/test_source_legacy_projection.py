@@ -14,14 +14,14 @@ from unittest.mock import patch
 
 from test_source_builtin import fixture, CONTEXT
 from test_source_projection import hashes
-from wealth_ledger import source_ingestion as store, source_v2 as v2, wallet
-from wealth_ledger.core import import_holdings, make_payload, import_cash_flows
-from wealth_ledger.crypto import import_bull_orders, make_crypto_view
-from wealth_ledger.crypto_opening import import_opening
-from wealth_ledger.source_builtin import WealthsimpleHoldings, BullBitcoinOrders, WS_FORMAT, BULL_FORMAT
-from wealth_ledger.source_legacy_projection import project_compatible_sources
-from wealth_ledger.source_projection import ProjectionError
-from wealth_ledger.workspace import resolve_workspace
+from kurafolio import source_ingestion as store, source_v2 as v2, wallet
+from kurafolio.core import import_holdings, make_payload, import_cash_flows
+from kurafolio.crypto import import_bull_orders, make_crypto_view
+from kurafolio.crypto_opening import import_opening
+from kurafolio.source_builtin import WealthsimpleHoldings, BullBitcoinOrders, WS_FORMAT, BULL_FORMAT
+from kurafolio.source_legacy_projection import project_compatible_sources
+from kurafolio.source_projection import ProjectionError
+from kurafolio.workspace import resolve_workspace
 
 AT = "2024-03-01T00:00:00Z"
 START = "2023-12-31T00:00:00Z"
@@ -45,7 +45,7 @@ class LegacyProjectionTests(unittest.TestCase):
         self.raw = (fixture("wealthsimple-holdings.csv"), fixture("bull-orders.csv"))
         self.paths = (self.base/"holdings.csv", self.base/"orders.csv")
         for path,raw in zip(self.paths,self.raw):path.write_bytes(raw)
-        self.environment = patch("wealth_ledger.source_ingestion.environment_fingerprint",return_value="a"*64)
+        self.environment = patch("kurafolio.source_ingestion.environment_fingerprint",return_value="a"*64)
         self.environment.start();self.addCleanup(self.environment.stop)
 
     def native(self, *, holdings=True, orders=True):
@@ -214,8 +214,8 @@ class LegacyProjectionTests(unittest.TestCase):
 
     def test_no_revaluation_or_invented_months_in_stored_history(self):
         self.native()
-        from wealth_ledger.combined import make_combined_payload
-        with patch("wealth_ledger.combined.resolve_btc_price",return_value=quote()):
+        from kurafolio.combined import make_combined_payload
+        with patch("kurafolio.combined.resolve_btc_price",return_value=quote()):
             original=make_combined_payload(self.root,as_of=AT,fx=FX)
         self.commit(self.ws(),self.bull());before=hashes(self.root)
         result=self.view(fx=dict(FX,usd_cad="2"))
@@ -249,7 +249,7 @@ class LegacyProjectionTests(unittest.TestCase):
 
     def test_read_only_projection_does_not_execute_any_source_parser(self):
         self.native();self.commit(self.ws(),self.bull())
-        with patch("wealth_ledger.source_formats.parse_bull",side_effect=AssertionError("Parser executed")), patch("wealth_ledger.source_formats.parse_wealthsimple",side_effect=AssertionError("Parser executed")):
+        with patch("kurafolio.source_formats.parse_bull",side_effect=AssertionError("Parser executed")), patch("kurafolio.source_formats.parse_wealthsimple",side_effect=AssertionError("Parser executed")):
             self.view()
 
     def test_before_any_native_source_is_unknown_instead_of_a_zero_observation(self):
@@ -306,7 +306,7 @@ class LegacyProjectionTests(unittest.TestCase):
             (self.root/"config").mkdir(exist_ok=True)
             (self.root/"config/local.toml").write_text("[reporting]\nbtc_cost_policy='bull_average_proxy'\n")
             return original(project)
-        with patch("wealth_ledger.wallet.records",side_effect=changed),self.assertRaises(ProjectionError) as caught:self.view()
+        with patch("kurafolio.wallet.records",side_effect=changed),self.assertRaises(ProjectionError) as caught:self.view()
         self.assertEqual(caught.exception.code,"projection_settings_changed")
 
     def test_concurrent_frozen_history_change_invalidates_the_model(self):
@@ -316,7 +316,7 @@ class LegacyProjectionTests(unittest.TestCase):
                 conn.execute("CREATE TABLE combined_observations(id INTEGER PRIMARY KEY,as_of_utc TEXT,revision INTEGER,payload_json TEXT)")
                 conn.execute("INSERT INTO combined_observations VALUES(1,?,1,'{}')",(AT,))
             return original(project)
-        with patch("wealth_ledger.wallet.records",side_effect=changed),self.assertRaises(ProjectionError) as caught:self.view()
+        with patch("kurafolio.wallet.records",side_effect=changed),self.assertRaises(ProjectionError) as caught:self.view()
         self.assertEqual(caught.exception.code,"projection_history_changed")
 
     def test_decimal_context_does_not_change_reconciliation_or_display_values(self):
@@ -347,7 +347,7 @@ class LegacyProjectionTests(unittest.TestCase):
         self.assertEqual({row["legacy_snapshot_id"] for row in result["legacy_overlap"]["holdings"]},{before["meta"]["snapshot_id"]})
 
     def test_exact_cash_flow_overlap_preserves_historical_fx_without_counting_twice(self):
-        from wealth_ledger.source_protocol import RecordKey, Money
+        from kurafolio.source_protocol import RecordKey, Money
         self.native(orders=False);value,raw=self.ws();account=value.accounts[0].key
         path=self.base/"flows.csv"
         path.write_text("date,account_id,flow_id,flow_type,currency,amount,usd_cad,fx_date,fx_source\n2024-02-10,"+account.account_id+",synthetic-flow,deposit,USD,100,1.1,2024-02-09,synthetic-fixed\n")
@@ -364,7 +364,7 @@ class LegacyProjectionTests(unittest.TestCase):
         self.assertIsNone(result["legacy_cash_flows"]["full_period_net_external_cad"])
 
     def test_covered_contribution_dates_require_a_declaration_and_preserve_historical_fx(self):
-        from wealth_ledger.core import mark_flow_period
+        from kurafolio.core import mark_flow_period
         self.native(orders=False);account=make_payload(self.root)["accounts"][0]["account_id"]
         path=self.base/"flows.csv"
         path.write_text("date,account_id,flow_type,currency,amount,usd_cad,fx_date,fx_source\n2024-02-10,"+account+",deposit,USD,100,1.1,2024-02-09,synthetic-fixed\n")

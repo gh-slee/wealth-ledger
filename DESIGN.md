@@ -1,5 +1,5 @@
 ---
-name: "Wealth Ledger"
+name: "Kurafolio"
 description: "Existing light and dark investment workbench primitives"
 colors:
   light-ink: "#193b51"
@@ -104,7 +104,7 @@ components:
     padding: "{spacing.panel}"
 ---
 
-# Design System: Wealth Ledger
+# Design System: Kurafolio
 
 ## Overview
 

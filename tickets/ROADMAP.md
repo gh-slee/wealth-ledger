@@ -1,12 +1,12 @@
 # End-to-end roadmap
 
-Wealth Ledger V2 turns the current single-owner SQLite app into a registered,
+Kurafolio V2 turns the current single-owner SQLite app into a registered,
 tenant-isolated PostgreSQL product with live analysis, ephemeral CSV imports and
 on-demand exports. The current CLI and Web app stay usable throughout. This page
 orders the work. Each ticket file holds its own scope, acceptance and handoff;
 `python3 scripts/tickets.py list` is the live status.
 
-Updated 2026-11-05. Phases describe sequencing, not approval. Tickets with
+Updated 2026-11-10 (UI/UX backlog pass; see the section at the end). Phases describe sequencing, not approval. Tickets with
 `gate: owner` still need the owner's approval before work starts.
 
 ## Where things stand
@@ -25,9 +25,9 @@ Updated 2026-11-05. Phases describe sequencing, not approval. Tickets with
 | 0. Enable parallel agents | Tracked tickets, claims, isolated test ports, public specs | WL-P0-017, WL-P0-018, WL-P0-016, WL-P1-006 |
 | 1. Import backend | V2 imports work end to end on a synthetic instance | WL-P0-007A → 007B, 007C → 007D → 007E, 007F → 007G; 007H in parallel |
 | 2. Valuation inputs | Positions, quotes, FX, ETF exposure | WL-P0-009 (can start now), WL-P0-008 (after 007), WL-P0-010 |
-| 3. V2 UI | Eight-route app, identity/source/import screens | WL-P0-011A → 011B, 011C (can start now), 011D (after 007E) |
-| 4. Live analysis and exports | Analysis pages on canonical facts, on-demand downloads | WL-P0-012 → WL-P0-013 |
-| 5. Migration and release | Legacy cutover, release gates, docs | WL-P0-014, WL-P0-015 |
+| 3. V2 UI | Eight-route app, identity/source/import/settings screens | WL-P0-011A → 011B, 011C, 011F; 011E and 011G in parallel; 011D (after 007E) |
+| 4. Live analysis and exports | Analysis pages on canonical facts, on-demand downloads | WL-P0-012A → 012B → 012C → 012D, 012E (after 010); WL-P0-013A → 013B |
+| 5. Move and release | Fresh-start guide, release gates, docs | WL-P0-014, WL-P0-015 |
 | 6. P1 growth | First API connector, ETF search, plugin authoring, drilldowns, pull-only install | WL-P1-001 to WL-P1-005, UX-P1-004, UX-P1-005, UX-P1-007 |
 | 7. P2 extensions | More institutions, optional financial modes, brand, locales, scheduling, UX-P2 | WL-P2-001 to WL-P2-005, UX-P1-001 to UX-P1-003, UX-P2-001 to UX-P2-005 |
 
@@ -104,3 +104,132 @@ A sensible split for four agents today:
   UX-P1-007, platform acceptance to WL-P0-015, the formal legacy restore command
   to WL-P0-014, cash-flow items to WL-P2-002, other adapters to WL-P2-001 and
   off-device backups to UX-P2-004.
+
+## UI/UX backlog pass (2026-11-10)
+
+A screen-by-screen inventory of the shipped application and the planned V2
+screens is in [UX_FEATURE_INVENTORY.md](UX_FEATURE_INVENTORY.md). The tickets it
+produced, the tickets it improved and the execution batches are in
+[TICKET_CHANGES.md](TICKET_CHANGES.md). All new tickets are `backlog` until the
+owner releases them.
+
+| Track | Outcome | Tickets |
+|---|---|---|
+| Shipped application | Fix what users meet today, independent of V2 | UX-P1-008 to UX-P1-015; UX-P2-006 to UX-P2-008 |
+| V2 identity and settings | Preferences, Settings and Profile, bundle serving | WL-P0-011E, 011F, 011G |
+| V2 analysis | One read contract and one ticket per page | WL-P0-012A to 012E (WL-P0-012 is now their epic) |
+| V2 exports | Render service and download panel | WL-P0-013A, 013B (WL-P0-013 is now their epic) |
+| V2 archive | Earlier reports readable after cutover | WL-P0-020 |
+| Decisions | Delivery order; time zone contract | WL-P0-019; WL-P1-007 |
+| Workflow and tooling | Board check, owner inbox, lint, demo, import-path retirement | WL-P1-008, WL-P1-009; WL-P2-006 to WL-P2-008 |
+
+```mermaid
+graph LR
+  U9[UX-P1-009 edition/currency] --> U10[UX-P1-010 language] --> U15[UX-P1-015 phone nav] --> U27[UX-P2-007 states]
+  A[011A shell] --> B[011B identity UI]
+  A --> C[011C sources UI]
+  A --> F[011F settings/profile]
+  E[011E preferences] --> F
+  A --> D[011D import UI]
+  R[007E routes] --> D
+  P8[008 positions] --> A12[012A contract]
+  P9[009 quotes/FX] --> A12
+  A12 --> B12[012B stock/bond + toolbar] --> C12[012C crypto] --> D12[012D total + home]
+  A --> B12
+  P10[010 exposure] --> E12[012E exposures]
+  B12 --> E12
+  A12 --> A13[013A export service] --> B13[013B download panel]
+  B12 --> B13
+  M14[014 migration] --> L20[020 archive]
+  A --> L20
+```
+
+## V2 MVP first (owner decision, 2026-11-10)
+
+The owner wants a usable V2 as early as possible and will give feedback from
+real use. The shipped SQLite application is not changed any more. The MVP is the
+shortest path through the owner's flow: sign in, enable plugins, import, see
+securities, crypto and total. Context: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
+
+| Order | Tickets | Note |
+|---|---|---|
+| 1 | WL-P0-007C (with 007K), then 007L, then 007D | Serial SQL lane; waits on the 007C answers |
+| 1 | WL-P0-011G, WL-P0-011A | In parallel with the SQL lane, after Gate A |
+| 2 | WL-P0-007E and WL-P0-007F | In parallel with each other |
+| 2 | WL-P0-011B, WL-P0-011C | In parallel, after 011A |
+| 3 | WL-P0-008 | Positions, with the 2026-11-10 decisions |
+| 3 | WL-P0-011D | After 007E |
+| 3 | WL-P0-009A | Quote adapter contract and the optional unofficial adapter; parallel with 008 |
+| 4 | WL-P0-012A (first version), then 012B, 012C, 012D | Securities valued from the import's own market values, or live quotes where WL-P0-009A is enabled; Bitcoin from the existing live price; CAD, USD and TWD from the existing daily FX |
+| 5 | WL-P0-021, WL-P0-007G | Deployable instance; independent acceptance |
+
+WL-P0-022 (import SQL tests in CI) is ready and should merge before WL-P0-007D
+and 007N change more import SQL.
+
+After the MVP, planned in detail and approved by the owner on 2026-11-11 and
+2026-11-12 (WL-P0-011E, 011F, 011H, 012E, 013A, 013B, 023):
+
+| Order | Tickets | Note |
+|---|---|---|
+| 1 | WL-P0-009B | Market store, refresh process, Refresh route. After 009A and 012A |
+| 1 | WL-P0-009E | Official provider spike and adapter. Parallel with everything else in this table |
+| 1 | WL-P0-011E, then 011F | Preferences, Settings and Profile |
+| 1 | WL-P0-011H | Pages decide "Enable a source" from declared asset classes and holdings. After 012A |
+| 2 | WL-P0-009C | Currency list and daily FX. After 009B |
+| 2 | WL-P0-010A | Fund holdings store. After 009B; parallel with 009C |
+| 3 | WL-P0-009D | Daily value curve. After 009B and 009C |
+| 3 | WL-P0-010B, then 012E | Exposure endpoint, then the page |
+| 3 | WL-P0-013A, then 013B | Downloads: PDF, Excel, ODS and Markdown |
+| 4 | WL-P0-014 | Fresh-start guide and its test |
+| 4 | WL-P0-023 | Real V2 browser suite in CI. After the MVP pages; WL-P0-015 depends on it |
+| 5 | WL-P0-015 | Release acceptance on an Apple Silicon Mac with Docker Desktop |
+
+Owner decisions of 2026-11-11: existing SQLite data is not migrated. A V2 account
+starts empty and the user imports their files again; the old application stays
+untouched for old reports, so WL-P0-020 is P2. The daily curve carries the
+previous import's quantities forward and marks those days as estimates.
+
+P1 and P2 tickets are refined after the owner has used the MVP.
+
+### Rename first (owner decision, 2026-11-11)
+
+WL-P0-024 renames the project to Kurafolio in the repository, on GitHub and on the owner's
+computer. It touches about 290 files, so it is merged before any other V2
+branch is opened: WL-P0-007C, 007J, 009A, 011A, 011G and 022 depend on it. It
+is ready and is the only claimable V2 ticket. One agent works it alone.
+
+Reviews are automatic from 2026-11-11: the implementing agent starts fresh
+QA, Architect and PM reviewers itself ([README.md](README.md), Reviews rule),
+and the owner reviews last. WL-P1-011 adds a reviewer in CI.
+
+### MVP release state and assignment (2026-11-10)
+
+The owner approved Gate A for the eighteen MVP tickets, answered WL-P0-007C's
+six questions and folded WL-P0-007K into it. They are `ready`; `tickets.py next`
+offers each one as soon as its dependencies are done.
+
+Claimable after WL-P0-024 is merged: WL-P0-007C, WL-P0-007J, WL-P0-009A, WL-P0-011A, WL-P0-011G, WL-P0-022.
+WL-P0-007C and WL-P0-007J share `ingestion-schema-sql` and run one after the
+other; the rest share nothing, so four agents can start at once.
+
+| Lane | Order | Tier | Suggested agent |
+|---|---|---|---|
+| Import SQL (`ingestion-schema-sql`) | 007C, then 007L, then 007D | frontier | one strong agent for the whole lane |
+| Import services | 007E and 007F after 007D | frontier | two agents in parallel |
+| Market data | 009A | frontier | any frontier agent |
+| Bundle serving | 011G | frontier | any frontier agent |
+| Shell and screens | 011A, then 011B and 011C in parallel, 011D after 007E | standard | a standard or frontier agent |
+| Positions and analysis contract | 008 after 007D, then 012A | frontier | one agent |
+| Analysis pages | 012B, 012C, 012D in sequence | standard | one agent, after 011A and 012A |
+| Deployment and acceptance | 021; 007G by a session that implemented none of 007A to 007F | frontier | separate sessions |
+
+Every ticket has `review: independent`: a different agent session reviews each
+diff against the acceptance criteria before the owner merges.
+
+All MVP decisions are answered as of 2026-11-10: WL-P0-007J option (b), one
+bundle served by the V2 application (WL-P0-011A, 011G), and the unofficial
+adapter off by default with its endpoint approved after a spike (WL-P0-009A).
+
+CI and regression: see [CI_E2E_ASSESSMENT.md](CI_E2E_ASSESSMENT.md). WL-P0-022
+(run the import SQL tests in CI) should merge before the import SQL changes;
+WL-P0-023 adds a real V2 end-to-end suite; WL-P1-010 and WL-P2-009 follow.

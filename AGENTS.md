@@ -1,6 +1,6 @@
 # Agent development guide
 
-Wealth Ledger is a local-first Python 3.12+ investment ledger with SQLite history,
+Kurafolio is a local-first Python 3.12+ investment ledger with SQLite history,
 ODS/Markdown/PDF reports, optional FastAPI/Huey services and a React/TypeScript UI.
 One owner can maintain independent portfolios. Wealthsimple holdings and Bull
 Bitcoin orders use the implemented shared parser/approval/publication pipeline;
@@ -69,6 +69,28 @@ All planned and in-progress work is tracked in [tickets/](tickets/README.md), on
 Markdown file per ticket; [tickets/ROADMAP.md](tickets/ROADMAP.md) orders it. Several
 agents (any vendor or model) may work at once, one ticket each:
 
+- When the owner asks you to pick up work without naming a ticket, do this without
+  further prompting: `git fetch origin`, run `cleanup` to remove merged ticket
+  worktrees, run `next` with your own tier (see the
+  [tier table](tickets/README.md#capability-tiers); if unsure, use `standard`), take
+  the first ticket listed, claim it and follow the
+  [quick start](tickets/README.md#quick-start-for-an-agent). If `next` lists nothing,
+  report that and what `list` shows as blocking; do not invent work.
+- One ticket per session, so unrelated work does not fill the context. Claim at most
+  one ticket in a session and use the session only for it, including review and CI
+  repairs. File a ticket for unrelated work, or ask the owner to start a new session
+  for it. Once the owner merges the PR and nothing on the ticket is outstanding,
+  release the claim, report and stop; the next ticket starts in a new session. See
+  [steps 6 and 7 of the quick start](tickets/README.md#quick-start-for-an-agent).
+- Before a product, UX or analysis ticket, read
+  [tickets/PRODUCT_CONTEXT.md](tickets/PRODUCT_CONTEXT.md) for the owner's intent and
+  recorded decisions.
+- For a ticket with `review: independent`, start the review yourself before you hand
+  the PR to the owner: launch fresh-context QA (and Architect or PM where the
+  [Reviews rule](tickets/README.md#rules-that-keep-the-board-consistent) says so)
+  with only the ticket, the diff and the repository rules, post the findings on the
+  PR, then fix or answer them. This is an explicit request for those subagents. If
+  you cannot start one, report the review as not run. The owner reviews last.
 - Find work with `python3 scripts/tickets.py next --tier <any|standard|frontier>`;
   claim it with `python3 scripts/tickets.py claim <ID> --agent <tool/model> --worktree`
   and work only in that ticket's worktree and branch. Never take a live claim or a
@@ -84,7 +106,7 @@ agents (any vendor or model) may work at once, one ticket each:
 
 Use [the spec workflow](docs/spec-development.md) for exact-revision human Gate A,
 serialized reservations, bounded PM/Architect/Developer/independent-QA handoffs and
-human Gate B. Repository skills under `.agents/skills/wealthledger-*` are guidance
+human Gate B. Repository skills under `.agents/skills/kurafolio-*` are guidance
 for explicit role assignments or an authorized SDD workflow. Discovery alone does
 not authorize implementation or dispatch agents. Developer self-tests are not
 independent QA. Read current source and task-specific references; future plans do
@@ -110,7 +132,7 @@ An existing equivalent virtual environment is fine. For Web changes install
 skip optional API tests. `scripts/web.py` manages trusted host initialization/upgrade/serve/worker.
 `python scripts/docker_context.py --output work/docker-context` prepares a new
 source-only image context. Container acceptance is explicitly opt-in:
-`WEALTH_LEDGER_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v`.
+`KURAFOLIO_DOCKER_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p 'test_web_docker.py' -v`.
 It requires a running Docker daemon and uses only unique disposable synthetic resources.
 Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 `npm --prefix frontend run build`, `npm --prefix frontend test`,

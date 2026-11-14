@@ -17,9 +17,9 @@ from docker_context import prepare_context
 ROOT = Path(__file__).resolve().parents[1]
 SMOKE = r'''
 import json, os, pathlib, platform, re, secrets, subprocess, time, urllib.error, urllib.request
-from wealth_ledger.web.auth import password_hash
-from wealth_ledger.web.config import WebSettings
-from wealth_ledger.web.storage import prepare_instance, Store
+from kurafolio.web.auth import password_hash
+from kurafolio.web.config import WebSettings
+from kurafolio.web.storage import prepare_instance, Store
 assert os.getuid() == 10001
 assert not pathlib.Path('/app/data').exists()
 assert not list(pathlib.Path('/app').rglob('AGENTS.override.md'))
@@ -107,10 +107,10 @@ def check(root: Path) -> dict:
     if set(manifest['files']) - tracked:
         raise ValueError('Image inputs include uncommitted files; review and commit them first')
     context_sha = hashlib.sha256(json.dumps(manifest['files'], sort_keys=True).encode()).hexdigest()
-    image = 'wealth-ledger:pr-' + head[:12] + '-' + token[:12]
+    image = 'kurafolio:pr-' + head[:12] + '-' + token[:12]
     run(['docker', 'info'], evidence / 'daemon.log', timeout=30)
     run(['docker', 'build', '--tag', image, '--label', 'org.opencontainers.image.revision=' + head,
-         '--label', 'io.wealth-ledger.context-sha256=' + context_sha, str(evidence / 'context')],
+         '--label', 'io.kurafolio.context-sha256=' + context_sha, str(evidence / 'context')],
         evidence / 'build.log')
     metadata = json.loads(run(['docker', 'image', 'inspect', image], evidence / 'image.json', timeout=30))[0]
     image_id = metadata['Id']
@@ -119,9 +119,9 @@ def check(root: Path) -> dict:
     if metadata['Config']['User'] != '10001:10001':
         raise ValueError('Candidate must use the nonroot application user')
     labels = metadata['Config']['Labels']
-    if labels['org.opencontainers.image.revision'] != head or labels['io.wealth-ledger.context-sha256'] != context_sha:
+    if labels['org.opencontainers.image.revision'] != head or labels['io.kurafolio.context-sha256'] != context_sha:
         raise ValueError('Image provenance does not match committed inputs')
-    container = 'wealth-ledger-pr-check-' + token
+    container = 'kurafolio-pr-check-' + token
     try:
         smoke = json.loads(run(['docker', 'run', '--rm', '--interactive', '--name', container,
             '--network', 'none', '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',

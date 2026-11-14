@@ -3,8 +3,8 @@ import hashlib
 import hmac
 import unittest
 
-from wealth_ledger.ingestion import cursors
-from wealth_ledger.ingestion.codec import IngestionError
+from kurafolio.ingestion import cursors
+from kurafolio.ingestion.codec import IngestionError
 
 
 SECRET = b'synthetic-cursor-secret-for-tests-only-0001'

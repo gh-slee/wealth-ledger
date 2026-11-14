@@ -17,6 +17,6 @@ services:
     restart: unless-stopped
 secrets:
   postgres-bootstrap:
-    file: ${WEALTH_LEDGER_PG_BOOTSTRAP_FILE:?Provide a private secret file}
+    file: ${KURAFOLIO_PG_BOOTSTRAP_FILE:?Provide a private secret file}
 volumes:
   postgres-foundation:

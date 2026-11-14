@@ -2,7 +2,7 @@
 from datetime import date
 from decimal import Decimal
 import unittest
-from wealth_ledger.fx import parse_cbc_html, _select, validate_rates
+from kurafolio.fx import parse_cbc_html, _select, validate_rates
 
 
 class ExchangeRateTests(unittest.TestCase):

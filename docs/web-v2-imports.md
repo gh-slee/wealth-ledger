@@ -7,7 +7,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
 
 ## Current building blocks
 
-- [Evidence admission](../src/wealth_ledger/ingestion/codec.py) checks bounded
+- [Evidence admission](../src/kurafolio/ingestion/codec.py) checks bounded
   canonical JSON, closed fields, exact decimal tokens, source times, whole
   satoshis, local references, cash-flow shape and required unsupported-data
   reasons. Unknown fees and absent membership stay null. A selected coverage
@@ -15,7 +15,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   Exact date-only or legacy assertions can agree within supplied evidence without
   granting authority to install a current snapshot head. Head ordering still
   requires comparable source times, including the first head.
-- [Parser2 discovery](../src/wealth_ledger/ingestion/discovery.py) validates the
+- [Parser2 discovery](../src/kurafolio/ingestion/discovery.py) validates the
   frozen parser output against raw bytes, caller context, installation and reviewed
   wrapper profile. Its projection retains essential typed evidence and excludes
   arbitrary row archives. It does not execute a plugin or accept financial facts.
@@ -28,20 +28,22 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   still need the unfinished service integration; this helper grants no authority.
   Frozen-valid legacy timestamps retain their original token, unspecified
   precision and archive pointer; they are not promoted to precise instants.
-- [Mapping and reconciliation](../src/wealth_ledger/ingestion/reconciliation.py)
+- [Mapping and reconciliation](../src/kurafolio/ingestion/reconciliation.py)
   distinguish exact source identity, financial meaning, corrections and historical
   snapshots. Financial digests exclude archive pointers at declared lineage
   locations while preserving time tokens and economic-reference revisions. Equal
   amounts or file hashes do not establish a duplicate trade.
-- [Review validation](../src/wealth_ledger/ingestion/approval.py) requires exact
+- [Review validation](../src/kurafolio/ingestion/approval.py) requires exact
   admitted stage bytes, checks the disclosed evidence and target bodies, and binds
   the complete READY review to its Plan. Recomputed hashes alone cannot establish
   truthful disclosure. Current database authority must still be checked at commit.
-- [Transport helpers](../src/wealth_ledger/ingestion/runner_client.py) check bounded
-  frames and exact TLS peer identity. The [raw receiver](../src/wealth_ledger/web_v2/imports.py)
+- [Transport helpers](../src/kurafolio/ingestion/runner_client.py) check bounded
+  frames and exact TLS peer identity. A peer certificate carries exactly one URI
+  SAN, `urn:wealth-ledger:instance:<instance id>:peer:<api|worker|launcher>`; it
+  keeps the project's former name so certificates already issued stay valid. The [raw receiver](../src/kurafolio/web_v2/imports.py)
   enforces Content-Length and receive deadlines without a body spool. It must be
   called only after authentication, CSRF and shared database capacity admission.
-- [Storage fragments](../src/wealth_ledger/persistence/ingestion_schema.py) define
+- [Storage fragments](../src/kurafolio/persistence/ingestion_schema.py) define
   the closed table inventory, scoped foreign keys, canonical-byte checks and
   forced-RLS policies. Separate append-only and outbox trigger fragments reject
   accepted-record changes and malformed or inconsistent event envelopes. The
@@ -151,8 +153,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   retry loop instead of becoming an internal error.
   Opt-in PostgreSQL tests cover commit, exact replay, a reused operation, a new
   operation on a committed set, expiry, source and wrapper changes, request
-  shape and a revoked session. Rate admission, grants and the HTTP route are not
-  yet wired.
+  shape and a revoked session. Grants and the HTTP route are still pending.
   The private `_quota_v1(tenant, portfolio, bucket, count, bytes)` helper is the
   shared PostgreSQL admission and release point. It locks the instance bucket row
   before the scoped user row. `read` and `control` count one attempt against 300s
@@ -171,7 +172,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   repeated call changes nothing. Sets, members, leases, receipts and accepted
   evidence stay. Opt-in PostgreSQL tests cover window reset, user and shared
   instance bounds across portfolios, double release, purge ordering and fail-closed
-  rollback. No gateway, worker or cleanup route calls either helper yet.
+  rollback. `cleanup_set_v1` is the only caller of `_purge_v1`.
   The declared gateway function `cancel_set_v1` takes only `operation_id`,
   `set_id` and `expected_set_revision`. It authenticates through
   `_guard_user_v1` and returns an exact earlier CANCEL receipt before any mutable
@@ -199,13 +200,20 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   generation step, the next decision revision is appended, live prepare leases are
   cancelled, and one DECISIONS receipt and DECIDED audit row are stored. An earlier
   READY preview can then no longer be confirmed.
-  `read_set_v1` and `read_receipt_v1` authenticate first and read one ID in the
-  caller's scope without locks or writes. A set is reported in its stored state.
+  `read_set_v1` and `read_receipt_v1` acquire the authentication locks before
+  reading one ID in the caller's scope. The lookup takes no set or receipt row
+  lock and makes no writes. A set is reported in its stored state.
   An ACCEPT receipt is returned exactly as stored. A control receipt (CANCEL or
   DECISIONS) is rebuilt as the history DTO from its row and audit entry with zero
   fact counts. Receipts from earlier restore realms stay readable but grant
-  nothing. Rate admission for these calls is left to the caller.
-  [Page cursors](../src/wealth_ledger/ingestion/cursors.py) follow the declared
+  nothing. The SQL fragment `admit_rate_v1` authenticates the live principal and
+  admits one attempt to the `read` or `control` bucket. The future HTTP gateway
+  must commit admission in its own short transaction before decoding the request
+  body or invoking a read, create, decide, cancel or confirm call. A later
+  refusal or rollback then leaves the admitted attempt counted. An exhausted
+  bucket returns `import_busy`. The `0004` provider will grant execution to the
+  identity/source gateway.
+  [Page cursors](../src/kurafolio/ingestion/cursors.py) follow the declared
   token format: canonical cursor JSON and an HMAC-SHA256 over those exact bytes,
   each unpadded base64url and joined by a dot, at most 1,024 characters. The key
   is derived from the instance secret for the `wealth-ledger/ingestion-cursor-v1`
@@ -271,8 +279,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   refusal, missing or ambiguous workers and re-upload fencing. No upload route,
   worker claim or raw transport calls them yet.
   The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
-  leases; prepare and cleanup kinds return `import_invalid` until their own
-  claim functions exist. Both take no bytes and call `_guard_worker_v1` first.
+  leases; the prepare and cleanup kinds return `import_invalid` here. Both take no bytes and call `_guard_worker_v1` first.
   Scope comes only from the stored set row, and locks follow the reserve order.
   The lease must be the member's one live normalize lease at the requested fence,
   name the calling worker and match the handoff-token digest
@@ -324,21 +331,131 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   is involved. Also by owner decision, the user's raw slot is released only when
   at least one proof was sent and every proof says `absent` or `not_created`.
   Otherwise the acknowledgement says `cleanup_complete: false` and the slot stays
-  held for a later cleanup call. Proofs are checked for shape only; this
-  function does not store them. Opt-in PostgreSQL tests cover each outcome,
+  held for a later cleanup call. Proofs are checked for shape and stored on the
+  attempt's lease. Each normalize lease records whether its attempt still holds
+  the raw slot that reserve took (`raw_slot`), so a slot is released at most once
+  by finish or cleanup, never by both. Opt-in PostgreSQL tests cover each outcome,
   replay, slot release and retention, a two-member set and every refusal
   leaving the attempt unchanged. No worker process calls it yet.
-  These fragments are not a complete migration provider and install no application
-  grants. Never use them to enable a real instance.
+  `claim_plan_v1` and `cleanup_set_v1` give terminal sets back their capacity
+  after the originating session has ended. `claim_plan_v1` with
+  `work_kind: cleanup` takes a worker-generated token (the worker must not reuse
+  one; the database does not check) and picks the oldest set that is terminal
+  with cleanup `pending` or `failed` and has no live cleanup lease. A set past its
+  expiry is first expired under its lock, exactly as a user call would expire it.
+  A set whose root another call holds is skipped rather than waited for, and the
+  trigger refuses a second live cleanup lease for one set. The claim stores the token's digest on a 30-second cleanup
+  lease. Following the owner's decisions, the lease carries a fixed cleanup
+  session marker instead of a user session, its fence is 1 plus the set's earlier
+  cleanup leases, and its acknowledgement's `source_fingerprint` is the set's
+  creation request digest. Repeating the same claim request returns
+  `already_claimed`; a claim request ID the worker already used for other work
+  returns `import_conflict`; with nothing eligible the result is `no_work`. A
+  lapsed cleanup lease is closed as expired before the set is handed out again.
+  Cleanup leases last 30 seconds and cannot be renewed yet.
+  `cleanup_set_v1` takes the lease's job ID and fence, the same token, and up to
+  twelve proofs. Each proof must name a normalize attempt of this set that was
+  bound to a handoff token, at most three times. A proof's `checked_at` must be a
+  UTC Instant whose fraction matches its `fractional_digits`; finish checks the
+  same shape. A restore or new incarnation since the claim makes the lease
+  stale. It locks the raw and storage quota
+  rows before the set. Every raw slot still held by a fenced attempt is then
+  handled once. An attempt that was never bound releases its slot without a
+  proof, but only after its 120-second raw deadline from reserve has passed, so
+  the API can no longer hold its raw buffer. A bound attempt releases it only when its proofs all say `absent` or
+  `not_created`, and the proofs are stored on that attempt. When no slot is left
+  held, `_purge_v1` removes the transient rows and releases the storage
+  reservation (`purged`). Otherwise, by owner decision, the proofs are kept, the
+  set stays `failed` with its storage held, and the next claim retries it
+  (`cleanup_pending`). The finished lease stores its acknowledgement for replay.
+  Both functions refuse to run outside READ COMMITTED, which their lock
+  rechecks rely on. The lease trigger enforces the same rules: a slot moves only from `held` to
+  `released`, a recorded proof is never removed, and a closed attempt can change
+  nothing else. Opt-in PostgreSQL tests cover cancel during reception, cancel
+  before claim, expiry before claim, a slot already released by finish, pending
+  and failed proofs, oldest-first selection, replay and every refusal leaving
+  the lease and slot unchanged. No worker process calls them yet.
+  The `prepare` branch of `claim_plan_v1` verifies the session that completed
+  the last admitted upload or submitted the current decision. It also checks
+  every admitted stage and its source pins. It records the set revision and
+  accepted, mapping and control generations on the lease. Claim replay returns
+  the same job while the lease, session and generations remain current.
+  The checked `read_plan_basis_v1` fragment pages admitted inputs and scoped
+  accepted evidence under the live prepare lease. Its private `decisions`
+  resource returns a header with the stored digest and ordered typed items
+  so a worker can reconstruct the current decisions. The `context` resource
+  returns one row with the Plan scope, set expiry and ordered member source
+  pins. The worker can compare the pins' canonical digest with the prepare
+  claim fingerprint. Each `authorities` row includes the latest accepted link
+  ID and revision alongside the decision and evidence references. Page reads
+  retain no lease result. The `prepare_preview_v1` fragment checks the review
+  against the admitted stages, live pins and prior authority choices. A READY
+  preview requires explicit Decisions, even when every existing mapping can
+  be reused. Initial preparation presents a NEEDS_MAPPING or CONFLICT review
+  without an executable Plan. After the user confirms the decisions, the READY
+  preview passes the existing Plan and accepted-reference checks. The function
+  stores the immutable preview and returns the saved result on a
+  valid retry. WL-P0-007F wires these private calls into the worker, and
+  WL-P0-007D verifies the installed functions and grants.
+## Explicit 0004 installation
+
+The operator command installs the schema on a verified PostgreSQL 18
+`0003_source_lifecycle` instance with completed identity setup. Use a synthetic
+instance and separate operator, financial reader, identity/source gateway and
+ingestion worker roles. The source catalog and identity key must match the
+initialized instance.
+
+```sh
+python -m kurafolio.web_v2 operator migrate-ingestion \
+  --secret-file operator.conninfo --key-file identity.key \
+  --source-catalog-file source-catalog.json \
+  --runtime-role financial_reader --identity-role identity_gateway \
+  --worker-role ingestion_worker
+```
+
+The command verifies inherited and new definitions, applies the profile's
+read-only financial grants and checked function grants, and commits only after
+the installed inventory matches. It leaves ingestion inactive pending runtime
+profile and launcher readiness. Existing 0001–0003 clients refuse the newer
+revision. The migration has no destructive downgrade.
+
+## Verify a synthetic 0004 backup and restore
+
+Use PostgreSQL 18 `pg_dump` and `pg_restore` on PATH and explicit operator
+connection files. Create a new private directory with mode 0700 and a physical
+path without symlinks. Run `backup-ingestion` with the same role arguments
+as `migrate-ingestion`, plus `--secret-file` for the source and
+`--backup-directory` for that directory. The command writes `ingestion.dump`
+and `manifest.json`. Retain the returned `manifest_sha256` separately from both
+files. The archive and manifest describe the same database snapshot.
+
+Run `restore-ingestion` with the same role names, the target operator's
+`--secret-file`, the `--backup-directory`, and `--manifest-sha256` from the
+separately retained receipt. Use an independently empty UTF-8 PostgreSQL 18
+database owned by the operator. Revoke `CONNECT` and `TEMPORARY` from
+`PUBLIC` and remove application `CREATE` privileges before running the command.
+Only the operator and trusted cluster administrators may have access, and no
+other session may be connected. The role names referenced by restored RLS
+policies must match the source.
+
+The command verifies the archive before loading it, checks accepted records
+and installed definitions, and rotates the realm. Old sessions and leases lose
+authority. The restore removes transient review payloads and preserves held
+raw reservations pending launcher cleanup. Both readiness flags stay off and
+the connection fence remains in place. If finalization fails or is interrupted,
+retain the target under isolation. Use `--resume-loaded` with the original
+receipt to retry verification and finalization after a completed archive load.
+If the target cannot be verified, start with a different empty database. The
+verified snapshot excludes subsequent accepted writes. This workflow is for
+synthetic database acceptance. Application artifacts and production restore
+remain separate.
 
 ## Remaining acceptance
 
-Remaining checked database functions and guards, operator upgrade/inventory verification,
-live source/profile checks around native admission and Plan preparation,
-authenticated routes, the dedicated worker and
-trusted launcher remain unfinished. Real acceptance must exercise atomic effects,
-replay, shared capacity, races, cleanup, effective Linux containment and restore
-into two independently empty targets.
+Runtime profile readiness, authenticated routes, the dedicated worker and
+trusted launcher remain unfinished. End-to-end acceptance must exercise
+atomic effects, replay, shared capacity, races, cleanup, effective Linux
+containment and receipt history after authorized activation.
 
 The new backend does not yet calculate portfolio balances, quotes or reports.
 Frontend delivery, report parity and existing-workspace adoption are separate
@@ -371,8 +488,12 @@ the test uses `--pull never`. It verifies nonce ownership before removing only
 its own container.
 
 ```bash
-WEALTH_LEDGER_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v
+KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v
 ```
+
+CI runs this check in the `postgres-ingestion` job on every push and pull request,
+after pulling that exact image, and fails if any of its tests is skipped. See
+[gated CI suites](development.md#gated-ci-suites-and-the-skip-guard).
 
 This command tests append-only records, immutable event envelopes, closed/rehashed
 event mutations, byte/depth limits and exact canonical Unicode/large-array bytes.

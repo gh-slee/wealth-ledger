@@ -8,9 +8,9 @@ import uuid
 from unittest.mock import patch
 
 from test_source_lifecycle import ConfiguredSourceCase,CONTENT_ENABLED
-from wealth_ledger.persistence.source_store import SourceStore
-from wealth_ledger.persistence.identity import IdentityError
-from wealth_ledger.data_sources.lifecycle_v1 import SourceError
+from kurafolio.persistence.source_store import SourceStore
+from kurafolio.persistence.identity import IdentityError
+from kurafolio.data_sources.lifecycle_v1 import SourceError
 
 
 @unittest.skipUnless(CONTENT_ENABLED,'Explicit immutable source image and artifact required')

@@ -1,6 +1,6 @@
 # Portable prompt: set up tracked tickets for parallel agents
 
-Wealth Ledger's `tickets/` workflow was set up with this prompt. To use it in
+Kurafolio's `tickets/` workflow was set up with this prompt. To use it in
 another repository, paste everything below the line into a coding agent (Codex,
 Claude Code, opencode or another) started in that repository. The reference
 implementation is this repository's [`scripts/tickets.py`](../scripts/tickets.py),

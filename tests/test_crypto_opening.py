@@ -10,11 +10,11 @@ from pathlib import Path
 
 import test_combined as combined_fixture
 from test_crypto import FIELDS, order
-from wealth_ledger.crypto import import_bull_orders, make_crypto_view
-from wealth_ledger.crypto_opening import import_opening, latest_opening
-from wealth_ledger.reporting import generate_reports
-from wealth_ledger.workbook import build_workbook
-from wealth_ledger.validation import validate_formula_caches
+from kurafolio.crypto import import_bull_orders, make_crypto_view
+from kurafolio.crypto_opening import import_opening, latest_opening
+from kurafolio.reporting import generate_reports
+from kurafolio.workbook import build_workbook
+from kurafolio.validation import validate_formula_caches
 
 
 class OpeningTests(unittest.TestCase):
@@ -141,7 +141,7 @@ class OpeningTests(unittest.TestCase):
             if index != 31:self.assertIn('Bull 均價推估',''.join(rows[index-1].itertext()))
         self.assertIn('| 全持倉估算成本 CAD（Bull 均價推估） | 331.09 |',md)
         self.assertGreater((output/'report.pdf').stat().st_size,1000)
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.report_checks import validate_report_presentation
         self.assertEqual(validate_report_presentation(payload,output)["status"],"passed")
         original_md=(output/'report.md').read_text(encoding="utf-8")
         (output/'report.md').write_text(original_md+"\n原 Bull 假設 BTC | 0.00000000\n", encoding="utf-8")
@@ -192,7 +192,7 @@ class OpeningTests(unittest.TestCase):
 
     def test_future_snapshot_keeps_opening_scope_and_unknown_cost(self):
         from test_core import FX,write_holdings
-        from wealth_ledger.core import import_holdings
+        from kurafolio.core import import_holdings
         import_opening(self.root,self.declaration())
         first=self.payload()
         csv_path=write_holdings(self.root/'incoming/next.csv',when='2026-11-09 22:28 GMT-05:00')
@@ -208,5 +208,5 @@ class OpeningTests(unittest.TestCase):
         result=generate_reports(next_payload,output)
         build_workbook(next_payload,output/'portfolio.ods',chart_images=result['charts'])
         self.assertEqual(validate_formula_caches(output/'portfolio.ods')['cache_mismatches'],0)
-        from wealth_ledger.report_checks import validate_report_presentation
+        from kurafolio.report_checks import validate_report_presentation
         self.assertEqual(validate_report_presentation(next_payload,output)["status"],"passed")

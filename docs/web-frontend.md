@@ -21,10 +21,10 @@ For native development, install Python Web dependencies and Node 24 LTS (or Node
 python -m pip install -r requirements-web-test.lock
 npm --prefix frontend ci --ignore-scripts
 npm --prefix frontend run build
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" init-owner
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" serve
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" init-owner
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" serve
 # In another terminal, with the same dedicated instance:
-python scripts/web.py --data-root "$HOME/.local/share/wealth-ledger/web-instance" worker
+python scripts/web.py --data-root "$HOME/.local/share/kurafolio/web-instance" worker
 ```
 
 Use a new, empty dedicated directory for first initialization. An existing initialized
@@ -36,6 +36,57 @@ keep the backend on port 8000 but configure its public origin as
 `/api`; do not enable permissive CORS or disable the API's origin checks.
 
 New users should start with [the first-portfolio guide](getting-started.md). Empty analysis pages explain the first observation without loading demo finances or assuming a zero balance. See [the UX review](product-ux-review.md) for remaining prioritized work.
+
+## V2 shell development
+
+The same frontend bundle selects its shell at startup. A successful V2
+`GET /api/v2/auth/csrf` response selects the V2 shell. The SQLite API returns
+404 for that route and the existing frontend runs its normal session check.
+If the probe fails for another reason, the app offers a retry. The V2 shell and its
+styles load only after the probe selects V2.
+
+The V2 shell tests use the synthetic browser fixture and intercept the V2
+probe with Playwright. They exercise the eight destinations, the Stock/Bond
+Exposures route, the phone menu and the three interface locales. The routes
+are placeholders built from shared loading, empty and error states in
+`frontend/src/v2/page-state.tsx`; page tickets replace the content but keep
+those states. Stock/Bond, Exposures and Crypto offer "Enable a source" until
+the WL-P0-008 positions contract lets the shell detect holdings. All eight
+destinations stay in the navigation either way.
+
+### V2 sign-in, setup and invitations
+
+After the probe, the V2 app reads `GET /api/v2/me`. Without a session, every
+`/app` route goes to `/login`. `/setup?token=…` creates the first administrator
+and `/register?token=…` redeems an invitation; both read the token once and
+remove it from the address bar, then send the person to sign-in. The
+administrator manages invitations on Profile: a new invitation's link is shown
+once, kept only in that page's memory, and never saved in browser storage.
+Members never request the admin routes.
+
+The V2 client in `frontend/src/v2/api.ts` keeps the CSRF token in memory and
+gets a new one when the server clears the session cookie. Sign-in, setup and
+registration retry once when their ten-minute anonymous session has lapsed. A
+signed-in request is never resent: a rejected CSRF token means another tab
+signed out or in, so this window ends its session. Signing out, a session the
+server ended, or another user signing in aborts open requests and clears the
+query cache before the next page renders. Error codes are mapped to
+messages and never shown. Password reset and account enable or disable remain
+host commands ([V2 identity](web-v2-identity.md)).
+
+The registration API answers an expired, revoked or used invitation and a
+taken username with the same code after submit, so the page names both
+causes in one message. WL-P0-011I tracks telling them apart.
+
+The browser specs intercept `/api/v2` with a stateful synthetic fake. The
+SQLite fixture serves the bundle only at `/` and `/login`, so
+`v2-identity.spec.ts` answers `/setup` and `/register` with the same document,
+as the V2 server does.
+
+```bash
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e -- v2-shell.spec.ts v2-identity.spec.ts
+```
 
 ## Daily use
 
@@ -141,18 +192,18 @@ npm run test:e2e
 
 The browser fixture creates a new temporary instance outside the checkout, seeds
 invented reports and starts an isolated API/worker. It never reads real financial
-state. `WEALTH_LEDGER_TEST_PYTHON` can select an installed Python environment;
-`WEALTH_LEDGER_BROWSER_CHANNEL=chrome` can use a separately installed Chrome binary
+state. `KURAFOLIO_TEST_PYTHON` can select an installed Python environment;
+`KURAFOLIO_BROWSER_CHANNEL=chrome` can use a separately installed Chrome binary
 with a disposable profile. Neither is a production dependency. Test outputs stay
 under ignored `frontend/test-results/`. CI also installs Chromium system dependencies.
 
-`WEALTH_LEDGER_E2E_PORT` sets the fixture port and Playwright's browser origin.
+`KURAFOLIO_E2E_PORT` sets the fixture port and Playwright's browser origin.
 It defaults to `8765`. For concurrent runs, use separate worktrees for the test
 outputs and assign each run a distinct, unused port. For a ticket worktree,
 use its assigned `port_base`. For example, from the repository root:
 
 ```bash
-WEALTH_LEDGER_E2E_PORT=29900 npm --prefix frontend run test:e2e
+KURAFOLIO_E2E_PORT=29900 npm --prefix frontend run test:e2e
 ```
 
 Tests cover exact decimal/null handling, locale parity, frozen API reads, hashes,
