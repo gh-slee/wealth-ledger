@@ -448,8 +448,31 @@ class IngestionProviderPostgresTests(unittest.TestCase):
         key = hashlib.sha256(encode(dict(version=1, tenant_id=str(tenant), portfolio_id=str(portfolio),
                                          account_id=str(ids['account']), record_kind='holdings',
                                          instrument_scope=scope))).hexdigest()
-        plan['heads'].append(dict(kind='snapshot', key_digest=key, active=True, prior_revision_id=None,
-                                  next_revision_id=str(snapshot_id), complete_base_id=str(snapshot_id)))
+        correction = deepcopy(minimal)
+        correction['records'][0]['identity']['revision'] = 'r2'
+        activity_key = hashlib.sha256(encode(dict(version=1, tenant_id=str(tenant),
+                                                   portfolio_id=str(portfolio),
+                                                   economic_group_id=str(ids['head'])))).hexdigest()
+        plan['heads'] = [
+            dict(kind='activity', key_digest=activity_key, active=True, prior_revision_id=None,
+                 next_revision_id=str(ids['second']), complete_base_id=None),
+            dict(kind='snapshot', key_digest=key, active=True, prior_revision_id=None,
+                 next_revision_id=str(snapshot_id), complete_base_id=str(snapshot_id)),
+        ]
+        plan['facts'], plan['inputs'], plan['pinned_sources'] = [], [], []
+        for revision, evidence, collection, action in (
+            (ids['first'], minimal, 'records', 'append'),
+            (ids['second'], correction, 'records', 'correction'),
+            (snapshot_id, snapshot_evidence, 'snapshots', 'append'),
+        ):
+            member = str(revision)
+            plan['facts'].append(dict(member_id=member, accepted_revision_id=str(revision),
+                                      collection=collection, local_id='0', action=action,
+                                      financial_digest='8' * 64))
+            plan['inputs'].append(dict(member_id=member, stage_digest=hashlib.sha256(encode(evidence)).hexdigest(),
+                                       raw_digest=evidence['provenance']['raw_sha256']))
+            plan['pinned_sources'].append(dict(member_id=member, installation_id=install,
+                                               connection_id=str(ids['connection_id'])))
         plan.update(tenant_id=str(tenant), portfolio_id=str(portfolio), preview_id=str(ids['preview']))
         plan_bytes = encode(plan)
         plan_digest = hashlib.sha256(plan_bytes).hexdigest()
@@ -463,17 +486,16 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                    :preview,:plan,:digest,convert_to('{}','UTF8'),now()
             FROM wl_pg.instance_state
         """, **identity, **ids, digest=plan_digest)
-        source_key = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='records')
+        source_key = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='records',
+                          connection_id=str(ids['connection_id']))
         source_key_digest = hashlib.sha256(encode(source_key)).hexdigest()
         for index, (revision, parent, change) in enumerate((
                 (ids['first'], None, 'original'), (ids['second'], ids['first'], 'correction'))):
             record = minimal['records'][0]
             input_id = ids['input']
             if index:
-                evidence = deepcopy(minimal)
-                record = evidence['records'][0]
-                record['identity']['revision'] = str(index)
-                input_bytes = encode(evidence)
+                record = correction['records'][0]
+                input_bytes = encode(correction)
                 input_id = uuid.uuid4()
                 execute(conn, """
                     INSERT INTO wl_ingestion.accepted_inputs VALUES(
@@ -502,7 +524,8 @@ class IngestionProviderPostgresTests(unittest.TestCase):
         """, **identity, **ids)
         snapshot_input_id = uuid.uuid4()
         snapshot_input = encode(snapshot_evidence)
-        snapshot_source = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='snapshots')
+        snapshot_source = dict(tenant_id=str(tenant), portfolio_id=str(portfolio), collection='snapshots',
+                               connection_id=str(ids['connection_id']))
         snapshot_typed = encode(snapshot)
         snapshot_digest = hashlib.sha256(snapshot_typed).hexdigest()
         snapshot_raw_digest = snapshot_evidence['provenance']['raw_sha256']
@@ -759,6 +782,17 @@ class IngestionProviderPostgresTests(unittest.TestCase):
                                                 WHERE accepted_change='correction')
                         WHERE l.source_revision_id=(SELECT id FROM wl_ingestion.source_revisions
                                                     WHERE accepted_change='original' AND collection='records')
+                    """)
+                    with self.assertRaisesRegex(PersistenceError, 'restore_required'):
+                        _verify_history(conn)
+                finally:
+                    savepoint.rollback()
+                savepoint = conn.begin_nested()
+                try:
+                    execute(conn, "ALTER TABLE wl_ingestion.activity_heads DISABLE TRIGGER activity_heads_guard")
+                    execute(conn, """
+                        UPDATE wl_ingestion.activity_heads SET revision_id=(
+                            SELECT parent_id FROM wl_ingestion.source_revisions WHERE accepted_change='correction')
                     """)
                     with self.assertRaisesRegex(PersistenceError, 'restore_required'):
                         _verify_history(conn)

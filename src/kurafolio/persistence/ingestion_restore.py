@@ -329,6 +329,32 @@ def _verify_history(conn):
     # Check links that ordinary scoped foreign keys cannot express. Typed bytes
     # and their stored SHA-256 digests are also checked by the frozen constraints.
     broken = execute(conn, """
+        WITH plans AS (
+            SELECT tenant_id,portfolio_id,pg_catalog.convert_from(canonical_bytes,'UTF8')::jsonb AS body
+            FROM wl_ingestion.accepted_plans
+        ), heads AS (
+            SELECT tenant_id,portfolio_id,value AS proposal FROM plans
+            CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(body->'heads')
+        ), terminal_heads AS (
+            SELECT h.* FROM heads h
+            WHERE NOT EXISTS (
+                SELECT 1 FROM heads successor
+                WHERE (successor.tenant_id,successor.portfolio_id)=(h.tenant_id,h.portfolio_id)
+                  AND successor.proposal->>'kind'=h.proposal->>'kind'
+                  AND successor.proposal->>'key_digest'=h.proposal->>'key_digest'
+                  AND successor.proposal->>'prior_revision_id'=h.proposal->>'next_revision_id'
+            )
+        ), stored_heads AS (
+            SELECT tenant_id,portfolio_id,'activity' AS kind,revision_id::text AS target,
+                   active,NULL::text AS complete_base,
+                   pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(
+                       pg_catalog.jsonb_build_object('version',1,'tenant_id',tenant_id::text,
+                        'portfolio_id',portfolio_id::text,'economic_group_id',economic_group_id::text))), 'hex') AS key
+            FROM wl_ingestion.activity_heads
+            UNION ALL
+            SELECT tenant_id,portfolio_id,'snapshot',latest_revision_id::text,true,
+                   complete_base_revision_id::text,key_digest FROM wl_ingestion.snapshot_heads
+        )
         SELECT EXISTS (
             SELECT 1 FROM wl_ingestion.accepted_plans p
             JOIN wl_ingestion.receipts r
@@ -387,24 +413,20 @@ def _verify_history(conn):
                     'version',1,'tenant_id',h.tenant_id::text,'portfolio_id',h.portfolio_id::text,
                     'account_id',h.account_id::text,'record_kind','holdings',
                     'instrument_scope',pg_catalog.convert_from(h.scope_bytes,'UTF8')::jsonb))), 'hex')
-               OR NOT EXISTS (
-                    SELECT 1 FROM wl_ingestion.accepted_plans p
-                    CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(
-                        pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb->'heads') AS proposal(value)
-                    WHERE (p.tenant_id,p.portfolio_id)=(h.tenant_id,h.portfolio_id)
-                      AND value->>'kind'='snapshot' AND value->>'key_digest'=h.key_digest
-                      AND value->>'next_revision_id'=h.latest_revision_id::text
-                      AND value->>'complete_base_id' IS NOT DISTINCT FROM h.complete_base_revision_id::text
-               )
                OR (h.complete_base_revision_id IS NOT NULL AND NOT EXISTS (
-                    SELECT 1 FROM wl_ingestion.accepted_plans p
-                    CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(
-                        pg_catalog.convert_from(p.canonical_bytes,'UTF8')::jsonb->'heads') AS proposal(value)
-                    WHERE (p.tenant_id,p.portfolio_id)=(h.tenant_id,h.portfolio_id)
-                      AND value->>'kind'='snapshot' AND value->>'key_digest'=h.key_digest
-                      AND value->>'next_revision_id'=h.complete_base_revision_id::text
-                      AND value->>'complete_base_id'=h.complete_base_revision_id::text
+                    SELECT 1 FROM heads
+                    WHERE (tenant_id,portfolio_id)=(h.tenant_id,h.portfolio_id)
+                      AND proposal->>'kind'='snapshot' AND proposal->>'key_digest'=h.key_digest
+                      AND proposal->>'next_revision_id'=h.complete_base_revision_id::text
+                      AND proposal->>'complete_base_id'=h.complete_base_revision_id::text
                ))
+            UNION ALL
+            SELECT 1 FROM stored_heads s
+            FULL JOIN terminal_heads h ON (h.tenant_id,h.portfolio_id)=(s.tenant_id,s.portfolio_id)
+                  AND h.proposal->>'kind'=s.kind AND h.proposal->>'key_digest'=s.key
+            WHERE h.proposal->>'next_revision_id' IS DISTINCT FROM s.target
+               OR h.proposal->'active' IS DISTINCT FROM pg_catalog.to_jsonb(s.active)
+               OR h.proposal->>'complete_base_id' IS DISTINCT FROM s.complete_base
             UNION ALL
             SELECT 1 FROM wl_ingestion.lineage l
             JOIN wl_ingestion.accepted_inputs i
@@ -429,6 +451,24 @@ def _verify_history(conn):
                OR evidence.claim->'source'->>'collection' IS DISTINCT FROM l.collection
                OR r.source_key IS DISTINCT FROM pg_catalog.encode(pg_catalog.sha256(
                    wl_ingestion._canonical_v1(evidence.claim->'source')), 'hex')
+               OR NOT EXISTS (
+                   SELECT 1 FROM plans p
+                   CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(p.body->'facts') f(fact)
+                   JOIN LATERAL pg_catalog.jsonb_array_elements(p.body->'inputs') b(input)
+                     ON b.input->>'member_id'=f.fact->>'member_id'
+                   JOIN LATERAL pg_catalog.jsonb_array_elements(p.body->'pinned_sources') pin(source)
+                     ON pin.source->>'member_id'=f.fact->>'member_id'
+                   WHERE (p.tenant_id,p.portfolio_id)=(l.tenant_id,l.portfolio_id)
+                     AND f.fact->>'accepted_revision_id'=l.source_revision_id::text
+                     AND f.fact->>'collection'=l.collection AND f.fact->>'local_id'=l.local_id
+                     AND f.fact->>'financial_digest'=r.financial_digest
+                     AND b.input->>'stage_digest'=i.digest
+                     AND b.input->>'raw_digest'=l.raw_digest
+                     AND pin.source->>'installation_id'=l.installation_id
+                     AND pin.source->>'connection_id'=evidence.claim->'source'->>'connection_id'
+                     AND (f.fact->>'action'='duplicate' OR
+                          (r.input_id,r.collection,r.local_id)=(l.input_id,l.collection,l.local_id))
+               )
             UNION ALL
             SELECT 1 FROM wl_ingestion.outbox o
             JOIN wl_ingestion.receipts r
