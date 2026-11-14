@@ -397,17 +397,65 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   stores the immutable preview and returns the saved result on a
   valid retry. WL-P0-007F wires these private calls into the worker, and
   WL-P0-007D verifies the installed functions and grants.
-  These fragments are not a complete migration provider and install no application
-  grants. Never use them to enable a real instance.
+## Explicit 0004 installation
+
+The operator command installs the schema on a verified PostgreSQL 18
+`0003_source_lifecycle` instance with completed identity setup. Use a synthetic
+instance and separate operator, financial reader, identity/source gateway and
+ingestion worker roles. The source catalog and identity key must match the
+initialized instance.
+
+```sh
+python -m kurafolio.web_v2 operator migrate-ingestion \
+  --secret-file operator.conninfo --key-file identity.key \
+  --source-catalog-file source-catalog.json \
+  --runtime-role financial_reader --identity-role identity_gateway \
+  --worker-role ingestion_worker
+```
+
+The command verifies inherited and new definitions, applies the profile's
+read-only financial grants and checked function grants, and commits only after
+the installed inventory matches. It leaves ingestion inactive pending runtime
+profile and launcher readiness. Existing 0001–0003 clients refuse the newer
+revision. The migration has no destructive downgrade.
+
+## Verify a synthetic 0004 backup and restore
+
+Use PostgreSQL 18 `pg_dump` and `pg_restore` on PATH and explicit operator
+connection files. Create a new private directory with mode 0700 and a physical
+path without symlinks. Run `backup-ingestion` with the same role arguments
+as `migrate-ingestion`, plus `--secret-file` for the source and
+`--backup-directory` for that directory. The command writes `ingestion.dump`
+and `manifest.json`. Retain the returned `manifest_sha256` separately from both
+files. The archive and manifest describe the same database snapshot.
+
+Run `restore-ingestion` with the same role names, the target operator's
+`--secret-file`, the `--backup-directory`, and `--manifest-sha256` from the
+separately retained receipt. Use an independently empty UTF-8 PostgreSQL 18
+database owned by the operator. Revoke `CONNECT` and `TEMPORARY` from
+`PUBLIC` and remove application `CREATE` privileges before running the command.
+Only the operator and trusted cluster administrators may have access, and no
+other session may be connected. The role names referenced by restored RLS
+policies must match the source.
+
+The command verifies the archive before loading it, checks accepted records
+and installed definitions, and rotates the realm. Old sessions and leases lose
+authority. The restore removes transient review payloads and preserves held
+raw reservations pending launcher cleanup. Both readiness flags stay off and
+the connection fence remains in place. If finalization fails or is interrupted,
+retain the target under isolation. Use `--resume-loaded` with the original
+receipt to retry verification and finalization after a completed archive load.
+If the target cannot be verified, start with a different empty database. The
+verified snapshot excludes subsequent accepted writes. This workflow is for
+synthetic database acceptance. Application artifacts and production restore
+remain separate.
 
 ## Remaining acceptance
 
-Remaining checked database functions and guards, operator upgrade/inventory verification,
-live source/profile checks around native admission and Plan preparation,
-authenticated routes, the dedicated worker and
-trusted launcher remain unfinished. Real acceptance must exercise atomic effects,
-replay, shared capacity, races, cleanup, effective Linux containment and restore
-into two independently empty targets.
+Runtime profile readiness, authenticated routes, the dedicated worker and
+trusted launcher remain unfinished. End-to-end acceptance must exercise
+atomic effects, replay, shared capacity, races, cleanup, effective Linux
+containment and receipt history after authorized activation.
 
 The new backend does not yet calculate portfolio balances, quotes or reports.
 Frontend delivery, report parity and existing-workspace adoption are separate

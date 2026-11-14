@@ -123,6 +123,31 @@ def execute_command(args):
     from kurafolio.persistence.identity import IdentityStore
     from kurafolio.persistence.migration import migrate_identity, finalize_identity_restore
     from .config import private_bytes
+    if args.action == 'operator' and args.operation in {'backup-ingestion', 'restore-ingestion'}:
+        from kurafolio.persistence.ingestion_restore import backup_ingestion, restore_ingestion
+
+        config = PostgresConfig.from_secret_file(args.secret_file)
+        roles = dict(runtime_role=args.runtime_role, gateway_role=args.identity_role,
+                     worker_role=args.worker_role)
+        if args.operation == 'backup-ingestion':
+            return backup_ingestion(config, args.backup_directory, roles)
+        return restore_ingestion(config, args.backup_directory, args.manifest_sha256, roles,
+                                 resume=args.resume_loaded)
+    if args.action == 'operator' and args.operation == 'migrate-ingestion':
+        from kurafolio.data_sources.catalog_v1 import read_catalog_file
+        from kurafolio.persistence.context import Database
+        from kurafolio.persistence.ingestion_migration import migrate_ingestion
+
+        key = private_bytes(args.key_file, 32)
+        if len(key) != 32:
+            raise OperatorError('invalid_config')
+        catalog = read_catalog_file(args.source_catalog_file)
+        database = Database(PostgresConfig.from_secret_file(args.secret_file))
+        try:
+            return migrate_ingestion(database, args.runtime_role, args.identity_role, args.worker_role,
+                                     hashlib.sha256(key).hexdigest(), catalog)
+        finally:
+            database.close()
     source_action=args.action=='sources' or args.action=='operator' and args.operation=='migrate-sources'
     profile='sources' if source_action else getattr(args,'schema_profile','identity')
     store=IdentityStore(PostgresConfig.from_secret_file(args.secret_file),schema_mode=profile)
