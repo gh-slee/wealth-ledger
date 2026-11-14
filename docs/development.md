@@ -35,6 +35,21 @@ repositories; they must not read personal portfolios or require live issuer page
 Inject prices/FX/official-format fixtures rather than relying on current websites.
 Documentation work must not create financial snapshots or report revisions.
 
+### Test environment requirements
+
+| Suite | Required access |
+| --- | --- |
+| Default Python suite | Installed Python dependencies. The native Web restart test also needs an IPv4 loopback TCP listener. It skips if reserving a temporary loopback port is denied, and still fails if startup or persistence fails after the port is reserved. |
+| [Playwright browser suite](web-frontend.md#validation-and-api-types) | Installed Node, Python and Chromium dependencies, plus a loopback TCP port for the synthetic Web server. Use `KURAFOLIO_E2E_PORT` to select the port. |
+| [Docker runtime acceptance](web-release-acceptance.md) | A Docker daemon and published loopback TCP ports. Opt in with `KURAFOLIO_DOCKER_TEST=1`. |
+| [Optional PostgreSQL acceptance](#optional-real-postgresql-acceptance) | A connection to an explicitly configured synthetic PostgreSQL target. Docker-backed setups need a daemon. Optional native HTTP image tests also bind loopback TCP ports inside the test container. |
+| [Optional identity acceptance](#separate-optional-identity-acceptance) | A Docker daemon and a synthetic PostgreSQL target. The TLS test also needs `openssl` and an IPv4 loopback listener on the host. |
+| [Pre-PR candidate image check](#pre-pr-candidate-image-gate) | A Docker daemon. The smoke container publishes no host ports and has no external network access. |
+
+Installing dependencies, downloading browsers or building images may require
+network access to package or image registries. The test fixtures use synthetic
+data and do not require access to live financial services.
+
 ## Continuous integration and report verification
 
 [CI](../.github/workflows/ci.yml) runs on push, pull request and manual dispatch with
